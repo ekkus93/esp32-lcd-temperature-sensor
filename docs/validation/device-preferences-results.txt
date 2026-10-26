@@ -1,0 +1,24 @@
+PASS: administrator login
+PASS: read /status
+PASS: explicit simulation image with five fake providers; safe to mutate
+PASS: read /sensors
+PASS: read /settings
+PASS: device preference precondition required
+PASS: malformed device preference rejected
+PASS: malformed device preference rejected
+PASS: malformed device preference rejected
+PASS: malformed device preference rejected
+PASS: malformed device preference rejected
+PASS: malformed device preference rejected
+PASS: device preferences committed and clock configuration applied
+PASS: stale device preference edit rejected
+PASS: read /settings
+PASS: device preferences share the persisted service model
+
+Restart verification:
+PASS: administrator login
+PASS: read /status
+PASS: explicit simulation image with five fake providers; safe to mutate
+PASS: read /sensors
+PASS: read /settings
+PASS: device preferences persisted across ESP32 restart

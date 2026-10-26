@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1140" viewBox="0 0 1800 1140" role="img" aria-labelledby="title desc">
+<title id="title">ESP32-S3 temperature monitor LCD UI vector mockups</title>
+<desc id="desc">Native editable SVG of two read-only 240 by 320 LCD screens, overview and trends, plus Wi-Fi setup state. Sensor status legend and web configurable settings included.</desc>
+<defs>
+<linearGradient id="header" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0a203a"/><stop offset="1" stop-color="#193959"/></linearGradient>
+<linearGradient id="screenGradient" x1="0" y1="0" x2="0.2" y2="1"><stop stop-color="#071b29"/><stop offset="1" stop-color="#020b14"/></linearGradient>
+<linearGradient id="bluePanel" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#e8f1fb"/><stop offset="1" stop-color="#f5f9ff"/></linearGradient>
+<linearGradient id="greenPanel" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#e2f5e8"/><stop offset="1" stop-color="#f3faf6"/></linearGradient>
+<filter id="shadow" x="-15%" y="-20%" width="140%" height="150%"><feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#17233a" flood-opacity=".18"/></filter>
+</defs>
+<g font-family="Inter,Arial,Helvetica,sans-serif">
+<rect x="0" y="0" width="1800" height="1140" rx="0" fill="#ffffff"/>
+<rect x="0" y="0" width="1800" height="82" rx="0" fill="url(#header)"/>
+<text x="30" y="47" fill="#f6fbff" font-size="32" font-weight="760">ESP32-S3 Temperature Monitor</text>
+<text x="34" y="70" fill="#bfd8ee" font-size="15" font-weight="480">LCD UI • Vector mockups • 240 × 320 px</text>
+<text x="1760" y="32" fill="#e7f2fe" font-size="17" font-weight="720" text-anchor="end">DISPLAY ONLY • NO TOUCH</text>
+<text x="1760" y="56" fill="#d0e2f4" font-size="15" font-weight="500" text-anchor="end">Two modes: Basic and Extended</text>
+<rect x="20" y="101" width="505" height="670" rx="14" fill="url(#bluePanel)" stroke="#d9e7f4" stroke-width="1"/>
+<rect x="540" y="101" width="792" height="670" rx="14" fill="url(#greenPanel)" stroke="#d5e8da" stroke-width="1"/>
+<rect x="1347" y="101" width="433" height="670" rx="14" fill="#f3f7fb" stroke="#e0e9f1" stroke-width="1"/>
+<text x="43" y="145" fill="#152b44" font-size="29" font-weight="760">Basic mode</text>
+<text x="43" y="174" fill="#42566b" font-size="16" font-weight="480">One screen • always-on overview</text>
+<text x="43" y="197" fill="#42566b" font-size="15" font-weight="400">Temperatures, warnings, Wi-Fi and time</text>
+<text x="562" y="145" fill="#15382a" font-size="29" font-weight="760">Extended mode</text>
+<text x="562" y="174" fill="#456557" font-size="16" font-weight="400">Two screens • automatic cycling</text>
+<text x="562" y="197" fill="#456557" font-size="15" font-weight="400">Durations are configured in the web application</text>
+<text x="1366" y="145" fill="#18334b" font-size="27" font-weight="760">Wi-Fi setup</text>
+<text x="1366" y="174" fill="#455f75" font-size="15" font-weight="400">Temporary first-boot state</text>
+<text x="1366" y="196" fill="#455f75" font-size="14" font-weight="400">No touch or button required</text>
+<g transform="translate(114 244) scale(1.32)" >
+<rect x="-9" y="-9" width="258" height="338" rx="9" fill="#20262b" stroke="#080c10" stroke-width="2"/>
+<rect x="-5" y="-5" width="250" height="330" rx="7" fill="#555e66" stroke="#75828d" stroke-width="1"/>
+<rect x="0" y="0" width="240" height="320" rx="3" fill="url(#screenGradient)" stroke="#00080d" stroke-width="1.2"/>
+<text x="12" y="25" fill="#f1f7fa" font-size="16" font-weight="750">Temp Monitor</text>
+<g transform="translate(163 20) scale(0.82)" >
+<path d="M -14 -3 Q 0 -16 14 -3" stroke="#42ed6b" stroke-width="3.3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M -9 2 Q 0 -6 9 2" stroke="#42ed6b" stroke-width="3.3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<circle cx="0" cy="7" r="2.3" fill="#42ed6b"/>
+</g>
+<text x="228" y="25" fill="#f3faff" font-size="14" font-weight="620" text-anchor="end">14:26</text>
+<line x1="10" y1="38" x2="230" y2="38" stroke="#1dbaf8" stroke-width="1" />
+<rect x="9" y="43" width="222" height="43" rx="4" fill="#091b28"/>
+<circle cx="22" cy="64" r="11" fill="#50f16c"/>
+<text x="22" y="68" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">1</text>
+<text x="40" y="69" fill="#edf5fb" font-size="12.5" font-weight="500">Living Room</text>
+<text x="225" y="71" fill="#50f16c" font-size="20" font-weight="750" text-anchor="end">21.8°C</text>
+<line x1="11" y1="87" x2="229" y2="87" stroke="#1b3447" stroke-width="0.7" />
+<rect x="9" y="88" width="222" height="43" rx="4" fill="#091b28"/>
+<circle cx="22" cy="109" r="11" fill="#24bdfb"/>
+<text x="22" y="113" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">2</text>
+<text x="40" y="114" fill="#edf5fb" font-size="12.5" font-weight="500">Outside</text>
+<text x="225" y="116" fill="#24bdfb" font-size="20" font-weight="750" text-anchor="end">4.3°C</text>
+<line x1="11" y1="132" x2="229" y2="132" stroke="#1b3447" stroke-width="0.7" />
+<rect x="9" y="133" width="222" height="43" rx="4" fill="#091b28"/>
+<circle cx="22" cy="154" r="11" fill="#ff4b51"/>
+<text x="22" y="158" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">3</text>
+<text x="40" y="159" fill="#edf5fb" font-size="12.5" font-weight="500">Fridge</text>
+<text x="214" y="161" fill="#ff4b51" font-size="20" font-weight="750" text-anchor="end">28.5°C</text>
+<path d="M 225 145 L 233 159 L 217 159 Z" stroke="#ff5356" stroke-width="0" fill="#ff5356" stroke-linecap="round" stroke-linejoin="round" />
+<line x1="225" y1="150" x2="225" y2="154" stroke="#ffffff" stroke-width="1.7" />
+<circle cx="225" cy="157" r="0.9" fill="#ffffff"/>
+<line x1="11" y1="177" x2="229" y2="177" stroke="#1b3447" stroke-width="0.7" />
+<rect x="9" y="178" width="222" height="43" rx="4" fill="#091b28"/>
+<circle cx="22" cy="199" r="11" fill="#50f16c"/>
+<text x="22" y="203" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">4</text>
+<text x="40" y="204" fill="#edf5fb" font-size="12.5" font-weight="500">Bedroom</text>
+<text x="225" y="206" fill="#50f16c" font-size="20" font-weight="750" text-anchor="end">22.1°C</text>
+<line x1="11" y1="222" x2="229" y2="222" stroke="#1b3447" stroke-width="0.7" />
+<rect x="9" y="223" width="222" height="43" rx="4" fill="#091b28"/>
+<circle cx="22" cy="244" r="11" fill="#a5b3c0"/>
+<text x="22" y="248" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">5</text>
+<text x="40" y="249" fill="#edf5fb" font-size="12.5" font-weight="500">Basement</text>
+<text x="225" y="251" fill="#97a6b5" font-size="20" font-weight="750" text-anchor="end">LOST</text>
+<line x1="11" y1="279" x2="229" y2="279" stroke="#365166" stroke-width="0.8" />
+<g transform="translate(27 297) scale(0.85)" >
+<path d="M -14 -3 Q 0 -16 14 -3" stroke="#42ed6b" stroke-width="3.3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M -9 2 Q 0 -6 9 2" stroke="#42ed6b" stroke-width="3.3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<circle cx="0" cy="7" r="2.3" fill="#42ed6b"/>
+</g>
+<text x="48" y="293" fill="#f1f7ff" font-size="11.5" font-weight="650">Wi-Fi</text>
+<text x="48" y="309" fill="#b8c7d4" font-size="10.5" font-weight="400">Connected</text>
+<line x1="135" y1="284" x2="135" y2="313" stroke="#61788f" stroke-width="0.8" />
+<text x="228" y="294" fill="#bcd0dd" font-size="11" font-weight="400" text-anchor="end">Oct 25, 2026</text>
+<text x="228" y="311" fill="#fbfdff" font-size="16" font-weight="750" text-anchor="end">14:26</text>
+</g>
+<g transform="translate(568 260) scale(1.18)" >
+<rect x="-9" y="-9" width="258" height="338" rx="9" fill="#20262b" stroke="#080c10" stroke-width="2"/>
+<rect x="-5" y="-5" width="250" height="330" rx="7" fill="#555e66" stroke="#75828d" stroke-width="1"/>
+<rect x="0" y="0" width="240" height="320" rx="3" fill="url(#screenGradient)" stroke="#00080d" stroke-width="1.2"/>
+<text x="12" y="25" fill="#f1f7fa" font-size="16" font-weight="750">Temp Monitor</text>
+<g transform="translate(163 20) scale(0.82)" >
+<path d="M -14 -3 Q 0 -16 14 -3" stroke="#42ed6b" stroke-width="3.3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M -9 2 Q 0 -6 9 2" stroke="#42ed6b" stroke-width="3.3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<circle cx="0" cy="7" r="2.3" fill="#42ed6b"/>
+</g>
+<text x="228" y="25" fill="#f3faff" font-size="14" font-weight="620" text-anchor="end">14:26</text>
+<line x1="10" y1="38" x2="230" y2="38" stroke="#1dbaf8" stroke-width="1" />
+<rect x="9" y="43" width="222" height="43" rx="4" fill="#091b28"/>
+<circle cx="22" cy="64" r="11" fill="#50f16c"/>
+<text x="22" y="68" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">1</text>
+<text x="40" y="69" fill="#edf5fb" font-size="12.5" font-weight="500">Living Room</text>
+<text x="225" y="71" fill="#50f16c" font-size="20" font-weight="750" text-anchor="end">21.8°C</text>
+<line x1="11" y1="87" x2="229" y2="87" stroke="#1b3447" stroke-width="0.7" />
+<rect x="9" y="88" width="222" height="43" rx="4" fill="#091b28"/>
+<circle cx="22" cy="109" r="11" fill="#24bdfb"/>
+<text x="22" y="113" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">2</text>
+<text x="40" y="114" fill="#edf5fb" font-size="12.5" font-weight="500">Outside</text>
+<text x="225" y="116" fill="#24bdfb" font-size="20" font-weight="750" text-anchor="end">4.3°C</text>
+<line x1="11" y1="132" x2="229" y2="132" stroke="#1b3447" stroke-width="0.7" />
+<rect x="9" y="133" width="222" height="43" rx="4" fill="#091b28"/>
+<circle cx="22" cy="154" r="11" fill="#ff4b51"/>
+<text x="22" y="158" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">3</text>
+<text x="40" y="159" fill="#edf5fb" font-size="12.5" font-weight="500">Fridge</text>
+<text x="214" y="161" fill="#ff4b51" font-size="20" font-weight="750" text-anchor="end">28.5°C</text>
+<path d="M 225 145 L 233 159 L 217 159 Z" stroke="#ff5356" stroke-width="0" fill="#ff5356" stroke-linecap="round" stroke-linejoin="round" />
+<line x1="225" y1="150" x2="225" y2="154" stroke="#ffffff" stroke-width="1.7" />
+<circle cx="225" cy="157" r="0.9" fill="#ffffff"/>
+<line x1="11" y1="177" x2="229" y2="177" stroke="#1b3447" stroke-width="0.7" />
+<rect x="9" y="178" width="222" height="43" rx="4" fill="#091b28"/>
+<circle cx="22" cy="199" r="11" fill="#50f16c"/>
+<text x="22" y="203" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">4</text>
+<text x="40" y="204" fill="#edf5fb" font-size="12.5" font-weight="500">Bedroom</text>
+<text x="225" y="206" fill="#50f16c" font-size="20" font-weight="750" text-anchor="end">22.1°C</text>
+<line x1="11" y1="222" x2="229" y2="222" stroke="#1b3447" stroke-width="0.7" />
+<rect x="9" y="223" width="222" height="43" rx="4" fill="#091b28"/>
+<circle cx="22" cy="244" r="11" fill="#a5b3c0"/>
+<text x="22" y="248" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">5</text>
+<text x="40" y="249" fill="#edf5fb" font-size="12.5" font-weight="500">Basement</text>
+<text x="225" y="251" fill="#97a6b5" font-size="20" font-weight="750" text-anchor="end">LOST</text>
+<line x1="11" y1="279" x2="229" y2="279" stroke="#365166" stroke-width="0.8" />
+<g transform="translate(27 297) scale(0.85)" >
+<path d="M -14 -3 Q 0 -16 14 -3" stroke="#42ed6b" stroke-width="3.3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M -9 2 Q 0 -6 9 2" stroke="#42ed6b" stroke-width="3.3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<circle cx="0" cy="7" r="2.3" fill="#42ed6b"/>
+</g>
+<text x="48" y="293" fill="#f1f7ff" font-size="11.5" font-weight="650">Wi-Fi</text>
+<text x="48" y="309" fill="#b8c7d4" font-size="10.5" font-weight="400">Connected</text>
+<line x1="135" y1="284" x2="135" y2="313" stroke="#61788f" stroke-width="0.8" />
+<text x="228" y="294" fill="#bcd0dd" font-size="11" font-weight="400" text-anchor="end">Oct 25, 2026</text>
+<text x="228" y="311" fill="#fbfdff" font-size="16" font-weight="750" text-anchor="end">14:26</text>
+</g>
+<g transform="translate(995 260) scale(1.18)" >
+<rect x="-9" y="-9" width="258" height="338" rx="9" fill="#20262b" stroke="#080c10" stroke-width="2"/>
+<rect x="-5" y="-5" width="250" height="330" rx="7" fill="#555e66" stroke="#75828d" stroke-width="1"/>
+<rect x="0" y="0" width="240" height="320" rx="3" fill="url(#screenGradient)" stroke="#00080d" stroke-width="1.2"/>
+<text x="11" y="24" fill="#f5faff" font-size="13.5" font-weight="740">Temperature Trends</text>
+<g transform="translate(179 19) scale(0.64)" >
+<path d="M -14 -3 Q 0 -16 14 -3" stroke="#48e96c" stroke-width="3.3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M -9 2 Q 0 -6 9 2" stroke="#48e96c" stroke-width="3.3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<circle cx="0" cy="7" r="2.3" fill="#48e96c"/>
+</g>
+<text x="229" y="25" fill="#f8fdff" font-size="13" font-weight="650" text-anchor="end">14:26</text>
+<line x1="10" y1="38" x2="230" y2="38" stroke="#1abcf7" stroke-width="1" />
+<rect x="7" y="43" width="226" height="47" rx="4" fill="#0a1c2a"/>
+<circle cx="20" cy="55" r="11" fill="#4af46b"/>
+<text x="20" y="59" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">1</text>
+<text x="37" y="59" fill="#f0f6fb" font-size="11.3" font-weight="650">Living Room</text>
+<text x="226" y="60" fill="#4af46b" font-size="15" font-weight="700" text-anchor="end">21.8°C</text>
+<path d="M 37.0 77.4 L 43.0 78.2 L 49.0 78.2 L 55.0 78.0 L 61.0 78.4 L 67.0 79.2 L 73.0 79.9 L 79.0 79.7 L 85.0 78.4 L 91.0 76.3 L 97.0 74.5 L 103.0 73.7 L 109.0 74.4 L 115.0 75.9 L 121.0 77.5 L 127.0 78.4 L 133.0 78.6 L 139.0 78.8 L 145.0 79.6 L 151.0 81.1 L 157.0 82.7 L 163.0 83.6 L 169.0 83.1 L 175.0 81.4 L 181.0 79.3 L 187.0 77.8 L 193.0 77.5 L 199.0 78.1 L 205.0 78.9 L 211.0 79.2" stroke="#4af46b" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<line x1="9" y1="91" x2="231" y2="91" stroke="#284053" stroke-width="0.6" />
+<circle cx="20" cy="104" r="11" fill="#20c5ff"/>
+<text x="20" y="108" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">2</text>
+<text x="37" y="108" fill="#f0f6fb" font-size="11.3" font-weight="650">Outside</text>
+<text x="226" y="109" fill="#20c5ff" font-size="15" font-weight="700" text-anchor="end">4.3°C</text>
+<path d="M 37.0 131.5 L 43.0 131.2 L 49.0 130.2 L 55.0 129.1 L 61.0 128.3 L 67.0 128.0 L 73.0 128.2 L 79.0 128.3 L 85.0 127.9 L 91.0 126.9 L 97.0 125.2 L 103.0 123.5 L 109.0 122.2 L 115.0 121.6 L 121.0 121.7 L 127.0 122.0 L 133.0 122.1 L 139.0 121.6 L 145.0 120.7 L 151.0 119.7 L 157.0 119.3 L 163.0 119.5 L 169.0 120.6 L 175.0 121.9 L 181.0 123.1 L 187.0 123.7 L 193.0 123.8 L 199.0 123.6 L 205.0 123.7 L 211.0 124.3" stroke="#20c5ff" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<line x1="9" y1="140" x2="231" y2="140" stroke="#284053" stroke-width="0.6" />
+<rect x="7" y="141" width="226" height="47" rx="4" fill="#0a1c2a"/>
+<circle cx="20" cy="153" r="11" fill="#ff4d55"/>
+<text x="20" y="157" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">3</text>
+<text x="37" y="157" fill="#f0f6fb" font-size="11.3" font-weight="650">Fridge</text>
+<text x="226" y="158" fill="#ff4d55" font-size="15" font-weight="700" text-anchor="end">28.5°C</text>
+<path d="M 37.0 178.6 L 43.0 178.9 L 49.0 179.1 L 55.0 179.1 L 61.0 178.9 L 67.0 178.6 L 73.0 178.2 L 79.0 177.9 L 85.0 177.7 L 91.0 177.7 L 97.0 177.7 L 103.0 177.8 L 109.0 177.6 L 115.0 177.2 L 121.0 176.4 L 127.0 175.3 L 133.0 174.0 L 139.0 172.8 L 145.0 171.7 L 151.0 171.1 L 157.0 170.7 L 163.0 170.6 L 169.0 170.6 L 175.0 170.6 L 181.0 170.5 L 187.0 170.2 L 193.0 169.8 L 199.0 169.4 L 205.0 169.1 L 211.0 169.0" stroke="#ff4d55" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<line x1="9" y1="189" x2="231" y2="189" stroke="#284053" stroke-width="0.6" />
+<circle cx="20" cy="202" r="11" fill="#4af46b"/>
+<text x="20" y="206" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">4</text>
+<text x="37" y="206" fill="#f0f6fb" font-size="11.3" font-weight="650">Bedroom</text>
+<text x="226" y="207" fill="#4af46b" font-size="15" font-weight="700" text-anchor="end">22.1°C</text>
+<path d="M 37.0 226.8 L 43.0 227.4 L 49.0 227.5 L 55.0 227.0 L 61.0 226.0 L 67.0 224.7 L 73.0 223.7 L 79.0 223.1 L 85.0 223.2 L 91.0 223.6 L 97.0 224.2 L 103.0 224.5 L 109.0 224.3 L 115.0 223.8 L 121.0 223.2 L 127.0 222.9 L 133.0 223.2 L 139.0 224.1 L 145.0 225.5 L 151.0 226.9 L 157.0 227.9 L 163.0 228.3 L 169.0 228.2 L 175.0 227.9 L 181.0 227.7 L 187.0 227.9 L 193.0 228.6 L 199.0 229.5 L 205.0 230.2 L 211.0 230.5" stroke="#4af46b" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<line x1="9" y1="238" x2="231" y2="238" stroke="#284053" stroke-width="0.6" />
+<rect x="7" y="239" width="226" height="47" rx="4" fill="#0a1c2a"/>
+<circle cx="20" cy="251" r="11" fill="#a8b7c2"/>
+<text x="20" y="255" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">5</text>
+<text x="37" y="255" fill="#f0f6fb" font-size="11.3" font-weight="650">Basement</text>
+<text x="226" y="256" fill="#98a7b8" font-size="15" font-weight="700" text-anchor="end">--.-°C</text>
+<line x1="38" y1="275" x2="217" y2="275" stroke="#5e6d78" stroke-width="1.3" stroke-dasharray="4 4"/>
+<text x="127" y="272" fill="#b2c1d0" font-size="9" font-weight="600" text-anchor="middle">NO DATA</text>
+<line x1="10" y1="291" x2="229" y2="291" stroke="#36566d" stroke-width="0.8" />
+<text x="12" y="309" fill="#add8f0" font-size="11.5" font-weight="600">Past 60 min</text>
+<text x="228" y="309" fill="#5bfa7a" font-size="10.6" font-weight="700" text-anchor="end">● LIVE</text>
+</g>
+<g transform="translate(1419 260) scale(1.18)" >
+<rect x="-9" y="-9" width="258" height="338" rx="9" fill="#20262b" stroke="#080c10" stroke-width="2"/>
+<rect x="-5" y="-5" width="250" height="330" rx="7" fill="#555e66" stroke="#75828d" stroke-width="1"/>
+<rect x="0" y="0" width="240" height="320" rx="3" fill="url(#screenGradient)" stroke="#00080d" stroke-width="1.2"/>
+<text x="120" y="28" fill="#fafcff" font-size="18" font-weight="740" text-anchor="middle">Wi-Fi Setup</text>
+<line x1="10" y1="38" x2="230" y2="38" stroke="#1bbaf3" stroke-width="0.8" />
+<g transform="translate(120 73) scale(1.6)" >
+<path d="M -14 -3 Q 0 -16 14 -3" stroke="#16b6ff" stroke-width="3.3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M -9 2 Q 0 -6 9 2" stroke="#16b6ff" stroke-width="3.3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<circle cx="0" cy="7" r="2.3" fill="#16b6ff"/>
+</g>
+<text x="120" y="112" fill="#dae7ef" font-size="12" font-weight="500" text-anchor="middle">Connect your phone to:</text>
+<rect x="19" y="121" width="202" height="31" rx="5" fill="#072840" stroke="#16abed" stroke-width="1"/>
+<text x="120" y="142" fill="#f2f8ff" font-size="14" font-weight="700" text-anchor="middle">TempMonitor-A3F2</text>
+<text x="20" y="174" fill="#d7e7f2" font-size="11.8" font-weight="400">Setup password:</text>
+<rect x="19" y="181" width="202" height="31" rx="5" fill="#072840" stroke="#16abed" stroke-width="1"/>
+<text x="120" y="202" fill="#f5faff" font-size="16" font-weight="740" text-anchor="middle">7K9M4P2Q</text>
+<text x="20" y="236" fill="#d7e7f2" font-size="11.8" font-weight="400">Open in browser:</text>
+<rect x="19" y="243" width="202" height="31" rx="5" fill="#072840" stroke="#16abed" stroke-width="1"/>
+<text x="120" y="264" fill="#f5faff" font-size="15" font-weight="740" text-anchor="middle">192.168.4.1</text>
+<text x="120" y="293" fill="#bcd0de" font-size="11" font-weight="450" text-anchor="middle">All settings are in the</text>
+<text x="120" y="308" fill="#bcd0de" font-size="11" font-weight="450" text-anchor="middle">web app — no LCD input</text>
+</g>
+<path d="M 883 412 C 907 396 930 400 950 418" stroke="#2b5c69" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M 950 418 l -12 -4 l 4 -11" stroke="#2b5c69" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M 949 456 C 931 475 910 475 887 460" stroke="#2b5c69" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<path d="M 887 460 l 12 4 l -3 11" stroke="#2b5c69" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+<text x="914" y="389" fill="#2b5660" font-size="14" font-weight="740" text-anchor="middle">20 s</text>
+<text x="914" y="502" fill="#2b5660" font-size="14" font-weight="740" text-anchor="middle">10 s</text>
+<text x="270" y="700" fill="#17344b" font-size="20" font-weight="760" text-anchor="middle">Basic / Overview</text>
+<text x="270" y="729" fill="#4a6072" font-size="15" font-weight="450" text-anchor="middle">Always visible in Basic mode</text>
+<text x="711" y="688" fill="#194137" font-size="19" font-weight="730" text-anchor="middle">Screen A · Overview</text>
+<text x="711" y="712" fill="#56736a" font-size="14.5" font-weight="480" text-anchor="middle">Default: 20 seconds</text>
+<text x="1136" y="688" fill="#194137" font-size="19" font-weight="730" text-anchor="middle">Screen B · Trends</text>
+<text x="1136" y="712" fill="#56736a" font-size="14.5" font-weight="480" text-anchor="middle">Default: 10 seconds</text>
+<text x="1562" y="688" fill="#1d3b55" font-size="19" font-weight="730" text-anchor="middle">AP provisioning screen</text>
+<text x="1562" y="712" fill="#5a7085" font-size="14.5" font-weight="480" text-anchor="middle">Example SSID, password and URL</text>
+<text x="1562" y="735" fill="#64788d" font-size="13.7" font-weight="450" text-anchor="middle">Only when setup is required</text>
+<rect x="20" y="787" width="1760" height="166" rx="12" fill="#f1f6fa" stroke="#dce7ef" stroke-width="1"/>
+<text x="40" y="816" fill="#16324b" font-size="20" font-weight="750">Sensor states — examples displayed on the overview</text>
+<text x="40" y="840" fill="#516778" font-size="13.5" font-weight="400">Warnings are indicated by color AND an icon/text state; missing/unassigned sensors do not raise alarms.</text>
+<text x="41" y="863" fill="#28425a" font-size="15" font-weight="700">Normal</text>
+<rect x="41" y="877" width="322" height="54" rx="6" fill="#153d2c"/>
+<circle cx="62" cy="904" r="11" fill="#4af369"/>
+<text x="62" y="908" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">1</text>
+<text x="81" y="910" fill="#ffffff" font-size="15" font-weight="600">Living Room</text>
+<text x="348" y="911" fill="#4af369" font-size="18" font-weight="750" text-anchor="end">21.8°C</text>
+<text x="391" y="863" fill="#28425a" font-size="15" font-weight="700">Low temperature</text>
+<rect x="391" y="877" width="322" height="54" rx="6" fill="#163b52"/>
+<circle cx="412" cy="904" r="11" fill="#21baff"/>
+<text x="412" y="908" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">2</text>
+<text x="431" y="910" fill="#ffffff" font-size="15" font-weight="600">Outside</text>
+<text x="678" y="911" fill="#21baff" font-size="18" font-weight="750" text-anchor="end">1.2°C</text>
+<path d="M 697 893 L 705 907 L 689 907 Z" stroke="#21baff" stroke-width="0" fill="#21baff" stroke-linecap="round" stroke-linejoin="round" />
+<line x1="697" y1="898" x2="697" y2="902" stroke="#ffffff" stroke-width="1.7" />
+<circle cx="697" cy="905" r="0.9" fill="#ffffff"/>
+<text x="741" y="863" fill="#28425a" font-size="15" font-weight="700">High temperature</text>
+<rect x="741" y="877" width="322" height="54" rx="6" fill="#3d2029"/>
+<circle cx="762" cy="904" r="11" fill="#ff5054"/>
+<text x="762" y="908" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">3</text>
+<text x="781" y="910" fill="#ffffff" font-size="15" font-weight="600">Fridge</text>
+<text x="1028" y="911" fill="#ff5054" font-size="18" font-weight="750" text-anchor="end">28.5°C</text>
+<path d="M 1047 893 L 1055 907 L 1039 907 Z" stroke="#ff5054" stroke-width="0" fill="#ff5054" stroke-linecap="round" stroke-linejoin="round" />
+<line x1="1047" y1="898" x2="1047" y2="902" stroke="#ffffff" stroke-width="1.7" />
+<circle cx="1047" cy="905" r="0.9" fill="#ffffff"/>
+<text x="1091" y="863" fill="#28425a" font-size="15" font-weight="700">Disconnected</text>
+<rect x="1091" y="877" width="322" height="54" rx="6" fill="#303b49"/>
+<circle cx="1112" cy="904" r="11" fill="#a9b7c5"/>
+<text x="1112" y="908" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">5</text>
+<text x="1131" y="910" fill="#ffffff" font-size="15" font-weight="600">Basement</text>
+<text x="1398" y="911" fill="#a9b7c5" font-size="18" font-weight="750" text-anchor="end">LOST</text>
+<text x="1441" y="863" fill="#28425a" font-size="15" font-weight="700">Disabled</text>
+<rect x="1441" y="877" width="322" height="54" rx="6" fill="#323c45"/>
+<circle cx="1462" cy="904" r="11" fill="#a1aebb"/>
+<text x="1462" y="908" fill="#061626" font-size="12" font-weight="750" text-anchor="middle">4</text>
+<text x="1481" y="910" fill="#c2d0d9" font-size="15" font-weight="600">Bedroom</text>
+<text x="1748" y="911" fill="#a1aebb" font-size="18" font-weight="750" text-anchor="end">OFF</text>
+<rect x="20" y="969" width="505" height="151" rx="12" fill="#f4f7fa" stroke="#e0e8ee" stroke-width="1"/>
+<rect x="540" y="969" width="792" height="151" rx="12" fill="#f4f7fa" stroke="#e0e8ee" stroke-width="1"/>
+<rect x="1347" y="969" width="433" height="151" rx="12" fill="#f4f7fa" stroke="#e0e8ee" stroke-width="1"/>
+<text x="42" y="998" fill="#1d3952" font-size="19" font-weight="750">Display rules</text>
+<text x="42" y="1027" fill="#3e556a" font-size="14" font-weight="400">● Green: normal     ● Blue: low warning</text>
+<text x="42" y="1053" fill="#3e556a" font-size="14" font-weight="400">● Red: high alert     ● Gray: lost or disabled</text>
+<text x="42" y="1079" fill="#3e556a" font-size="14" font-weight="400">All 5 readings fit; no touch, buttons or menus.</text>
+<text x="42" y="1105" fill="#3e556a" font-size="14" font-weight="400">Disconnected alerts do not block other readings.</text>
+<text x="561" y="998" fill="#1d3952" font-size="19" font-weight="750">Information and time</text>
+<text x="561" y="1027" fill="#3e556a" font-size="14" font-weight="400">5 named probes + current temperatures + individual warnings</text>
+<text x="561" y="1053" fill="#3e556a" font-size="14" font-weight="400">Wi-Fi status shown on overview; local clock via SNTP/NTP</text>
+<text x="561" y="1079" fill="#3e556a" font-size="14" font-weight="400">After NTP sync, time continues while the device remains powered</text>
+<text x="561" y="1105" fill="#3e556a" font-size="14" font-weight="400">Trends are 5 small read-only sparklines; history source is shared</text>
+<text x="1367" y="998" fill="#1d3952" font-size="19" font-weight="750">Configured in the web UI</text>
+<text x="1367" y="1027" fill="#3e556a" font-size="13.6" font-weight="400">Basic / Extended mode; 20 s / 10 s durations</text>
+<text x="1367" y="1053" fill="#3e556a" font-size="13.6" font-weight="400">Trend range; °C / °F; time zone</text>
+<text x="1367" y="1079" fill="#3e556a" font-size="13.6" font-weight="400">Sensor names, enabled state and alerts</text>
+<text x="1367" y="1105" fill="#3e556a" font-size="13.6" font-weight="400">Wi-Fi credentials and backlight options</text>
+</g>
+</svg>

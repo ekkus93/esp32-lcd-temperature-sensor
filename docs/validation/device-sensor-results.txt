@@ -1,0 +1,33 @@
+PASS: administrator login
+PASS: read /status
+PASS: explicit simulation image with five fake providers; safe to mutate
+PASS: read /sensors
+PASS: missing update precondition rejected
+PASS: mutation HTTP 400
+PASS: mutation HTTP 400
+PASS: mutation HTTP 400
+PASS: mutation HTTP 202
+PASS: read /sensors
+PASS: settings applied by acquisition owner
+PASS: mutation HTTP 412
+PASS: read /status
+PASS: calibration and high alarm share live service model
+PASS: read /alerts
+PASS: active alert published
+PASS: mutation HTTP 202
+PASS: read /status
+PASS: disabled sensor has no invented live value
+PASS: read /alerts
+PASS: disable clears active alarm
+PASS: read /sensors
+PASS: mutation HTTP 202
+PASS: read /alerts
+PASS: state transitions recorded once in bounded event stream
+Reboot the simulation image, then run this script with --verify-reboot.
+
+Restart verification:
+PASS: administrator login
+PASS: read /status
+PASS: explicit simulation image with five fake providers; safe to mutate
+PASS: read /sensors
+PASS: ROM settings persisted through ESP32 restart

@@ -53,3 +53,20 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# Local tools and generated outputs
+.serena/
+.build/
+firmware/build/
+firmware/managed_components/
+firmware/sdkconfig
+firmware/sdkconfig.old
+web/node_modules/
+web/dist/
+web/coverage/
+__pycache__/
+*.pyc
+.env
+firmware/main/generated/
+firmware/components/http_api/generated/
+firmware/build-sim/

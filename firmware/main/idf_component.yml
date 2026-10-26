@@ -1,0 +1,8 @@
+dependencies:
+  idf: "==6.1.0"
+  espressif/onewire_bus: "==1.1.2"
+  espressif/ds18b20: "==0.4.0"
+  espressif/esp_lvgl_port: "==2.9.0"
+  lvgl/lvgl: "==9.6.0~1"
+  joltwallet/littlefs: "==1.23.1"
+  espressif/cjson: "==1.7.19~2"

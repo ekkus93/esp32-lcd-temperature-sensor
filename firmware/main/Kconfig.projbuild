@@ -1,0 +1,16 @@
+menu "Temperature monitor peripherals"
+config MONITOR_SIMULATION
+    bool "Development-only simulated probes and accelerated history"
+    default n
+    help
+        Runs five explicitly simulated probes without touching GPIO4. Uses separate
+        NVS/history storage and marks every API snapshot as simulated. Never use as
+        evidence of physical sensor verification.
+config MONITOR_SENSOR_BUS
+    bool "Enable physical DS18B20 bus on GPIO4"
+    depends on !MONITOR_SIMULATION
+    default n
+    help
+        Enable after connecting the powered probes and a single external 4.7k pull-up.
+        Leave disabled for bare-board tests. This does not enable the LCD/backlight.
+endmenu

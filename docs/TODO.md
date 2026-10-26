@@ -1,0 +1,259 @@
+# ESP32-S3 Temperature Monitor — Implementation TODO
+
+**Status:** In progress — see [PROGRESS.md](PROGRESS.md) for evidence and deferred gates  
+**Date:** 2026-10-25  
+**Companion:** [`SPEC.md`](SPEC.md) (system specification)  
+**UI/wiring:** [`docs/LCD_UI_DESIGN_SPEC.md`](LCD_UI_DESIGN_SPEC.md), [`docs/WEB_UI_DESIGN_SPEC.md`](WEB_UI_DESIGN_SPEC.md), [`docs/ESP32_S3_TEMPERATURE_MONITOR_WIRING.md`](ESP32_S3_TEMPERATURE_MONITOR_WIRING.md)
+
+## Working agreement
+
+- [ ] **T00-01** Create the GitHub repository and import `docs/SPEC.md`, `docs/TODO.md`, the three existing detailed design/wiring documents, and all SVG/PNG mockups; verify relative links render on GitHub.
+- [x] **T00-02** Set up reproducible **ESP-IDF v6.1** + Vite local development instructions for Ubuntu (no containers required), pinning the exact v6.1 source revision/toolchain; include installation, environment setup, `idf.py --version`, flashing/monitor and clean-build commands.
+- [x] **T00-03** Establish task tracking: check a box **only after implementation and its acceptance checks pass**; add commit ID, test command/output, hardware notes and known issues to concise progress records where useful.
+- [x] **T00-04** Implement software/host tests **before waiting for physical hardware**, but do not claim real sensor/LCD/Wi-Fi/OTA verification until tested on the ESP32.
+- [x] **T00-05** Use **ESP-IDF v6.1** (not a floating `latest` or different SDK line) in local builds and CI; pin and verify the exact v6.1 revision/toolchain and ESP-IDF component dependency lockfile. Baseline compatible LVGL 9, 1-Wire/RMT, LCD and filesystem components, web dependencies and licenses; audit React 19 support and production bundle size.
+- [x] **T00-06** Maintain cross-document consistency when design decisions change (in particular, **one shared bus rather than five independent GPIOs**, and **5-minute rather than 1-minute history**).
+
+> **Hardware hold points:** GPIO15 must not be wired to the LCD backlight until its electrical behavior is confirmed. Physical panel silkscreen appears to read `2.8 IPS 240x320` despite ~2-inch design sizing; confirm on-device. Other software work can proceed without waiting for those measurements.
+
+## Phase 1 — Repo skeleton, build system, and verification harness
+
+- [x] **T01-01** Create **ESP-IDF v6.1** project in `firmware/`, selecting ESP32-S3 and enabling 16 MB flash / 8 MB PSRAM for the actual module; confirm clean v6.1 compilation and record SDK identity.
+- [ ] **T01-02** Create `components/` boundaries: `board_support`, `onewire_service`, `sensor_registry`, `sampling_service`, `alert_service`, `history_service`, `clock_service`, `settings_service`, `wifi_service`, `provisioning_service`, `http_api`, `ws_live`, `display_service`, `ota_service`.
+- [x] **T01-03** Provide a working bare firmware startup, watchdog-safe component initialization, predictable error reporting, heap/PSRAM checks and app version string.
+- [x] **T01-04** Create React 19 + TypeScript + Vite SPA in `web/`; add lint, strict typecheck, production build and unit tests.
+- [x] **T01-05** Select a supported React-compatible Material UI/component system that can be themed with Material 3 tokens; avoid requiring Expressive-specific dependencies.
+- [x] **T01-06** Add code formatting/linting rules for C/C++ and TypeScript, and a lightweight CI workflow or reproducible local verification script.
+- [x] **T01-07** Build a host simulator/fake sensor and time provider so the REST/WebSocket/LVGL view models can be tested with zero physical sensors.
+- [x] **T01-08** Define shared data types/state names, semantic versioning for API and persistent schema, and a machine-checkable API contract usable from TypeScript.
+- [x] **T01-09** Record baseline build size, binary image/map, internal heap/PSRAM requirements and available flash/OTA headroom.
+
+**Phase gate:** `idf.py build`, Vite production build, frontend tests and host tests run cleanly; firmware can boot to a diagnosable idle state on actual board when available.
+
+## Phase 2 — Hardware board support and sensor bus
+
+### Board and LCD electrical checkpoints
+- [ ] **T02-01 [HW]** Confirm ESP32-S3-N16R8 flash/PSRAM/board variant, physical USB-C functions, BOOT/RESET routing and silkscreen GPIO orientation from actual board.
+- [ ] **T02-02 [HW]** Measure/read LCD header signal order, supply rating, backlight `BL/BLK` voltage, polarity and drive/current requirements; document results and **only then** wire GPIO15 or suitable driver.
+- [ ] **T02-03 [HW]** Confirm LCD controller variant, 240×320 addressing/offsets, actual visible size, rotation, RGB/BGR order, and 3.3V regulator current budget.
+- [x] **T02-04** Add a single authoritative board pin/config header: `DQ=4`, LCD `SCLK=12`, `MOSI=11`, `CS=10`, `DC=9`, `RST=14`, conditional `BL=15`, `BOOT=0`.
+
+### 1-Wire driver and discovery
+- [x] **T02-05** Add maintained ESP-IDF `onewire_bus` and DS18B20 driver components; configure **one shared RMT-backed 1-Wire bus**, not five separate controllers.
+- [x] **T02-06** Implement non-parasite, externally powered DS18B20 discovery by 64-bit ROM ID and verify per-device CRC/family code.
+- [x] **T02-07** Implement broadcast temperature conversion with correct 12-bit conversion wait, then individually addressed scratchpad reads with CRC checks.
+- [ ] **T02-08** Implement default 5-second sampling cadence without blocking Wi-Fi, flash writes or LVGL; publish atomic shared state snapshots.
+- [x] **T02-09** Reject bogus initial/sentinel/CRC readings (including a power-on 85°C before valid conversion); represent `invalid`/`stale` rather than a temperature.
+- [ ] **T02-10** Implement bounded periodic rescan, reordering-stable ROM identities, attach/detach discovery and maximum-five device behavior.
+- [ ] **T02-11** Detect stuck-low/high and bus-wide communication failures separately from a missing individual sensor; bounded recovery and retry/backoff.
+- [x] **T02-12** Implement temperature-offset calibration at presentation/service boundary and consistent °C machine-unit payloads.
+- [x] **T02-13** Write automated tests with simulated bus: zero to five sensors, permutations, duplicate IDs, CRC failure, 85°C startup, missing conversion, recovery, sixth probe, one-wire bus fault.
+- [ ] **T02-14 [HW]** Verify **one** 4.7 kΩ pull-up GPIO4↔3V3, no parallel adapter-board pull-ups, correct common GND, and initial sensor read.
+- [ ] **T02-15 [HW]** Exercise all 1–5 physical probes, identify ROM IDs, measure cycle latency and cable signal reliability, then detach/reinsert sensor(s) safely.
+
+**Phase gate:** actual/simulated identities are stable; no read may be invented, and a bus-wide fault does not trigger five misleading independent disconnect errors.
+
+## Phase 3 — Registry, persistent configuration, alerts
+
+- [x] **T03-01** Define immutable ROM-ID-keyed sensor settings schema: name, optional LCD short name, display order, enabled, calibration, high/low limits, persistence, hysteresis, disconnection preference.
+- [ ] **T03-02** Implement versioned NVS read/write, safe defaults, validation, atomic-ish update/migration, and recovery from missing/bad keys.
+- [x] **T03-03** Preserve mapping across reboot, ROM discovery reordering and transient removal; new probe starts unassigned/default-named instead of inheriting another sensor's configuration.
+- [x] **T03-04** Define `normal`, `high`, `low`, `unassigned`, `disabled`, `disconnected`, `stale`, `invalid`, `bus_fault` status semantics and transitions in one authoritative state machine.
+- [x] **T03-05** Implement per-sensor thresholds, alarm enabling, hysteresis, sample persistence/debounce and separate bus/system fault logic.
+- [x] **T03-06** Distinguish never-installed sensor slots from formerly connected expected sensors. No empty-slot alarm.
+- [x] **T03-07** Generate alert raised/cleared/recovered events with monotonic sequence IDs; throttle duplicates; optionally support acknowledgement without hiding an active fault.
+- [ ] **T03-08** Publish changes promptly to LCD and network without requiring five-minute history writes.
+- [x] **T03-09** Test per-sensor disconnection debounce, reconnection, sensor disable/re-enable, low/high hysteresis, calibration offset, duplicate-fault suppression and bus-wide outage.
+- [ ] **T03-10** Test NVS corruption/reboot/migration: no cross-contamination of ROM IDs, limits or stored label mappings.
+
+**Phase gate:** fault/alert snapshots always agree across the single service model; settings survive restarts and malformed data is rejected.
+
+## Phase 4 — LCD driver and two-mode LVGL UI
+
+- [ ] **T04-01** Bring up `esp_lcd` ST7789 SPI at 240×320 portrait on the chosen GPIOs; draw color/rotation/offset test patterns.
+- [ ] **T04-02 [HW]** Complete backlight safe-drive check and any external driver wiring; verify stable LCD supply under Wi-Fi TX load.
+- [ ] **T04-03** Integrate LVGL 9/`esp_lvgl_port`; verify buffers, DMA-eligible memory, lock/context rules, memory usage and refresh latency.
+- [x] **T04-04** Implement read-only **Overview** LVGL screen: five ordered rows, LCD-short name, current value, units, error/warning icon, Wi-Fi state and clock.
+- [x] **T04-05** Implement disabled/unassigned/disconnected/invalid/bus-fault row appearances with meaningful text/icon cues and without relying solely on colors.
+- [x] **T04-06** Implement read-only **Trends** LVGL screen with five sparklines, ROM-stable ordering, lookback (default 60 minutes), missing-data gaps and no touch/menu targets.
+- [x] **T04-07** Implement `basic` (Overview always; default) and `extended` (Overview→Trends→Overview) display modes.
+- [ ] **T04-08** Implement independent web-configurable dwell settings; defaults **20 seconds Overview**, **10 seconds Trends**, bounded **5–300 seconds** each; use monotonic timers and apply changes without reboot.
+- [x] **T04-09** Show temporary **SoftAP provisioning** screen with generated SSID, setup credential/code and `192.168.4.1`; not a third normal user-selectable page.
+- [ ] **T04-10** Show connecting/offline/online Wi-Fi and clock-validity states without blocking sensor monitoring or overriding the Overview indefinitely.
+- [ ] **T04-11** Render `--:--` without trusted time; refresh local time with timezone/DST once synchronized.
+- [x] **T04-12** Implement efficient event-driven repaint and small trend cache; do not reload LittleFS or reallocate all LVGL objects per screen switch.
+- [x] **T04-13** Add screenshots/simulated render tests for 0–5 probes, longest allowed names, negative temperatures, five warnings, and `NO DATA` trends.
+- [ ] **T04-14 [HW]** Inspect physical readability at the real screen size, adjust font sizes/truncation/contrast and confirm cycling/alerts over long soak test.
+
+**Phase gate:** exactly two normal read-only views; no requirement for touch, menus or additional buttons. Boot and first-run AP state are handled gracefully.
+
+## Phase 5 — Wi-Fi provisioning, recovery button, timekeeping
+
+### Networking and captive portal
+- [ ] **T05-01** Initialize station-mode Wi-Fi with saved NVS credentials, reconnection/backoff and consistent status events.
+- [x] **T05-02** Implement first-boot password-protected SoftAP with deterministic unique SSID suffix and device-unique setup secret (no universal password).
+- [ ] **T05-03** Serve a complete local captive-portal-compatible provisioning page, including SSID scanning, manual entry, password validation, error states and `http://192.168.4.1` fallback.
+- [ ] **T05-04** Implement candidate Wi-Fi validation (prefer temporary AP+STA) without destroying prior credentials or setup connectivity on failure.
+- [ ] **T05-05** Commit confirmed new settings to NVS; gracefully hand off from AP setup to STA and reflect connection on LCD/web.
+- [ ] **T05-06** Enable local mDNS/host naming if available; document fallback IP behavior and no-internet setup path.
+- [ ] **T05-07** Implement authenticated reconfigure-Wi-Fi flow from web Settings.
+- [x] **T05-08** Provide bounded Wi-Fi scan frequency, retry logic, SSID/password length checks, and no credentials in logs or URLs.
+
+### BOOT long press (runtime only)
+- [x] **T05-09** Configure existing **GPIO0 BOOT** as an input after startup; use debounced monotonic long-press FSM (exact **5 seconds**) with short-press ignore and no repeated trigger while held.
+- [ ] **T05-10** Show hold-progress feedback on LCD; enter SoftAP when threshold reached while temperature sampling/logging continue.
+- [ ] **T05-11** Preserve prior Wi-Fi settings during re-provisioning until candidate network verification succeeds; do not factory-reset on ordinary BOOT hold.
+- [x] **T05-12** Test GPIO0 FSM on host with bounce, restart, held-at-boot and long hold cases.
+- [ ] **T05-13 [HW]** Verify runtime 5-second BOOT behavior **and** standard USB auto-flash/manual BOOT+RESET ROM download mode on photographed dual-USB-C board.
+
+### Time service
+- [ ] **T05-14** Integrate SNTP/NTP (configurable server), sync quality metadata, time zone and DST handling.
+- [ ] **T05-15** Continue monotonic/wall clock when Wi-Fi drops; on cold boot without sync do **not** fabricate UTC, and display `--:--`.
+- [ ] **T05-16** Define and test unsynchronized aggregate/event timestamp format, boot ID/uptime mapping and same-boot recovery after NTP becomes available.
+- [ ] **T05-17** Verify timezone changes and NTP clock jumps do not disturb monotonic display cycling or create overlapping/misordered 5-minute history records.
+- [ ] **T05-18 [HW]** Test from blank NVS: AP onboarding on phone, wrong Wi-Fi password, AP reconnect, successful station setup, time sync, and offline recovery.
+
+**Phase gate:** full offline provisioning; BOOT recovery doesn't compromise flashing; network loss doesn't interrupt sensor work or corrupt clock-related history.
+
+## Phase 6 — Flash partition plan and five-minute history
+
+- [x] **T06-01** Create and validate a custom 16 MB ESP-IDF partition CSV with two ~4 MB OTA application slots, an appropriately aligned ~4 MB history LittleFS partition and necessary NVS/OTA/system partitions.
+- [x] **T06-02** Measure real firmware/image size with embedded static web app against both OTA slots; adjust sizes only with documented memory/retention tradeoffs.
+- [ ] **T06-03** Integrate/test LittleFS mount, health reporting, free-space reserve and recovery from missing/corrupt partition state (never wipe valid history automatically).
+- [ ] **T06-04** Specify a versioned compact binary aggregate schema: per-ROM avg/min/max in °C, valid count, status/partial flags, integrity check, timestamp quality/boot ID and stable ID mapping.
+- [x] **T06-05** Collect all valid live readings into **300-second buckets**; persist only one aggregate per completed five-minute bucket, not raw 5-second records.
+- [ ] **T06-06** Define bucket alignment to trusted UTC, handling of unknown clock, reboot mid-window and NTP jump; never silently invent missing samples.
+- [x] **T06-07** Guarantee min/max/count/average calculations respect disabled/disconnected intervals and gaps; test partial buckets.
+- [x] **T06-08** Implement append-only bounded segments with version headers/CRC, startup scan/indexing and safe recovery from interrupted last write.
+- [x] **T06-09** Implement oldest-completed-segment eviction and space reserve; no unbounded growth or flash writes after every 5-second sample.
+- [ ] **T06-10** Create separately bounded/rate-limited event log for alarms, recoveries, bus faults, Wi-Fi changes, time sync, reboot and write failures.
+- [ ] **T06-11** Provide a memory-bounded history query and streamed CSV export with validity, ROM ID, timestamp quality and sensor name metadata.
+- [x] **T06-12** Create efficient downsampling for 1h/24h/7d/30d UI queries while preserving gaps and selected min/max values.
+- [x] **T06-13** Implement RAM-only recent trend cache feeding LVGL sparklines without repeated history partition reads every frame.
+- [ ] **T06-14** Test rollover, wear-sensitive write cadence, old-record eviction, append corruption, no space, missing/corrupt metadata, simultaneous export, power-loss simulation and reboot.
+- [ ] **T06-15** Quantify measured bytes/record and actual history retention with one through five probes; document oldest/latest timestamps and forecast retention based on usage.
+- [ ] **T06-16 [HW]** Interrupt power during controlled history writes; verify filesystem recovery, continued sensor reading and accurate logging error status.
+
+**Phase gate:** historical **temperature** cadence is 5 minutes (avg/min/max/count), events are separate, retained data survives normal restart and recoverable interrupted writes.
+
+## Phase 7 — Backend HTTP, API schema and WebSockets
+
+- [x] **T07-01** Enable ESP-IDF `esp_http_server` and WebSocket support; add bounded route handlers with defensive request/payload limits.
+- [ ] **T07-02** Establish `/api/v1` data model and schemas from `SPEC.md`/web design spec; use ROM IDs as keys and raw Celsius values in JSON.
+- [x] **T07-03** Implement `GET /api/v1/status`, `GET /api/v1/sensors`, and mutation endpoints for sensor labels, flags, thresholds, calibration, display order.
+- [x] **T07-04** Implement versioned device settings endpoints for units, timezone, LCD mode, durations and graph lookback.
+- [ ] **T07-05** Implement history queries with bound time range/point count and CSV download streaming; gaps and timestamp-quality markers must be explicit.
+- [ ] **T07-06** Implement alert history/status endpoints and pagination.
+- [ ] **T07-07** Implement Wi-Fi scan/connect/provisioning control APIs with asynchronous progress/status and protection against disconnecting the active client mid-request.
+- [ ] **T07-08** Implement WebSocket live snapshots/updates, initial complete snapshot, version + sequence, heartbeats, bounded per-client queues and state-change broadcasts.
+- [ ] **T07-09** Handle WebSocket reconnect using REST resync; reject stale/invalid commands and invalid JSON without crashing.
+- [ ] **T07-10** Add contract tests, fuzz/integration cases and concurrent client tests for disconnect/reconnect, forbidden writes, oversized bodies, slow clients, malformed ROM IDs and history bounds.
+
+**Phase gate:** static app and REST/WS can be exercised through a browser against a simulated backend and later the real ESP32; no transport path can stall acquisition tasks.
+
+## Phase 8 — Authentication and Wi-Fi credential security (release-blocking)
+
+- [x] **T08-01** Complete security design gate: define first-owner provisioning/admin enrollment tied to one-time setup secret, account recovery, local access model and LAN transport protection.
+- [x] **T08-02** Implement unique per-device SoftAP credentials and safe NVS storage; verify no universal known factory password is accepted.
+- [x] **T08-03** Implement salted slow password hashing, constant-time verification, change-password flow and bounded lockout/rate-limiting.
+- [x] **T08-04** Implement authenticated, expiring sessions and CSRF/Origin/Host protections; handle captive-portal exceptions narrowly and explicitly.
+- [ ] **T08-05** Authenticate all sensitive reads, mutating endpoints, WebSocket handshake and OTA; prevent anonymous LAN users from changing probe thresholds or Wi-Fi credentials.
+- [x] **T08-06** Decide/test LAN HTTPS certificate approach (preferred) or record explicit, accepted limitation if using local HTTP. Do not claim HTTP protects passwords from LAN packet sniffing.
+- [ ] **T08-07** Prevent Wi-Fi/admin secrets from appearing in logs, URLs, browser storage, CSV export, debug pages or telemetry (none expected).
+- [ ] **T08-08** Add security tests: login brute-force limits, CSRF attempts, origin spoofing, forged WS upgrades, unauthenticated re-provisioning, malformed OTA body and sensitive-data leaks.
+
+**Phase gate:** No release with unauthenticated configuration and unreviewed credential transport.
+
+## Phase 9 — React Material 3 web application
+
+### App shell and Dashboard
+- [x] **T09-01** Build responsive Material 3 app shell with accessible desktop sidebar and mobile navigation; light/dark modes, local icons/fonts, keyboard focus and reduced motion.
+- [ ] **T09-02** Implement authoritative REST + WebSocket TypeScript client with reconnection, timeout/stale-state marking, sequence-gap detection and state validation.
+- [ ] **T09-03** Implement Dashboard cards for 0–5 probes: live temperature, label, state icons/text, recent *RAM-only* sparkline if wanted, latest-update age, Wi-Fi/logging status.
+- [ ] **T09-04** Present active alerts visibly without hiding other sensors; empty slots and disabled/missing sensors are semantically different.
+
+### History
+- [ ] **T09-05** Build History page using persisted five-minute data; 1h/24h/7d/30d selectors, ROM-series selection, avg/min/max, gap rendering and user time zone.
+- [ ] **T09-06** Keep chart bundle small through code splitting/tree-shaking; add bounded pan/zoom interactions appropriate for phones.
+- [ ] **T09-07** Provide CSV export and clearly label five-minute aggregate resolution (do not imply detailed raw five-second storage).
+
+### Sensors and Alerts
+- [x] **T09-08** Build Sensors page: rename, optional LCD short label, display order, enable/disable, temperature correction, threshold/min-max/hysteresis/delay, ROM address display.
+- [x] **T09-09** Add human-friendly sensor identification guidance (warm one probe and watch live readings); do not assume stable discovery ordering.
+- [ ] **T09-10** Build Alerts page with active/recent events, disconnect/bus-fault distinctions, recovery states, timestamps and retention handling.
+
+### Settings and provisioning
+- [ ] **T09-11** Build Settings for Wi-Fi network change, timezone/NTP sync status, °C/°F, five-minute logging policy, storage and diagnostics.
+- [ ] **T09-12** Implement LCD settings: Basic/Extended, **20s/10s default** independent durations, graph lookback, optional disabled rows and a clear read-only LCD explanation.
+- [ ] **T09-13** Build offline-capable first-run SoftAP portal with network scan, WPA password entry, setup/admin pairing and clear connection outcome/retry.
+- [x] **T09-14** Build guarded administrator login/session-expiry screens and account configuration/error states.
+- [ ] **T09-15** Implement system page subsection for firmware info, logging capacity, upgrade status, safe reboot and confirmed factory reset choices.
+
+### Fit, finish and deployment
+- [x] **T09-16** Validate responsive layout at **360 CSS px** and **1280+ CSS px** with no horizontal overflow and accessible status text/contrast.
+- [ ] **T09-17** Test every page against no probes, one probe, five probes, long labels, bus fault, disconnected sensor, no history, no time, lost WebSocket and storage failure.
+- [x] **T09-18** Production-build static web assets with local fonts/icons, hashed cacheable paths and HTTP `Content-Encoding` support for gzip where implemented; no CDN requests.
+- [x] **T09-19** Embed/serve compiled assets from ESP-IDF firmware with SPA routing and non-SPA API 404 handling; verify no requirement for Node.js on device.
+- [ ] **T09-20** Report actual compressed/uncompressed bundle size, initial-load time and heap/socket impact; aim for ≤1 MB compressed without treating it as a guarantee.
+
+**Phase gate:** self-hosted app displays live data on phones and desktops, reliably supports all configured settings and survives network interruptions.
+
+## Phase 10 — OTA, reliability and integration
+
+- [ ] **T10-01** Implement dual OTA slot metadata, authenticated upload, size limits, integrity verification and controlled reboot to new image.
+- [ ] **T10-02** Mark firmware valid only after boot/startup health checks; implement rollback/fallback and show update status in LCD/web.
+- [ ] **T10-03** Verify OTA also updates embedded React assets consistently; avoid mismatched API/backend/web build versions.
+- [ ] **T10-04** Provide recovery path for incomplete firmware upload, unexpected reboot, storage corruption and Wi-Fi changes during OTA.
+- [ ] **T10-05** Profile max sensor count + active HTTP/WebSocket clients + LVGL + ongoing flash writes + Wi-Fi traffic for heap/PSRAM leaks and watchdog starvation.
+- [ ] **T10-06** Ensure HTTPS/security decisions, watchdog behavior, device reset cause, heap/storage/network fault diagnostics and safe firmware defaults are documented.
+- [ ] **T10-07** Add integration simulations for burst alerts, rapid sensor replacement, flash-full, clock jumps, reconnect storms, corrupted NVS and 24-hour sensor sampling.
+- [ ] **T10-08 [HW]** Run 24–72-hour stability test on real board with five sensors, powered LCD, Wi-Fi and logging; record sampling gaps, heap floor and reboot count.
+- [ ] **T10-09 [HW]** Flash/reflash via USB (normal and BOOT+RESET), validate OTA slot A→B→A and forced rollback without losing NVS or historical data.
+- [ ] **T10-10 [HW]** Confirm long BOOT press can enter setup while the temperature monitor continues reading and logging, including when router is unavailable.
+
+**Phase gate:** entire system is stable, OTA recoverable, secure for its documented local-network threat model and independent of cloud connectivity.
+
+## Phase 11 — Documentation, packaging and release validation
+
+- [ ] **T11-01** Reconcile `SPEC.md`, `TODO.md`, wiring doc, LCD/web UI design specs and diagrams with the actual final pinout and measured hardware behavior.
+- [ ] **T11-02** Document full wiring and safe power checklist, single 4.7 kΩ resistor and optional non-required breakout boards, probe polarity warnings and backlight circuit caveat/resolution.
+- [ ] **T11-03** Document **ESP-IDF v6.1** host build commands, pinned release revision/toolchain, `idf.py --version` output, flash/monitor, dual-USB roles, BOOT+RESET recovery and config/partition flashing.
+- [ ] **T11-04** Document first-run AP flow, device-unique setup credential source, BOOT five-second Wi-Fi recovery and HTTP/HTTPS/local-network limitations.
+- [ ] **T11-05** Document sensor labeling/identification, enable/disable, calibration, alerts, LCD modes/timers, time zone and web history graphs.
+- [ ] **T11-06** Document five-minute history format/retention calculation, timestamps when unsynchronized, CSV schema, flash repair/backup/factory reset and OTA recovery.
+- [ ] **T11-07** Add verifiable automated acceptance script/checklist and measured ESP32 hardware acceptance results; distinguish simulation-passed from hardware-passed.
+- [ ] **T11-08** Deliver versioned flashable firmware binaries, web build provenance, checksums, release notes and known issues only after all release-blocking checks pass.
+- [ ] **T11-09** Confirm no leftover blockers in all phases, capture intentionally deferred optional features separately, and publish concise project handoff/progress status.
+
+## Hardware-only verification checklist (may be deferred, never misreported)
+
+Use this list to track physical acceptance separately from software tasks; these reference the canonical IDs above.
+
+| Check | Task IDs | Expected evidence |
+|---|---|---|
+| Board identification, GPIO/USB and power | T02-01, T02-03 | Photos/pin annotations, tested port, voltage/current readings |
+| LCD BL pin and display size | T02-02, T04-02, T04-14 | Electrical verification, screen photos, legibility check |
+| Single-bus wiring and five probes | T02-14, T02-15 | ROM list, five fresh readings, removal/reinsert behavior |
+| GPIO0 provisioning and firmware download | T05-13, T05-18 | Runtime 5s hold, BOOT+RESET flashing, AP captive portal |
+| Interrupted flash log recovery | T06-16 | Recovery log and surviving history segment verification |
+| Long-run operation | T10-08, T10-10 | Stability report and verified logging continuity |
+| OTA rollback / recovery | T10-09 | Slot transition and boot-fail recovery output |
+
+## Definition of done
+
+- [ ] Every in-scope implementation subtask is either complete **with evidence** or explicitly documented as blocked by a named hardware/external prerequisite.
+- [ ] Five sensors on **one** 1-Wire DATA pin work reliably with **one** pull-up; no extra sensor-side control circuitry is necessary.
+- [ ] LCD Basic and Extended views follow approved design; no touch UI or settings controls on LCD.
+- [ ] HTTP/React interface supports live values, five-minute trends, alerts, settings and pairing/security.
+- [ ] AP onboarding and BOOT Wi-Fi recovery are hardware-proven and do not interfere with standard flashing.
+- [ ] Flash history, OTA and fault-recovery tests demonstrate real persistence and recoverability.
+- [ ] System remains useful without Wi-Fi/cloud and never publishes a misleading temperature or fake UTC time.
+
+## Optional backlog (not v1 blockers)
+
+- [ ] MQTT / Home Assistant integration.
+- [ ] Remotely notified alarms or external buzzer.
+- [ ] Hardware RTC for trustworthy timestamps after cold boot offline.
+- [ ] User-definable alert schedules, weekly reports and multi-device dashboards.
+- [ ] Prometheus/OpenMetrics endpoint or local MQTT for advanced users.
+- [ ] Dedicated enclosure/PCB and pluggable probe terminal design with ESD/surge protection.

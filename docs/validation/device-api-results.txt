@@ -1,0 +1,34 @@
+PASS: embedded app served with gzip
+PASS: embedded HTML content
+PASS: hashed application script in HTML
+PASS: hashed JavaScript served without SPA fallback
+PASS: anonymous status rejected
+PASS: forged Host rejected
+PBKDF2 iterations=100000 elapsed_ms=14674
+PASS: PBKDF2 password verification and login
+PASS: authenticated snapshot
+PASS: asynchronous Wi-Fi scan accepted
+PASS: Wi-Fi scan frequency bounded
+PASS: bounded real radio scan completed
+PASS: failed-candidate test preserves owner networks by requiring blank station configuration
+PASS: candidate connection accepted asynchronously
+PASS: overlapping candidate rejected
+PASS: failed association leaves setup available and prior credentials unchanged
+PASS: anonymous WebSocket upgrade rejected
+PASS: authenticated WebSocket upgrade
+PASS: forged WebSocket Origin rejected
+PASS: real bare-board snapshot has no fabricated readings
+PASS: missing CSRF rejected
+PASS: forged Origin rejected
+PASS: malformed JSON rejected
+PASS: excessive JSON nesting rejected
+PASS: oversized SSID rejected
+PASS: bootstrap enrollment cannot be reused
+PASS: logout
+PASS: logged-out cookie invalidated
+PASS: unknown API remains behind authentication
+PBKDF2 iterations=100000 elapsed_ms=14798
+PASS: invalid password rejected
+PASS: failed-login cooldown avoids repeated expensive work
+PASS: sampling cadence survives password verification
+Device API tests passed; administrator password saved privately at .build/device-admin.json
