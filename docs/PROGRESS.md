@@ -24,6 +24,14 @@ behavior still needs the board and an owner test network. The pinned full
 verifier passes again; image is 0x1e3fd0 bytes with 53% OTA slot headroom.
 TODO count: 106 checked, 52 open.
 
+Production preview follow-up: Vite preview now proxies API and WebSocket traffic
+to the loopback simulator. Chromium measurement of the built five-probe
+dashboard recorded 511 ms to load, first status at 763 ms, 188,551 bytes of
+initial HTTP transfer, and 6.3 MB browser JS heap after 16 seconds with a live
+socket. Asset totals remain 639,363 raw / 203,464 gzip bytes across 14 files.
+`T09-20` is checked; device heap/socket profiling remains T10-05. Web tests,
+lint, format and production build pass. TODO count: 107 checked, 51 open.
+
 Clock-service follow-up: host tests now exercise cold-start unknown UTC, monotonic
 time progression during an offline interval, an unsynchronized aggregate, and
 same-boot recovery into trusted UTC after synchronization. The configured NTP

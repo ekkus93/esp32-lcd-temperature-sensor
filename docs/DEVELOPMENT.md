@@ -50,6 +50,7 @@ npm run lint
 npm run typecheck
 npm test
 npm run build
+npm run preview
 ```
 
 React 19 with MUI 9 and Emotion provides themed Material 3 colors, rounded
@@ -74,6 +75,16 @@ explicit version/migration decision.
 # Separate terminals for simulated API and browser:
 npm --prefix web run simulator -- 5
 npm --prefix web run dev
+```
+
+The production preview also proxies `/api` and WebSocket traffic to the
+loopback simulator on port 8080, so built UI behavior can be reviewed without a
+device:
+
+```bash
+npm --prefix web run build
+npm --prefix web run simulator -- 5
+npm --prefix web run preview
 ```
 
 The simulator uses the C++ domain model with fake probes/time, binds loopback

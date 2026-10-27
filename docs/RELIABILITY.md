@@ -31,18 +31,27 @@ in the startup console log only. Heap minima, per-socket use, and retained
 reset-cause history are not collected; measure them before release as part of
 T10-05/08.
 
-## Web bundle measurement
+## Web bundle and browser measurement
 
 The 2026-10-27 production build reports 639,363 bytes raw and 203,464 bytes
-gzip for all 14 embedded assets (including the HTML entry point). The eagerly
-loaded JavaScript chunks are
-587.40 kB raw and 184.29 kB gzip (index plus authentication); lazy routes are
-loaded separately. A cold Chromium 156/Linux load from local Vite preview took
-619 ms through the browser `load` event. It transferred 186,348 bytes of
-compressed HTML/CSS/JavaScript and decoded about 590 kB of those resources;
-Chromium reported 6.6 MB used JavaScript heap after load. This was the
-unauthenticated screen: the static preview returned 502 for the device auth API,
-so it does not measure the signed-in dashboard, live socket, or firmware server.
-The browser ran on a development host, not the ESP32. Device transfer timing,
-heap/socket cost under load and concurrent-client impact remain open under
-T09-20 and T10-05.
+gzip for all 14 embedded assets, including the HTML entry point and lazy routes.
+Eager JavaScript (dashboard plus authentication) is 587.40 kB raw and 184.29
+kB gzip. This is below the 1 MB compressed budget.
+
+A cold Chromium 156/Linux production-preview run against the five-probe loopback
+simulator loaded the dashboard with its simulated authenticated state and live
+WebSocket. The browser `load` event was 511 ms; the first `/api/v1/status`
+response completed at 763 ms from navigation start. Initial compressed HTML,
+CSS, JavaScript, and API transfers totaled 188,551 bytes (186,348 bytes for
+HTML/CSS/JavaScript and 2,203 bytes for three initial API responses). The eager
+resources decoded to about 590 kB; the API snapshot contained five sensors.
+Chromium used 7.4 MB JavaScript heap on first measurement and 6.3 MB after 16
+seconds. The page stayed connected without a stale-socket alert beyond the
+15-second timeout. No console errors occurred.
+
+The preview proxy is loopback-only and uses fake sensor data. These results
+measure the built browser UI and its client-side live socket, not ESP32 HTTP
+transfer, firmware heap per socket, multi-client memory, or socket-load impact;
+those remain in T10-05 and require device profiling. `T09-20` browser/bundle
+measurement is complete; see `tools/verify.sh --firmware` for the embedded asset
+size and OTA headroom.
