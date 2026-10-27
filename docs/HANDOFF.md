@@ -117,8 +117,10 @@ settings/history namespaces and did not enable physical GPIOs. See
 [sensor NVS results](validation/device-sensor-nvs-results.txt).
 
 The regular image also passed the current USB-loopback device API/security
-suite and secret-leak scan (`T08-08`). It performed and verified a safe restart,
-leaving the app in READY. No Wi-Fi credentials, LCD, or probes were used.
+suite and secret-leak scan (`T08-08`); the authenticated Settings network flow
+is implemented and its focused UI tests pass (`T05-07`). The suite performed
+and verified a safe restart, leaving the app in READY. No Wi-Fi credentials,
+LCD, or probes were used.
 Details are in [device API results](validation/device-api-results.txt); OTA
 success/rollback, factory reset, station onboarding, and physical peripheral
 checks remain open.

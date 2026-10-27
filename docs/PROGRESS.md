@@ -73,6 +73,7 @@ no local secrets in 241 reviewable files/logs. The exercise exposed and fixed a
 test-bridge URI limit that prevented oversized query testing. Evidence is in
 [device API results](validation/device-api-results.txt). `T05-07` and `T08-08`
 are checked; `T07-10` still needs slow-client and concurrent-device-load checks.
+Current required TODO count: 110 checked, 48 open.
 
 The durable event journal is implemented in LittleFS (128 KiB cap, CRC records,
 compaction, tail recovery, cursor pagination). Eight host CTest suites, the
