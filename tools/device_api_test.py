@@ -21,6 +21,8 @@ parser.add_argument('--admin-file', default='.build/device-admin.json')
 parser.add_argument('--fresh-enrollment', action='store_true', help='Reset only a test-managed administrator and re-enroll it')
 parser.add_argument('--change-password', action='store_true', help='Rotate only the test-managed administrator and update its private file')
 parser.add_argument('--candidate-failure', action='store_true', help='Test a nonexistent SSID only when no real station credentials are saved')
+parser.add_argument('--slow-client', action='store_true', help='Hold a tiny-window WebSocket client open while checking HTTP responsiveness')
+parser.add_argument('--slow-client-seconds', type=int, default=30, help='Duration for --slow-client (5..300 seconds)')
 args = parser.parse_args()
 os.umask(0o077)
 setup = json.loads(Path(args.setup_file).read_text())
@@ -107,6 +109,24 @@ def websocket_load(headers, clients=4):
     if start < 0 or finish < 0:
         raise RuntimeError('WebSocket load bridge response missing')
     return json.loads(data[start+len(b'WS_LOAD_BRIDGE_BEGIN\n'):finish].strip())
+
+def websocket_slow(headers, duration_seconds=30):
+    encoded = ('WS_SLOW_BRIDGE '+json.dumps({'headers':headers,'duration_seconds':duration_seconds})+'\n').encode()
+    if len(encoded) >= 4096:
+        raise RuntimeError('WebSocket slow-client request exceeds bridge limit')
+    port.write(encoded)
+    data = bytearray()
+    deadline = time.monotonic()+duration_seconds+90
+    while time.monotonic()<deadline and b'WS_SLOW_BRIDGE_END' not in data:
+        data.extend(port.read(2048))
+    data = data.replace(b'\r', b'')
+    start = data.find(b'WS_SLOW_BRIDGE_BEGIN\n')
+    finish = data.find(b'WS_SLOW_BRIDGE_END', start)
+    if start < 0 or finish < 0:
+        raise RuntimeError('WebSocket slow-client bridge response missing')
+    result = json.loads(data[start+len(b'WS_SLOW_BRIDGE_BEGIN\n'):finish].strip())
+    result['server_cutoff'] = b'Closing slow or failed WebSocket send' in data
+    return result
 
 def check(condition, name):
     if not condition:
@@ -240,6 +260,15 @@ try:
           'all four device WebSocket clients receive complete snapshots')
     check(load['api_status']==200,
           'authenticated HTTP status remains responsive with four live WebSocket clients')
+    if args.slow_client:
+        slow_seconds = max(5, min(args.slow_client_seconds, 300))
+        stalled = websocket_slow({**origin,'Cookie':cookie}, duration_seconds=slow_seconds)
+        print('Slow-client bridge result: %s' % json.dumps(stalled, sort_keys=True), flush=True)
+        check(stalled['upgraded'] and stalled['server_cutoff'],
+              'device detects and closes a stalled WebSocket client after send backpressure')
+        check(stalled['http_successes']==slow_seconds and stalled['http_failures']==0 and
+              stalled['max_http_ms'] < 5000,
+              'authenticated HTTP status remains responsive during stalled-client recovery')
     snapshot = json.loads(call('/api/v1/status',headers=authorized)['body'])
     Path('.build/device-snapshot.json').write_text(json.dumps(snapshot)+'\n')
     check(snapshot['sensors']==[] and snapshot['simulated'] is False,'real bare-board snapshot has no fabricated readings')

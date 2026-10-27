@@ -849,3 +849,22 @@ configuration recovery only. It also passed the full API suite, four-client
 WebSocket cap and authenticated safe restart. No peripherals were connected.
 Successful owner-network association and preservation of an existing valid
 network still require private owner credentials; T05-04/T05-11 remain open.
+
+## 2026-10-27 — slow-client investigation and stop handoff
+
+Added an experimental nonblocking WebSocket frame sender that asks the HTTP
+server to close a client when a frame cannot be written, plus an opt-in serial
+bridge that holds a tiny-window client while issuing status requests over one
+persistent HTTP connection. ESP-IDF v6.1 build and full `tools/verify.sh
+--firmware` pass (9/9 host CTests, simulator, display, 56 web tests, lint,
+format, typecheck and production build; image 0x1e63e0 bytes, 53% slot
+headroom). A 30-second device probe received 30/30 HTTP 200 responses (maximum
+256 ms), but accumulated about 1.6 KB and did not observe the server cutoff.
+The longer 120-second run did not yield an inspectable result. After a board
+reset, the 10-second bare-board smoke passed: READY, healthy history mount,
+zero sensors, backlight disabled. No LCD or probes were connected. Keep
+`T07-10` open and review the uncommitted experiment before extending it.
+
+Current TODO count: 114 checked, 44 open. See [HANDOFF.md](HANDOFF.md) for
+remaining hardware, owner-network, disposable reset, OTA, stability and release
+gates.

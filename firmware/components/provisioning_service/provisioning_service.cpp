@@ -233,6 +233,158 @@ void websocket_load_bridge(cJSON *request) {
     cJSON_Delete(output);
 }
 
+void websocket_slow_bridge(cJSON *request) {
+    auto *headers = cJSON_GetObjectItemCaseSensitive(request, "headers");
+    auto *origin =
+        cJSON_IsObject(headers) ? cJSON_GetObjectItemCaseSensitive(headers, "Origin") : nullptr;
+    auto *cookie =
+        cJSON_IsObject(headers) ? cJSON_GetObjectItemCaseSensitive(headers, "Cookie") : nullptr;
+    int duration_seconds = 30;
+    if (auto *duration = cJSON_GetObjectItemCaseSensitive(request, "duration_seconds");
+        cJSON_IsNumber(duration))
+        duration_seconds = std::clamp(duration->valueint, 5, 300);
+    int fd = -1;
+    bool upgraded = false;
+    int receive_buffer_size = 0;
+    if (cJSON_IsString(origin) && cJSON_IsString(cookie) &&
+        std::strlen(origin->valuestring) < 256 && std::strlen(cookie->valuestring) < 512) {
+        fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if (fd >= 0) {
+            int receive_buffer = 1;
+            setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &receive_buffer, sizeof(receive_buffer));
+            socklen_t receive_buffer_length = sizeof(receive_buffer_size);
+            getsockopt(fd, SOL_SOCKET, SO_RCVBUF, &receive_buffer_size, &receive_buffer_length);
+            struct timeval timeout {
+                8, 0
+            };
+            setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+            sockaddr_in address{};
+            address.sin_family = AF_INET;
+            address.sin_port = htons(80);
+            address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+            if (connect(fd, reinterpret_cast<sockaddr *>(&address), sizeof(address)) == 0)
+                upgraded = websocket_handshake(fd, origin->valuestring, cookie->valuestring) == 101;
+        }
+    }
+
+    unsigned http_successes = 0;
+    int http_failures = 0;
+    int64_t max_http_ms = 0;
+    int api_fd = -1;
+    if (upgraded) {
+        for (int second = 0; second < duration_seconds; ++second) {
+            int status = 0;
+            const int64_t started = esp_timer_get_time() / 1000;
+            if (api_fd < 0) {
+                api_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+                if (api_fd >= 0) {
+                    struct timeval api_timeout {
+                        5, 0
+                    };
+                    setsockopt(api_fd, SOL_SOCKET, SO_RCVTIMEO, &api_timeout, sizeof(api_timeout));
+                    sockaddr_in address{};
+                    address.sin_family = AF_INET;
+                    address.sin_port = htons(80);
+                    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+                    if (connect(api_fd, reinterpret_cast<sockaddr *>(&address), sizeof(address)) !=
+                        0) {
+                        close(api_fd);
+                        api_fd = -1;
+                    }
+                }
+            }
+            if (api_fd >= 0) {
+                std::string get = "GET /api/v1/status HTTP/1.1\r\nHost: 192.168.4.1\r\nOrigin: ";
+                get += origin->valuestring;
+                get += "\r\nCookie: ";
+                get += cookie->valuestring;
+                get += "\r\nConnection: keep-alive\r\n\r\n";
+                if (socket_send_all(api_fd, get.data(), get.size())) {
+                    std::string response;
+                    char character = 0;
+                    while (response.size() < 4096 &&
+                           !(response.size() >= 4 &&
+                             response.compare(response.size() - 4, 4, "\r\n\r\n") == 0)) {
+                        if (recv(api_fd, &character, 1, 0) != 1)
+                            break;
+                        response.push_back(character);
+                    }
+                    if (response.rfind("HTTP/1.1 ", 0) == 0) {
+                        status = std::atoi(response.c_str() + 9);
+                        const char *length_header = strcasestr(response.c_str(), "Content-Length:");
+                        size_t remaining =
+                            length_header ? std::strtoul(length_header + 15, nullptr, 10) : 0;
+                        char body[256];
+                        while (remaining) {
+                            const size_t chunk = std::min(remaining, sizeof(body));
+                            const int received = recv(api_fd, body, chunk, 0);
+                            if (received <= 0) {
+                                status = 0;
+                                close(api_fd);
+                                api_fd = -1;
+                                break;
+                            }
+                            remaining -= size_t(received);
+                        }
+                    } else {
+                        close(api_fd);
+                        api_fd = -1;
+                    }
+                } else {
+                    close(api_fd);
+                    api_fd = -1;
+                }
+            }
+            max_http_ms = std::max(max_http_ms, esp_timer_get_time() / 1000 - started);
+            if (status == 200)
+                ++http_successes;
+            else
+                ++http_failures;
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+    }
+    if (api_fd >= 0)
+        close(api_fd);
+
+    size_t drained = 0;
+    bool peer_closed = false;
+    if (fd >= 0 && upgraded) {
+        struct timeval drain_timeout {
+            0, 100000
+        };
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &drain_timeout, sizeof(drain_timeout));
+        char buffer[512];
+        const int64_t close_deadline = esp_timer_get_time() + 5000000;
+        while (drained < 65536 && esp_timer_get_time() < close_deadline) {
+            const int received = recv(fd, buffer, sizeof(buffer), 0);
+            if (received > 0)
+                drained += size_t(received);
+            else if (received == 0) {
+                peer_closed = true;
+                break;
+            } else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
+                break;
+        }
+    }
+    if (fd >= 0)
+        close(fd);
+
+    auto *output = cJSON_CreateObject();
+    cJSON_AddBoolToObject(output, "upgraded", upgraded);
+    cJSON_AddBoolToObject(output, "peer_closed", peer_closed);
+    cJSON_AddNumberToObject(output, "http_successes", http_successes);
+    cJSON_AddNumberToObject(output, "http_failures", http_failures);
+    cJSON_AddNumberToObject(output, "max_http_ms", max_http_ms);
+    cJSON_AddNumberToObject(output, "drained_bytes", drained);
+    cJSON_AddNumberToObject(output, "receive_buffer_size", receive_buffer_size);
+    char *text = cJSON_PrintUnformatted(output);
+    if (text) {
+        std::printf("\nWS_SLOW_BRIDGE_BEGIN\n%s\nWS_SLOW_BRIDGE_END\n", text);
+        cJSON_free(text);
+    }
+    cJSON_Delete(output);
+}
+
 void websocket_bridge(cJSON *request) {
     auto *headers = cJSON_GetObjectItemCaseSensitive(request, "headers");
     auto *origin =
@@ -592,6 +744,12 @@ void console(void *context) {
             cJSON *request = cJSON_Parse(line + 15);
             if (request) {
                 websocket_load_bridge(request);
+                cJSON_Delete(request);
+            }
+        } else if (std::strncmp(line, "WS_SLOW_BRIDGE ", 15) == 0) {
+            cJSON *request = cJSON_Parse(line + 15);
+            if (request) {
+                websocket_slow_bridge(request);
                 cJSON_Delete(request);
             }
         } else if (std::strncmp(line, "WIFI_CONNECT ", 13) == 0) {

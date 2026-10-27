@@ -4,6 +4,39 @@
 
 ### Latest Ralph-loop checkpoint — 2026-10-27
 
+#### Current stop point — 2026-10-27
+
+The prior checkpoint `697d610` records the guarded Wi-Fi candidate-failure
+rerun. This handoff commit adds an experimental firmware WebSocket
+nonblocking-send path, an opt-in `WS_SLOW_BRIDGE` device probe, and
+`CONFIG_LWIP_SO_RCVBUF` for a tiny-window test client. These changes build under
+ESP-IDF v6.1 (image 0x1e63e0 bytes; 53% OTA-slot headroom). The full pinned
+verifier passes: 9/9 host CTests, simulator slow-client/reconnect tests,
+headless display, 56 web tests, formatting, lint, typecheck and production
+build.
+
+Firmware slow-client acceptance is **not proven**. A 30-second probe with a
+1-byte requested receive buffer kept all 30 authenticated HTTP status checks
+successful (maximum observed 256 ms), but accumulated only about 1.6 KB and
+did not observe a send-failure/cutoff. A later 120-second run did not return an
+inspectable bridge result. The board was reset afterward; the current flashed
+image passed a 10-second bare-board smoke and returned to READY with a healthy
+history mount, zero sensors, and backlight disabled. No LCD or probes are
+connected. Start by reviewing the uncommitted WebSocket/test changes, then
+design a deterministic cutoff test that separates TCP backpressure from HTTP
+session eviction. Keep `T07-10` unchecked until that test passes.
+
+The TODO remains 114 checked and 44 open. Important remaining gates include
+physical board/LCD/probe/electrical validation (`T02`, `T04`), owner-network
+association and phone onboarding (`T05-01/04/05/11/13/18`), LittleFS power-loss
+acceptance (`T06-14/16`), destructive reset acceptance on a disposable target
+(`T09-15`), successful OTA and rollback (`T10-01/02/03/09`), combined-load and
+long-run hardware profiling (`T10-05/08/10`), and release reconciliation and
+packaging (`T11-01/08/09`). Do not connect the LCD/backlight or probes until the
+documented electrical checks pass. Existing-owner Wi-Fi preservation still
+needs private owner credentials; do not issue a valid factory reset on this
+owner device.
+
 The reset UI/API now offers distinct confirmed actions to clear credentials and
 device settings while preserving history, or to erase history too. The reset
 choice is stored as an NVS intent and applied before history/network services
