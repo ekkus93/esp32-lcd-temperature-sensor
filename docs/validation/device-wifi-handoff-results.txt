@@ -18,3 +18,16 @@ sampling-cadence checks passed.
 The test uses the USB HTTP bridge; no phone or browser was associated to the
 device AP or station network. Successful owner-network association, saved
 credential handoff and NTP still require private owner Wi-Fi credentials.
+
+## Current build rerun — 2026-10-27
+
+The guarded `python tools/device_api_test.py --port /dev/ttyACM0
+--candidate-failure` run passed on the current ESP-IDF v6.1 image. It verified
+that station credentials were blank before testing, accepted a random nonexistent
+SSID asynchronously (202), rejected an overlapping candidate (409), timed out
+the failed attempt, and kept setup AP available with credentials still blank.
+The same run passed the authenticated API suite, four-client WebSocket limit,
+malformed/oversized request checks and safe restart to READY. No LCD or probes
+were connected. This proves first-boot failure recovery; retaining a previously
+working owner network and successful handoff still need private owner Wi-Fi
+credentials.

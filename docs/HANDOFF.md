@@ -357,3 +357,10 @@ flashed because it is unavailable.
 The USB device API script additionally rejects a JSON body over 2,048 bytes;
 only Python syntax has been checked. Run it on the ESP32 to validate server
 handling of oversized bodies and connection cleanup.
+
+A guarded current-build candidate-failure rerun also passed: it first verified
+that no station credentials were stored, tried a random nonexistent SSID, saw
+the asynchronous 202/overlap 409 behavior and timeout, and confirmed setup AP
+remained available with blank credentials. This is first-boot recovery evidence
+only. Existing-owner-network preservation and successful station handoff still
+need private Wi-Fi credentials; `T05-04/05/11/18` remain open.

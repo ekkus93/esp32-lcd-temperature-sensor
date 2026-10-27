@@ -838,3 +838,14 @@ build, and firmware link. The image is 0x1e5ab0 bytes with 53% OTA slot
 headroom. One earlier concurrent full-suite run had a transient dashboard test
 failure; isolated rerun and the full rerun passed. TODO remains 114 checked and
 44 open. No LCD or probes were connected.
+
+## 2026-10-27 — guarded Wi-Fi candidate-failure rerun
+
+On `/dev/ttyACM0`, the guarded `tools/device_api_test.py --candidate-failure`
+run reconfirmed candidate submission returns 202, overlapping attempts return
+409, a random nonexistent SSID times out, and setup AP remains available. The
+test refuses to run if saved station credentials exist, so it proves blank-
+configuration recovery only. It also passed the full API suite, four-client
+WebSocket cap and authenticated safe restart. No peripherals were connected.
+Successful owner-network association and preservation of an existing valid
+network still require private owner credentials; T05-04/T05-11 remain open.
