@@ -2,6 +2,7 @@
 #include "cJSON.h"
 #include "clock_service.hpp"
 #include "esp_heap_caps.h"
+#include "esp_system.h"
 #include "esp_timer.h"
 #include "history_csv.hpp"
 #include "ota_service.hpp"
@@ -349,6 +350,23 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
             return error(r, "401 Unauthorized", "Administrator session required");
         if (path == "/api/v1/ota" && r->method == HTTP_POST)
             return handle_ota_upload(r);
+        if (path == "/api/v1/system/reboot" && r->method == HTTP_POST) {
+            if (r->content_len != 0) {
+                auto result = error(r, "400 Bad Request", "Reboot request must not include a body");
+                httpd_sess_trigger_close(server_, httpd_req_to_sockfd(r));
+                return result;
+            }
+            if (!reboot_available())
+                return error(r, "503 Service Unavailable", "Could not schedule restart");
+            httpd_resp_set_status(r, "202 Accepted");
+            httpd_resp_set_type(r, "application/json");
+            httpd_resp_set_hdr(r, "Cache-Control", "no-store");
+            const auto result =
+                httpd_resp_send(r, "{\"status\":\"rebooting\"}", HTTPD_RESP_USE_STRLEN);
+            if (!schedule_reboot())
+                esp_restart();
+            return result;
+        }
         if (path == "/api/v1/settings" && (r->method == HTTP_GET || r->method == HTTP_PATCH)) {
             DeviceOptions options;
             uint64_t revision = 0;

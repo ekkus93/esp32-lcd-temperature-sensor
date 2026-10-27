@@ -20,6 +20,7 @@ const files = [
   ],
   ['wifi-status.schema.json', 'api-wifi-status.generated.ts'],
   ['wifi-scan.schema.json', 'api-wifi-scan.generated.ts'],
+  ['system-reboot.schema.json', 'api-system-reboot.generated.ts'],
 ];
 
 for (const [schema, types] of files) {

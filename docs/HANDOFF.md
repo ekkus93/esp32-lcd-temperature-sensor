@@ -191,3 +191,9 @@ valid history query, and the 24-hour aggregation test now persists and reopens
 all 288 five-minute records. The full host verifier passes; actual filesystem
 exhaustion, simultaneous exports, slow-client device behavior and physical
 power-loss checks remain open.
+
+Settings now includes a confirmed data-preserving restart request at
+`POST /api/v1/system/reboot`, guarded by the shared session/Origin/CSRF checks
+and delayed until after acknowledgement. Host tests and the pinned firmware build
+pass (image 0x17c8a0 bytes); physical restart acceptance and a full factory
+reset remain open under T09-15.

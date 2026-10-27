@@ -30,7 +30,7 @@ bool create_reboot_timer() {
         return true;
     esp_timer_create_args_t args{};
     args.callback = reboot;
-    args.name = "ota-reboot";
+    args.name = "device-reboot";
     return esp_timer_create(&args, &reboot_timer) == ESP_OK;
 }
 
@@ -42,6 +42,16 @@ struct UploadGuard {
     }
 };
 } // namespace
+
+bool reboot_available() {
+    return create_reboot_timer() && !esp_timer_is_active(reboot_timer);
+}
+
+bool schedule_reboot() {
+    if (!reboot_available())
+        return false;
+    return esp_timer_start_once(reboot_timer, 1500000) == ESP_OK;
+}
 
 OtaStatus ota_status() {
     OtaStatus status{};
@@ -138,7 +148,7 @@ esp_err_t handle_ota_upload(httpd_req_t *request) {
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");
     const char *accepted = "{\"status\":\"rebooting\"}";
     const esp_err_t sent = httpd_resp_send(request, accepted, HTTPD_RESP_USE_STRLEN);
-    if (esp_timer_start_once(reboot_timer, 1000000) != ESP_OK)
+    if (!schedule_reboot())
         esp_restart();
     return sent;
 }

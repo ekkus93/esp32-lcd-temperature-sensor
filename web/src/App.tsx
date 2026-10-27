@@ -22,6 +22,7 @@ const HistoryView = lazy(() => import('./features/HistoryView'));
 const PasswordSettings = lazy(() => import('./features/PasswordSettings'));
 const DeviceSettings = lazy(() => import('./features/DeviceSettings'));
 const FirmwareUpdate = lazy(() => import('./features/FirmwareUpdate'));
+const SystemControls = lazy(() => import('./features/SystemControls'));
 const pages = [
   'Dashboard',
   'History',
@@ -283,6 +284,15 @@ export default function App() {
                     {snapshot?.logging.interval_seconds ?? 300} seconds. No
                     five-second raw readings are stored.
                   </Typography>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent>
+                  <Suspense
+                    fallback={<Typography>Loading system controls…</Typography>}
+                  >
+                    <SystemControls />
+                  </Suspense>
                 </CardContent>
               </Card>
               <Suspense

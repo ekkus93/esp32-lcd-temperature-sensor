@@ -630,3 +630,13 @@ Added deterministic single-byte mutation coverage over a valid history query;
 every accepted mutation must still satisfy the query and sensor-count bounds.
 The full host verifier passed again, including all 9 CTest suites, simulator
 integration, headless display suite, and 49 web tests/build checks.
+
+Added a data-preserving Settings restart action and authenticated
+`POST /api/v1/system/reboot`. The dispatcher applies session, Origin/Host and
+CSRF checks to the route, rejects request bodies, and schedules restart 1.5
+seconds after its `202` acknowledgement. Added a response JSON Schema/generated
+type and browser tests for CSRF use, confirmation, success, decline, and errors.
+`tools/verify.sh --firmware` passed with 9/9 CTests, simulator integration,
+display test, 53 web tests, lint/format/typecheck/build, and ESP-IDF v6.1 link;
+image size is 0x17c8a0 bytes with 63% OTA slot headroom. Device restart timing
+and the full factory-reset operation remain open under T09-15.
