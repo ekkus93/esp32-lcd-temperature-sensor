@@ -17,3 +17,14 @@ cadence, no fabricated probes, no panic`.
 This is a bare-board startup/health smoke only. It does not validate the
 physical board revision, GPIO wiring, display, sensors, Wi-Fi association,
 storage recovery, OTA, or long-duration stability.
+
+## Current build smoke after flash — 2026-10-27
+
+The current worktree build was flashed to `/dev/ttyACM0` using the authorized
+ESP-IDF v6.1 workflow, with matching partition layout and no writes to the
+history partition. A second 20-second smoke passed: ESP-IDF v6.1, 16 MB flash,
+8 MB PSRAM, healthy LittleFS history/event journal, READY, zero sensors, disabled
+1-Wire bus/LCD/backlight, positive free heap, and health reports at approximately
+five-second intervals. No panic or fabricated temperature appeared. This still
+does not verify a physical LCD/probe or exercise Wi-Fi association, mount
+recovery, OTA success/rollback, or long-duration operation.

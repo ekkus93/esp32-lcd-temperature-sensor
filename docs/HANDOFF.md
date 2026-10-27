@@ -10,8 +10,19 @@ choice is stored as an NVS intent and applied before history/network services
 start. Contract generation, 7 focused web tests, all 56 web tests, the full
 `tools/verify.sh`, and an ESP-IDF v6.1 build pass. `T09-15` remains open until
 the reset is exercised against a disposable device/image; do not invoke a valid
-reset on an owner device. The board is currently unavailable per the owner, so
-no device commands or LCD/probe connections were attempted in this pass.
+reset on an owner device. The board reappeared as `/dev/ttyACM0`; the latest
+firmware was flashed through the previously authorized workflow and passed the
+bare-board smoke and non-destructive API suite. The API suite verifies four
+concurrent authenticated WebSocket clients, fifth-client rejection, complete
+snapshots, and HTTP responsiveness; a separate heartbeat measurement was
+5,000 ms. No valid factory reset or peripheral connection was attempted.
+
+The full pinned verifier passes: 9/9 host tests, simulator slow-client and
+reconnect coverage, headless display, 56 web tests, lint, formatting, typecheck,
+production build, and ESP-IDF v6.1 build (image 0x1e5ab0 bytes, 53% OTA slot
+headroom). `T07-10` remains open only for firmware slow-client/backpressure
+acceptance and remaining malformed-input integration coverage. TODO count remains
+114 checked and 44 open.
 
 The LittleFS format gate now has a host regression: formatting is allowed only
 after mount failure when the entire partition reads erased (`0xff`); absent,

@@ -76,8 +76,14 @@ JournalPage HistoryService::event_page(uint64_t after, size_t limit) {
 }
 bool HistoryService::query(const HistoryQuery &query, std::vector<HistoryPoint> &points,
                            bool &truncated) {
-    if (!valid_query(query) || !mutex_ || xSemaphoreTake(mutex_, pdMS_TO_TICKS(500)) != pdTRUE)
+    if (!valid_query(query)) {
+        ESP_LOGW("history", "Rejected invalid history query");
         return false;
+    }
+    if (!mutex_ || xSemaphoreTake(mutex_, pdMS_TO_TICKS(500)) != pdTRUE) {
+        ESP_LOGW("history", "History query mutex busy");
+        return false;
+    }
     HistoryReducer reducer(query);
     unsigned visited = 0;
     bool ok = store_ && store_->visit([&](const Bucket &bucket) {
@@ -87,6 +93,8 @@ bool HistoryService::query(const HistoryQuery &query, std::vector<HistoryPoint> 
         return true;
     });
     xSemaphoreGive(mutex_);
+    if (!ok)
+        ESP_LOGE("history", "History query storage iteration failed");
     if (ok) {
         points = reducer.finish();
         truncated = reducer.truncated();

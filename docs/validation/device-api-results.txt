@@ -60,3 +60,33 @@ window. The bridge then sent a correctly masked client text frame; the server
 closed the read-only WebSocket connection, and the rest of the API suite,
 including protected restart-to-READY, passed. The bridge connects only to the
 device's loopback HTTP server; no Wi-Fi client or peripheral was involved.
+
+## Current build rerun — 2026-10-27
+
+After flashing the current ESP-IDF v6.1 build, `python
+tools/device_smoke.py --port /dev/ttyACM0 --seconds 20` passed with a healthy
+LittleFS mount, zero sensors, disabled bus/backlight, positive free heap, and
+four health reports at approximately five-second intervals.
+
+`python tools/device_api_test.py --port /dev/ttyACM0` passed the complete USB
+loopback suite. It verified embedded assets, authentication, OTA rejection,
+real radio scan, WebSocket authorization and complete snapshots, empty-history
+bounds, event paging, oversized/malformed requests, login cadence, and a
+restart back to READY. Two consecutive periodic WebSocket snapshots had nondecreasing sequence
+values and arrived 4,250 ms apart in the initial run; a later rerun measured
+5,000 ms. a masked client command closed the read-only
+stream. New factory-reset checks confirmed anonymous and missing-CSRF requests
+are rejected, and authenticated requests with missing/extra fields or a
+non-boolean choice return HTTP 400. No valid reset request was sent. The device
+is left running normally; no peripheral was connected.
+
+
+A follow-up API rerun measured a 5,000 ms heartbeat interval and passed the
+physical concurrency case: four authenticated WebSocket connections each
+received a complete snapshot, a fifth was rejected with HTTP 503, and an
+authenticated status request returned HTTP 200 while all four sockets remained
+open. The device also passed history bound/ROM validation, oversized and
+malformed request rejection, safe-restart-to-READY, session invalidation, and
+factory-reset rejection checks. No successful reset was sent. The host simulator
+continues to pass slow-client cutoff coverage; firmware slow-client behavior is
+not yet tested.

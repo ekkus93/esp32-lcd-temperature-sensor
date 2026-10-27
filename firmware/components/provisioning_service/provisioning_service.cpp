@@ -11,6 +11,7 @@
 #include "nvs.h"
 #include <algorithm>
 #include <atomic>
+#include <cerrno>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -68,6 +69,168 @@ bool websocket_payload(int fd, std::string &payload) {
     if (length && !socket_receive_all(fd, reinterpret_cast<uint8_t *>(payload.data()), length))
         return false;
     return true;
+}
+
+int websocket_handshake(int fd, const char *origin, const char *cookie) {
+    std::string request = "GET /api/v1/live HTTP/1.1\r\nHost: 192.168.4.1\r\nUpgrade: websocket\r\n"
+                          "Connection: Upgrade\r\nSec-WebSocket-Version: 13\r\n"
+                          "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nOrigin: ";
+    request += origin;
+    request += "\r\nCookie: ";
+    request += cookie;
+    request += "\r\n\r\n";
+    if (!socket_send_all(fd, request.data(), request.size()))
+        return 0;
+    std::string response;
+    char character = 0;
+    while (response.size() < 2048 &&
+           !(response.size() >= 4 && response.compare(response.size() - 4, 4, "\r\n\r\n") == 0)) {
+        if (recv(fd, &character, 1, 0) != 1)
+            return 0;
+        response.push_back(character);
+    }
+    if (response.rfind("HTTP/1.1 101 ", 0) == 0)
+        return 101;
+    if (response.size() >= 12 && response.rfind("HTTP/1.1 ", 0) == 0)
+        return std::atoi(response.c_str() + 9);
+    return 0;
+}
+
+void websocket_load_bridge(cJSON *request) {
+    auto *headers = cJSON_GetObjectItemCaseSensitive(request, "headers");
+    auto *origin =
+        cJSON_IsObject(headers) ? cJSON_GetObjectItemCaseSensitive(headers, "Origin") : nullptr;
+    auto *cookie =
+        cJSON_IsObject(headers) ? cJSON_GetObjectItemCaseSensitive(headers, "Cookie") : nullptr;
+    unsigned wanted = 4;
+    if (auto *clients = cJSON_GetObjectItemCaseSensitive(request, "clients");
+        cJSON_IsNumber(clients))
+        wanted = std::clamp(unsigned(clients->valueint), 1u, 4u);
+    std::vector<int> sockets;
+    sockets.reserve(wanted);
+    int overflow_status = 0;
+    int failure_status = 0;
+    int failure_code = 0;
+    int failure_errno = 0;
+    const bool credentials_valid = cJSON_IsString(origin) && cJSON_IsString(cookie) &&
+                                   std::strlen(origin->valuestring) < 256 &&
+                                   std::strlen(cookie->valuestring) < 512;
+    if (credentials_valid) {
+        for (unsigned index = 0; index <= wanted; ++index) {
+            int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+            if (fd < 0) {
+                failure_code = -1;
+                failure_errno = errno;
+                break;
+            }
+            struct timeval timeout {
+                8, 0
+            };
+            setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+            sockaddr_in address{};
+            address.sin_family = AF_INET;
+            address.sin_port = htons(80);
+            address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+            if (connect(fd, reinterpret_cast<sockaddr *>(&address), sizeof(address)) != 0) {
+                failure_code = -2;
+                failure_errno = errno;
+                close(fd);
+                break;
+            }
+            const int status = websocket_handshake(fd, origin->valuestring, cookie->valuestring);
+            if (index < wanted && status == 101)
+                sockets.push_back(fd);
+            else {
+                if (index == wanted)
+                    overflow_status = status;
+                else {
+                    failure_status = status;
+                    failure_code = -3;
+                }
+                close(fd);
+                break;
+            }
+        }
+    }
+
+    auto *output = cJSON_CreateObject();
+    auto *sequences = cJSON_AddArrayToObject(output, "sequences");
+    bool frames_complete = sockets.size() == wanted;
+    unsigned valid_frames = 0;
+    for (int fd : sockets) {
+        std::string payload;
+        if (!websocket_payload(fd, payload)) {
+            frames_complete = false;
+            continue;
+        }
+        auto *frame = cJSON_ParseWithLength(payload.c_str(), payload.size());
+        auto *sequence =
+            cJSON_IsObject(frame) ? cJSON_GetObjectItemCaseSensitive(frame, "sequence") : nullptr;
+        auto *version =
+            cJSON_IsObject(frame) ? cJSON_GetObjectItemCaseSensitive(frame, "version") : nullptr;
+        auto *sensors =
+            cJSON_IsObject(frame) ? cJSON_GetObjectItemCaseSensitive(frame, "sensors") : nullptr;
+        if (cJSON_IsNumber(sequence))
+            cJSON_AddItemToArray(sequences, cJSON_CreateNumber(sequence->valuedouble));
+        else
+            frames_complete = false;
+        if (cJSON_IsNumber(version) && version->valueint == 1 && cJSON_IsArray(sensors))
+            ++valid_frames;
+        else
+            frames_complete = false;
+        cJSON_Delete(frame);
+    }
+
+    int api_status = 0;
+    if (frames_complete) {
+        int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if (fd >= 0) {
+            struct timeval timeout {
+                5, 0
+            };
+            setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+            sockaddr_in address{};
+            address.sin_family = AF_INET;
+            address.sin_port = htons(80);
+            address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+            if (connect(fd, reinterpret_cast<sockaddr *>(&address), sizeof(address)) == 0) {
+                std::string get = "GET /api/v1/status HTTP/1.1\r\nHost: 192.168.4.1\r\nOrigin: ";
+                get += origin->valuestring;
+                get += "\r\nCookie: ";
+                get += cookie->valuestring;
+                get += "\r\nConnection: close\r\n\r\n";
+                if (socket_send_all(fd, get.data(), get.size())) {
+                    char status_line[32]{};
+                    size_t used = 0;
+                    while (used + 1 < sizeof(status_line) &&
+                           recv(fd, &status_line[used], 1, 0) == 1) {
+                        if (status_line[used++] == '\n')
+                            break;
+                    }
+                    if (std::strncmp(status_line, "HTTP/1.1 ", 9) == 0)
+                        api_status = std::atoi(status_line + 9);
+                }
+            }
+            close(fd);
+        }
+    }
+
+    cJSON_AddNumberToObject(output, "accepted_clients", sockets.size());
+    cJSON_AddNumberToObject(output, "overflow_status", overflow_status);
+    cJSON_AddNumberToObject(output, "failure_status", failure_status);
+    cJSON_AddNumberToObject(output, "failure_code", failure_code);
+    cJSON_AddNumberToObject(output, "failure_errno", failure_errno);
+    cJSON_AddNumberToObject(output, "valid_frames", valid_frames);
+    cJSON_AddBoolToObject(output, "frames_complete", frames_complete);
+    cJSON_AddNumberToObject(output, "api_status", api_status);
+    for (int fd : sockets)
+        close(fd);
+    char *text = cJSON_PrintUnformatted(output);
+    if (text) {
+        std::printf("\nWS_LOAD_BRIDGE_BEGIN\n%s\nWS_LOAD_BRIDGE_END\n", text);
+        cJSON_free(text);
+    }
+    cJSON_Delete(output);
 }
 
 void websocket_bridge(cJSON *request) {
@@ -423,6 +586,12 @@ void console(void *context) {
             cJSON *request = cJSON_Parse(line + 10);
             if (request) {
                 websocket_bridge(request);
+                cJSON_Delete(request);
+            }
+        } else if (std::strncmp(line, "WS_LOAD_BRIDGE ", 15) == 0) {
+            cJSON *request = cJSON_Parse(line + 15);
+            if (request) {
+                websocket_load_bridge(request);
                 cJSON_Delete(request);
             }
         } else if (std::strncmp(line, "WIFI_CONNECT ", 13) == 0) {

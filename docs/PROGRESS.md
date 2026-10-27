@@ -817,3 +817,24 @@ tests and ESP-IDF v6.1 build. The linked image is 0x17c8a0 bytes with 63% OTA
 slot headroom. CMake packed 14 embedded assets (639,363 raw / 203,464 gzip
 bytes); T09-20 and T10-03 bundle figures were updated. No device was flashed.
 Current TODO count: 99 checked, 59 open checkboxes (158 total).
+
+
+## 2026-10-27 — physical WebSocket concurrency and current verifier
+
+The current ESP-IDF v6.1 build was flashed through the authorized device-test
+workflow. The bare-board smoke and non-destructive API suite passed with no LCD
+or probes connected. Physical USB-loopback coverage accepted four authenticated
+WebSocket clients, rejected a fifth with HTTP 503, received complete snapshots
+on all four, and served an authenticated status request (HTTP 200) while all
+clients were connected. The measured heartbeat interval was 5,000 ms. The API
+suite also passed history bounds, malformed/oversized request handling,
+factory-reset rejection cases, and safe restart back to READY; no valid reset
+was issued. `T07-10` remains open for firmware slow-client behavior.
+
+`source /home/phil/esp/esp-idf-v6.1/export.sh && tools/verify.sh --firmware`
+passes: 9/9 host CTests, simulator reconnect/four-client/slow-client checks,
+headless display test, 56 web tests, lint, formatting, typecheck, production
+build, and firmware link. The image is 0x1e5ab0 bytes with 53% OTA slot
+headroom. One earlier concurrent full-suite run had a transient dashboard test
+failure; isolated rerun and the full rerun passed. TODO remains 114 checked and
+44 open. No LCD or probes were connected.

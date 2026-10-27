@@ -61,6 +61,8 @@ def call(path, method='GET', body=None, headers=None, binary=False, headers_only
     data = data.replace(b'\r',b'')
     for diagnostic in re.findall(rb'Password KDF unavailable: -?[0-9]+', data):
         print(diagnostic.decode(), flush=True)
+    for diagnostic in re.findall(rb'History query (?:mutex busy|storage iteration failed)', data):
+        print(diagnostic.decode(), flush=True)
     start = data.find(b'HTTP_BRIDGE_BEGIN\n')
     finish = data.find(b'HTTP_BRIDGE_END',start)
     if start<0 or finish<0:
@@ -89,6 +91,22 @@ def websocket_frames(headers, count=2, send_text=None):
     if start < 0 or finish < 0:
         raise RuntimeError('WebSocket USB bridge response missing')
     return json.loads(data[start+len(b'WS_BRIDGE_BEGIN\n'):finish].strip())
+
+def websocket_load(headers, clients=4):
+    encoded = ('WS_LOAD_BRIDGE '+json.dumps({'headers':headers,'clients':clients})+'\n').encode()
+    if len(encoded) >= 4096:
+        raise RuntimeError('WebSocket load request exceeds bridge limit')
+    port.write(encoded)
+    data = bytearray()
+    deadline = time.monotonic()+40
+    while time.monotonic()<deadline and b'WS_LOAD_BRIDGE_END' not in data:
+        data.extend(port.read(2048))
+    data = data.replace(b'\r', b'')
+    start = data.find(b'WS_LOAD_BRIDGE_BEGIN\n')
+    finish = data.find(b'WS_LOAD_BRIDGE_END', start)
+    if start < 0 or finish < 0:
+        raise RuntimeError('WebSocket load bridge response missing')
+    return json.loads(data[start+len(b'WS_LOAD_BRIDGE_BEGIN\n'):finish].strip())
 
 def check(condition, name):
     if not condition:
@@ -194,30 +212,48 @@ try:
     check(call('/api/v1/live',headers=upgrade)['status']==403,'anonymous WebSocket upgrade rejected')
     check(call('/api/v1/live',headers={**upgrade,'Cookie':cookie})['status']==101,'authenticated WebSocket upgrade')
     check(call('/api/v1/live',headers={**upgrade,'Cookie':cookie,'Origin':'http://attacker.invalid'})['status']==403,'forged WebSocket Origin rejected')
-    live = websocket_frames({**origin,'Cookie':cookie})
-    check(live['connected'] and live['upgraded'] and live['complete'] and len(live['frames']) == 2,
+    live = websocket_frames({**origin,'Cookie':cookie}, count=3)
+    check(live['connected'] and live['upgraded'] and live['complete'] and len(live['frames']) == 3,
           'authenticated device WebSocket sends live frames')
     live_frames = [json.loads(frame) for frame in live['frames']]
     check(all(frame.get('version') == 1 and frame.get('boot_id') and
               frame.get('sensors') == [] and 'firmware' in frame and 'logging' in frame
               for frame in live_frames), 'device WebSocket frames are complete bare-board snapshots')
-    check(all(next_frame['sequence'] >= frame['sequence']
-              for frame, next_frame in zip(live_frames, live_frames[1:])) and
-          4000 <= live['received_ms'][1] - live['received_ms'][0] <= 6000,
-          'device WebSocket sequence is monotonic with five-second heartbeat cadence')
+    sequence_values = [frame.get('sequence') for frame in live_frames]
+    # The connection snapshot is immediate, so its gap to the first periodic
+    # update depends on the phase of the five-second sample cycle. Measure two
+    # consecutive periodic updates instead.
+    heartbeat_delta_ms = live['received_ms'][2] - live['received_ms'][1]
+    sequence_ok = all(next_frame['sequence'] >= frame['sequence']
+                      for frame, next_frame in zip(live_frames, live_frames[1:]))
+    check(sequence_ok and 4000 <= heartbeat_delta_ms <= 6000,
+          'device WebSocket sequence/cadence (sequences=%r delta_ms=%s)'
+          % (sequence_values, heartbeat_delta_ms))
     forbidden_frame = websocket_frames({**origin,'Cookie':cookie}, send_text='{}')
     check(forbidden_frame['upgraded'] and forbidden_frame['sent_text'] and
           forbidden_frame['socket_closed'] and not forbidden_frame['complete'],
           'device WebSocket closes after a client command frame')
+    load = websocket_load({**origin,'Cookie':cookie}, clients=4)
+    check(load['accepted_clients']==4 and load['overflow_status']==503,
+          'device accepts four WebSocket clients and rejects the fifth')
+    check(load['frames_complete'] and load['valid_frames']==4 and len(load['sequences'])==4,
+          'all four device WebSocket clients receive complete snapshots')
+    check(load['api_status']==200,
+          'authenticated HTTP status remains responsive with four live WebSocket clients')
     snapshot = json.loads(call('/api/v1/status',headers=authorized)['body'])
     Path('.build/device-snapshot.json').write_text(json.dumps(snapshot)+'\n')
     check(snapshot['sensors']==[] and snapshot['simulated'] is False,'real bare-board snapshot has no fabricated readings')
-    history_path = ('/api/v1/history?from=0&to='+str(snapshot['uptime_ms'])+
+    # Query a future boot-relative interval so this contract check remains
+    # deterministic even when earlier device runs have persisted history.
+    history_from = snapshot['uptime_ms'] + 60000
+    history_path = ('/api/v1/history?from='+str(history_from)+'&to='+str(history_from+60000)+
                     '&boot_id='+snapshot['boot_id'])
     history_response = call(history_path,headers=authorized)
     history = json.loads(history_response['body'])
     check(history_response['status']==200 and history['points']==[] and history['gaps']==[],
-          'history contract returns explicit gap list on empty device history')
+          'future empty history query (HTTP %s, body=%r, points=%s, gaps=%s)'
+          % (history_response['status'], history_response.get('body', '')[:160],
+             len(history.get('points', [])), len(history.get('gaps', []))))
     valid_rom='2801000000000029'
     rom_selectors='&rom_id='+valid_rom
     five_rom_selectors=rom_selectors*5
