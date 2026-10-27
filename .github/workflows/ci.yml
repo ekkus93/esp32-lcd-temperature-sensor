@@ -1,0 +1,84 @@
+name: Verify ESP32 temperature monitor
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: esp32-temp-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Host tests and pinned ESP-IDF build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v4
+
+      - name: Install Linux verification tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build cmake clang-format-18 libpng-dev ripgrep \
+            libusb-1.0-0-dev libffi-dev
+          sudo ln -sf /usr/bin/clang-format-18 /usr/local/bin/clang-format
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.13.0'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install pinned web dependencies
+        run: npm --prefix web ci
+
+      - name: Build web assets for firmware embedding
+        run: npm --prefix web run build
+
+      - name: Install pinned ESP-IDF v6.1
+        shell: bash
+        run: |
+          set -euo pipefail
+          IDF_DIR="$RUNNER_TEMP/esp-idf-v6.1"
+          git init "$IDF_DIR"
+          git -C "$IDF_DIR" remote add origin https://github.com/espressif/esp-idf.git
+          git -C "$IDF_DIR" fetch --depth 1 origin fff9895c82d744c7237be8847347bdd1b07c6643
+          git -C "$IDF_DIR" checkout --detach FETCH_HEAD
+          git -C "$IDF_DIR" submodule update --init --recursive --depth 1
+          "$IDF_DIR/install.sh" esp32s3
+
+      - name: Build firmware and resolve pinned managed components
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/esp-idf-v6.1/export.sh"
+          ./tools/check-sdk.sh
+          (cd firmware && idf.py build)
+
+      - name: Run full host, display, web and firmware verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/esp-idf-v6.1/export.sh"
+          ./tools/verify.sh --firmware
+
+      - name: Upload firmware binary and build manifest
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: esp32-s3-firmware-${{ github.sha }}
+          path: |
+            firmware/build/temperature_monitor.bin
+            firmware/build/bootloader/bootloader.bin
+            firmware/build/partition_table/partition-table.bin
+            firmware/build/flasher_args.json
+          if-no-files-found: error
+          retention-days: 14
