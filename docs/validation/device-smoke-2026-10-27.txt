@@ -1,0 +1,19 @@
+2026-10-27 — normal ESP32-S3 image, bare board (no probes or LCD)
+
+Command: `python tools/device_smoke.py --port /dev/ttyACM0 --seconds 20`
+Environment: pinned ESP-IDF v6.1 environment; port identified as ESP32-S3 USB
+JTAG/serial. The monitor opened with DTR and RTS deasserted and did not flash
+firmware or attach peripherals.
+
+PASS: boot identifies ESP-IDF v6.1, 16 MB flash and 8 MB PSRAM; core and
+authentication self-tests pass; LittleFS history mounts healthy without
+formatting; firmware reaches READY with sensor bus disabled and LCD/backlight
+disabled. Four health reports were captured at uptime 243, 5240, 10240 and
+15240 ms. Each reports zero sensors and positive heap (about 8.57 MB total
+free heap); cadence is approximately five seconds. No panic or fabricated
+readings were observed. The harness exits with `PASS: bare-board health
+cadence, no fabricated probes, no panic`.
+
+This is a bare-board startup/health smoke only. It does not validate the
+physical board revision, GPIO wiring, display, sensors, Wi-Fi association,
+storage recovery, OTA, or long-duration stability.

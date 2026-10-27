@@ -99,6 +99,17 @@ limitation. The Ralph loop resumed on 2026-10-27. Continue the required TODO
 backlog; no physical LCD or sensor was connected, and owner Wi-Fi credentials
 remain unavailable for successful station, NTP, and phone-onboarding checks.
 
+### 2026-10-27 bare-board smoke update
+
+The ESP32-S3 is currently accessible at `/dev/ttyACM0`. A 20-second
+read-only smoke passed on the installed ESP-IDF v6.1 image: core/auth
+self-tests, healthy LittleFS mount, READY with zero sensors and bus/LCD/backlight
+disabled, about 8.57 MB free heap, four health samples at five-second cadence,
+and no panic. No peripherals were attached and no flash was performed. See
+[device smoke results](validation/device-smoke-2026-10-27.txt). This supersedes
+the earlier statement that the board was unavailable, but sensor, LCD, Wi-Fi
+association, and other hardware acceptance remain open.
+
 ## Latest verification checkpoint — 2026-10-27
 
 The ST7789 runtime is now integrated into the main sampling loop. It uses

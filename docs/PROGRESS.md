@@ -45,6 +45,18 @@ the ESP32 is currently unavailable; do not attempt device tests or connect the
 LCD/probes until it returns. Captive DNS, DHCP DNS configuration, OS probe
 redirects and live-client race fixes were verified earlier.
 
+## 2026-10-27 — bare-board smoke resumed
+
+The ESP32-S3 is now visible as `/dev/ttyACM0`. The read-only 20-second
+`tools/device_smoke.py` check passed: core/auth self-tests, healthy history
+mount, READY with zero sensors and sensor bus/LCD/backlight disabled, positive
+free heap, and four health reports at roughly five-second intervals. No panic
+or fabricated readings appeared. Detailed evidence is in
+[device smoke results](validation/device-smoke-2026-10-27.txt). No LCD or
+probes were connected, and no firmware was flashed. The old unavailability
+note above is historical; board-dependent work still needs peripherals and,
+for station/NTP tests, owner Wi-Fi credentials.
+
 The durable event journal is implemented in LittleFS (128 KiB cap, CRC records,
 compaction, tail recovery, cursor pagination). Eight host CTest suites, the
 headless renderer suite, 49 web tests, lint, typecheck, production build and
