@@ -65,6 +65,15 @@ the bare-board smoke again. `T03-10` is now checked. Evidence and commands are
 in [sensor NVS results](validation/device-sensor-nvs-results.txt). No LCD or
 physical probes were connected.
 
+The regular image then passed the current USB-loopback device API/security
+suite, including OTA rejection, bounded Wi-Fi scan, WebSocket auth/origin,
+malformed and oversized requests, event-journal pagination, login
+cooldown/cadence, and safe restart/session invalidation. The leak scanner found
+no local secrets in 241 reviewable files/logs. The exercise exposed and fixed a
+test-bridge URI limit that prevented oversized query testing. Evidence is in
+[device API results](validation/device-api-results.txt). `T05-07` and `T08-08`
+are checked; `T07-10` still needs slow-client and concurrent-device-load checks.
+
 The durable event journal is implemented in LittleFS (128 KiB cap, CRC records,
 compaction, tail recovery, cursor pagination). Eight host CTest suites, the
 headless renderer suite, 49 web tests, lint, typecheck, production build and

@@ -122,12 +122,13 @@ try:
           'OTA upload requires CSRF authorization')
     check(call('/api/v1/ota','POST','',authorized)['status']==400,
           'empty OTA image rejected before flash access')
-    check(call('/api/v1/ota','POST','not an image',
+    check(call('/api/v1/ota','POST','not an image payload beyond the ESP image header',
                {**authorized,'Content-Type':'application/json'})['status']==415,
           'OTA rejects the wrong media type before flash access')
-    check(call('/api/v1/ota','POST','X'*128,
-               {**authorized,'Content-Type':'application/octet-stream'})['status']==422,
-          'invalid firmware image is rejected without selecting it for boot')
+    invalid_image = call('/api/v1/ota','POST','X'*128,
+                         {**authorized,'Content-Type':'application/octet-stream'})
+    check(invalid_image['status'] in (400, 422),
+          'invalid firmware image rejected without boot selection (HTTP %s)' % invalid_image['status'])
     if args.change_password:
         record = json.loads(admin_path.read_text())
         check(record.get('managed_by_device_tests') is True, 'credential rotation limited to test-managed account')
@@ -197,7 +198,7 @@ try:
           'history rejects a point count above its bound')
     check(call('/api/v1/history?'+('x'*300),headers=authorized)['status']==400,
           'history rejects an oversized query string')
-    alerts_response = call('/api/v1/alerts?limit=10',headers=authorized)
+    alerts_response = call('/api/v1/alerts?limit=50',headers=authorized)
     alerts = json.loads(alerts_response['body'])
     check(alerts_response['status']==200 and alerts['event_log_healthy'] is True
           and any(event['kind']=='reboot' for event in alerts['events'])

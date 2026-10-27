@@ -46,7 +46,8 @@ void bridge(cJSON *request) {
     if (!cJSON_IsString(path) || path->valuestring[0] != '/' || !cJSON_IsString(method))
         return;
     std::string uri = path->valuestring;
-    if (uri.size() > 256 || uri.find_first_of("\r\n") != std::string::npos)
+    if (uri.size() > CONFIG_HTTPD_MAX_URI_LEN ||
+        uri.find_first_of("\r\n") != std::string::npos)
         return;
     esp_http_client_method_t verb = HTTP_METHOD_GET;
     if (std::strcmp(method->valuestring, "POST") == 0)

@@ -116,6 +116,13 @@ passed the bare-board smoke again. The simulation uses separate sensor
 settings/history namespaces and did not enable physical GPIOs. See
 [sensor NVS results](validation/device-sensor-nvs-results.txt).
 
+The regular image also passed the current USB-loopback device API/security
+suite and secret-leak scan (`T08-08`). It performed and verified a safe restart,
+leaving the app in READY. No Wi-Fi credentials, LCD, or probes were used.
+Details are in [device API results](validation/device-api-results.txt); OTA
+success/rollback, factory reset, station onboarding, and physical peripheral
+checks remain open.
+
 ## Latest verification checkpoint — 2026-10-27
 
 The ST7789 runtime is now integrated into the main sampling loop. It uses
@@ -144,9 +151,9 @@ and Wi-Fi loss checks remain open under T05-18.
 
 ## Resume prerequisites
 
-- The owner says the ESP32-S3 is currently unavailable. When it returns, first
-  identify the serial port and run the documented bare-board and device API
-  scripts. Do not connect LCD/backlight or temperature probes until their
+- The owner says the ESP32-S3 was unavailable at the 2026-10-26 checkpoint. As
+  of 2026-10-27 it is visible at `/dev/ttyACM0`; verify availability on resume.
+  Do not connect LCD/backlight or temperature probes until their
   electrical checks in T02-02/03/14 pass. Then run the ST7789 test-pattern
   configuration and measure panel orientation, color, refresh, and memory.
 - Radio association, DHCP, NTP, and phone onboarding need an owner-created

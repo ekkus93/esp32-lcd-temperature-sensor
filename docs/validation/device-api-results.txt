@@ -32,3 +32,22 @@ PASS: invalid password rejected
 PASS: failed-login cooldown avoids repeated expensive work
 PASS: sampling cadence survives password verification
 Device API tests passed; administrator password saved privately at .build/device-admin.json
+
+2026-10-27 rerun — normal ESP32-S3 image, bare board (no probes or LCD)
+
+`python tools/device_api_test.py --port /dev/ttyACM0` passed the complete
+current USB-loopback API suite: embedded gzip app, login/Host checks, anonymous
+and authenticated OTA rejection cases, bounded radio scan, WebSocket auth and
+Origin validation, empty-history contract and bounds (including oversized
+query), event-journal pagination, CSRF and malformed/oversized JSON checks,
+one-time enrollment rejection, cooldown/cadence, and authenticated reboot back
+to READY with session invalidation. Invalid OTA image bytes were rejected with
+HTTP 400 before boot-slot selection; wrong media type returned 415. This run
+did not test phone onboarding, station association, or physical sensor/LCD
+behavior.
+
+`python tools/check-secret-leaks.py` passed: no local test secrets found in
+241 reviewable files/logs. Python syntax compilation and `git diff --check`
+passed. The firmware USB test bridge accepts URI paths up to the configured
+ESP-IDF HTTP server URI limit, allowing the oversized-history-query acceptance
+case to reach the API parser.
