@@ -215,6 +215,20 @@ The WebSocket simulator test now injects a stalled send socket and confirms the
 configured buffer limit terminates it; its four-client cap and 30 reconnects
 also pass. Firmware socket backpressure still needs device acceptance.
 
+Chromium 156/Linux measured the cold production auth page at 619 ms through
+`load`, 186,348 compressed HTML/CSS/JS bytes transferred, about 590 kB decoded,
+and 6.6 MB browser JavaScript heap. This local preview does not host auth/API,
+so it returned 502 and did not measure the signed-in page, WebSocket, or ESP32
+heap/socket load. See `RELIABILITY.md` and `T09-20`.
+
+The host simulator's auth state now returns a schema-valid CSRF token; its live
+integration checks auth and status HTTP responses in addition to WebSocket
+behavior.
+
+`python3 tools/check-secret-leaks.py` passed on the current private test setup:
+no secret matches in 237 reviewable files/logs. Device-side OTA and oversized
+body cases in the security API script still require the ESP32.
+
 The USB device API script additionally rejects a JSON body over 2,048 bytes;
 only Python syntax has been checked. Run it on the ESP32 to validate server
 handling of oversized bodies and connection cleanup.

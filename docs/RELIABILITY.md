@@ -36,6 +36,12 @@ T10-05/08.
 The 2026-10-27 production build reports 637,631 bytes raw and 202,577 bytes
 gzip for all 13 embedded assets. The eagerly loaded JavaScript chunks are
 587.40 kB raw and 184.29 kB gzip (index plus authentication); lazy routes are
-loaded separately. These are build artifact sizes, not measured transfer time,
-first-render latency, or device heap/socket cost. Those device measurements
-remain open under T09-20 and T10-05.
+loaded separately. A cold Chromium 156/Linux load from local Vite preview took
+619 ms through the browser `load` event. It transferred 186,348 bytes of
+compressed HTML/CSS/JavaScript and decoded about 590 kB of those resources;
+Chromium reported 6.6 MB used JavaScript heap after load. This was the
+unauthenticated screen: the static preview returned 502 for the device auth API,
+so it does not measure the signed-in dashboard, live socket, or firmware server.
+The browser ran on a development host, not the ESP32. Device transfer timing,
+heap/socket cost under load and concurrent-client impact remain open under
+T09-20 and T10-05.

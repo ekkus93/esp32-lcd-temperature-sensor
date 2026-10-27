@@ -22,7 +22,12 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (req.url === '/api/v1/auth/state')
-    res.end(JSON.stringify({ enrolled: true, csrf: 'simulation' }));
+    res.end(
+      JSON.stringify({
+        enrolled: true,
+        csrf: 'simulator-csrf-token-000000000000',
+      }),
+    );
   else if (req.url === '/api/v1/settings')
     res.end(
       JSON.stringify({
@@ -90,11 +95,14 @@ const intervalMs = Number(process.env.MONITOR_SIMULATOR_INTERVAL_MS ?? 5000);
 const maxBufferedBytes = Number(
   process.env.MONITOR_SIMULATOR_MAX_BUFFERED_BYTES ?? 65536,
 );
-const testBackpressure = process.env.MONITOR_SIMULATOR_TEST_BACKPRESSURE === '1';
+const testBackpressure =
+  process.env.MONITOR_SIMULATOR_TEST_BACKPRESSURE === '1';
 if (!Number.isInteger(intervalMs) || intervalMs < 1 || intervalMs > 60000)
   throw new Error('MONITOR_SIMULATOR_INTERVAL_MS must be between 1 and 60000');
 if (!Number.isInteger(maxBufferedBytes) || maxBufferedBytes < 1)
-  throw new Error('MONITOR_SIMULATOR_MAX_BUFFERED_BYTES must be a positive integer');
+  throw new Error(
+    'MONITOR_SIMULATOR_MAX_BUFFERED_BYTES must be a positive integer',
+  );
 server.on('upgrade', (req, socket, head) => {
   const url = new URL(req.url, 'http://127.0.0.1');
   if (url.pathname !== '/api/v1/live' || sockets.clients.size >= 4) {
@@ -107,7 +115,8 @@ server.on('upgrade', (req, socket, head) => {
 });
 sockets.on('connection', (ws, req) => {
   const url = new URL(req.url, 'http://127.0.0.1');
-  const stallSend = testBackpressure && url.searchParams.get('stall_send') === '1';
+  const stallSend =
+    testBackpressure && url.searchParams.get('stall_send') === '1';
   ws.send(JSON.stringify(snapshot), () => {
     if (stallSend) ws._socket.cork();
   });

@@ -678,3 +678,20 @@ Added a pending device API case with a valid JSON body just over the firmware's
 2,048-byte request limit; the bridge request stays below its own 4,096-byte cap.
 `python3 -m py_compile tools/device_api_test.py` passes. The live endpoint check
 was not run because the ESP32 is unavailable.
+
+## 2026-10-27 — Browser measurements and simulator auth contract
+
+Chromium 156 on Linux measured the cold production SPA auth screen through
+local Vite preview: 619 ms to `load`, 186,348 compressed bytes transferred for
+HTML/CSS/JS, about 590 kB decoded and 6.6 MB browser JavaScript heap. The preview
+does not provide the device auth API (502), so dashboard/socket and ESP32
+heap/socket impact remain open under T09-20/T10-05. The browser did confirm the
+startup bundle renders. Fixed the host simulator's CSRF token to meet the
+declared auth contract and added HTTP auth/status assertions to its live
+integration. `npm --prefix web run test:simulator`, format check, lint,
+typecheck and production build pass.
+
+Re-ran `python3 tools/check-secret-leaks.py` with the private local device test
+secrets available. It found no secret match across 237 reviewable files/logs.
+The device security acceptance script remains unrun because the ESP32 is
+unavailable.

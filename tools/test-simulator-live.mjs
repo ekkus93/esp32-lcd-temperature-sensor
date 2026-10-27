@@ -75,6 +75,14 @@ try {
     await delay(25);
   assert.equal(child.exitCode, null, `simulator exited early: ${output}`);
   assert.match(output, /SIMULATION: 5 fake probes/);
+  const authState = await fetch(`http://127.0.0.1:${port}/api/v1/auth/state`);
+  assert.equal(authState.status, 200);
+  const auth = await authState.json();
+  assert.equal(auth.enrolled, true);
+  assert.match(auth.csrf, /^[a-z0-9-]{32,64}$/);
+  const statusResponse = await fetch(`http://127.0.0.1:${port}/api/v1/status`);
+  assert.equal(statusResponse.status, 200);
+  assert.equal((await statusResponse.json()).sensors.length, 5);
   const socket = await connect();
   const first = await nextMessage(socket);
   assert.equal(first.binary, false);
