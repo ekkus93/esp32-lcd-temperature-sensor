@@ -115,6 +115,21 @@ No board was available: panel offsets/color order/rotation/readability/refresh,
 DMA timing, and the test pattern remain unverified physically. Current TODO
 count: 102 checked and 56 open checkboxes. No flash was performed.
 
+## Resume prerequisites
+
+- The owner says the ESP32-S3 is currently unavailable. When it returns, first
+  identify the serial port and run the documented bare-board and device API
+  scripts. Do not connect LCD/backlight or temperature probes until their
+  electrical checks in T02-02/03/14 pass. Then run the ST7789 test-pattern
+  configuration and measure panel orientation, color, refresh, and memory.
+- Radio association, DHCP, NTP, and phone onboarding need an owner-created
+  private JSON file with `ssid` and `password`; the owner has not supplied its
+  absolute path. Do not put the file or credentials in Git or logs.
+- T09-15 full factory reset still needs the owner's data policy choice: should
+  that explicit action erase LittleFS history as well as settings/credentials,
+  or preserve history? USB admin-credential recovery remains narrower and
+  preserves sensor settings, Wi-Fi, and history.
+
 Earlier checkpoint:
 
 The `ws_live` ESP-IDF component now owns WebSocket client tracking, read-only

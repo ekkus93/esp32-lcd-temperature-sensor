@@ -70,9 +70,9 @@
 
 ## Phase 4 — LCD driver and two-mode LVGL UI
 
-- [ ] **T04-01** Bring up `esp_lcd` ST7789 SPI at 240×320 portrait on the chosen GPIOs; draw color/rotation/offset test patterns.
+- [ ] **T04-01** Bring up `esp_lcd` ST7789 SPI at 240×320 portrait on the chosen GPIOs; draw color/rotation/offset test patterns. The runtime and opt-in RGB/corner-marker diagnostic compile in normal and test-pattern configurations; physical color order, rotation, offsets, and visible output remain unverified until the panel is attached.
 - [ ] **T04-02 [HW]** Complete backlight safe-drive check and any external driver wiring; verify stable LCD supply under Wi-Fi TX load.
-- [ ] **T04-03** Integrate LVGL 9/`esp_lvgl_port`; verify buffers, DMA-eligible memory, lock/context rules, memory usage and refresh latency.
+- [ ] **T04-03** Integrate LVGL 9/`esp_lvgl_port`; verify buffers, DMA-eligible memory, lock/context rules, memory usage and refresh latency. Software integration uses two 240×40 PSRAM/DMA RGB565 buffers and lock-protected updates, and logs internal heap after initialization. Physical DMA allocation, memory floor under Wi-Fi, and refresh latency still need device measurement.
 - [x] **T04-04** Implement read-only **Overview** LVGL screen: five ordered rows, LCD-short name, current value, units, error/warning icon, Wi-Fi state and clock.
 - [x] **T04-05** Implement disabled/unassigned/disconnected/invalid/bus-fault row appearances with meaningful text/icon cues and without relying solely on colors.
 - [x] **T04-06** Implement read-only **Trends** LVGL screen with five sparklines, ROM-stable ordering, lookback (default 60 minutes), missing-data gaps and no touch/menu targets.
@@ -101,7 +101,7 @@
 
 ### BOOT long press (runtime only)
 - [x] **T05-09** Configure existing **GPIO0 BOOT** as an input after startup; use debounced monotonic long-press FSM (exact **5 seconds**) with short-press ignore and no repeated trigger while held.
-- [ ] **T05-10** Show hold-progress feedback on LCD; enter SoftAP when threshold reached while temperature sampling/logging continue.
+- [ ] **T05-10** Show hold-progress feedback on LCD; enter SoftAP when threshold reached while temperature sampling/logging continue. BOOT hold progress now flows atomically to the LCD view, and the host renderer checks progress feedback; the five-second physical hold, AP transition, and continued acquisition/logging still need device verification.
 - [ ] **T05-11** Preserve prior Wi-Fi settings during re-provisioning until candidate network verification succeeds; do not factory-reset on ordinary BOOT hold.
 - [x] **T05-12** Test GPIO0 FSM on host with bounce, restart, held-at-boot and long hold cases.
 - [ ] **T05-13 [HW]** Verify runtime 5-second BOOT behavior **and** standard USB auto-flash/manual BOOT+RESET ROM download mode on photographed dual-USB-C board.
