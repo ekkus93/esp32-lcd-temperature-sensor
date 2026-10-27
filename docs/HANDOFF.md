@@ -13,7 +13,13 @@ the reset is exercised against a disposable device/image; do not invoke a valid
 reset on an owner device. The board is currently unavailable per the owner, so
 no device commands or LCD/probe connections were attempted in this pass.
 
-The TODO remains 113 checked and 45 open. Progress is blocked on physical LCD,
+The LittleFS format gate now has a host regression: formatting is allowed only
+after mount failure when the entire partition reads erased (`0xff`); absent,
+empty, or programmed data refuses formatting. T06-03 is checked. The full host
+verifier and v6.1 build pass; image size is 0x1e4f90 bytes with 53% slot
+headroom.
+
+The TODO is now 114 checked and 44 open. Remaining gates require physical LCD,
 probe, power-loss, OTA success/rollback, long-run and system-reset acceptance,
 plus a private Wi-Fi credentials file for station/NTP/phone onboarding. See the
 T02, T04, T05, T06, T09 and T10 entries in `TODO.md`; preserve the explicit
@@ -142,9 +148,9 @@ Details are in [device API results](validation/device-api-results.txt); OTA
 success/rollback, factory reset, station onboarding, and physical peripheral
 checks remain open. The same run now verifies actual ESP32 WebSocket heartbeat
 frames and closure after a client command (`T07-08/09`); device slow-client and
-concurrent-client profiling remain open under `T07-10`. Current TODO count:
-113 checked, 45 open. The reproducible host/device acceptance scripts and
-evidence checklist are complete (`T11-07`); hardware feature gates remain
+concurrent-client profiling remain open under `T07-10`. At that checkpoint,
+the TODO count was 113 checked, 45 open. The reproducible host/device
+acceptance scripts and evidence checklist are complete (`T11-07`); hardware feature gates remain
 listed individually in `TODO.md`.
 
 ## Latest verification checkpoint — 2026-10-27

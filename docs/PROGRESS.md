@@ -16,6 +16,19 @@ slot headroom). No successful destructive reset was issued. The ESP32 is
 currently unavailable; keep `T09-15` open until a disposable acceptance target
 verifies both data-retention modes. No LCD or probes were attached.
 
+## 2026-10-27 — LittleFS initialization gate regression
+
+Extracted the history partition's all-erased decision into the same inline
+predicate used by the ESP-IDF mount worker. Host storage tests now check erased
+media permits initialization only after a mount failure, while missing/empty
+buffers and programmed bytes at multiple offsets never permit formatting.
+Existing corruption recovery cases verify nonblank history remains preserved.
+T06-03 is checked for software behavior; physical mount-fault and power-loss
+acceptance remain open under T06-14/16. Full verifier and ESP-IDF v6.1 build
+pass: 9/9 host tests, simulator, display test, 56 web tests, formatting, lint,
+typecheck and production build; firmware image 0x1e4f90 bytes with 53% slot
+headroom. TODO count is 114 checked and 44 open.
+
 ## Current checkpoint — resume here
 
 The 2026-10-27 LCD software checkpoint adds the `esp_lcd` ST7789 SPI and LVGL

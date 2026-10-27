@@ -4,6 +4,7 @@
 #include "esp_partition.h"
 #include "esp_timer.h"
 #include "freertos/task.h"
+#include "history_mount_policy.hpp"
 #include <algorithm>
 #include <array>
 #include <new>
@@ -18,7 +19,7 @@ bool blank_partition() {
     for (size_t offset = 0; offset < partition->size; offset += bytes.size()) {
         if (esp_partition_read(partition, offset, bytes.data(), bytes.size()) != ESP_OK)
             return false;
-        if (!std::all_of(bytes.begin(), bytes.end(), [](uint8_t b) { return b == 0xff; }))
+        if (!history_partition_erased(bytes.data(), bytes.size()))
             return false;
         if (offset % 65536 == 0)
             vTaskDelay(1);
@@ -162,7 +163,7 @@ void HistoryService::worker(void *context) {
     config.partition_label = "history";
     config.format_if_mount_failed = false;
     auto mounted = esp_vfs_littlefs_register(&config);
-    if (mounted != ESP_OK && blank_partition()) {
+    if (may_format_history_partition(mounted != ESP_OK, blank_partition())) {
         // Only a completely erased partition can be initialized automatically.
         // Any nonblank failed mount remains intact for explicit operator recovery.
         if (esp_littlefs_format("history") == ESP_OK)

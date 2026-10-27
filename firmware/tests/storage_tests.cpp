@@ -2,6 +2,7 @@
 #include "fake_bus.hpp"
 #include "history.hpp"
 #include "history_csv.hpp"
+#include "history_mount_policy.hpp"
 #include <array>
 #include <cstdlib>
 #include <filesystem>
@@ -18,6 +19,22 @@ using namespace monitor;
         }                                                                                          \
     } while (false)
 int main() {
+    std::array<uint8_t, 4096> erased{};
+    erased.fill(0xff);
+    CHECK(history_partition_erased(erased.data(), erased.size()));
+    CHECK(
+        may_format_history_partition(true, history_partition_erased(erased.data(), erased.size())));
+    CHECK(!may_format_history_partition(false,
+                                        history_partition_erased(erased.data(), erased.size())));
+    CHECK(!history_partition_erased(nullptr, erased.size()));
+    CHECK(!history_partition_erased(erased.data(), 0));
+    for (const auto index : {size_t(0), erased.size() / 2, erased.size() - 1}) {
+        auto programmed = erased;
+        programmed[index] = 0;
+        CHECK(!history_partition_erased(programmed.data(), programmed.size()));
+        CHECK(!may_format_history_partition(
+            true, history_partition_erased(programmed.data(), programmed.size())));
+    }
     uint64_t rom = 0x28;
     uint8_t bytes[7] = {0x28};
     rom |= uint64_t(crc8(bytes, 7)) << 56;
