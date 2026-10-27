@@ -120,7 +120,7 @@ boot-relative if its aligned UTC bucket would collide with the preceding
 trusted bucket, and resumes UTC once the next unused boundary is reached. Host
 coverage includes the step/recovery path; timezone/DST and monotonic display
 tests also pass. `T05-17` is checked. The firmware image is 0x1e3fd0 bytes.
-TODO count is now 109 checked and 49 open. Host coverage now also exercises
+TODO count is now 106 checked and 52 open. Host coverage now also exercises
 cold-start unknown UTC, clock progression while offline, and same-boot history
 transition from uptime timestamps to trusted UTC (`T05-14/15/16`). Device NTP
 and Wi-Fi loss checks remain open under T05-18.

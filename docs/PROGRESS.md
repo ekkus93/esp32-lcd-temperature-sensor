@@ -22,7 +22,7 @@ the step, uptime-only interval, and UTC recovery. DST conversion and monotonic
 display cycling also pass host tests. `T05-17` is checked; real SNTP/device
 behavior still needs the board and an owner test network. The pinned full
 verifier passes again; image is 0x1e3fd0 bytes with 53% OTA slot headroom.
-TODO count: 109 checked, 49 open.
+TODO count: 106 checked, 52 open.
 
 Clock-service follow-up: host tests now exercise cold-start unknown UTC, monotonic
 time progression during an offline interval, an unsynchronized aggregate, and
