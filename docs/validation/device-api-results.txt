@@ -51,3 +51,12 @@ behavior.
 passed. The firmware USB test bridge accepts URI paths up to the configured
 ESP-IDF HTTP server URI limit, allowing the oversized-history-query acceptance
 case to reach the API parser.
+
+Latest rerun after adding WebSocket frame capture to the physical USB bridge:
+the normal bare-board ESP32 returned two complete authenticated live snapshots
+with version 1, a stable boot ID, no fabricated sensors, and monotonic sequence
+values. Frame arrival was 4,750 ms apart, within the five-second heartbeat
+window. The bridge then sent a correctly masked client text frame; the server
+closed the read-only WebSocket connection, and the rest of the API suite,
+including protected restart-to-READY, passed. The bridge connects only to the
+device's loopback HTTP server; no Wi-Fi client or peripheral was involved.

@@ -123,7 +123,10 @@ and verified a safe restart, leaving the app in READY. No Wi-Fi credentials,
 LCD, or probes were used.
 Details are in [device API results](validation/device-api-results.txt); OTA
 success/rollback, factory reset, station onboarding, and physical peripheral
-checks remain open.
+checks remain open. The same run now verifies actual ESP32 WebSocket heartbeat
+frames and closure after a client command (`T07-08/09`); device slow-client and
+concurrent-client profiling remain open under `T07-10`. Current TODO count:
+112 checked, 46 open.
 
 ## Latest verification checkpoint — 2026-10-27
 

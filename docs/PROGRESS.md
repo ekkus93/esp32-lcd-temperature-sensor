@@ -73,7 +73,11 @@ no local secrets in 241 reviewable files/logs. The exercise exposed and fixed a
 test-bridge URI limit that prevented oversized query testing. Evidence is in
 [device API results](validation/device-api-results.txt). `T05-07` and `T08-08`
 are checked; `T07-10` still needs slow-client and concurrent-device-load checks.
-Current required TODO count: 110 checked, 48 open.
+The USB loopback now captures actual ESP32 WebSocket frames as well. Complete
+snapshots arrived 4,750 ms apart with nondecreasing sequence values; a masked
+client command closed the read-only stream without affecting later API calls.
+`T07-08/09` are checked; `T07-10` retains slow-client/concurrent-load work.
+Current required TODO count: 112 checked, 46 open.
 
 The durable event journal is implemented in LittleFS (128 KiB cap, CRC records,
 compaction, tail recovery, cursor pagination). Eight host CTest suites, the

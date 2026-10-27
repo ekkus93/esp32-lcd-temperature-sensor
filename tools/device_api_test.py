@@ -70,6 +70,26 @@ def call(path, method='GET', body=None, headers=None, binary=False, headers_only
     response = json.loads(data[start+len(b'HTTP_BRIDGE_BEGIN\n'):finish].strip())
     return response
 
+def websocket_frames(headers, count=2, send_text=None):
+    request = {'headers':headers,'frames':count}
+    if send_text is not None:
+        request['send_text'] = send_text
+    encoded = ('WS_BRIDGE '+json.dumps(request)+'\n').encode()
+    if len(encoded) >= 4096:
+        raise RuntimeError('WebSocket test request exceeds bridge limit')
+    port.write(encoded)
+    data = bytearray()
+    deadline = time.monotonic()+55
+    while time.monotonic()<deadline and b'WS_BRIDGE_END' not in data:
+        data.extend(port.read(2048))
+    health_traffic.extend(data)
+    data = data.replace(b'\r', b'')
+    start = data.find(b'WS_BRIDGE_BEGIN\n')
+    finish = data.find(b'WS_BRIDGE_END',start)
+    if start < 0 or finish < 0:
+        raise RuntimeError('WebSocket USB bridge response missing')
+    return json.loads(data[start+len(b'WS_BRIDGE_BEGIN\n'):finish].strip())
+
 def check(condition, name):
     if not condition:
         raise RuntimeError('FAIL: '+name)
@@ -174,6 +194,21 @@ try:
     check(call('/api/v1/live',headers=upgrade)['status']==403,'anonymous WebSocket upgrade rejected')
     check(call('/api/v1/live',headers={**upgrade,'Cookie':cookie})['status']==101,'authenticated WebSocket upgrade')
     check(call('/api/v1/live',headers={**upgrade,'Cookie':cookie,'Origin':'http://attacker.invalid'})['status']==403,'forged WebSocket Origin rejected')
+    live = websocket_frames({**origin,'Cookie':cookie})
+    check(live['connected'] and live['upgraded'] and live['complete'] and len(live['frames']) == 2,
+          'authenticated device WebSocket sends live frames')
+    live_frames = [json.loads(frame) for frame in live['frames']]
+    check(all(frame.get('version') == 1 and frame.get('boot_id') and
+              frame.get('sensors') == [] and 'firmware' in frame and 'logging' in frame
+              for frame in live_frames), 'device WebSocket frames are complete bare-board snapshots')
+    check(all(next_frame['sequence'] >= frame['sequence']
+              for frame, next_frame in zip(live_frames, live_frames[1:])) and
+          4000 <= live['received_ms'][1] - live['received_ms'][0] <= 6000,
+          'device WebSocket sequence is monotonic with five-second heartbeat cadence')
+    forbidden_frame = websocket_frames({**origin,'Cookie':cookie}, send_text='{}')
+    check(forbidden_frame['upgraded'] and forbidden_frame['sent_text'] and
+          forbidden_frame['socket_closed'] and not forbidden_frame['complete'],
+          'device WebSocket closes after a client command frame')
     snapshot = json.loads(call('/api/v1/status',headers=authorized)['body'])
     Path('.build/device-snapshot.json').write_text(json.dumps(snapshot)+'\n')
     check(snapshot['sensors']==[] and snapshot['simulated'] is False,'real bare-board snapshot has no fabricated readings')

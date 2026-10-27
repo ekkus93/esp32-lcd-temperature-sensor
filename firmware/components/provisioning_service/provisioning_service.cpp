@@ -21,6 +21,162 @@
 namespace monitor {
 namespace {
 std::atomic<unsigned> hold_progress{0};
+
+bool socket_send_all(int fd, const char *data, size_t length) {
+    size_t sent = 0;
+    while (sent < length) {
+        const int count = send(fd, data + sent, length - sent, 0);
+        if (count <= 0)
+            return false;
+        sent += count;
+    }
+    return true;
+}
+
+bool socket_receive_all(int fd, uint8_t *data, size_t length) {
+    size_t received = 0;
+    while (received < length) {
+        const int count = recv(fd, data + received, length - received, 0);
+        if (count <= 0)
+            return false;
+        received += count;
+    }
+    return true;
+}
+
+bool websocket_payload(int fd, std::string &payload) {
+    uint8_t header[2]{};
+    if (!socket_receive_all(fd, header, sizeof(header)) || (header[1] & 0x80))
+        return false;
+    uint64_t length = header[1] & 0x7f;
+    if (length == 126) {
+        uint8_t extended[2]{};
+        if (!socket_receive_all(fd, extended, sizeof(extended)))
+            return false;
+        length = (uint64_t(extended[0]) << 8) | extended[1];
+    } else if (length == 127) {
+        uint8_t extended[8]{};
+        if (!socket_receive_all(fd, extended, sizeof(extended)))
+            return false;
+        length = 0;
+        for (auto byte : extended)
+            length = (length << 8) | byte;
+    }
+    if (length > 8192)
+        return false;
+    payload.resize(length);
+    if (length && !socket_receive_all(fd, reinterpret_cast<uint8_t *>(payload.data()), length))
+        return false;
+    return true;
+}
+
+void websocket_bridge(cJSON *request) {
+    auto *headers = cJSON_GetObjectItemCaseSensitive(request, "headers");
+    auto *origin =
+        cJSON_IsObject(headers) ? cJSON_GetObjectItemCaseSensitive(headers, "Origin") : nullptr;
+    auto *cookie =
+        cJSON_IsObject(headers) ? cJSON_GetObjectItemCaseSensitive(headers, "Cookie") : nullptr;
+    auto *frame_count = cJSON_GetObjectItemCaseSensitive(request, "frames");
+    auto *send_text = cJSON_GetObjectItemCaseSensitive(request, "send_text");
+    const unsigned wanted =
+        cJSON_IsNumber(frame_count) ? std::clamp(unsigned(frame_count->valueint), 1u, 3u) : 2u;
+    cJSON *output = cJSON_CreateObject();
+    auto *frames = cJSON_AddArrayToObject(output, "frames");
+    auto *received_ms = cJSON_AddArrayToObject(output, "received_ms");
+    bool connected = false;
+    bool valid_upgrade = false;
+    bool complete = true;
+    bool sent_text = false;
+    bool socket_closed = false;
+    int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (fd >= 0) {
+        struct timeval timeout {
+            8, 0
+        };
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+        sockaddr_in address{};
+        address.sin_family = AF_INET;
+        address.sin_port = htons(80);
+        address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        connected = connect(fd, reinterpret_cast<sockaddr *>(&address), sizeof(address)) == 0;
+        if (connected && cJSON_IsString(origin) && cJSON_IsString(cookie) &&
+            std::strlen(origin->valuestring) < 256 && std::strlen(cookie->valuestring) < 512) {
+            std::string handshake =
+                "GET /api/v1/live HTTP/1.1\r\nHost: 192.168.4.1\r\n"
+                "Upgrade: websocket\r\nConnection: Upgrade\r\n"
+                "Sec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n";
+            handshake += "Origin: ";
+            handshake += origin->valuestring;
+            handshake += "\r\nCookie: ";
+            handshake += cookie->valuestring;
+            handshake += "\r\n\r\n";
+            if (socket_send_all(fd, handshake.data(), handshake.size())) {
+                std::string response;
+                char character = 0;
+                while (response.size() < 2048 &&
+                       !(response.size() >= 4 &&
+                         response.compare(response.size() - 4, 4, "\r\n\r\n") == 0)) {
+                    if (recv(fd, &character, 1, 0) != 1)
+                        break;
+                    response.push_back(character);
+                }
+                valid_upgrade = response.rfind("HTTP/1.1 101 ", 0) == 0 && response.size() < 2048 &&
+                                response.size() >= 4 &&
+                                response.compare(response.size() - 4, 4, "\r\n\r\n") == 0;
+                if (valid_upgrade) {
+                    if (cJSON_IsString(send_text) && std::strlen(send_text->valuestring) <= 1024) {
+                        const size_t length = std::strlen(send_text->valuestring);
+                        std::array<uint8_t, 1036> frame{};
+                        size_t offset = 0;
+                        frame[offset++] = 0x81; // FIN + text
+                        if (length < 126)
+                            frame[offset++] = uint8_t(0x80 | length);
+                        else {
+                            frame[offset++] = 0xfe;
+                            frame[offset++] = uint8_t(length >> 8);
+                            frame[offset++] = uint8_t(length);
+                        }
+                        uint32_t mask = esp_random();
+                        uint8_t mask_key[4]{};
+                        for (unsigned index = 0; index < 4; ++index) {
+                            mask_key[index] = uint8_t(mask >> (index * 8));
+                            frame[offset++] = mask_key[index];
+                        }
+                        for (size_t index = 0; index < length; ++index)
+                            frame[offset++] =
+                                uint8_t(send_text->valuestring[index]) ^ mask_key[index % 4];
+                        sent_text =
+                            socket_send_all(fd, reinterpret_cast<char *>(frame.data()), offset);
+                    }
+                    for (unsigned index = 0; index < wanted; ++index) {
+                        std::string payload;
+                        if (!websocket_payload(fd, payload)) {
+                            complete = false;
+                            socket_closed = true;
+                            break;
+                        }
+                        cJSON_AddItemToArray(frames, cJSON_CreateString(payload.c_str()));
+                        cJSON_AddItemToArray(
+                            received_ms, cJSON_CreateNumber(double(esp_timer_get_time() / 1000)));
+                    }
+                }
+            }
+        }
+        close(fd);
+    }
+    cJSON_AddBoolToObject(output, "connected", connected);
+    cJSON_AddBoolToObject(output, "upgraded", valid_upgrade);
+    cJSON_AddBoolToObject(output, "complete", complete);
+    cJSON_AddBoolToObject(output, "sent_text", sent_text);
+    cJSON_AddBoolToObject(output, "socket_closed", socket_closed);
+    char *text = cJSON_PrintUnformatted(output);
+    if (text) {
+        std::printf("\nWS_BRIDGE_BEGIN\n%s\nWS_BRIDGE_END\n", text);
+        cJSON_free(text);
+    }
+    cJSON_Delete(output);
+}
+
 void button(void *context) {
     auto &wifi = *static_cast<WifiService *>(context);
     gpio_config_t config{};
@@ -46,8 +202,7 @@ void bridge(cJSON *request) {
     if (!cJSON_IsString(path) || path->valuestring[0] != '/' || !cJSON_IsString(method))
         return;
     std::string uri = path->valuestring;
-    if (uri.size() > CONFIG_HTTPD_MAX_URI_LEN ||
-        uri.find_first_of("\r\n") != std::string::npos)
+    if (uri.size() > CONFIG_HTTPD_MAX_URI_LEN || uri.find_first_of("\r\n") != std::string::npos)
         return;
     esp_http_client_method_t verb = HTTP_METHOD_GET;
     if (std::strcmp(method->valuestring, "POST") == 0)
@@ -262,6 +417,12 @@ void console(void *context) {
             cJSON *request = cJSON_Parse(line + 12);
             if (request) {
                 bridge(request);
+                cJSON_Delete(request);
+            }
+        } else if (std::strncmp(line, "WS_BRIDGE ", 10) == 0) {
+            cJSON *request = cJSON_Parse(line + 10);
+            if (request) {
+                websocket_bridge(request);
                 cJSON_Delete(request);
             }
         } else if (std::strncmp(line, "WIFI_CONNECT ", 13) == 0) {
