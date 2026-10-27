@@ -1,0 +1,38 @@
+# `/api/v1` contract
+
+The firmware and browser use JSON Schema Draft 7 contracts in this directory.
+Snapshot, settings, sensor, history, alert, network and authentication-state
+responses are validated against the shared schemas before typed UI use. API
+temperatures are always numeric Celsius; convert to Fahrenheit only for presentation. Sensor
+IDs are lowercase 16-character hexadecimal ROM bytes in wire order, never list
+indexes. Unknown temperatures and UTC are `null`, not zero or fabricated time.
+After editing a schema, regenerate checked TypeScript declarations with
+`npm --prefix web run contract:generate`.
+
+| Route                                                                                                       | Response contract                                                                                                                                 | Access and notes                                                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /status`, `WS /live`                                                                                   | [`snapshot.schema.json`](snapshot.schema.json)                                                                                                    | Administrator session; WebSocket starts with a complete snapshot.                                                                                                    |
+| `GET /sensors`                                                                                              | [`sensor-configurations.schema.json`](sensor-configurations.schema.json)                                                                          | Administrator session; array keyed by `rom_id`, at most five.                                                                                                        |
+| `PATCH /sensors/{rom_id}`                                                                                   | [`sensor-patch.schema.json`](sensor-patch.schema.json) → `202 {"status":"queued"}`                                                                | Session, CSRF and current `If-Match`; fields are a strict partial sensor configuration.                                                                              |
+| `GET /history`                                                                                              | [`history.schema.json`](history.schema.json)                                                                                                      | Session; bounded half-open time range and optional boot/ROM selector. `gaps` names empty intervals between points; `partial` marks gaps inside downsampled points; `truncated` reports omitted data. |
+| `GET /history/export`                                                                                       | CSV v1 in [`HISTORY_FORMAT.md`](../docs/HISTORY_FORMAT.md)                                                                                        | Session; streams full five-minute rows; rejects `max_points`.                                                                                                        |
+| `GET /alerts?after=<sequence>&limit=<1..50>`                                                               | [`alerts.schema.json`](alerts.schema.json)                                                                                                        | Session; active state and cursor-paged events from the bounded persistent journal. Includes journal health; `next_after` is the cursor and `oldest_available` exposes compaction eviction. |
+| `GET/PATCH /settings`                                                                                       | [`device-settings.schema.json`](device-settings.schema.json); PATCH body [`device-settings-patch.schema.json`](device-settings-patch.schema.json) | Session; PATCH also requires CSRF and current `If-Match`.                                                                                                            |
+| `GET /wifi/status`                                                                                          | [`wifi-status.schema.json`](wifi-status.schema.json)                                                                                              | Session; exposes connection state, candidate outcome and bounded error text.                                                                                         |
+| `GET /wifi/scan`                                                                                            | [`wifi-scan.schema.json`](wifi-scan.schema.json)                                                                                                  | Session; at most 20 visible SSIDs. `POST` starts an asynchronous scan and requires CSRF.                                                                             |
+| `POST /ota`                                                                                                 | `202 {"status":"rebooting"}`                                                                                                                    | Session and CSRF; raw `application/octet-stream` firmware image, bounded by the inactive slot; ESP-IDF validates the image before slot selection.                    |
+| `GET /auth/state`                                                                                           | [`auth-state.schema.json`](auth-state.schema.json)                                                                                                | Public enrollment state; `csrf` is present only for an authenticated session.                                                                                        |
+| `POST /auth/login`, `/auth/enroll`, `/auth/password`, `/auth/logout`, `/wifi/connect`, `/wifi/provisioning` | JSON request/acknowledgement                                                                                                                      | Session and CSRF for established-account mutations. Enrollment/login follow their one-time setup flow. Passwords are request fields only and never query parameters. |
+
+Unknown routes return a structured error. Mutations reject unknown/duplicate
+fields, stale preconditions and oversized payloads. The local HTTP deployment
+has the LAN confidentiality limitation accepted by the owner; authentication
+does not encrypt network traffic.
+
+The snapshot `logging` object includes `healthy`, the fixed 300-second
+`interval_seconds`, and `storage_available`, `storage_total_bytes`, and
+`storage_used_bytes`. Capacity fields are zero when the filesystem is
+unavailable; they describe LittleFS filesystem capacity, not the history
+retention budget. The `firmware` object identifies the running app version,
+partition label and OTA image state (`pending_verify`, `valid`, `invalid`, or
+another bootloader state) for Settings diagnostics.

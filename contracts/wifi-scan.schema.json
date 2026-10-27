@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:temperature-monitor:wifi-scan:1",
+  "title": "WifiScan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["scanning", "networks"],
+  "properties": {
+    "scanning": { "type": "boolean" },
+    "networks": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ssid", "rssi", "channel", "secure"],
+        "properties": {
+          "ssid": { "type": "string", "maxLength": 32 },
+          "rssi": { "type": "integer", "minimum": -127, "maximum": 0 },
+          "channel": { "type": "integer", "minimum": 1, "maximum": 14 },
+          "secure": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

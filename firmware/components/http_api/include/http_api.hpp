@@ -7,7 +7,7 @@
 #include "history_service.hpp"
 #include "monitor.hpp"
 #include "wifi_service.hpp"
-#include <atomic>
+#include "ws_live.hpp"
 #include <string>
 namespace monitor {
 class HttpApi {
@@ -22,7 +22,6 @@ class HttpApi {
     static esp_err_t dispatch(httpd_req_t *request);
     static esp_err_t live(httpd_req_t *request);
     static esp_err_t ws_pre(httpd_req_t *request);
-    static void broadcast(void *context);
     esp_err_t handle(httpd_req_t *request);
     std::string snapshot();
     bool origin(httpd_req_t *request, bool require_origin);
@@ -46,11 +45,6 @@ class HttpApi {
     bool simulated_ = false;
     std::string utc_, boot_id_;
     httpd_handle_t server_ = nullptr;
-    struct SocketSession {
-        int fd = -1;
-        std::string token;
-    };
-    std::array<SocketSession, 4> websocket_tokens_{};
-    std::atomic<bool> broadcast_pending_{false};
+    WsLive ws_live_;
 };
 } // namespace monitor

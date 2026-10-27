@@ -8,19 +8,16 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { request, setCsrf } from './api/auth';
+import { authState, request, setCsrf, type AuthState } from './api/auth';
 export default function AuthGate({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<{
-    enrolled: boolean;
-    csrf?: string;
-  } | null>(null);
+  const [state, setState] = useState<AuthState | null>(null);
   const [password, setPassword] = useState('');
   const [secret, setSecret] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     let active = true;
-    request<{ enrolled: boolean; csrf?: string }>('/auth/state')
+    authState()
       .then((next) => {
         if (active) {
           setCsrf(next.csrf ?? '');
@@ -66,9 +63,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
       // An enrollment may have committed before a lost response. Recheck its state.
       if (!state.enrolled) {
         try {
-          const current = await request<{ enrolled: boolean; csrf?: string }>(
-            '/auth/state',
-          );
+          const current = await authState();
           if (current.enrolled) {
             setState(current);
             setSecret('');

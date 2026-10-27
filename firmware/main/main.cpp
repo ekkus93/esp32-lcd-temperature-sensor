@@ -6,18 +6,19 @@
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_ota_ops.h"
 #include "esp_psram.h"
 #include "esp_random.h"
+#include "esp_system.h"
 #include "esp_timer.h"
-#include "fake_bus.hpp"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "history_service.hpp"
 #include "http_api.hpp"
 #include "monitor.hpp"
 #include "nvs_flash.h"
-#include "onewire_service.hpp"
 #include "provisioning_service.hpp"
+#include "sampling_service.hpp"
 #include "settings_service.hpp"
 #include "wifi_service.hpp"
 
@@ -47,14 +48,16 @@ extern "C" void app_main() {
     ESP_LOGI(tag, "version=%s idf=%s psram=%u internal_heap=%u", esp_app_get_description()->version,
              esp_get_idf_version(), static_cast<unsigned>(esp_psram_get_size()),
              static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL)));
+    ESP_LOGI(tag, "reset_reason=%d", static_cast<int>(esp_reset_reason()));
+    uint64_t boot_id = (uint64_t(esp_random()) << 32) | esp_random();
     monitor::HistoryService history;
-    if (!history.start(simulated))
+    if (!history.start(simulated, boot_id))
         ESP_LOGE(tag, "History worker unavailable");
     monitor::WifiService wifi;
+    bool prior_clock_synced = false;
     auto network_status = wifi.start();
     monitor::AuthService auth;
     monitor::HttpApi api;
-    uint64_t boot_id = (uint64_t(esp_random()) << 32) | esp_random();
     if (network_status == ESP_OK) {
         if (!monitor::start_clock(device_options))
             ESP_LOGW(tag, "Clock synchronization unavailable");
@@ -77,13 +80,23 @@ extern "C" void app_main() {
     auto load = settings.load(registry);
     if (load != ESP_OK && load != ESP_ERR_NVS_NOT_FOUND)
         ESP_LOGE(tag, "Sensor settings unavailable: %s", esp_err_to_name(load));
-    monitor::OneWireService bus;
-    esp_err_t bus_status = simulated ? ESP_OK : bus.initialize();
+    monitor::SamplingService sampling;
+    esp_err_t bus_status = sampling.initialize(simulated);
     if (bus_status != ESP_OK)
         ESP_LOGE(tag, "Bus init failed: %s", esp_err_to_name(bus_status));
     ESP_LOGI(tag, "READY no peripherals required; DQ=%d; LCD/backlight disabled", PIN_ONEWIRE_DATA);
+    monitor::JournalEvent boot_event{};
+    boot_event.boot_id = boot_id;
+    boot_event.kind = monitor::EventKind::reboot;
+    if (!simulated)
+        boot_event.utc_seconds = monitor::trusted_utc();
+    history.submit_event(boot_event);
     bool settings_dirty = false;
     uint64_t simulated_tick = 0;
+    uint64_t last_event_sequence = 0;
+    std::string prior_wifi_state = wifi.info().state;
+    unsigned healthy_cycles = 0;
+    bool ota_boot_checked = false;
     TickType_t wake = xTaskGetTickCount();
     while (true) {
         auto now = esp_timer_get_time() / 1000;
@@ -96,9 +109,55 @@ extern "C" void app_main() {
                 settings_dirty = true;
         }
         auto before = registry.sensors().size();
-        auto readings = simulated ? monitor::fake_readings() : bus.read(now);
+        auto readings = sampling.read(now);
         auto sampled_at = simulated ? int64_t(simulated_tick * 5000) : esp_timer_get_time() / 1000;
-        registry.sample(readings, sampled_at, bus.fault());
+        registry.sample(readings, sampled_at, sampling.fault());
+        for (const auto &event : registry.events()) {
+            if (event.sequence <= last_event_sequence)
+                continue;
+            monitor::JournalEvent record{};
+            record.boot_id = boot_id;
+            record.uptime_ms = event.uptime_ms;
+            record.utc_seconds = simulated ? std::nullopt : monitor::trusted_utc();
+            record.rom = event.rom;
+            record.kind = monitor::EventKind::sensor_state;
+            record.previous = event.previous;
+            record.state = event.state;
+            if (!history.submit_event(record))
+                ESP_LOGE(tag, "Event queue full; acquisition continues");
+            last_event_sequence = event.sequence;
+        }
+        const auto network = wifi.info();
+        if (network.state != prior_wifi_state) {
+            auto wifi_code = [](const std::string &state) -> uint32_t {
+                if (state == "connecting")
+                    return 1;
+                if (state == "connected")
+                    return 2;
+                if (state == "setup")
+                    return 3;
+                return 0;
+            };
+            monitor::JournalEvent event{};
+            event.boot_id = boot_id;
+            event.uptime_ms = sampled_at;
+            event.utc_seconds = simulated ? std::nullopt : monitor::trusted_utc();
+            event.kind = monitor::EventKind::wifi_state;
+            event.detail = (wifi_code(prior_wifi_state) << 8) | wifi_code(network.state);
+            history.submit_event(event);
+            prior_wifi_state = network.state;
+        }
+        const bool clock_synced = !simulated && monitor::clock_synchronized();
+        if (clock_synced != prior_clock_synced) {
+            monitor::JournalEvent event{};
+            event.boot_id = boot_id;
+            event.uptime_ms = sampled_at;
+            event.utc_seconds = clock_synced ? monitor::trusted_utc() : std::nullopt;
+            event.kind = monitor::EventKind::clock_sync;
+            event.detail = clock_synced ? 1 : 0;
+            history.submit_event(event);
+            prior_clock_synced = clock_synced;
+        }
         if (auto bucket = aggregator.add(registry, sampled_at,
                                          simulated ? std::nullopt : monitor::trusted_utc())) {
             if (!history.submit(*bucket))
@@ -117,15 +176,34 @@ extern "C" void app_main() {
         api.publish(registry, sampled_at, history.healthy(),
                     (!simulated && monitor::clock_synchronized()),
                     simulated ? std::string{} : monitor::utc_text());
+        if (!simulated && !ota_boot_checked && ++healthy_cycles >= 2) {
+            const auto *running = esp_ota_get_running_partition();
+            esp_ota_img_states_t state{};
+            const auto state_result =
+                running ? esp_ota_get_state_partition(running, &state) : ESP_ERR_NOT_FOUND;
+            if (state_result != ESP_OK || state != ESP_OTA_IMG_PENDING_VERIFY) {
+                ota_boot_checked = true;
+            } else {
+                const esp_err_t valid = esp_ota_mark_app_valid_cancel_rollback();
+                if (valid == ESP_OK) {
+                    ESP_LOGI(tag, "OTA startup health passed; rollback cancelled");
+                    ota_boot_checked = true;
+                } else {
+                    ESP_LOGE(tag, "OTA image remains pending verification: %s",
+                             esp_err_to_name(valid));
+                }
+            }
+        }
         if (!simulated || simulated_tick % 20 == 0)
-            ESP_LOGI(tag, "HEALTH uptime_ms=%lld sensors=%u bus=%s clock=%s history=%d heap=%u",
-                     static_cast<long long>(now), static_cast<unsigned>(registry.sensors().size()),
-                     simulated ? "SIMULATED"
-                               : (bus.enabled() ? (bus.fault() ? "fault" : "ready") : "disabled"),
-                     simulated
-                         ? "simulated"
-                         : (monitor::clock_synchronized() ? "synchronized" : "unsynchronized"),
-                     int(history.healthy()), static_cast<unsigned>(esp_get_free_heap_size()));
+            ESP_LOGI(
+                tag, "HEALTH uptime_ms=%lld sensors=%u bus=%s clock=%s history=%d heap=%u",
+                static_cast<long long>(now), static_cast<unsigned>(registry.sensors().size()),
+                simulated
+                    ? "SIMULATED"
+                    : (sampling.enabled() ? (sampling.fault() ? "fault" : "ready") : "disabled"),
+                simulated ? "simulated"
+                          : (monitor::clock_synchronized() ? "synchronized" : "unsynchronized"),
+                int(history.healthy()), static_cast<unsigned>(esp_get_free_heap_size()));
         ++simulated_tick;
         vTaskDelayUntil(&wake, pdMS_TO_TICKS(simulated ? 250 : 5000));
     }

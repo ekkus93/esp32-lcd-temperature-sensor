@@ -47,6 +47,53 @@ With maximum-length labels, records for 1–5 probes occupy 99, 158, 217, 276 an
 335 bytes respectively. Ignoring segment rounding, the payload budget forecasts
 approximately 110, 69, 50, 40 and 32 days at 288 windows/day. These are capacity
 forecasts, not measured retained date ranges or a flash lifetime guarantee.
+Host-asserted encoded sizes and floor forecasts are recorded in
+[`validation/history-retention-estimate.md`](validation/history-retention-estimate.md).
+Actual LittleFS retained timestamps still need to be measured on a populated
+device.
+
+## Recovery and backups
+
+LittleFS auto-format is disabled on mount failure. Firmware initializes the
+filesystem only when the entire `history` partition is erased; recoverable
+partial tails in the active temperature segment or event journal are truncated.
+Completed-record corruption, unknown schemas, and nonblank mount failures are
+preserved and reported unavailable. Do not erase or format the partition to
+make a damaged history appear healthy.
+
+For a logical temperature backup, export CSV before maintenance. CSV contains
+temperature aggregates only; it does not preserve event records, sensor
+settings, or exact binary segment boundaries. A complete raw history backup
+requires putting the ESP32-S3 in ROM download mode and reading only the history
+partition with the matching pinned esptool:
+
+```sh
+source /home/phil/esp/esp-idf-v6.1/export.sh
+python -m esptool --chip esp32s3 -p PORT read-flash 0x820000 0x400000 history-backup.bin
+```
+
+Restore that image only to the same partition layout and offset, after checking
+the backup file and accepting that restore replaces all current history:
+
+```sh
+python -m esptool --chip esp32s3 -p PORT write-flash 0x820000 history-backup.bin
+```
+
+Do not use a full-chip erase or change the partition table before preserving
+needed data. A normal full `idf.py flash` updates the firmware boot chain and
+OTA metadata but does not write the history partition when the partition layout
+is unchanged. Device UI does not currently provide history backup/restore or a
+full factory-reset operation. The physical USB administrator-credential
+recovery command removes only admin enrollment; it preserves Wi-Fi, sensor
+settings, and history and is not a factory reset.
+
+OTA writes the inactive 4 MiB application slot and validates the image before
+selecting it. The bootloader rollback path remains available until startup
+passes its health cycles. An interrupted or rejected upload must not select the
+partial image; if network recovery is unavailable, use BOOT+RESET ROM download
+mode and the documented ESP-IDF flash command. Preserve the history partition
+and use the original partition layout during firmware recovery. Forced rollback
+and interrupted-upload recovery still require device acceptance tests.
 
 ## Queries and CSV
 

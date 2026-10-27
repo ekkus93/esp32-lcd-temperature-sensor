@@ -4,6 +4,7 @@ cd "$(dirname "$0")/.."
 cmake -S firmware/tests -B .build/host -G Ninja
 cmake --build .build/host
 ctest --test-dir .build/host --output-on-failure
+npm --prefix web run test:simulator
 if [[ -d firmware/managed_components/lvgl__lvgl ]]; then
   cmake -S firmware/display_tests -B .build/display -G Ninja
   cmake --build .build/display -j 6

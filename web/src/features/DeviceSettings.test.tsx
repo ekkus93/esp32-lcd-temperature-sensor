@@ -66,3 +66,18 @@ it('prevents writes when existing device settings are preserved read-only', asyn
     await screen.findByRole('button', { name: 'Save device preferences' }),
   ).toBeDisabled();
 });
+
+it('exposes independent read-only LCD mode, dwell times, and trend lookback', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({ ok: true, json: async () => settings }),
+  );
+  render(<DeviceSettings onApplied={vi.fn()} />);
+  expect(await screen.findByText(/The LCD is read-only/)).toBeInTheDocument();
+  expect(
+    screen.getByRole('combobox', { name: 'LCD display mode' }),
+  ).toHaveTextContent('Basic — Overview');
+  expect(screen.getByLabelText(/Overview duration/)).toHaveValue(20);
+  expect(screen.getByLabelText(/Trends duration/)).toHaveValue(10);
+  expect(screen.getByLabelText(/LCD history lookback/)).toHaveValue(60);
+});

@@ -1,3 +1,4 @@
+#include "event_store.hpp"
 #include "fake_bus.hpp"
 #include "history.hpp"
 #include <cstdlib>
@@ -45,6 +46,14 @@ int main() {
     for (const auto &reading : fake_readings())
         largest.sensors.push_back({reading.rom, 20, 20, 20, 60, false, std::string(32, 'N'), 1});
     CHECK(encode_bucket(largest).size() == max_history_record_bytes);
+    const auto readings = fake_readings();
+    for (size_t count = 1; count <= readings.size(); ++count) {
+        Bucket measured{7, 0, {}, {}};
+        for (size_t index = 0; index < count; ++index)
+            measured.sensors.push_back(
+                {readings[index].rom, 20, 20, 20, 60, false, std::string(32, 'N'), 1});
+        CHECK(encode_bucket(measured).size() == 40 + count * 59);
+    }
     auto restored = decode_bucket(data);
     CHECK(restored && restored->sensors[0].average == -10.123 && !restored->utc_seconds);
     for (std::size_t i = 0; i < data.size(); ++i) {
@@ -138,10 +147,92 @@ int main() {
     }));
     CHECK(mixed_count == 2);
     std::filesystem::remove_all(directory);
+
+    char event_directory[] = "/tmp/monitor-events-XXXXXX";
+    CHECK(mkdtemp(event_directory));
+    const std::string event_path = std::string(event_directory) + "/events.bin";
+    JournalEvent event{};
+    event.boot_id = 123;
+    event.uptime_ms = 5000;
+    event.kind = EventKind::sensor_state;
+    event.previous = State::normal;
+    event.state = State::high;
+    event.rom = rom;
+    event.utc_seconds = 1800000000;
+    auto event_bytes = encode_event({1, event.boot_id, event.uptime_ms, event.utc_seconds,
+                                     event.rom, event.kind, event.previous, event.state, 0});
+    CHECK(event_bytes.size() == event_record_bytes);
+    auto decoded_event = decode_event(event_bytes);
+    CHECK(decoded_event && decoded_event->state == State::high &&
+          decoded_event->utc_seconds == event.utc_seconds);
+    for (auto kind : {EventKind::sensor_state, EventKind::wifi_state, EventKind::clock_sync,
+                      EventKind::reboot, EventKind::storage_error}) {
+        auto typed = event;
+        typed.kind = kind;
+        auto roundtrip =
+            decode_event(encode_event({1, typed.boot_id, typed.uptime_ms, typed.utc_seconds,
+                                       typed.rom, typed.kind, typed.previous, typed.state, 9}));
+        CHECK(roundtrip && roundtrip->kind == kind && roundtrip->detail == 9);
+    }
+    for (size_t i = 0; i < event_bytes.size(); ++i) {
+        auto damaged = event_bytes;
+        damaged[i] ^= 1;
+        CHECK(!decode_event(damaged));
+    }
+    EventStore journal(event_path, 4 * event_record_bytes);
+    CHECK(journal.recover());
+    for (int64_t i = 0; i < 10; ++i) {
+        event.uptime_ms = 5000 + i * 1000;
+        event.state = (i % 2) ? State::normal : State::high;
+        event.previous = (i % 2) ? State::high : State::normal;
+        CHECK(journal.append(event));
+    }
+    const auto before_throttle = journal.bytes();
+    event.uptime_ms += 500;
+    CHECK(journal.append(event) && journal.bytes() == before_throttle);
+    CHECK(journal.bytes() <= 4 * event_record_bytes);
+    auto event_page = journal.page(0, 2);
+    CHECK(event_page.events.size() == 2 && event_page.has_more && event_page.oldest_available > 1 &&
+          event_page.next_after == event_page.events.back().sequence);
+    EventStore reopened(event_path, 4 * event_record_bytes);
+    CHECK(reopened.recover());
+    const auto recovered_page = reopened.page(0, 50);
+    const auto newest_sequence = recovered_page.next_after;
+    event.boot_id = 456;
+    event.kind = EventKind::reboot;
+    event.rom = 0;
+    event.uptime_ms = 0;
+    event.utc_seconds.reset();
+    event.previous = State::normal;
+    event.state = State::normal;
+    CHECK(reopened.append(event));
+    auto after_reboot = reopened.page(newest_sequence, 50);
+    CHECK(after_reboot.events.size() == 1 &&
+          after_reboot.events.front().kind == EventKind::reboot &&
+          after_reboot.events.front().sequence > newest_sequence);
+    {
+        std::ofstream tail(event_path, std::ios::binary | std::ios::app);
+        tail.write("partial", 7);
+    }
+    const auto valid_bytes = reopened.bytes() - 7;
+    EventStore tail_recovery(event_path, 4 * event_record_bytes);
+    CHECK(tail_recovery.recover() && tail_recovery.bytes() == valid_bytes);
+    {
+        std::fstream corrupt(event_path, std::ios::binary | std::ios::in | std::ios::out);
+        corrupt.put('X');
+    }
+    const auto damaged_size = std::filesystem::file_size(event_path);
+    EventStore damaged_journal(event_path, 4 * event_record_bytes);
+    CHECK(!damaged_journal.recover() && std::filesystem::file_size(event_path) == damaged_size);
+    std::filesystem::remove_all(event_directory);
+    char cadence_directory[] = "/tmp/monitor-cadence-XXXXXX";
+    CHECK(mkdtemp(cadence_directory));
+    HistoryStore cadence_store(cadence_directory, 32 * 1024, 8 * 1024);
+    CHECK(cadence_store.recover());
     Registry registry;
     Aggregator aggregation(123);
     unsigned windows = 0;
-    // Accelerated 24-hour run. Raw 5-second samples never become individual flash records.
+    // Accelerated 24-hour run. Only completed 5-minute buckets reach persistent storage.
     for (int64_t now = 0; now <= 86400000; now += sample_ms) {
         registry.sample({{rom, 20.0}}, now);
         auto result = aggregation.add(registry, now);
@@ -149,9 +240,27 @@ int main() {
             ++windows;
             CHECK(result->sensors[0].count == 60);
             CHECK(!result->sensors[0].partial);
+            CHECK(cadence_store.append(*result));
         }
     }
     CHECK(windows == 288);
-    std::cout
-        << "PASS: binary CRC, truncation, rotation, retention, recovery and 24-hour aggregation\n";
+    const auto expected_cadence_bytes =
+        windows *
+        encode_bucket(
+            Bucket{123, 0, std::nullopt, {{rom, 20.0, 20.0, 20.0, 60, false, "Sensor 1", 0}}})
+            .size();
+    CHECK(cadence_store.bytes() == expected_cadence_bytes);
+    unsigned persisted_windows = 0;
+    CHECK(cadence_store.visit([&](const Bucket &record) {
+        CHECK(record.sensors.size() == 1 && record.sensors[0].count == 60);
+        ++persisted_windows;
+        return true;
+    }));
+    CHECK(persisted_windows == windows);
+    HistoryStore cadence_reopened(cadence_directory, 32 * 1024, 8 * 1024);
+    CHECK(cadence_reopened.recover());
+    CHECK(cadence_reopened.bytes() == expected_cadence_bytes);
+    std::filesystem::remove_all(cadence_directory);
+    std::cout << "PASS: binary CRC, truncation, rotation, retention, recovery, persisted 5-minute "
+                 "cadence and 24-hour aggregation\n";
 }

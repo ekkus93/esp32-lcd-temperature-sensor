@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:temperature-monitor:auth-state:1",
+  "title": "AuthState",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["enrolled"],
+  "properties": {
+    "enrolled": { "type": "boolean" },
+    "csrf": { "type": "string", "minLength": 32, "maxLength": 64 }
+  }
+}

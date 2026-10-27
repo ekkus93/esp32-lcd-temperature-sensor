@@ -25,6 +25,7 @@ const response = {
   truncated: false,
   time_basis: 'uptime',
   points: [],
+  gaps: [],
 };
 it('queries unsynchronized data by boot and uptime without inventing UTC', async () => {
   vi.stubGlobal(
@@ -37,6 +38,26 @@ it('queries unsynchronized data by boot and uptime without inventing UTC', async
     'from=3600000&to=7200000',
   );
   expect(vi.mocked(fetch).mock.calls[0][0]).toContain('boot_id=');
+});
+it('preserves explicit missing intervals in history responses', async () => {
+  const gap = {
+    boot_id: '0123456789abcdef',
+    rom_id: '2801000000000029',
+    start_ms: 300000,
+    end_ms: 600000,
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ...response, gaps: [gap] }),
+    }),
+  );
+  expect(
+    (
+      await getHistory({ ...empty, uptime_ms: 7200000 }, 1).then((r) => r.gaps)
+    ).at(0),
+  ).toEqual(gap);
 });
 it('queries synchronized history using the device clock rather than the browser clock', async () => {
   vi.stubGlobal(

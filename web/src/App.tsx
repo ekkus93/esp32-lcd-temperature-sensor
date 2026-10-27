@@ -21,6 +21,7 @@ const AlertsView = lazy(() => import('./features/AlertsView'));
 const HistoryView = lazy(() => import('./features/HistoryView'));
 const PasswordSettings = lazy(() => import('./features/PasswordSettings'));
 const DeviceSettings = lazy(() => import('./features/DeviceSettings'));
+const FirmwareUpdate = lazy(() => import('./features/FirmwareUpdate'));
 const pages = [
   'Dashboard',
   'History',
@@ -195,6 +196,11 @@ export default function App() {
                       >
                         ROM {s.rom_id}
                       </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {s.last_seen_ms === null
+                          ? 'No valid reading yet'
+                          : `Updated ${Math.floor(Math.max(0, snapshot!.uptime_ms - s.last_seen_ms) / 1000)} seconds ago`}
+                      </Typography>
                     </CardContent>
                   </Card>
                 ))}
@@ -239,11 +245,66 @@ export default function App() {
           )}
           {index === 4 && (
             <Stack spacing={3}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6">Storage and diagnostics</Typography>
+                  <Typography>
+                    Firmware {snapshot?.firmware.version ?? 'unavailable'} ·{' '}
+                    {snapshot?.firmware.partition ?? 'no active slot'} · OTA{' '}
+                    {snapshot?.firmware.ota_state ?? 'unknown'}
+                  </Typography>
+                  <Typography>
+                    Five-minute history:{' '}
+                    {snapshot?.logging.healthy ? 'available' : 'unavailable'}
+                  </Typography>
+                  {snapshot?.logging.storage_available ? (
+                    <Typography color="text.secondary">
+                      {(
+                        snapshot.logging.storage_used_bytes /
+                        1024 /
+                        1024
+                      ).toFixed(2)}{' '}
+                      MiB used of{' '}
+                      {(
+                        snapshot.logging.storage_total_bytes /
+                        1024 /
+                        1024
+                      ).toFixed(2)}{' '}
+                      MiB
+                    </Typography>
+                  ) : (
+                    <Typography color="text.secondary">
+                      Storage capacity is unavailable until the history
+                      filesystem mounts.
+                    </Typography>
+                  )}
+                  <Typography color="text.secondary">
+                    Aggregates are recorded every{' '}
+                    {snapshot?.logging.interval_seconds ?? 300} seconds. No
+                    five-second raw readings are stored.
+                  </Typography>
+                </CardContent>
+              </Card>
               <Suspense
                 fallback={<Typography>Loading device preferences…</Typography>}
               >
                 <DeviceSettings onApplied={setUnit} />
               </Suspense>
+              <Card>
+                <CardContent>
+                  <Suspense
+                    fallback={
+                      <Typography>Loading firmware updater…</Typography>
+                    }
+                  >
+                    <FirmwareUpdate
+                      version={snapshot?.firmware.version ?? 'unavailable'}
+                      partition={snapshot?.firmware.partition ?? 'unknown slot'}
+                      state={snapshot?.firmware.ota_state ?? 'unknown'}
+                    />
+                  </Suspense>
+                </CardContent>
+              </Card>
               <Suspense
                 fallback={<Typography>Loading network settings…</Typography>}
               >

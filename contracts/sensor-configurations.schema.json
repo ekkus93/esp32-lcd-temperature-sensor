@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:temperature-monitor:sensor-configurations:1",
+  "title": "SensorConfigurations",
+  "type": "array",
+  "maxItems": 5,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "rom_id",
+      "etag",
+      "revision",
+      "name",
+      "short_name",
+      "enabled",
+      "disconnect_alert",
+      "order",
+      "calibration_c",
+      "hysteresis_c",
+      "persistence_seconds",
+      "low_c",
+      "high_c",
+      "state"
+    ],
+    "properties": {
+      "rom_id": { "type": "string", "pattern": "^28[0-9a-f]{14}$" },
+      "etag": { "type": "string", "minLength": 1, "maxLength": 128 },
+      "revision": { "type": "integer", "minimum": 0 },
+      "name": { "type": "string", "minLength": 1, "maxLength": 32 },
+      "short_name": { "type": "string", "maxLength": 12 },
+      "enabled": { "type": "boolean" },
+      "disconnect_alert": { "type": "boolean" },
+      "order": { "type": "integer", "minimum": 0, "maximum": 4 },
+      "calibration_c": { "type": "number", "minimum": -20, "maximum": 20 },
+      "low_c": { "type": ["number", "null"], "minimum": -55, "maximum": 125 },
+      "high_c": { "type": ["number", "null"], "minimum": -55, "maximum": 125 },
+      "hysteresis_c": { "type": "number", "minimum": 0, "maximum": 20 },
+      "persistence_seconds": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 3600
+      },
+      "state": {
+        "enum": [
+          "normal",
+          "high",
+          "low",
+          "unassigned",
+          "disabled",
+          "disconnected",
+          "stale",
+          "invalid",
+          "bus_fault"
+        ]
+      }
+    }
+  }
+}

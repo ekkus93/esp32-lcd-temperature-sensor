@@ -7,6 +7,7 @@
 #include "esp_wifi.h"
 #include "freertos/task.h"
 #include "lwip/ip4_addr.h"
+#include "mdns.h"
 #include "monitor.hpp"
 #include "nvs.h"
 #include "psa/crypto.h"
@@ -56,6 +57,27 @@ esp_err_t WifiService::start() {
         return result;
     if ((result = esp_wifi_start()) != ESP_OK)
         return result;
+    result = mdns_init();
+    if (result != ESP_OK) {
+        ESP_LOGW("wifi_control", "mDNS unavailable (%s); use the device IP",
+                 esp_err_to_name(result));
+    } else {
+        result = mdns_hostname_set("temperature-monitor");
+        if (result == ESP_OK)
+            result = mdns_instance_name_set("ESP32 Temperature Monitor");
+        if (result != ESP_OK) {
+            ESP_LOGW("wifi_control", "mDNS hostname unavailable (%s); use the device IP",
+                     esp_err_to_name(result));
+            mdns_free();
+        } else {
+            result = mdns_service_add(nullptr, "_http", "_tcp", 80, nullptr, 0);
+            if (result != ESP_OK)
+                ESP_LOGW("wifi_control", "mDNS HTTP service advertisement unavailable: %s",
+                         esp_err_to_name(result));
+            else
+                ESP_LOGI("wifi_control", "mDNS available at http://temperature-monitor.local");
+        }
+    }
     // RF is now active, supplying hardware entropy for per-device provisioning secrets.
     uint8_t mac[6]{};
     esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP);
@@ -242,7 +264,7 @@ void WifiService::worker(void *context) {
     auto &self = *static_cast<WifiService *>(context);
     bool trying = false;
     Command proposed{};
-    int64_t deadline = 0, next_retry = 0, close_ap = 0, scan_deadline = 0;
+    int64_t deadline = 0, candidate_start = 0, next_retry = 0, close_ap = 0, scan_deadline = 0;
     unsigned attempts = 0;
     if (self.saved_ssid_[0])
         self.station(self.saved_ssid_, self.saved_password_);
@@ -297,13 +319,16 @@ void WifiService::worker(void *context) {
                 self.set_ap(true);
                 proposed = command;
                 trying = true;
+                // Open AP+STA first, then give the HTTP handler time to return 202
+                // before disconnecting a client using the current station network.
+                candidate_start = now + 1000;
                 deadline = now + 25000;
                 self.candidate_deadline_ = deadline;
                 self.attempt_ = 1;
                 self.last_reason_ = 0;
-                esp_wifi_disconnect();
-                self.station(proposed.ssid, proposed.password);
             } else if (command.kind == got_ip) {
+                if (trying && candidate_start)
+                    continue;
                 if (trying) {
                     wifi_ap_record_t current{};
                     if (esp_wifi_sta_get_ap_info(&current) != ESP_OK ||
@@ -327,6 +352,7 @@ void WifiService::worker(void *context) {
                     trying = false;
                     self.candidate_pending_ = false;
                     self.candidate_deadline_ = 0;
+                    candidate_start = 0;
                     std::memset(&proposed, 0, sizeof(proposed));
                 }
             } else if (command.kind == disconnected) {
@@ -343,6 +369,11 @@ void WifiService::worker(void *context) {
             std::memset(&command, 0, sizeof(command));
         }
         now = esp_timer_get_time() / 1000;
+        if (trying && candidate_start && now >= candidate_start) {
+            candidate_start = 0;
+            esp_wifi_disconnect();
+            self.station(proposed.ssid, proposed.password);
+        }
         if (scan_deadline && now >= scan_deadline) {
             esp_wifi_scan_stop();
             esp_wifi_clear_ap_list();
@@ -353,6 +384,7 @@ void WifiService::worker(void *context) {
             trying = false;
             self.candidate_pending_ = false;
             self.candidate_deadline_ = 0;
+            candidate_start = 0;
             self.attempt_ = 3;
             self.ip_ = 0;
             esp_wifi_disconnect();

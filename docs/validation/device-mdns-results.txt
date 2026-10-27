@@ -1,0 +1,20 @@
+2026-10-27 — normal ESP32-S3 image, bare board (no probes or LCD)
+
+ESP-IDF dependency: espressif/mdns 1.14.1, locked in
+firmware/dependencies.lock. Firmware full verification passed: 8 host core
+suites, 1 headless display suite, frontend checks, formatting/lint/typecheck,
+and pinned ESP-IDF v6.1 build. App image: 0x1747c0 bytes; 64% of smallest OTA
+slot remains free.
+
+Flash and boot: PASS, esptool hash verified. Firmware log reported
+"mDNS available at http://temperature-monitor.local". Fifteen-second USB
+smoke reported READY, zero sensors, disabled sensor bus, healthy history, and
+three health reports at approximately 222, 5220, and 10220 ms, with no panic.
+
+Protected device API suite: PASS, including authentication, radio scan,
+WebSocket, Host/Origin/CSRF checks, malformed-body checks and sampling cadence.
+
+Fallback remains setup AP `http://192.168.4.1`; when connected to a configured
+station network, use the DHCP-provided device IP if `.local` multicast DNS is
+blocked. Actual hostname resolution from a client, station association, phone
+onboarding and NTP were not tested. No owner Wi-Fi credentials were used.

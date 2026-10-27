@@ -1,0 +1,20 @@
+2026-10-27 — normal ESP32-S3 image, no LCD/probes
+
+The Wi-Fi service now enables AP+STA setup before testing a candidate, returns
+the asynchronous HTTP response, then waits one second before disconnecting the
+current station and starting candidate association. This preserves the active
+request response and keeps setup AP available during the attempt.
+
+ESP-IDF v6.1 full verification passed (8 core suites, 1 display suite, 37 web
+tests, formatting/lint/typecheck/build). App image: 0x1768b0 bytes, about 63%
+of the smallest OTA slot free. The image was flashed and hash verified.
+
+Device API run with `--candidate-failure` passed: real radio scan, candidate
+accepted with HTTP 202, overlapping attempt rejected with 409, nonexistent
+network timed out, and setup remained available with no saved station
+credentials. The remaining authenticated API, WebSocket, validation and
+sampling-cadence checks passed.
+
+The test uses the USB HTTP bridge; no phone or browser was associated to the
+device AP or station network. Successful owner-network association, saved
+credential handoff and NTP still require private owner Wi-Fi credentials.

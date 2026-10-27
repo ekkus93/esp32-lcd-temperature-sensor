@@ -129,7 +129,12 @@ function Editor({
           label="Device timezone"
           select
           value={draft.timezone}
-          onChange={(e) => setDraft({ ...draft, timezone: e.target.value })}
+          onChange={(e) =>
+            setDraft({
+              ...draft,
+              timezone: e.target.value as Settings['timezone'],
+            })
+          }
         >
           {timezones.map((zone) => (
             <MenuItem key={zone} value={zone}>

@@ -14,13 +14,7 @@ export interface Snapshot {
   /**
    * @maxItems 5
    */
-  sensors:
-    | []
-    | [Sensor]
-    | [Sensor, Sensor]
-    | [Sensor, Sensor, Sensor]
-    | [Sensor, Sensor, Sensor, Sensor]
-    | [Sensor, Sensor, Sensor, Sensor, Sensor];
+  sensors: Sensor[];
   clock: {
     utc: string | null;
     synchronized: boolean;
@@ -31,8 +25,17 @@ export interface Snapshot {
   logging: {
     healthy: boolean;
     interval_seconds: 300;
+    storage_available: boolean;
+    storage_total_bytes: number;
+    storage_used_bytes: number;
   };
   boot_id: string;
+  firmware: {
+    version: string;
+    partition: string;
+    ota_state:
+      'new' | 'pending_verify' | 'valid' | 'invalid' | 'aborted' | 'unknown';
+  };
 }
 export interface Sensor {
   rom_id: string;

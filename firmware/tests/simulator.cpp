@@ -18,7 +18,11 @@ int main(int argc, char **argv) {
     std::cout << "{\"version\":1,\"boot_id\":\"simulator\",\"sequence\":1,\"simulated\":true,"
                  "\"uptime_ms\":0,\"bus_fault\":false,"
                  "\"clock\":{\"utc\":null,\"synchronized\":false},\"wifi\":{\"state\":\"offline\"},"
-                 "\"logging\":{\"healthy\":false,\"interval_seconds\":300},\"sensors\":[";
+                 "\"firmware\":{\"version\":\"0.1.0\",\"partition\":\"ota_0\","
+                 "\"ota_state\":\"valid\"},"
+                 "\"logging\":{\"healthy\":false,\"interval_seconds\":300,"
+                 "\"storage_available\":false,\"storage_total_bytes\":0,"
+                 "\"storage_used_bytes\":0},\"sensors\":[";
     bool first = true;
     for (const auto &sensor : registry.sensors()) {
         if (!first)

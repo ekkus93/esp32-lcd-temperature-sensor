@@ -4,9 +4,9 @@
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
 #include "history_csv.hpp"
+#include "ota_service.hpp"
 #include "web_assets.h"
 #include <algorithm>
-#include <charconv>
 #include <cmath>
 #include <cstring>
 #include <memory>
@@ -73,6 +73,26 @@ Json body(httpd_req_t *r) {
 std::string string(cJSON *object, const char *key) {
     auto *value = cJSON_GetObjectItemCaseSensitive(object, key);
     return cJSON_IsString(value) ? value->valuestring : "";
+}
+const char *event_kind_name(EventKind kind) {
+    switch (kind) {
+    case EventKind::sensor_state:
+        return "sensor_state";
+    case EventKind::wifi_state:
+        return "wifi_state";
+    case EventKind::clock_sync:
+        return "clock_sync";
+    case EventKind::reboot:
+        return "reboot";
+    case EventKind::storage_error:
+        return "storage_error";
+    }
+    return "sensor_state";
+}
+std::string boot_text(uint64_t boot_id) {
+    char value[17]{};
+    std::snprintf(value, sizeof(value), "%016llx", static_cast<unsigned long long>(boot_id));
+    return value;
 }
 std::string cookie(httpd_req_t *r) {
     auto text = header(r, "Cookie");
@@ -141,6 +161,7 @@ bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &histor
     config.send_wait_timeout = 3;
     if (httpd_start(&server_, &config) != ESP_OK)
         return false;
+    ws_live_.configure(server_, auth, [this] { return snapshot(); });
     httpd_uri_t ws{};
     ws.uri = "/api/v1/live";
     ws.method = HTTP_GET;
@@ -182,8 +203,7 @@ void HttpApi::publish(const Registry &registry, int64_t uptime, bool logging, bo
         published_generation_ = consumed_generation_;
         xSemaphoreGive(mutex_);
     }
-    if (!broadcast_pending_.exchange(true) && httpd_queue_work(server_, broadcast, this) != ESP_OK)
-        broadcast_pending_ = false;
+    ws_live_.schedule();
 }
 std::string HttpApi::snapshot() {
     Registry registry;
@@ -205,6 +225,11 @@ std::string HttpApi::snapshot() {
     cJSON_AddNumberToObject(object.get(), "uptime_ms", uptime);
     cJSON_AddBoolToObject(object.get(), "simulated", simulated_);
     cJSON_AddBoolToObject(object.get(), "bus_fault", registry.bus_fault());
+    const auto update = ota_status();
+    auto *firmware = cJSON_AddObjectToObject(object.get(), "firmware");
+    cJSON_AddStringToObject(firmware, "version", update.version.c_str());
+    cJSON_AddStringToObject(firmware, "partition", update.partition.c_str());
+    cJSON_AddStringToObject(firmware, "ota_state", update.state.c_str());
     auto *clock = cJSON_AddObjectToObject(object.get(), "clock");
     cJSON_AddBoolToObject(clock, "synchronized", synced);
     if (synced)
@@ -217,6 +242,10 @@ std::string HttpApi::snapshot() {
     auto *history = cJSON_AddObjectToObject(object.get(), "logging");
     cJSON_AddBoolToObject(history, "healthy", logging);
     cJSON_AddNumberToObject(history, "interval_seconds", 300);
+    auto storage = history_->storage_info();
+    cJSON_AddBoolToObject(history, "storage_available", storage.available);
+    cJSON_AddNumberToObject(history, "storage_total_bytes", storage.total_bytes);
+    cJSON_AddNumberToObject(history, "storage_used_bytes", storage.used_bytes);
     auto *sensors = cJSON_AddArrayToObject(object.get(), "sensors");
     auto ordered = registry.sensors();
     std::stable_sort(ordered.begin(), ordered.end(), [](const Sensor &a, const Sensor &b) {
@@ -256,76 +285,16 @@ esp_err_t HttpApi::ws_pre(httpd_req_t *r) {
         error(r, "403 Forbidden", "WebSocket authorization failed");
         return ESP_FAIL;
     }
-    int fd = httpd_req_to_sockfd(r);
-    SocketSession *slot = nullptr;
-    for (auto &entry : self.websocket_tokens_) {
-        if (entry.fd == fd) {
-            slot = &entry;
-            break;
-        }
-        if (!slot && (entry.fd < 0 ||
-                      httpd_ws_get_fd_info(self.server_, entry.fd) != HTTPD_WS_CLIENT_WEBSOCKET))
-            slot = &entry;
-    }
-    if (!slot) {
+    const int fd = httpd_req_to_sockfd(r);
+    if (!self.ws_live_.add_client(fd, session->token)) {
         error(r, "503 Service Unavailable", "Socket limit");
         return ESP_FAIL;
     }
-    slot->fd = fd;
-    slot->token = session->token;
-    if (!self.broadcast_pending_.exchange(true) &&
-        httpd_queue_work(self.server_, broadcast, &self) != ESP_OK)
-        self.broadcast_pending_ = false;
+    self.ws_live_.schedule();
     return ESP_OK;
 }
 esp_err_t HttpApi::live(httpd_req_t *r) {
-    auto &self = *static_cast<HttpApi *>(r->user_ctx);
-    int fd = httpd_req_to_sockfd(r);
-    httpd_ws_frame_t frame{};
-    auto result = httpd_ws_recv_frame(r, &frame, 0);
-    if (result != ESP_OK || frame.len > 1024) {
-        httpd_sess_trigger_close(self.server_, fd);
-        return ESP_FAIL;
-    }
-    // The live channel is server-to-client only; unexpected commands are closed.
-    if (frame.type == HTTPD_WS_TYPE_CLOSE || frame.len) {
-        httpd_sess_trigger_close(self.server_, fd);
-        return ESP_OK;
-    }
-    return ESP_OK;
-}
-void HttpApi::broadcast(void *context) {
-    auto &self = *static_cast<HttpApi *>(context);
-    struct Done {
-        std::atomic<bool> &flag;
-        ~Done() {
-            flag = false;
-        }
-    } done{self.broadcast_pending_};
-    auto text = self.snapshot();
-    if (text.empty())
-        return;
-    size_t count = 6;
-    int sockets[6]{};
-    if (httpd_get_client_list(self.server_, &count, sockets) != ESP_OK)
-        return;
-    for (size_t i = 0; i < count; ++i) {
-        int fd = sockets[i];
-        if (httpd_ws_get_fd_info(self.server_, fd) != HTTPD_WS_CLIENT_WEBSOCKET)
-            continue;
-        auto found = std::find_if(self.websocket_tokens_.begin(), self.websocket_tokens_.end(),
-                                  [fd](const SocketSession &entry) { return entry.fd == fd; });
-        if (found == self.websocket_tokens_.end() || !self.auth_->authorize(found->token, now())) {
-            httpd_sess_trigger_close(self.server_, fd);
-            continue;
-        }
-        httpd_ws_frame_t frame{};
-        frame.type = HTTPD_WS_TYPE_TEXT;
-        frame.payload = reinterpret_cast<uint8_t *>(text.data());
-        frame.len = text.size();
-        if (httpd_ws_send_frame_async(self.server_, fd, &frame) != ESP_OK)
-            httpd_sess_trigger_close(self.server_, fd);
-    }
+    return static_cast<HttpApi *>(r->user_ctx)->ws_live_.receive(r);
 }
 esp_err_t HttpApi::handle(httpd_req_t *r) {
     std::string path = r->uri;
@@ -378,6 +347,8 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
         auto *s = session(r, r->method != HTTP_GET);
         if (!s)
             return error(r, "401 Unauthorized", "Administrator session required");
+        if (path == "/api/v1/ota" && r->method == HTTP_POST)
+            return handle_ota_upload(r);
         if (path == "/api/v1/settings" && (r->method == HTTP_GET || r->method == HTTP_PATCH)) {
             DeviceOptions options;
             uint64_t revision = 0;
@@ -512,53 +483,13 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
             if (httpd_req_get_url_query_str(r, query_text.data(), query_text.size()) != ESP_OK)
                 return error(r, "400 Bad Request", "Invalid history query");
             query_text.resize(length);
-            HistoryQuery query;
-            bool valid = true;
-            std::vector<std::string> keys;
-            for (size_t start = 0; start < query_text.size();) {
-                auto end = query_text.find('&', start);
-                if (end == std::string::npos)
-                    end = query_text.size();
-                auto item = query_text.substr(start, end - start);
-                auto equals = item.find('=');
-                auto key = item.substr(0, equals);
-                auto value = equals == std::string::npos ? std::string{} : item.substr(equals + 1);
-                if (value.empty() || std::find(keys.begin(), keys.end(), key) != keys.end()) {
-                    valid = false;
-                    break;
-                }
-                keys.push_back(key);
-                uint64_t number = 0;
-                const int base = key == "boot_id" || key == "rom_id" ? 16 : 10;
-                auto parsed =
-                    std::from_chars(value.data(), value.data() + value.size(), number, base);
-                if (parsed.ec != std::errc{} || parsed.ptr != value.data() + value.size()) {
-                    valid = false;
-                    break;
-                }
-                if (key == "boot_id" && value.size() == 16)
-                    query.boot_id = number;
-                else if ((key == "from" || key == "to") && number <= INT64_MAX) {
-                    if (key == "from")
-                        query.from = int64_t(number);
-                    else
-                        query.to = int64_t(number);
-                } else if (key == "max_points" && number >= 1 && number <= 512)
-                    query.max_points = unsigned(number);
-                else if (key == "rom_id" && value.size() == 16) {
-                    // Public ROM strings use wire-byte order rather than host uint64 order.
-                    uint64_t rom = 0;
-                    for (unsigned i = 0; i < 8; ++i)
-                        rom |= ((number >> (8 * i)) & 0xff) << (8 * (7 - i));
-                    query.roms.push_back(rom);
-                } else
-                    valid = false;
-                start = end + 1;
-            }
-            if (!valid || !valid_query(query))
+            bool has_max_points = false;
+            auto parsed_query = parse_history_query(query_text, &has_max_points);
+            if (!parsed_query)
                 return error(r, "400 Bad Request", "Invalid history bounds or selector");
+            const auto &query = *parsed_query;
             if (path == "/api/v1/history/export") {
-                if (std::find(keys.begin(), keys.end(), "max_points") != keys.end())
+                if (has_max_points)
                     return error(r, "400 Bad Request",
                                  "CSV exports full five-minute records; omit max_points");
                 bool started = false;
@@ -626,6 +557,18 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                 cJSON_AddBoolToObject(item, "partial", point.partial);
                 cJSON_AddItemToArray(items, item);
             }
+            auto *gaps = cJSON_AddArrayToObject(output.get(), "gaps");
+            for (const auto &gap : history_gaps(points)) {
+                auto *item = cJSON_CreateObject();
+                char boot[17];
+                std::snprintf(boot, sizeof(boot), "%016llx",
+                              static_cast<unsigned long long>(gap.boot_id));
+                cJSON_AddStringToObject(item, "boot_id", boot);
+                cJSON_AddStringToObject(item, "rom_id", rom_hex(gap.rom).c_str());
+                cJSON_AddNumberToObject(item, "start_ms", gap.start_ms);
+                cJSON_AddNumberToObject(item, "end_ms", gap.end_ms);
+                cJSON_AddItemToArray(gaps, item);
+            }
             return json(r, output.get());
         }
         if ((path == "/api/v1/sensors" || path == "/api/v1/alerts" ||
@@ -637,6 +580,49 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
             const uint64_t snapshot_generation = published_generation_.load();
             xSemaphoreGive(mutex_);
             if (path == "/api/v1/alerts" && r->method == HTTP_GET) {
+                uint64_t after = 0;
+                unsigned limit = 50;
+                const auto query_length = httpd_req_get_url_query_len(r);
+                if (query_length > 64)
+                    return error(r, "400 Bad Request", "Invalid alert cursor");
+                if (query_length) {
+                    std::string query_text(query_length + 1, '\0');
+                    if (httpd_req_get_url_query_str(r, query_text.data(), query_text.size()) !=
+                        ESP_OK)
+                        return error(r, "400 Bad Request", "Invalid alert cursor");
+                    query_text.resize(query_length);
+                    bool valid = true;
+                    std::vector<std::string> keys;
+                    for (size_t start = 0; start < query_text.size();) {
+                        auto end = query_text.find('&', start);
+                        if (end == std::string::npos)
+                            end = query_text.size();
+                        const auto item = query_text.substr(start, end - start);
+                        const auto equals = item.find('=');
+                        const auto key = item.substr(0, equals);
+                        const auto value =
+                            equals == std::string::npos ? std::string{} : item.substr(equals + 1);
+                        uint64_t number = 0;
+                        const auto parsed =
+                            std::from_chars(value.data(), value.data() + value.size(), number);
+                        if (value.empty() ||
+                            std::find(keys.begin(), keys.end(), key) != keys.end() ||
+                            parsed.ec != std::errc{} || parsed.ptr != value.data() + value.size()) {
+                            valid = false;
+                            break;
+                        }
+                        keys.push_back(key);
+                        if (key == "after")
+                            after = number;
+                        else if (key == "limit" && number >= 1 && number <= 50)
+                            limit = static_cast<unsigned>(number);
+                        else
+                            valid = false;
+                        start = end + 1;
+                    }
+                    if (!valid)
+                        return error(r, "400 Bad Request", "Invalid alert cursor");
+                }
                 Json output(cJSON_CreateObject(), cJSON_Delete);
                 auto *active = cJSON_AddArrayToObject(output.get(), "active");
                 if (current.bus_fault()) {
@@ -654,9 +640,19 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                         cJSON_AddItemToArray(active, event);
                     }
                 auto *events = cJSON_AddArrayToObject(output.get(), "events");
-                for (const auto &event : current.events()) {
+                const auto page = history_->event_page(after, limit);
+                cJSON_AddBoolToObject(output.get(), "event_log_healthy", page.available);
+                if (page.oldest_available)
+                    cJSON_AddNumberToObject(output.get(), "oldest_available",
+                                            static_cast<double>(page.oldest_available));
+                else
+                    cJSON_AddNullToObject(output.get(), "oldest_available");
+                for (const auto &event : page.events) {
                     auto *item = cJSON_CreateObject();
                     cJSON_AddNumberToObject(item, "sequence", event.sequence);
+                    const auto boot = boot_text(event.boot_id);
+                    cJSON_AddStringToObject(item, "boot_id", boot.c_str());
+                    cJSON_AddStringToObject(item, "kind", event_kind_name(event.kind));
                     if (event.rom)
                         cJSON_AddStringToObject(item, "rom_id", rom_hex(event.rom).c_str());
                     else
@@ -664,8 +660,16 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                     cJSON_AddStringToObject(item, "previous", state_name(event.previous));
                     cJSON_AddStringToObject(item, "state", state_name(event.state));
                     cJSON_AddNumberToObject(item, "uptime_ms", event.uptime_ms);
+                    if (event.utc_seconds)
+                        cJSON_AddNumberToObject(item, "utc_seconds", *event.utc_seconds);
+                    else
+                        cJSON_AddNullToObject(item, "utc_seconds");
+                    cJSON_AddNumberToObject(item, "detail", event.detail);
                     cJSON_AddItemToArray(events, item);
                 }
+                cJSON_AddNumberToObject(output.get(), "next_after",
+                                        static_cast<double>(page.next_after));
+                cJSON_AddBoolToObject(output.get(), "has_more", page.has_more);
                 return json(r, output.get());
             }
             auto serialize = [this](const Sensor &sensor) -> cJSON * {

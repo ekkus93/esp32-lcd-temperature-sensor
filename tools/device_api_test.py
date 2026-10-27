@@ -117,6 +117,17 @@ try:
     csrf = json.loads(result['body'])['csrf']
     authorized = {**origin,'Cookie':cookie,'X-CSRF-Token':csrf}
     check(call('/api/v1/status',headers=authorized)['status']==200,'authenticated snapshot')
+    check(call('/api/v1/ota','POST','',origin)['status']==401,'anonymous OTA upload rejected')
+    check(call('/api/v1/ota','POST','',{**origin,'Cookie':cookie})['status']==401,
+          'OTA upload requires CSRF authorization')
+    check(call('/api/v1/ota','POST','',authorized)['status']==400,
+          'empty OTA image rejected before flash access')
+    check(call('/api/v1/ota','POST','not an image',
+               {**authorized,'Content-Type':'application/json'})['status']==415,
+          'OTA rejects the wrong media type before flash access')
+    check(call('/api/v1/ota','POST','X'*128,
+               {**authorized,'Content-Type':'application/octet-stream'})['status']==422,
+          'invalid firmware image is rejected without selecting it for boot')
     if args.change_password:
         record = json.loads(admin_path.read_text())
         check(record.get('managed_by_device_tests') is True, 'credential rotation limited to test-managed account')
@@ -165,6 +176,25 @@ try:
     snapshot = json.loads(call('/api/v1/status',headers=authorized)['body'])
     Path('.build/device-snapshot.json').write_text(json.dumps(snapshot)+'\n')
     check(snapshot['sensors']==[] and snapshot['simulated'] is False,'real bare-board snapshot has no fabricated readings')
+    history_path = ('/api/v1/history?from=0&to='+str(snapshot['uptime_ms'])+
+                    '&boot_id='+snapshot['boot_id'])
+    history_response = call(history_path,headers=authorized)
+    history = json.loads(history_response['body'])
+    check(history_response['status']==200 and history['points']==[] and history['gaps']==[],
+          'history contract returns explicit gap list on empty device history')
+    alerts_response = call('/api/v1/alerts?limit=10',headers=authorized)
+    alerts = json.loads(alerts_response['body'])
+    check(alerts_response['status']==200 and alerts['event_log_healthy'] is True
+          and any(event['kind']=='reboot' for event in alerts['events'])
+          and alerts['has_more'] is False and alerts['oldest_available'] is not None,
+          'authenticated durable event journal includes this boot')
+    first_alert_page = alerts
+    next_alerts = json.loads(call('/api/v1/alerts?after='+str(first_alert_page['next_after'])+
+                                  '&limit=10',headers=authorized)['body'])
+    check(next_alerts['events']==[] and next_alerts['has_more'] is False,
+          'durable event journal cursor reaches the current end')
+    check(call('/api/v1/alerts?limit=51',headers=authorized)['status']==400,
+          'alert pagination limit is bounded')
     check(call('/api/v1/wifi/provisioning','POST',{}, {**origin,'Cookie':cookie})['status']==401,'missing CSRF rejected')
     check(call('/api/v1/wifi/provisioning','POST',{}, {**authorized,'Origin':'http://attacker.invalid'})['status']==403,'forged Origin rejected')
     check(call('/api/v1/wifi/connect','POST','{bad json',authorized)['status']==400,'malformed JSON rejected')

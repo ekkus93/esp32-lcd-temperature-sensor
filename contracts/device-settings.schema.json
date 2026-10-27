@@ -4,7 +4,19 @@
   "title": "DeviceSettings",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "etag", "revision", "writable", "units", "display_mode", "overview_seconds", "trends_seconds", "lookback_minutes", "timezone", "ntp_server"],
+  "required": [
+    "schema_version",
+    "etag",
+    "revision",
+    "writable",
+    "units",
+    "display_mode",
+    "overview_seconds",
+    "trends_seconds",
+    "lookback_minutes",
+    "timezone",
+    "ntp_server"
+  ],
   "properties": {
     "schema_version": { "const": 1 },
     "etag": { "type": "string", "minLength": 1, "maxLength": 128 },
@@ -15,7 +27,17 @@
     "overview_seconds": { "type": "integer", "minimum": 5, "maximum": 300 },
     "trends_seconds": { "type": "integer", "minimum": 5, "maximum": 300 },
     "lookback_minutes": { "type": "integer", "minimum": 5, "maximum": 1440 },
-    "timezone": { "enum": ["UTC", "America/Los_Angeles", "America/New_York", "Europe/London", "Europe/Berlin", "Asia/Tokyo", "Australia/Sydney"] },
+    "timezone": {
+      "enum": [
+        "UTC",
+        "America/Los_Angeles",
+        "America/New_York",
+        "Europe/London",
+        "Europe/Berlin",
+        "Asia/Tokyo",
+        "Australia/Sydney"
+      ]
+    },
     "ntp_server": { "type": "string", "minLength": 1, "maxLength": 253 }
   }
 }

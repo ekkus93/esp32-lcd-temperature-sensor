@@ -27,20 +27,34 @@ int main() {
     s.calibration = -.125;
     s.order = 4;
     CHECK(registry.configure(rom(1), s));
+    auto other = registry.sensors()[1].settings;
+    other.name = "Basement";
+    other.short_name = "Base";
+    other.low = 8;
+    other.high = 25;
+    other.calibration = 2.5;
+    other.order = 1;
+    CHECK(registry.configure(rom(2), other));
     auto bytes = encode_settings(registry.sensors());
     CHECK(!bytes.empty());
     auto restored = decode_settings(bytes);
     CHECK(restored && restored->size() == 2);
     CHECK((*restored)[0].settings.name == s.name && !(*restored)[0].settings.enabled);
     CHECK((*restored)[0].settings.calibration == -.125 && (*restored)[0].settings.order == 4);
+    CHECK((*restored)[1].rom == rom(2) && (*restored)[1].settings.name == "Basement");
+    CHECK((*restored)[1].settings.low == 8 && (*restored)[1].settings.high == 25 &&
+          (*restored)[1].settings.calibration == 2.5);
     Registry reboot;
-    for (const auto &saved : *restored) {
-        CHECK(reboot.discover(saved.rom));
-        CHECK(reboot.configure(saved.rom, saved.settings));
+    for (auto saved = restored->rbegin(); saved != restored->rend(); ++saved) {
+        CHECK(reboot.discover(saved->rom));
+        CHECK(reboot.configure(saved->rom, saved->settings));
     }
     reboot.sample({{rom(2), 22}, {rom(1), -20}}, 5000);
-    CHECK(reboot.sensors()[0].rom == rom(1) && !reboot.sensors()[0].temperature);
-    CHECK(reboot.sensors()[1].temperature == 22 && reboot.sensors()[1].settings.name == "Sensor 2");
+    CHECK(reboot.sensors()[0].rom == rom(2) && reboot.sensors()[0].settings.name == "Basement");
+    CHECK(reboot.sensors()[0].temperature == 24.5 && reboot.sensors()[0].settings.low == 8 &&
+          reboot.sensors()[0].settings.high == 25);
+    CHECK(reboot.sensors()[1].rom == rom(1) && reboot.sensors()[1].settings.name == s.name &&
+          reboot.sensors()[1].settings.calibration == -.125 && !reboot.sensors()[1].temperature);
     for (std::size_t i = 0; i < bytes.size(); ++i) {
         auto bad = bytes;
         bad[i] ^= 1;

@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:temperature-monitor:history:1",
+  "title": "HistoryResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "simulated",
+    "truncated",
+    "time_basis",
+    "points",
+    "gaps"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "simulated": { "type": "boolean" },
+    "truncated": { "type": "boolean" },
+    "time_basis": { "enum": ["utc", "uptime"] },
+    "points": {
+      "type": "array",
+      "maxItems": 2560,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "boot_id",
+          "rom_id",
+          "start_ms",
+          "end_ms",
+          "utc_seconds",
+          "average_c",
+          "minimum_c",
+          "maximum_c",
+          "count",
+          "partial"
+        ],
+        "properties": {
+          "boot_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,32}$" },
+          "rom_id": { "type": "string", "pattern": "^28[0-9a-f]{14}$" },
+          "start_ms": { "type": "integer", "minimum": 0 },
+          "end_ms": { "type": "integer", "minimum": 1 },
+          "utc_seconds": { "type": ["integer", "null"] },
+          "average_c": { "type": "number", "minimum": -75, "maximum": 145 },
+          "minimum_c": { "type": "number", "minimum": -75, "maximum": 145 },
+          "maximum_c": { "type": "number", "minimum": -75, "maximum": 145 },
+          "count": { "type": "integer", "minimum": 1 },
+          "partial": { "type": "boolean" }
+        }
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "maxItems": 2560,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["boot_id", "rom_id", "start_ms", "end_ms"],
+        "properties": {
+          "boot_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,32}$" },
+          "rom_id": { "type": "string", "pattern": "^28[0-9a-f]{14}$" },
+          "start_ms": { "type": "integer", "minimum": 0 },
+          "end_ms": { "type": "integer", "minimum": 1 }
+        }
+      }
+    }
+  }
+}

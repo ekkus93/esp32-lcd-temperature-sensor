@@ -1,0 +1,17 @@
+2026-10-27 — normal ESP32-S3 image, bare board (no probes or LCD)
+
+Firmware build: ESP-IDF v6.1, 0x16a220-byte app; flashed and esptool hash verified.
+USB smoke: PASS, 12-second capture; three health reports at 219, 5210 and
+10210 ms uptime, zero sensors, 5-second cadence, healthy history, no panic.
+
+Device API: PASS, tools/device_api_test.py --port /dev/ttyACM0
+- Embedded gzip HTML and hashed JavaScript served.
+- Anonymous/forged Host, Origin, CSRF, WebSocket and API requests rejected.
+- Administrator login, protected snapshot, authenticated WebSocket and logout passed.
+- Real radio scan completed and rate limit passed.
+- Malformed/deep JSON and oversized SSID rejected.
+- Password cooldown did not interrupt 5-second sampling cadence.
+
+The suite used the existing test-managed account saved privately under ignored
+.build/. No Wi-Fi owner credentials were used. No sensor, LCD, AP phone client,
+station association, NTP synchronization or physical bus fault was tested.

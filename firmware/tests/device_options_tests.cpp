@@ -68,6 +68,9 @@ int main() {
     DisplayCycle cycle;
     CHECK(cycle.configure(true, 20, 10, 0));
     CHECK(cycle.trends(25000)); // Local timezone changes do not enter monotonic timing.
+    CHECK(cycle.configure(true, 30, 15, 20000)); // Runtime settings restart the monotonic cycle.
+    CHECK(!cycle.trends(49999) && cycle.trends(50000));
+    CHECK(!cycle.configure(true, 4, 15, 50000)); // Bounds reject invalid dwell durations.
     std::cout
         << "PASS: versioned device settings, validation, corruption, defaults and DST rules\n";
 }

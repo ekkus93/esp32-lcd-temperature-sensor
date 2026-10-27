@@ -8,5 +8,12 @@ export const empty = {
   bus_fault: false,
   clock: { utc: null, synchronized: false },
   wifi: { state: 'offline' },
-  logging: { healthy: false, interval_seconds: 300 },
+  firmware: { version: '0.1.0', partition: 'ota_0', ota_state: 'valid' },
+  logging: {
+    healthy: false,
+    interval_seconds: 300,
+    storage_available: false,
+    storage_total_bytes: 0,
+    storage_used_bytes: 0,
+  },
 };

@@ -1,0 +1,15 @@
+2026-10-27 — normal ESP32-S3 image, no probes/LCD
+
+The firmware build and complete verification gate passed. Firmware was flashed
+with esptool hash verification. The protected device API suite passed its
+additional checks:
+
+- Authenticated `GET /api/v1/alerts?limit=10` returned an empty event page,
+  `next_after: 0`, `has_more: false`, and `oldest_available: null`.
+- `GET /api/v1/alerts?limit=51` returned HTTP 400.
+- Existing protected API, radio scan, WebSocket, malformed-input and sampling
+  cadence checks passed.
+
+The test-managed administrator password remains in ignored `.build/`; no
+credentials are recorded here. The event ring is volatile and this test did
+not exercise active sensor alerts or a full/multi-page event history.

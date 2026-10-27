@@ -9,9 +9,24 @@ describe('device contract', () => {
     expect(() =>
       parseSnapshot({
         ...empty,
-        logging: { healthy: true, interval_seconds: 5 },
+        logging: {
+          healthy: true,
+          interval_seconds: 5,
+          storage_available: false,
+          storage_total_bytes: 0,
+          storage_used_bytes: 0,
+        },
       }),
     ).toThrow();
+  });
+  it('validates running firmware and bootloader OTA state', () => {
+    expect(parseSnapshot(empty).firmware.ota_state).toBe('valid');
+    expect(() =>
+      parseSnapshot({
+        ...empty,
+        firmware: { ...empty.firmware, ota_state: 'flashing' },
+      }),
+    ).toThrow('Invalid device snapshot');
   });
   it('rejects duplicate ROMs and misleading disconnected values', () => {
     const sensor = {

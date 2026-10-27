@@ -1,6 +1,75 @@
 #include "history_query.hpp"
 #include <algorithm>
+#include <charconv>
 namespace monitor {
+std::optional<HistoryQuery> parse_history_query(std::string_view text, bool *has_max_points) {
+    if (text.empty() || text.size() > 256)
+        return std::nullopt;
+    HistoryQuery query;
+    std::vector<std::string_view> keys;
+    bool saw_max_points = false;
+    for (size_t start = 0; start < text.size();) {
+        auto end = text.find('&', start);
+        if (end == std::string_view::npos)
+            end = text.size();
+        auto item = text.substr(start, end - start);
+        auto equals = item.find('=');
+        if (equals == std::string_view::npos || equals == 0 || equals + 1 == item.size())
+            return std::nullopt;
+        auto key = item.substr(0, equals);
+        auto value = item.substr(equals + 1);
+        if (key != "rom_id" && std::find(keys.begin(), keys.end(), key) != keys.end())
+            return std::nullopt;
+        keys.push_back(key);
+        uint64_t number = 0;
+        const int base = key == "boot_id" || key == "rom_id" ? 16 : 10;
+        auto parsed = std::from_chars(value.data(), value.data() + value.size(), number, base);
+        if (parsed.ec != std::errc{} || parsed.ptr != value.data() + value.size())
+            return std::nullopt;
+        if (key == "boot_id" && value.size() == 16)
+            query.boot_id = number;
+        else if ((key == "from" || key == "to") && number <= INT64_MAX) {
+            if (key == "from")
+                query.from = int64_t(number);
+            else
+                query.to = int64_t(number);
+        } else if (key == "max_points" && number >= 1 && number <= 512) {
+            query.max_points = unsigned(number);
+            saw_max_points = true;
+        } else if (key == "rom_id" && value.size() == 16) {
+            uint64_t rom = 0;
+            for (unsigned i = 0; i < 8; ++i)
+                rom |= ((number >> (8 * i)) & 0xff) << (8 * (7 - i));
+            query.roms.push_back(rom);
+        } else
+            return std::nullopt;
+        start = end + 1;
+    }
+    if (!valid_query(query))
+        return std::nullopt;
+    if (has_max_points)
+        *has_max_points = saw_max_points;
+    return query;
+}
+std::vector<HistoryGap> history_gaps(const std::vector<HistoryPoint> &points) {
+    auto ordered = points;
+    std::sort(ordered.begin(), ordered.end(), [](const auto &left, const auto &right) {
+        if (left.boot_id != right.boot_id)
+            return left.boot_id < right.boot_id;
+        if (left.rom != right.rom)
+            return left.rom < right.rom;
+        return left.start_ms < right.start_ms;
+    });
+    std::vector<HistoryGap> gaps;
+    for (size_t i = 1; i < ordered.size(); ++i) {
+        const auto &previous = ordered[i - 1];
+        const auto &current = ordered[i];
+        if (previous.boot_id == current.boot_id && previous.rom == current.rom &&
+            current.start_ms > previous.end_ms)
+            gaps.push_back({current.boot_id, current.rom, previous.end_ms, current.start_ms});
+    }
+    return gaps;
+}
 bool valid_query(const HistoryQuery &q) {
     return q.from >= 0 && q.to > q.from && q.to - q.from <= 31LL * 86400000 && q.max_points >= 1 &&
            q.max_points <= 512 && q.roms.size() <= max_sensors &&

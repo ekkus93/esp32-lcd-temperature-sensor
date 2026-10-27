@@ -1,7 +1,7 @@
 # ESP32-S3 Temperature Monitor — Implementation TODO
 
 **Status:** In progress — see [PROGRESS.md](PROGRESS.md) for evidence and deferred gates  
-**Date:** 2026-10-25  
+**Date:** 2026-10-27
 **Companion:** [`SPEC.md`](SPEC.md) (system specification)  
 **UI/wiring:** [`docs/LCD_UI_DESIGN_SPEC.md`](LCD_UI_DESIGN_SPEC.md), [`docs/WEB_UI_DESIGN_SPEC.md`](WEB_UI_DESIGN_SPEC.md), [`docs/ESP32_S3_TEMPERATURE_MONITOR_WIRING.md`](ESP32_S3_TEMPERATURE_MONITOR_WIRING.md)
 
@@ -19,7 +19,7 @@
 ## Phase 1 — Repo skeleton, build system, and verification harness
 
 - [x] **T01-01** Create **ESP-IDF v6.1** project in `firmware/`, selecting ESP32-S3 and enabling 16 MB flash / 8 MB PSRAM for the actual module; confirm clean v6.1 compilation and record SDK identity.
-- [ ] **T01-02** Create `components/` boundaries: `board_support`, `onewire_service`, `sensor_registry`, `sampling_service`, `alert_service`, `history_service`, `clock_service`, `settings_service`, `wifi_service`, `provisioning_service`, `http_api`, `ws_live`, `display_service`, `ota_service`.
+- [x] **T01-02** Create `components/` boundaries for board, sensor bus/registry/sampling/alerts, history, clock, settings, Wi-Fi/provisioning, HTTP/WebSocket, display and OTA services. Each named boundary exists as an ESP-IDF component; registry, sampling and alert state behavior are split into separate components. The host suite and ESP-IDF v6.1 build pass. `monitor_types` provides shared data types.
 - [x] **T01-03** Provide a working bare firmware startup, watchdog-safe component initialization, predictable error reporting, heap/PSRAM checks and app version string.
 - [x] **T01-04** Create React 19 + TypeScript + Vite SPA in `web/`; add lint, strict typecheck, production build and unit tests.
 - [x] **T01-05** Select a supported React-compatible Material UI/component system that can be themed with Material 3 tokens; avoid requiring Expressive-specific dependencies.
@@ -42,10 +42,10 @@
 - [x] **T02-05** Add maintained ESP-IDF `onewire_bus` and DS18B20 driver components; configure **one shared RMT-backed 1-Wire bus**, not five separate controllers.
 - [x] **T02-06** Implement non-parasite, externally powered DS18B20 discovery by 64-bit ROM ID and verify per-device CRC/family code.
 - [x] **T02-07** Implement broadcast temperature conversion with correct 12-bit conversion wait, then individually addressed scratchpad reads with CRC checks.
-- [ ] **T02-08** Implement default 5-second sampling cadence without blocking Wi-Fi, flash writes or LVGL; publish atomic shared state snapshots.
+- [x] **T02-08** Implement default 5-second sampling cadence without blocking Wi-Fi, flash writes or LVGL; publish atomic shared state snapshots.
 - [x] **T02-09** Reject bogus initial/sentinel/CRC readings (including a power-on 85°C before valid conversion); represent `invalid`/`stale` rather than a temperature.
-- [ ] **T02-10** Implement bounded periodic rescan, reordering-stable ROM identities, attach/detach discovery and maximum-five device behavior.
-- [ ] **T02-11** Detect stuck-low/high and bus-wide communication failures separately from a missing individual sensor; bounded recovery and retry/backoff.
+- [x] **T02-10** Implement bounded periodic rescan, reordering-stable ROM identities, attach/detach discovery and maximum-five device behavior.
+- [x] **T02-11** Detect stuck-low/high and bus-wide communication failures separately from a missing individual sensor; bounded recovery and retry/backoff.
 - [x] **T02-12** Implement temperature-offset calibration at presentation/service boundary and consistent °C machine-unit payloads.
 - [x] **T02-13** Write automated tests with simulated bus: zero to five sensors, permutations, duplicate IDs, CRC failure, 85°C startup, missing conversion, recovery, sixth probe, one-wire bus fault.
 - [ ] **T02-14 [HW]** Verify **one** 4.7 kΩ pull-up GPIO4↔3V3, no parallel adapter-board pull-ups, correct common GND, and initial sensor read.
@@ -56,7 +56,7 @@
 ## Phase 3 — Registry, persistent configuration, alerts
 
 - [x] **T03-01** Define immutable ROM-ID-keyed sensor settings schema: name, optional LCD short name, display order, enabled, calibration, high/low limits, persistence, hysteresis, disconnection preference.
-- [ ] **T03-02** Implement versioned NVS read/write, safe defaults, validation, atomic-ish update/migration, and recovery from missing/bad keys.
+- [x] **T03-02** Implement versioned NVS read/write, safe defaults, validation, atomic-ish update/migration, and recovery from missing/bad keys. Versioned/checksummed ROM-keyed settings round-trip and reject byte corruption/unknown versions in host tests; the isolated ESP32 simulation committed sensor updates and confirmed persistence after reset. NVS uses commit semantics and preserves unrecognized/corrupt settings instead of replacing them. See `validation/device-sensor-nvs-results.txt`.
 - [x] **T03-03** Preserve mapping across reboot, ROM discovery reordering and transient removal; new probe starts unassigned/default-named instead of inheriting another sensor's configuration.
 - [x] **T03-04** Define `normal`, `high`, `low`, `unassigned`, `disabled`, `disconnected`, `stale`, `invalid`, `bus_fault` status semantics and transitions in one authoritative state machine.
 - [x] **T03-05** Implement per-sensor thresholds, alarm enabling, hysteresis, sample persistence/debounce and separate bus/system fault logic.
@@ -64,7 +64,7 @@
 - [x] **T03-07** Generate alert raised/cleared/recovered events with monotonic sequence IDs; throttle duplicates; optionally support acknowledgement without hiding an active fault.
 - [ ] **T03-08** Publish changes promptly to LCD and network without requiring five-minute history writes.
 - [x] **T03-09** Test per-sensor disconnection debounce, reconnection, sensor disable/re-enable, low/high hysteresis, calibration offset, duplicate-fault suppression and bus-wide outage.
-- [ ] **T03-10** Test NVS corruption/reboot/migration: no cross-contamination of ROM IDs, limits or stored label mappings.
+- [ ] **T03-10** Test NVS corruption/reboot/migration: no cross-contamination of ROM IDs, limits or stored label mappings. Host tests now round-trip two distinct ROM configurations and reconstruct them in reverse discovery order, while exercising byte corruption, truncation and unknown versions. The simulated-device script now verifies two ROM configurations across an ESP32 restart, but that extended device check has not run; TMS1 is the first deployed settings format, so unknown versions are rejected and preserved rather than migrated.
 
 **Phase gate:** fault/alert snapshots always agree across the single service model; settings survive restarts and malformed data is rejected.
 
@@ -77,7 +77,7 @@
 - [x] **T04-05** Implement disabled/unassigned/disconnected/invalid/bus-fault row appearances with meaningful text/icon cues and without relying solely on colors.
 - [x] **T04-06** Implement read-only **Trends** LVGL screen with five sparklines, ROM-stable ordering, lookback (default 60 minutes), missing-data gaps and no touch/menu targets.
 - [x] **T04-07** Implement `basic` (Overview always; default) and `extended` (Overview→Trends→Overview) display modes.
-- [ ] **T04-08** Implement independent web-configurable dwell settings; defaults **20 seconds Overview**, **10 seconds Trends**, bounded **5–300 seconds** each; use monotonic timers and apply changes without reboot.
+- [x] **T04-08** Implement independent web-configurable dwell settings; defaults **20 seconds Overview**, **10 seconds Trends**, bounded **5–300 seconds** each; use monotonic timers and apply changes without reboot. Versioned device settings expose and persist both values; the LVGL view reconfigures its monotonic cycle when they change. Device-options host tests cover defaults, boundaries, and runtime reconfiguration. Physical LCD timing remains T04-14.
 - [x] **T04-09** Show temporary **SoftAP provisioning** screen with generated SSID, setup credential/code and `192.168.4.1`; not a third normal user-selectable page.
 - [ ] **T04-10** Show connecting/offline/online Wi-Fi and clock-validity states without blocking sensor monitoring or overriding the Overview indefinitely.
 - [ ] **T04-11** Render `--:--` without trusted time; refresh local time with timezone/DST once synchronized.
@@ -92,10 +92,10 @@
 ### Networking and captive portal
 - [ ] **T05-01** Initialize station-mode Wi-Fi with saved NVS credentials, reconnection/backoff and consistent status events.
 - [x] **T05-02** Implement first-boot password-protected SoftAP with deterministic unique SSID suffix and device-unique setup secret (no universal password).
-- [ ] **T05-03** Serve a complete local captive-portal-compatible provisioning page, including SSID scanning, manual entry, password validation, error states and `http://192.168.4.1` fallback.
+- [x] **T05-03** Serve a complete local captive-portal-compatible provisioning page, including SSID scanning, manual entry, password validation, error states and `http://192.168.4.1` fallback. The offline SPA is embedded in firmware; captive DNS/probe redirects and direct `/setup` access passed device checks. Frontend tests cover scanning, manual SSID fallback and failed connection retry. Phone/DHCP onboarding remains T05-18.
 - [ ] **T05-04** Implement candidate Wi-Fi validation (prefer temporary AP+STA) without destroying prior credentials or setup connectivity on failure.
 - [ ] **T05-05** Commit confirmed new settings to NVS; gracefully hand off from AP setup to STA and reflect connection on LCD/web.
-- [ ] **T05-06** Enable local mDNS/host naming if available; document fallback IP behavior and no-internet setup path.
+- [x] **T05-06** Enable local mDNS/host naming if available; document fallback IP behavior and no-internet setup path. Pinned `espressif/mdns` 1.14.1; normal board boot advertises `temperature-monitor.local`, while AP/IP fallback remains documented. Firmware gate, bare-board smoke and protected API suite passed. Client hostname resolution remains untested without a client joined to the device network.
 - [ ] **T05-07** Implement authenticated reconfigure-Wi-Fi flow from web Settings.
 - [x] **T05-08** Provide bounded Wi-Fi scan frequency, retry logic, SSID/password length checks, and no credentials in logs or URLs.
 
@@ -122,16 +122,16 @@
 - [ ] **T06-03** Integrate/test LittleFS mount, health reporting, free-space reserve and recovery from missing/corrupt partition state (never wipe valid history automatically).
 - [x] **T06-04** Specify a versioned compact binary aggregate schema: per-ROM avg/min/max in °C, valid count, status/partial flags, integrity check, timestamp quality/boot ID and stable ID mapping.
 - [x] **T06-05** Collect all valid live readings into **300-second buckets**; persist only one aggregate per completed five-minute bucket, not raw 5-second records.
-- [ ] **T06-06** Define bucket alignment to trusted UTC, handling of unknown clock, reboot mid-window and NTP jump; never silently invent missing samples.
+- [x] **T06-06** Define bucket alignment to trusted UTC, handling of unknown clock, reboot mid-window and NTP jump; never silently invent missing samples. Host tests cover UTC 300-second alignment, unsynchronized boot/uptime scope, restart isolation and partial bucket closure after an NTP step; full verification passed. Real NTP remains untested until station credentials are available.
 - [x] **T06-07** Guarantee min/max/count/average calculations respect disabled/disconnected intervals and gaps; test partial buckets.
 - [x] **T06-08** Implement append-only bounded segments with version headers/CRC, startup scan/indexing and safe recovery from interrupted last write.
 - [x] **T06-09** Implement oldest-completed-segment eviction and space reserve; no unbounded growth or flash writes after every 5-second sample.
-- [ ] **T06-10** Create separately bounded/rate-limited event log for alarms, recoveries, bus faults, Wi-Fi changes, time sync, reboot and write failures.
+- [x] **T06-10** Create separately bounded/rate-limited event log for alarms, recoveries, bus faults, Wi-Fi changes, time sync, reboot and write failures. A 128 KiB LittleFS journal stores CRC-protected events with global cursors, bounded compaction, duplicate suppression, partial-tail recovery, and corruption refusal. Host tests and the pinned ESP-IDF build pass; board persistence and power-loss behavior remain part of T06-14/16.
 - [x] **T06-11** Provide a memory-bounded history query and streamed CSV export with validity, ROM ID, timestamp quality and sensor name metadata.
 - [x] **T06-12** Create efficient downsampling for 1h/24h/7d/30d UI queries while preserving gaps and selected min/max values.
 - [x] **T06-13** Implement RAM-only recent trend cache feeding LVGL sparklines without repeated history partition reads every frame.
-- [ ] **T06-14** Test rollover, wear-sensitive write cadence, old-record eviction, append corruption, no space, missing/corrupt metadata, simultaneous export, power-loss simulation and reboot.
-- [ ] **T06-15** Quantify measured bytes/record and actual history retention with one through five probes; document oldest/latest timestamps and forecast retention based on usage.
+- [ ] **T06-14** Test rollover, wear-sensitive write cadence, old-record eviction, append corruption, no space, missing/corrupt metadata, simultaneous export, power-loss simulation and reboot. Host tests cover segmented rollover/eviction, CRC and truncated-tail recovery, corrupt/newer schema refusal, bounded retention, and a simulated 24-hour run that persists/reopens all 288 five-minute buckets (not raw 5-second samples). Actual filesystem-full behavior, concurrent export, and hardware power-loss/reboot verification remain open.
+- [ ] **T06-15** Quantify measured bytes/record and actual history retention with one through five probes; document oldest/latest timestamps and forecast retention based on usage. Host storage tests now assert 99/158/217/276/335-byte TMH2 records with maximum-length labels; payload-only forecasts are recorded in `validation/history-retention-estimate.md`. Oldest/latest timestamps and actual retained duration still require a populated device.
 - [ ] **T06-16 [HW]** Interrupt power during controlled history writes; verify filesystem recovery, continued sensor reading and accurate logging error status.
 
 **Phase gate:** historical **temperature** cadence is 5 minutes (avg/min/max/count), events are separate, retained data survives normal restart and recoverable interrupted writes.
@@ -139,15 +139,15 @@
 ## Phase 7 — Backend HTTP, API schema and WebSockets
 
 - [x] **T07-01** Enable ESP-IDF `esp_http_server` and WebSocket support; add bounded route handlers with defensive request/payload limits.
-- [ ] **T07-02** Establish `/api/v1` data model and schemas from `SPEC.md`/web design spec; use ROM IDs as keys and raw Celsius values in JSON.
+- [x] **T07-02** Establish `/api/v1` data model and schemas from `SPEC.md`/web design spec; use ROM IDs as keys and raw Celsius values in JSON.
 - [x] **T07-03** Implement `GET /api/v1/status`, `GET /api/v1/sensors`, and mutation endpoints for sensor labels, flags, thresholds, calibration, display order.
 - [x] **T07-04** Implement versioned device settings endpoints for units, timezone, LCD mode, durations and graph lookback.
-- [ ] **T07-05** Implement history queries with bound time range/point count and CSV download streaming; gaps and timestamp-quality markers must be explicit.
-- [ ] **T07-06** Implement alert history/status endpoints and pagination.
-- [ ] **T07-07** Implement Wi-Fi scan/connect/provisioning control APIs with asynchronous progress/status and protection against disconnecting the active client mid-request.
-- [ ] **T07-08** Implement WebSocket live snapshots/updates, initial complete snapshot, version + sequence, heartbeats, bounded per-client queues and state-change broadcasts.
-- [ ] **T07-09** Handle WebSocket reconnect using REST resync; reject stale/invalid commands and invalid JSON without crashing.
-- [ ] **T07-10** Add contract tests, fuzz/integration cases and concurrent client tests for disconnect/reconnect, forbidden writes, oversized bodies, slow clients, malformed ROM IDs and history bounds.
+- [x] **T07-05** Implement history queries with bound time range/point count and CSV download streaming; gaps and timestamp-quality markers must be explicit. Bounded UTC/boot-uptime queries, streamed CSV, `partial` downsampled groups and explicit per-ROM/boot `gaps` intervals are covered by host/API contract tests. Device empty-history response passed. See `validation/device-history-gap-results.txt`.
+- [x] **T07-06** Implement alert history/status endpoints and pagination. Authenticated `GET /api/v1/alerts?after=<sequence>&limit=<1..50>` returns cursor metadata, the oldest retained event, journal health, and persisted events across boots. Pagination and bounds have device coverage; durable journal integration has host/build coverage, with board verification pending.
+- [x] **T07-07** Implement Wi-Fi scan/connect/provisioning control APIs with asynchronous progress/status and protection against disconnecting the active client mid-request. Scan and failure status passed on-device; overlapping candidates return 409, candidates return asynchronously while AP+STA setup stays available, and a 1-second handoff delay lets the HTTP response complete before station disconnect. Candidate failure preserved blank prior settings. The USB bridge verifies API behavior, not a phone/client station association; see `validation/device-wifi-handoff-results.txt`.
+- [ ] **T07-08** Implement WebSocket live snapshots/updates, initial complete snapshot, version + sequence, heartbeats, bounded per-client queues and state-change broadcasts. The `ws_live` component sends complete versioned snapshots on connect and each 5-second sample; four session slots cap clients and a coalesced server-work flag bounds broadcasts. The host simulator integration test validates complete initial/heartbeat snapshots and monotonic sequence; actual device stream and slow-client behavior remain unverified.
+- [ ] **T07-09** Handle WebSocket reconnect using REST resync; reject stale/invalid commands and invalid JSON without crashing. The browser uses exponential reconnect, REST refresh on gaps/reconnect, validates schemas, rejects stale boot/sequence data, and the server closes client frames because live is read-only. Browser tests and simulator invalid-JSON close coverage pass; device-frame behavior remains to verify.
+- [ ] **T07-10** Add contract tests, fuzz/integration cases and concurrent client tests for disconnect/reconnect, forbidden writes, oversized bodies, slow clients, malformed ROM IDs and history bounds. Contract schemas and Ajv checks, invalid live-frame rejection, 30 reconnect cycles, the four-client cap, host history bounds, parser boundary cases, and deterministic byte mutations of valid history queries have automated coverage. The parser tests fixed an API bug that rejected multiple ROM selectors. Firmware slow-client behavior and fuzz coverage for oversized request bodies and broader history inputs remain open.
 
 **Phase gate:** static app and REST/WS can be exercised through a browser against a simulated backend and later the real ESP32; no transport path can stall acquisition tasks.
 
@@ -157,10 +157,10 @@
 - [x] **T08-02** Implement unique per-device SoftAP credentials and safe NVS storage; verify no universal known factory password is accepted.
 - [x] **T08-03** Implement salted slow password hashing, constant-time verification, change-password flow and bounded lockout/rate-limiting.
 - [x] **T08-04** Implement authenticated, expiring sessions and CSRF/Origin/Host protections; handle captive-portal exceptions narrowly and explicitly.
-- [ ] **T08-05** Authenticate all sensitive reads, mutating endpoints, WebSocket handshake and OTA; prevent anonymous LAN users from changing probe thresholds or Wi-Fi credentials.
+- [x] **T08-05** Authenticate all sensitive reads, mutating endpoints, WebSocket handshake and OTA; prevent anonymous LAN users from changing probe thresholds or Wi-Fi credentials. The HTTP dispatcher requires a live administrator session on protected API routes, CSRF on mutations, and Origin/Host checks; WebSocket pre-handshake and OTA use the same protections. Device API coverage checks anonymous status/OTA/WS rejection, missing OTA CSRF, and forged WS Origin.
 - [x] **T08-06** Decide/test LAN HTTPS certificate approach (preferred) or record explicit, accepted limitation if using local HTTP. Do not claim HTTP protects passwords from LAN packet sniffing.
-- [ ] **T08-07** Prevent Wi-Fi/admin secrets from appearing in logs, URLs, browser storage, CSV export, debug pages or telemetry (none expected).
-- [ ] **T08-08** Add security tests: login brute-force limits, CSRF attempts, origin spoofing, forged WS upgrades, unauthenticated re-provisioning, malformed OTA body and sensitive-data leaks.
+- [x] **T08-07** Prevent Wi-Fi/admin secrets from appearing in logs, URLs, browser storage, CSV export, debug pages or telemetry (none expected). Source review found no browser local/session storage or console logging; `tools/check-secret-leaks.py` scanned 200 reviewable files plus current build, smoke and device API logs with the active private test secrets and found none. HTTP still exposes credentials to LAN observers by explicit owner decision (SECURITY_DESIGN.md).
+- [ ] **T08-08** Add security tests: login brute-force limits, CSRF attempts, origin spoofing, forged WS upgrades, unauthenticated re-provisioning, malformed OTA body and sensitive-data leaks. The device API script includes login cooldown/cadence, anonymous and forged-Origin WebSocket rejection, CSRF, one-time enrollment, malformed request bodies and OTA auth/media/image rejection. The secret leak scanner passed across 213 reviewable files/logs. The new OTA media/image cases remain unrun because the ESP32 is unavailable.
 
 **Phase gate:** No release with unauthenticated configuration and unreviewed credential transport.
 
@@ -169,44 +169,44 @@
 ### App shell and Dashboard
 - [x] **T09-01** Build responsive Material 3 app shell with accessible desktop sidebar and mobile navigation; light/dark modes, local icons/fonts, keyboard focus and reduced motion.
 - [x] **T09-02** Implement authoritative REST + WebSocket TypeScript client with reconnection, timeout/stale-state marking, sequence-gap detection and state validation.
-- [ ] **T09-03** Implement Dashboard cards for 0–5 probes: live temperature, label, state icons/text, recent *RAM-only* sparkline if wanted, latest-update age, Wi-Fi/logging status.
-- [ ] **T09-04** Present active alerts visibly without hiding other sensors; empty slots and disabled/missing sensors are semantically different.
+- [x] **T09-03** Implement Dashboard cards for 0–5 probes: live temperature, label, state icons/text, recent *RAM-only* sparkline if wanted, latest-update age, Wi-Fi/logging status. The dashboard renders up to the schema’s five sensors, an explicit empty state, reading/state/ROM and update age; Wi-Fi/logging health is shown in the shared status row. Frontend tests cover empty and live-reading states; all 35 web tests, strict typecheck and lint passed.
+- [x] **T09-04** Present active alerts visibly without hiding other sensors; empty slots and disabled/missing sensors are semantically different. Dashboard retains all live sensor cards during a bus-wide fault; per-sensor high/disabled/disconnected states stay textual, and the zero-probe state has its own empty message. Frontend regression covers simultaneous bus/probe faults, a healthy probe, and all three statuses; 38 web tests pass.
 
 ### History
-- [ ] **T09-05** Build History page using persisted five-minute data; 1h/24h/7d/30d selectors, ROM-series selection, avg/min/max, gap rendering and user time zone.
-- [ ] **T09-06** Keep chart bundle small through code splitting/tree-shaking; add bounded pan/zoom interactions appropriate for phones.
+- [x] **T09-05** Build History page using persisted five-minute data; 1h/24h/7d/30d selectors, ROM-series selection, avg/min/max, gap rendering and user time zone. History series are derived from persisted response ROM IDs (including retired probes), selectable independently, and show aggregates with browser-local timestamps or boot elapsed time. Gaps break chart segments and partial groups are marked. Frontend test covers a retired probe series; all 36 tests, typecheck, lint and production build passed.
+- [x] **T09-06** Keep chart bundle small through code splitting/tree-shaking; add bounded pan/zoom interactions appropriate for phones. History remains a lazy-loaded SVG route (10.36 kB raw / 4.19 kB gzip in this build); phone-sized controls pan by half a viewport and zoom from 1× to 8× with clamped bounds/reset. Frontend tests cover navigation bounds; production build passes.
 - [x] **T09-07** Provide CSV export and clearly label five-minute aggregate resolution (do not imply detailed raw five-second storage).
 
 ### Sensors and Alerts
 - [x] **T09-08** Build Sensors page: rename, optional LCD short label, display order, enable/disable, temperature correction, threshold/min-max/hysteresis/delay, ROM address display.
 - [x] **T09-09** Add human-friendly sensor identification guidance (warm one probe and watch live readings); do not assume stable discovery ordering.
-- [ ] **T09-10** Build Alerts page with active/recent events, disconnect/bus-fault distinctions, recovery states, timestamps and retention handling.
+- [x] **T09-10** Build Alerts page with active/recent events, disconnect/bus-fault distinctions, recovery states, timestamps and retention handling. The UI displays persisted sensor, Wi-Fi, clock, reboot, and storage-failure events; it paginates results, shows UTC when known or boot ID/uptime otherwise, and warns when older events were evicted or the journal is unavailable. Tests cover cursor paging and retention. Durable storage is implemented; on-device persistence verification remains open under T06-14/16.
 
 ### Settings and provisioning
-- [ ] **T09-11** Build Settings for Wi-Fi network change, timezone/NTP sync status, °C/°F, five-minute logging policy, storage and diagnostics.
-- [ ] **T09-12** Implement LCD settings: Basic/Extended, **20s/10s default** independent durations, graph lookback, optional disabled rows and a clear read-only LCD explanation.
-- [ ] **T09-13** Build offline-capable first-run SoftAP portal with network scan, WPA password entry, setup/admin pairing and clear connection outcome/retry.
+- [x] **T09-11** Build Settings for Wi-Fi network change, timezone/NTP sync status, °C/°F, five-minute logging policy, storage and diagnostics. Existing network and device preference panels cover network change, timezone/NTP, and units; Settings now displays logging health, five-minute aggregate cadence and LittleFS used/total capacity from the validated snapshot. UI regression checks storage values and cadence; 40 web tests, lint, typecheck, format and production build pass. ESP-IDF v6.1 build passes. Physical mount-failure injection remains unverified (`T06-03`).
+- [x] **T09-12** Implement LCD settings: Basic/Extended, **20s/10s default** independent durations, graph lookback, optional disabled rows and a clear read-only LCD explanation. Persisted mode, defaults, independent timers and lookback render in Settings; regression verifies defaults and read-only explanation. Optional disabled-row setting is omitted. `npm --prefix web test -- --run src/features/DeviceSettings.test.tsx` passes (3 tests).
+- [x] **T09-13** Build offline-capable first-run SoftAP portal with network scan, WPA password entry, setup/admin pairing and clear connection outcome/retry. Embedded local SPA combines one-time setup-secret owner enrollment with network scan/manual SSID/password entry, asynchronous candidate status and retry messaging. AuthGate/NetworkSettings tests cover enrollment, scan/manual entry and failure recovery; captive redirect/direct `/setup` and embedded assets passed device API checks. Phone/DHCP usability remains T05-18.
 - [x] **T09-14** Build guarded administrator login/session-expiry screens and account configuration/error states.
-- [ ] **T09-15** Implement system page subsection for firmware info, logging capacity, upgrade status, safe reboot and confirmed factory reset choices.
+- [ ] **T09-15** Implement system page subsection for firmware info, logging capacity, upgrade status, safe reboot and confirmed factory reset choices. Settings shows firmware version, running partition, OTA state and storage capacity, and now offers confirmed firmware upload. Safe reboot and confirmed factory-reset flows remain.
 
 ### Fit, finish and deployment
 - [x] **T09-16** Validate responsive layout at **360 CSS px** and **1280+ CSS px** with no horizontal overflow and accessible status text/contrast.
-- [ ] **T09-17** Test every page against no probes, one probe, five probes, long labels, bus fault, disconnected sensor, no history, no time, lost WebSocket and storage failure.
+- [x] **T09-17** Test every page against no probes, one probe, five probes, long labels, bus fault, disconnected sensor, no history, no time, lost WebSocket and storage failure. Component-level UI coverage exercises zero/one/five probes, 30-character labels, bus and per-probe faults, empty history and unsynchronized time, stale WebSocket state, unavailable storage, network scan/connect failures, alert paging, sensor edits and device preferences. The full suite currently passes 49 tests; strict typecheck, lint and Prettier check pass. Scenarios use validated fixtures/mocks; this is not physical-device validation.
 - [x] **T09-18** Production-build static web assets with local fonts/icons, hashed cacheable paths and HTTP `Content-Encoding` support for gzip where implemented; no CDN requests.
 - [x] **T09-19** Embed/serve compiled assets from ESP-IDF firmware with SPA routing and non-SPA API 404 handling; verify no requirement for Node.js on device.
-- [ ] **T09-20** Report actual compressed/uncompressed bundle size, initial-load time and heap/socket impact; aim for ≤1 MB compressed without treating it as a guarantee.
+- [ ] **T09-20** Report actual compressed/uncompressed bundle size, initial-load time and heap/socket impact; aim for ≤1 MB compressed without treating it as a guarantee. Production build (2026-10-27) reports 637,631 raw / 202,577 gzip bytes across 13 embedded assets; eager JS is 587.40 kB raw / 184.29 kB gzip. Transfer/render time and device heap/socket cost still need measurement; see `RELIABILITY.md`.
 
 **Phase gate:** self-hosted app displays live data on phones and desktops, reliably supports all configured settings and survives network interruptions.
 
 ## Phase 10 — OTA, reliability and integration
 
-- [ ] **T10-01** Implement dual OTA slot metadata, authenticated upload, size limits, integrity verification and controlled reboot to new image.
-- [ ] **T10-02** Mark firmware valid only after boot/startup health checks; implement rollback/fallback and show update status in LCD/web.
-- [ ] **T10-03** Verify OTA also updates embedded React assets consistently; avoid mismatched API/backend/web build versions.
+- [ ] **T10-01** Implement dual OTA slot metadata, authenticated upload, size limits, integrity verification and controlled reboot to new image. `POST /api/v1/ota` writes the inactive slot with session/CSRF/Origin/Host gates, single-upload exclusion, slot-size and 120-second duration bounds, sequential flash writes, `esp_ota_end` validation and delayed restart. Settings now provides a confirmed `.bin` upload control with a 4 MiB client bound and explicit restart status. Host UI/API tests and ESP-IDF build pass; leave open until device rejection cases and a successful image update are exercised on the ESP32. Rollback acceptance is T10-02/09.
+- [ ] **T10-02** Mark firmware valid only after boot/startup health checks; implement rollback/fallback and show update status in LCD/web. ESP-IDF bootloader rollback is enabled. `main` now waits for two acquisition/publish cycles before marking a pending image valid; an early crash/reset remains eligible for bootloader rollback. Snapshot and web Settings expose running version/slot/OTA state. Still requires forced-failure/rollback on hardware and LCD update-status integration before completion.
+- [ ] **T10-03** Verify OTA also updates embedded React assets consistently; avoid mismatched API/backend/web build versions. CMake rebuilds the embedded asset catalog from the current Vite output and links it into the same OTA application image as the API; the current verification build packed 13 assets (637,631 raw / 202,577 gzip bytes). Keep open until an OTA update is exercised on-device and the served app/API pair is checked.
 - [ ] **T10-04** Provide recovery path for incomplete firmware upload, unexpected reboot, storage corruption and Wi-Fi changes during OTA.
 - [ ] **T10-05** Profile max sensor count + active HTTP/WebSocket clients + LVGL + ongoing flash writes + Wi-Fi traffic for heap/PSRAM leaks and watchdog starvation.
-- [ ] **T10-06** Ensure HTTPS/security decisions, watchdog behavior, device reset cause, heap/storage/network fault diagnostics and safe firmware defaults are documented.
-- [ ] **T10-07** Add integration simulations for burst alerts, rapid sensor replacement, flash-full, clock jumps, reconnect storms, corrupted NVS and 24-hour sensor sampling.
+- [x] **T10-06** Ensure HTTPS/security decisions, watchdog behavior, device reset cause, heap/storage/network fault diagnostics and safe firmware defaults are documented. Local HTTP limits, SDK watchdog configuration, startup reset-reason/heap and component health diagnostics, and safe failure behavior are recorded in `RELIABILITY.md`. Heap minima and retained reset history remain profiling work under T10-05/08.
+- [ ] **T10-07** Add integration simulations for burst alerts, rapid sensor replacement, flash-full, clock jumps, reconnect storms, corrupted NVS and 24-hour sensor sampling. The simulator live integration exercises 30 sequential WebSocket reconnects; host history tests cover 24-hour aggregation, rotation/retention, and corruption recovery, while settings tests cover corrupt/unknown-version blobs. Alert tests exercise a 200-cycle threshold burst and bounded monotonic event cursors, plus removal/replacement with distinct ROM identity and settings. Full five-probe replacement and true storage exhaustion still need dedicated scenarios.
 - [ ] **T10-08 [HW]** Run 24–72-hour stability test on real board with five sensors, powered LCD, Wi-Fi and logging; record sampling gaps, heap floor and reboot count.
 - [ ] **T10-09 [HW]** Flash/reflash via USB (normal and BOOT+RESET), validate OTA slot A→B→A and forced rollback without losing NVS or historical data.
 - [ ] **T10-10 [HW]** Confirm long BOOT press can enter setup while the temperature monitor continues reading and logging, including when router is unavailable.
@@ -216,11 +216,11 @@
 ## Phase 11 — Documentation, packaging and release validation
 
 - [ ] **T11-01** Reconcile `SPEC.md`, `TODO.md`, wiring doc, LCD/web UI design specs and diagrams with the actual final pinout and measured hardware behavior.
-- [ ] **T11-02** Document full wiring and safe power checklist, single 4.7 kΩ resistor and optional non-required breakout boards, probe polarity warnings and backlight circuit caveat/resolution.
-- [ ] **T11-03** Document **ESP-IDF v6.1** host build commands, pinned release revision/toolchain, `idf.py --version` output, flash/monitor, dual-USB roles, BOOT+RESET recovery and config/partition flashing.
-- [ ] **T11-04** Document first-run AP flow, device-unique setup credential source, BOOT five-second Wi-Fi recovery and HTTP/HTTPS/local-network limitations.
-- [ ] **T11-05** Document sensor labeling/identification, enable/disable, calibration, alerts, LCD modes/timers, time zone and web history graphs.
-- [ ] **T11-06** Document five-minute history format/retention calculation, timestamps when unsynchronized, CSV schema, flash repair/backup/factory reset and OTA recovery.
+- [x] **T11-02** Document full wiring and safe power checklist, single 4.7 kΩ resistor and optional non-required breakout boards, probe polarity warnings and backlight circuit caveat/resolution. The wiring guide includes the one-resistor topology, optional breakout warning, verified-color caveat, safe power checklist, and conditional GPIO15 guidance; physical electrical verification remains open under T02.
+- [x] **T11-03** Document **ESP-IDF v6.1** host build commands, pinned release revision/toolchain, `idf.py --version` output, flash/monitor, dual-USB roles, BOOT+RESET recovery and config/partition flashing. `DEVELOPMENT.md` records the pin/revision, checked SDK output, build/menuconfig/flash commands and custom partition process. It identifies native USB Serial/JTAG and explicitly says the second USB-C role remains unconfirmed under T02.
+- [x] **T11-04** Document first-run AP flow, device-unique setup credential source, BOOT five-second Wi-Fi recovery and HTTP/HTTPS/local-network limitations. `ONBOARDING.md` records the USB `device_setup.py` credential flow, candidate-network preservation, temporary AP behavior, accepted HTTP confidentiality limit, and unverified phone/button checks.
+- [x] **T11-05** Document sensor labeling/identification, enable/disable, calibration, alerts, LCD modes/timers, time zone and web history graphs. `USER_GUIDE.md` describes these flows from the current UI and clearly notes the LCD and active reset limitations.
+- [x] **T11-06** Document five-minute history format/retention calculation, timestamps when unsynchronized, CSV schema, flash repair/backup/factory reset and OTA recovery. `HISTORY_FORMAT.md` now covers partial-tail repair, corruption preservation, CSV and raw partition backups/restores, exact history offset, reset distinctions and OTA/USB recovery. The full factory-reset UI/action remains unimplemented under T09-15 and is identified as such.
 - [ ] **T11-07** Add verifiable automated acceptance script/checklist and measured ESP32 hardware acceptance results; distinguish simulation-passed from hardware-passed.
 - [ ] **T11-08** Deliver versioned flashable firmware binaries, web build provenance, checksums, release notes and known issues only after all release-blocking checks pass.
 - [ ] **T11-09** Confirm no leftover blockers in all phases, capture intentionally deferred optional features separately, and publish concise project handoff/progress status.

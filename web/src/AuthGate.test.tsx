@@ -11,7 +11,7 @@ it('gates the app until an administrator signs in', async () => {
     } as Response)
     .mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ csrf: 'memory-only' }),
+      json: async () => ({ csrf: 'a'.repeat(48) }),
     } as Response);
   render(
     <AuthGate>
@@ -49,7 +49,7 @@ it('requires a device-specific secret for first enrollment', async () => {
 it('returns to login after session expiration', async () => {
   vi.mocked(fetch).mockResolvedValue({
     ok: true,
-    json: async () => ({ enrolled: true, csrf: 'memory-only' }),
+    json: async () => ({ enrolled: true, csrf: 'a'.repeat(48) }),
   } as Response);
   render(
     <AuthGate>

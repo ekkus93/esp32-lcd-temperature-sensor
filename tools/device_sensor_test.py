@@ -133,9 +133,12 @@ try:
     path = '/sensors/' + sensor['rom_id']
     saved_path = Path('.build/sensor-persistence.json')
     if args.verify_reboot:
-        expected = json.loads(saved_path.read_text())
-        check(all(sensor[key] == value for key, value in expected.items()),
-              'ROM settings persisted through ESP32 restart')
+        expected = json.loads(saved_path.read_text())['sensors']
+        current = {item['rom_id']: item for item in get('/sensors')}
+        check(all(rom_id in current and all(current[rom_id][key] == value
+                                            for key, value in values.items())
+                  for rom_id, values in expected.items()),
+              'two ROM-keyed settings persisted without cross-contamination through restart')
     else:
         def patch(body, expected=202, etag=None):
             response = call(path, 'PATCH', body,
@@ -172,7 +175,27 @@ try:
         sensor = get('/sensors')[0]
         patch({'enabled': True})
         time.sleep(.6)
-        saved_path.write_text(json.dumps(expected) + '\n')
+        sensor = get('/sensors')[0]
+        second = get('/sensors')[1]
+        second_path = '/sensors/' + second['rom_id']
+        second_expected = {'name': 'Second simulation probe', 'short_name': 'SIM 2',
+                           'calibration_c': 3.5, 'enabled': True, 'low_c': 5,
+                           'high_c': 40, 'persistence_seconds': 0, 'hysteresis_c': 0.25}
+        second_update = call(second_path, 'PATCH', second_expected,
+                             {**headers, 'If-Match': second['etag']})
+        check(second_update['status'] == 200, 'second ROM settings committed independently')
+        time.sleep(.6)
+        current = get('/sensors')
+        by_rom = {item['rom_id']: item for item in current}
+        check(all(by_rom[second['rom_id']][key] == value
+                  for key, value in second_expected.items()),
+              'second ROM retains its own distinct label, limits and calibration')
+        live = get('/status')['sensors']
+        live_by_rom = {item['rom_id']: item for item in live}
+        check(live_by_rom[second['rom_id']]['temperature_c'] == 24.5,
+              'second ROM applies only its own calibration')
+        saved_path.write_text(json.dumps({'sensors': {
+            sensor['rom_id']: expected, second['rom_id']: second_expected}}) + '\n')
         check(len(get('/alerts')['events']) > 0, 'state transitions recorded once in bounded event stream')
         print('Reboot the simulation image, then run this script with --verify-reboot.', flush=True)
 finally:

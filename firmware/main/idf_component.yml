@@ -6,3 +6,4 @@ dependencies:
   lvgl/lvgl: "==9.6.0~1"
   joltwallet/littlefs: "==1.23.1"
   espressif/cjson: "==1.7.19~2"
+  espressif/mdns: "==1.14.1"

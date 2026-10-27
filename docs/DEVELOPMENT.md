@@ -69,6 +69,8 @@ explicit version/migration decision.
 ./tools/verify.sh
 # Include firmware compilation (requires activated IDF):
 ./tools/verify.sh --firmware
+# The verification script also exercises live snapshot cadence and read-only
+# WebSocket behavior against the host simulator.
 # Separate terminals for simulated API and browser:
 npm --prefix web run simulator -- 5
 npm --prefix web run dev
@@ -136,6 +138,12 @@ The current firmware embeds the compressed production web build. Rebuilding
 changes to hashed asset filenames. Generated headers are excluded from source
 formatting checks.
 
+The device advertises `http://temperature-monitor.local` with mDNS when the
+service starts. mDNS must be supported by the browser's current LAN and can be
+blocked by guest-network/client isolation. On the setup AP, use
+`http://192.168.4.1`; on another LAN, use the DHCP address shown by
+`GET /api/v1/wifi/status`. Hostname failure does not disable the HTTP server.
+
 ## Isolated sensor configuration device tests
 
 `CONFIG_MONITOR_SIMULATION=y` selects five explicit fake probes and an accelerated
@@ -167,8 +175,10 @@ milliseconds; unknown-time records are then excluded. `rom_id` optionally select
 one wire-order ROM. Ranges are half-open, at most 31 days; `max_points` is 1–512
 time groups (at most five series per group). Duplicate/unknown query keys fail.
 Responses contain count-weighted average, min/max, valid count and partial flag.
-Empty intervals remain absent. `truncated=true` reports omitted overlapping or
-excess mixed-boot records. No client should silently plot those as complete data.
+Empty intervals remain absent from `points` and are listed explicitly in the
+`gaps` array per ROM and boot; `partial` marks internal gaps in downsampled
+groups. `truncated=true` reports omitted overlapping or excess mixed-boot
+records. No client should silently plot those as complete data.
 Queries serialize filesystem access while acquisition continues through its
 bounded write queue. `GET /api/v1/history/export` accepts the same selectors
 except `max_points` and streams full five-minute CSV rows with recorded labels,
@@ -212,3 +222,45 @@ Run `device_sensor_test.py --port /dev/ttyACM0 --settings-only` with the simulat
 image, restart it, then add `--verify-reboot` to check preference persistence.
 The physical LCD is unnecessary. This test selects an example NTP hostname to
 exercise reconfiguration, not to claim successful network/time synchronization.
+
+## Firmware configuration, partition table, and USB roles
+
+The repository pins ESP-IDF commit `fff9895c82d744c7237be8847347bdd1b07c6643`
+and GCC `esp-15.2.0_20251204`. `tools/check-sdk.sh` currently reports:
+
+```text
+ESP-IDF v6.1
+xtensa-esp-elf-gcc (crosstool-NG esp-15.2.0_20251204) 15.2.0
+```
+
+Firmware configuration is committed in `firmware/sdkconfig.defaults`; the
+resolved local settings are `firmware/sdkconfig`. Use `idf.py menuconfig` to
+change options, then rebuild. `CONFIG_MONITOR_SIMULATION` is for the isolated
+fake-sensor build; keep its sdkconfig/build directory separate from the normal
+image. The custom layout is `firmware/partitions.csv`: two 4 MiB OTA slots and a
+4 MiB `history` partition at `0x820000`.
+
+```sh
+cd firmware
+idf.py set-target esp32s3
+idf.py build
+idf.py -p /dev/ttyACM0 flash monitor
+# Flash only the partition table after verifying the intended layout:
+idf.py -p /dev/ttyACM0 partition-table-flash
+```
+
+A normal `flash` uses this build's bootloader, partition table, OTA metadata,
+and application. Never change the partition table or run `erase-flash` while
+retained history is needed; back up the history partition first as described in
+[HISTORY_FORMAT.md](HISTORY_FORMAT.md). `partition-table-flash` rewrites only
+the partition table and is appropriate only when its offsets/sizes match the
+intended migration plan.
+
+The native USB Serial/JTAG connector is the known console/flash path; this
+system has exposed it as `/dev/ttyACM0`. The board has a second USB-C connector,
+but its function has not been confirmed from the board schematic or a physical
+test. Do not assume it is interchangeable. ROM download recovery uses the
+verified native-USB button sequence: hold BOOT, press and release RESET, then
+release BOOT. Flash, release both buttons, and tap RESET to leave ROM mode.
+Physical connector roles, pin orientation, and this sequence remain hardware
+acceptance items under T02/T05.

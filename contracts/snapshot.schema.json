@@ -14,7 +14,8 @@
     "clock",
     "wifi",
     "logging",
-    "boot_id"
+    "boot_id",
+    "firmware"
   ],
   "properties": {
     "version": {
@@ -46,16 +47,10 @@
     "clock": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "utc",
-        "synchronized"
-      ],
+      "required": ["utc", "synchronized"],
       "properties": {
         "utc": {
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": ["string", "null"]
         },
         "synchronized": {
           "type": "boolean"
@@ -65,17 +60,10 @@
     "wifi": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "state"
-      ],
+      "required": ["state"],
       "properties": {
         "state": {
-          "enum": [
-            "offline",
-            "connecting",
-            "connected",
-            "setup"
-          ]
+          "enum": ["offline", "connecting", "connected", "setup"]
         }
       }
     },
@@ -84,7 +72,10 @@
       "additionalProperties": false,
       "required": [
         "healthy",
-        "interval_seconds"
+        "interval_seconds",
+        "storage_available",
+        "storage_total_bytes",
+        "storage_used_bytes"
       ],
       "properties": {
         "healthy": {
@@ -92,12 +83,37 @@
         },
         "interval_seconds": {
           "const": 300
+        },
+        "storage_available": {
+          "type": "boolean"
+        },
+        "storage_total_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16777216
+        },
+        "storage_used_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16777216
         }
       }
     },
     "boot_id": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{1,32}$"
+    },
+    "firmware": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "partition", "ota_state"],
+      "properties": {
+        "version": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "partition": { "type": "string", "maxLength": 16 },
+        "ota_state": {
+          "enum": ["new", "pending_verify", "valid", "invalid", "aborted", "unknown"]
+        }
+      }
     }
   },
   "definitions": {
@@ -137,18 +153,12 @@
           ]
         },
         "temperature_c": {
-          "type": [
-            "number",
-            "null"
-          ],
+          "type": ["number", "null"],
           "minimum": -75,
           "maximum": 145
         },
         "last_seen_ms": {
-          "type": [
-            "integer",
-            "null"
-          ],
+          "type": ["integer", "null"],
           "minimum": 0
         },
         "enabled": {

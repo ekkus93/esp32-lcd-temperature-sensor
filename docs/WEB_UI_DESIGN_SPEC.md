@@ -212,7 +212,10 @@ Example minimal live message (illustrative):
   "sequence": 215,
   "clock": {"utc": "2026-10-25T23:35:00Z", "synchronized": true},
   "wifi": {"state": "connected"},
-  "logging": {"healthy": true, "interval_seconds": 300},
+  "firmware": {"version": "0.1.0", "partition": "ota_0", "ota_state": "valid"},
+  "logging": {"healthy": true, "interval_seconds": 300,
+               "storage_available": true, "storage_total_bytes": 4194304,
+               "storage_used_bytes": 65536},
   "sensors": [
     {"rom_id": "28-000000000001", "name": "Living Room", "enabled": true,
      "state": "normal", "temperature_c": 21.8, "age_seconds": 1},

@@ -14,9 +14,10 @@
     "format": "prettier --write src *.json *.ts *.js index.html",
     "format:check": "prettier --check src *.json *.ts *.js index.html",
     "test": "vitest run",
+    "test:simulator": "node ../tools/test-simulator-live.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "simulator": "node scripts/simulator.mjs",
-    "contract:generate": "json2ts -i ../contracts/snapshot.schema.json -o src/api/generated.ts"
+    "contract:generate": "node scripts/generate-contracts.mjs"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

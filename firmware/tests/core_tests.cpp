@@ -44,6 +44,11 @@ void identity() {
     CHECK(!registry.configure(original, settings));
 }
 void invalid_and_faults() {
+    CHECK(bus_fault_detected(true, false, 0, 0));
+    CHECK(bus_fault_detected(false, true, 0, 0));
+    CHECK(bus_fault_detected(false, false, 5, 0));
+    CHECK(!bus_fault_detected(false, false, 5, 1));
+    CHECK(!bus_fault_detected(false, false, 0, 0));
     Registry registry;
     auto id = rom(1);
     registry.sample({{id, 85, false}}, 0);
@@ -204,6 +209,30 @@ void bucket_alignment() {
     auto aligned = trusted.add(registry, 295000, 1800000300);
     CHECK(aligned && aligned->utc_seconds == 1800000000 && aligned->sensors[0].count == 59 &&
           aligned->sensors[0].partial);
+
+    Aggregator before_restart(73);
+    for (int64_t now = 0; now < 10000; now += sample_ms) {
+        registry.sample({{id, 30}}, now);
+        CHECK(!before_restart.add(registry, now));
+    }
+    Aggregator after_restart(74);
+    for (int64_t now = 0; now <= bucket_ms; now += sample_ms) {
+        registry.sample({{id, 10}}, now);
+        auto bucket = after_restart.add(registry, now);
+        if (now == bucket_ms)
+            CHECK(bucket && bucket->boot_id == 74 && bucket->sensors[0].count == 60 &&
+                  bucket->sensors[0].average == 10);
+        else
+            CHECK(!bucket);
+    }
+
+    Aggregator jumped(75);
+    registry.sample({{id, 20}}, 0);
+    CHECK(!jumped.add(registry, 0, 1800000000));
+    registry.sample({{id, 20}}, sample_ms);
+    auto split = jumped.add(registry, sample_ms, 1800000105);
+    CHECK(split && split->boot_id == 75 && split->utc_seconds == 1800000000 &&
+          split->sensors[0].count == 1 && split->sensors[0].partial);
 }
 void aggregate_metadata() {
     Registry registry;

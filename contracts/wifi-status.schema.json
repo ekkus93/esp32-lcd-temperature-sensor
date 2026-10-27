@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:temperature-monitor:wifi-status:1",
+  "title": "WifiStatus",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "state",
+    "ip",
+    "provisioning",
+    "saved_credentials",
+    "attempt",
+    "remaining_seconds",
+    "error"
+  ],
+  "properties": {
+    "state": { "enum": ["offline", "connecting", "connected", "setup"] },
+    "ip": { "type": "string", "maxLength": 15 },
+    "provisioning": { "type": "boolean" },
+    "saved_credentials": { "type": "boolean" },
+    "attempt": {
+      "enum": ["idle", "testing", "succeeded", "failed", "storage_error"]
+    },
+    "remaining_seconds": { "type": "integer", "minimum": 0, "maximum": 25 },
+    "error": { "type": "string", "maxLength": 128 }
+  }
+}

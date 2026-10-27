@@ -1,0 +1,17 @@
+2026-10-27 — ESP32-S3, isolated simulation image
+
+The simulation image uses fake probes and a separate `monitor_sim` sensor
+settings namespace. `device_sensor_test.py` verified authenticated settings
+updates, invalid/stale updates, calibration/alert behavior, disabling without a
+fabricated temperature, and a state event. After an esptool reset,
+`--verify-reboot` confirmed the ROM-keyed sensor settings persisted.
+
+Host settings codec tests cover version and checksum validation, every-byte
+corruption, truncation, unknown versions, duplicate identities, size limits,
+settings validation and reconstruction against stable ROM IDs. Device settings
+are committed as one NVS blob; unknown/corrupt device preferences are retained
+read-only. No physical probe or LCD was enabled.
+
+The normal firmware was restored and passed a 15-second bare-board USB smoke:
+READY, zero sensors, disabled bus/LCD, healthy history, expected 5-second
+health cadence and no panic. The simulation image was not left on the board.

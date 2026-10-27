@@ -78,17 +78,20 @@ void bridge(cJSON *request) {
     esp_http_client_set_method(client, verb);
     esp_http_client_set_header(client, "Host", "192.168.4.1");
     auto *headers = cJSON_GetObjectItemCaseSensitive(request, "headers");
+    bool content_type_supplied = false;
     if (cJSON_IsObject(headers)) {
         cJSON *field = nullptr;
         unsigned count = 0;
         cJSON_ArrayForEach(field, headers) {
             if (++count > 8 || !cJSON_IsString(field) || std::strlen(field->valuestring) > 512)
                 break;
+            if (strcasecmp(field->string, "Content-Type") == 0)
+                content_type_supplied = true;
             esp_http_client_set_header(client, field->string, field->valuestring);
         }
     }
     std::string data = cJSON_IsString(payload) ? payload->valuestring : "";
-    if (!data.empty())
+    if (!data.empty() && !content_type_supplied)
         esp_http_client_set_header(client, "Content-Type", "application/json");
     auto result = esp_http_client_open(client, data.size());
     if (result == ESP_OK && !data.empty() &&

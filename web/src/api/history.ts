@@ -1,65 +1,10 @@
 import Ajv from 'ajv';
+import schema from '../../../contracts/history.schema.json';
+import type { HistoryResult } from './api-history.generated';
 import { request } from './auth';
 import type { Snapshot } from './generated';
-export interface HistoryPoint {
-  boot_id: string;
-  rom_id: string;
-  start_ms: number;
-  end_ms: number;
-  utc_seconds: number | null;
-  average_c: number;
-  minimum_c: number;
-  maximum_c: number;
-  count: number;
-  partial: boolean;
-}
-export interface HistoryResult {
-  schema_version: 1;
-  simulated: boolean;
-  truncated: boolean;
-  time_basis: 'utc' | 'uptime';
-  points: HistoryPoint[];
-}
-const number = { type: 'number' };
-const properties = {
-  boot_id: { type: 'string', pattern: '^[A-Za-z0-9_-]{1,32}$' },
-  rom_id: { type: 'string', pattern: '^[0-9a-f]{16}$' },
-  start_ms: { type: 'integer', minimum: 0 },
-  end_ms: { type: 'integer', minimum: 1 },
-  utc_seconds: { type: ['integer', 'null'] },
-  average_c: number,
-  minimum_c: number,
-  maximum_c: number,
-  count: { type: 'integer', minimum: 1 },
-  partial: { type: 'boolean' },
-};
-const validate = new Ajv().compile<HistoryResult>({
-  type: 'object',
-  additionalProperties: false,
-  required: [
-    'schema_version',
-    'simulated',
-    'truncated',
-    'time_basis',
-    'points',
-  ],
-  properties: {
-    schema_version: { const: 1 },
-    simulated: { type: 'boolean' },
-    truncated: { type: 'boolean' },
-    time_basis: { enum: ['utc', 'uptime'] },
-    points: {
-      type: 'array',
-      maxItems: 2560,
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: Object.keys(properties),
-        properties,
-      },
-    },
-  },
-});
+export type { HistoryResult } from './api-history.generated';
+const validate = new Ajv().compile<HistoryResult>(schema);
 function historyQuery(
   snapshot: Snapshot,
   hours: number,
@@ -102,7 +47,8 @@ export async function getHistory(
         p.start_ms >= p.end_ms ||
         p.minimum_c > p.average_c ||
         p.average_c > p.maximum_c,
-    )
+    ) ||
+    value.gaps.some((gap) => gap.start_ms >= gap.end_ms)
   )
     throw new Error('Invalid history response');
   return value;

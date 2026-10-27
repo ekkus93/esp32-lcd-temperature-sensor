@@ -1,5 +1,5 @@
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/generated")
-idf_component_register(SRCS "http_api.cpp" INCLUDE_DIRS "include" PRIV_INCLUDE_DIRS "generated" REQUIRES settings_service clock_service monitor_core auth_service wifi_service history_service esp_http_server esp_timer esp_psram espressif__cjson)
+idf_component_register(SRCS "http_api.cpp" INCLUDE_DIRS "include" PRIV_INCLUDE_DIRS "generated" REQUIRES settings_service clock_service monitor_core auth_service wifi_service history_service ota_service ws_live esp_http_server esp_timer esp_psram espressif__cjson)
 
 # Repack when a Vite build changes either asset contents or hashed filenames.
 set(web_dist "${CMAKE_CURRENT_LIST_DIR}/../../../web/dist")

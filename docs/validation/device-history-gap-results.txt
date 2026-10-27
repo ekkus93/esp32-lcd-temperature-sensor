@@ -1,0 +1,16 @@
+2026-10-27 — normal ESP32-S3 image, no probes/LCD
+
+Full verification passed: 8 core host suites, including an explicit per-ROM,
+per-boot missing-interval reducer case; 1 headless display suite; 34 frontend
+tests including history contract validation; web format/lint/typecheck/build;
+and the ESP-IDF v6.1 firmware build. The firmware was flashed and hash-verified.
+
+The authenticated device API suite passed a boot/uptime-scoped empty history
+query and confirmed the response includes `points: []` and `gaps: []`. Protected
+API/auth, radio scan, WebSocket, malformed input and sampling cadence checks
+also passed. No history was fabricated on the bare board.
+
+Gap intervals are emitted between adjacent persisted points for the same ROM
+and boot. Missing intervals inside downsampled groups remain marked `partial`.
+The current test did not create physical probe history; gap placement itself is
+verified by the host reducer test.

@@ -1,0 +1,104 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:temperature-monitor:alerts:1",
+  "title": "Alerts",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "active",
+    "events",
+    "next_after",
+    "has_more",
+    "oldest_available",
+    "event_log_healthy"
+  ],
+  "properties": {
+    "active": {
+      "type": "array",
+      "maxItems": 6,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["state"],
+            "properties": { "state": { "const": "bus_fault" } }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["rom_id", "name", "state"],
+            "properties": {
+              "rom_id": { "type": "string", "pattern": "^28[0-9a-f]{14}$" },
+              "name": { "type": "string", "minLength": 1, "maxLength": 32 },
+              "state": { "enum": ["high", "low", "disconnected"] }
+            }
+          }
+        ]
+      }
+    },
+    "events": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sequence",
+          "boot_id",
+          "kind",
+          "rom_id",
+          "previous",
+          "state",
+          "uptime_ms",
+          "utc_seconds",
+          "detail"
+        ],
+        "properties": {
+          "sequence": { "type": "integer", "minimum": 1 },
+          "boot_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,32}$" },
+          "kind": {
+            "enum": ["sensor_state", "wifi_state", "clock_sync", "reboot", "storage_error"]
+          },
+          "rom_id": {
+            "type": ["string", "null"],
+            "pattern": "^28[0-9a-f]{14}$"
+          },
+          "previous": {
+            "enum": [
+              "normal",
+              "high",
+              "low",
+              "unassigned",
+              "disabled",
+              "disconnected",
+              "stale",
+              "invalid",
+              "bus_fault"
+            ]
+          },
+          "state": {
+            "enum": [
+              "normal",
+              "high",
+              "low",
+              "unassigned",
+              "disabled",
+              "disconnected",
+              "stale",
+              "invalid",
+              "bus_fault"
+            ]
+          },
+          "uptime_ms": { "type": "integer", "minimum": 0 },
+          "utc_seconds": { "type": ["integer", "null"], "minimum": 0 },
+          "detail": { "type": "integer", "minimum": 0, "maximum": 4294967295 }
+        }
+      }
+    },
+    "next_after": { "type": "integer", "minimum": 0 },
+    "has_more": { "type": "boolean" },
+    "oldest_available": { "type": ["integer", "null"], "minimum": 1 },
+    "event_log_healthy": { "type": "boolean" }
+  }
+}

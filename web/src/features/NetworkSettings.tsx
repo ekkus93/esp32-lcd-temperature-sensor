@@ -10,13 +10,7 @@ import {
   Typography,
 } from '@mui/material';
 import { request, setCsrf } from '../api/auth';
-import { networkProgress } from '../api/network';
-interface Network {
-  ssid: string;
-  rssi: number;
-  channel: number;
-  secure: boolean;
-}
+import { networkProgress, wifiScan, type ScannedNetwork } from '../api/network';
 export default function NetworkSettings() {
   const mounted = useRef(true);
   useEffect(() => {
@@ -30,7 +24,7 @@ export default function NetworkSettings() {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [networks, setNetworks] = useState<Network[]>([]);
+  const [networks, setNetworks] = useState<ScannedNetwork[]>([]);
   async function scan() {
     setScanning(true);
     setMessage('Scanning for nearby 2.4 GHz networks…');
@@ -39,23 +33,8 @@ export default function NetworkSettings() {
       for (let attempt = 0; attempt < 12; attempt++) {
         await new Promise((resolve) => setTimeout(resolve, 500));
         if (!mounted.current) return;
-        const result = await request<{
-          scanning: boolean;
-          networks: Network[];
-        }>('/wifi/scan');
+        const result = await wifiScan();
         if (!result.scanning) {
-          if (
-            !Array.isArray(result.networks) ||
-            result.networks.length > 20 ||
-            result.networks.some(
-              (n) =>
-                typeof n.ssid !== 'string' ||
-                n.ssid.length > 32 ||
-                !Number.isFinite(n.rssi) ||
-                typeof n.secure !== 'boolean',
-            )
-          )
-            throw new Error('Invalid network scan response');
           setNetworks(result.networks);
           setMessage(
             result.networks.length
