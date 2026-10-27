@@ -210,3 +210,7 @@ rejection. A `/dev/full` test injects `ENOSPC` and verifies failed appends are
 reported. The full host verifier passes and `T10-07` is checked. Actual LittleFS
 exhaustion, concurrent export, and physical power-loss checks remain open under
 `T06-14/16`.
+
+The WebSocket simulator test now injects a stalled send socket and confirms the
+configured buffer limit terminates it; its four-client cap and 30 reconnects
+also pass. Firmware socket backpressure still needs device acceptance.

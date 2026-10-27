@@ -86,8 +86,18 @@ const server = http.createServer((req, res) => {
   }
 });
 const sockets = new WebSocketServer({ noServer: true, maxPayload: 1024 });
+const intervalMs = Number(process.env.MONITOR_SIMULATOR_INTERVAL_MS ?? 5000);
+const maxBufferedBytes = Number(
+  process.env.MONITOR_SIMULATOR_MAX_BUFFERED_BYTES ?? 65536,
+);
+const testBackpressure = process.env.MONITOR_SIMULATOR_TEST_BACKPRESSURE === '1';
+if (!Number.isInteger(intervalMs) || intervalMs < 1 || intervalMs > 60000)
+  throw new Error('MONITOR_SIMULATOR_INTERVAL_MS must be between 1 and 60000');
+if (!Number.isInteger(maxBufferedBytes) || maxBufferedBytes < 1)
+  throw new Error('MONITOR_SIMULATOR_MAX_BUFFERED_BYTES must be a positive integer');
 server.on('upgrade', (req, socket, head) => {
-  if (req.url !== '/api/v1/live' || sockets.clients.size >= 4) {
+  const url = new URL(req.url, 'http://127.0.0.1');
+  if (url.pathname !== '/api/v1/live' || sockets.clients.size >= 4) {
     socket.destroy();
     return;
   }
@@ -95,8 +105,12 @@ server.on('upgrade', (req, socket, head) => {
     sockets.emit('connection', ws, req),
   );
 });
-sockets.on('connection', (ws) => {
-  ws.send(JSON.stringify(snapshot));
+sockets.on('connection', (ws, req) => {
+  const url = new URL(req.url, 'http://127.0.0.1');
+  const stallSend = testBackpressure && url.searchParams.get('stall_send') === '1';
+  ws.send(JSON.stringify(snapshot), () => {
+    if (stallSend) ws._socket.cork();
+  });
   ws.on('message', (data, binary) => {
     ws.close(
       binary || data.length > 1024 ? 1009 : 1008,
@@ -113,11 +127,12 @@ const interval = setInterval(() => {
     uptime_ms: uptime,
     sensors: snapshot.sensors.map((s) => ({ ...s, last_seen_ms: uptime })),
   };
+  const frame = JSON.stringify(snapshot);
   for (const ws of sockets.clients) {
-    if (ws.bufferedAmount > 65536) ws.terminate();
-    else if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(snapshot));
+    if (ws.bufferedAmount > maxBufferedBytes) ws.terminate();
+    else if (ws.readyState === ws.OPEN) ws.send(frame);
   }
-}, 5000);
+}, intervalMs);
 const port = Number(process.env.MONITOR_SIMULATOR_PORT ?? 8080);
 server.listen(port, '127.0.0.1', () =>
   console.log(`SIMULATION: ${count} fake probes on http://127.0.0.1:${port}`),

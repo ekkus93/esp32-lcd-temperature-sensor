@@ -667,3 +667,9 @@ and 24-hour cases, all simulation criteria for `T10-07` now pass; it is checked.
 This does not verify a physically full LittleFS partition. `T06-14` remains open
 for concurrent export and hardware power-loss/full-partition checks. The named
 TODO count is now 98/145.
+
+Added deterministic simulator backpressure coverage by corking a test client's
+server-side socket after its initial snapshot and asserting the send-buffer
+limit terminates it. The standalone simulator test passes with the client cap,
+invalid-frame rejection, and 30 reconnect cycles. This covers simulator
+behavior only; firmware slow-client acceptance remains pending device access.

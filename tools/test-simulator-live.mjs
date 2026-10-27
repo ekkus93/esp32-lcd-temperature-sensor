@@ -9,16 +9,22 @@ const port = 30000 + Math.floor(Math.random() * 20000);
 const address = `ws://127.0.0.1:${port}/api/v1/live`;
 const child = spawn(process.execPath, ["web/scripts/simulator.mjs", "5"], {
   cwd: new URL("..", import.meta.url),
-  env: { ...process.env, MONITOR_SIMULATOR_PORT: String(port) },
+  env: {
+    ...process.env,
+    MONITOR_SIMULATOR_PORT: String(port),
+    MONITOR_SIMULATOR_INTERVAL_MS: "20",
+    MONITOR_SIMULATOR_MAX_BUFFERED_BYTES: "4096",
+    MONITOR_SIMULATOR_TEST_BACKPRESSURE: "1",
+  },
   stdio: ["ignore", "pipe", "pipe"],
 });
 let output = "";
 child.stdout.on("data", (data) => (output += data));
 child.stderr.on("data", (data) => (output += data));
 const sockets = new Set();
-function connect() {
+function connect(target = address) {
   return new Promise((resolve, reject) => {
-    const socket = new WebSocket(address);
+    const socket = new WebSocket(target);
     sockets.add(socket);
     const timeout = setTimeout(
       () => reject(new Error("WebSocket connect timed out")),
@@ -120,6 +126,17 @@ try {
       return didDisconnect;
     }),
   );
+  const mainClosed = closed(socket);
+  socket.close();
+  await mainClosed;
+  const slowClient = await connect(`${address}?stall_send=1`);
+  const slowInitial = await nextMessage(slowClient);
+  assert.equal(parse(JSON.parse(slowInitial.data.toString())), true);
+  assert.equal(
+    await closed(slowClient, 3000),
+    1006,
+    "server did not terminate the client whose outbound buffer exceeded its bound",
+  );
   for (let attempt = 0; attempt < 30; attempt++) {
     const reconnect = await connect();
     const welcome = await nextMessage(reconnect);
@@ -129,7 +146,7 @@ try {
     await didDisconnect;
   }
   console.log(
-    "PASS: simulator live snapshots, four-client limit, read-only rejection, and 30 reconnects",
+    "PASS: simulator live snapshots, four-client limit, slow-client cutoff, read-only rejection, and 30 reconnects",
   );
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
