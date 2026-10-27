@@ -1,10 +1,13 @@
 #include "event_store.hpp"
 #include "fake_bus.hpp"
 #include "history.hpp"
+#include "history_csv.hpp"
+#include <array>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <thread>
 #include <unistd.h>
 using namespace monitor;
 #define CHECK(expr)                                                                                \
@@ -84,6 +87,38 @@ int main() {
         return true;
     }));
     CHECK(count == 4 && first == 4 * 300000);
+    char parallel_directory[] = "/tmp/monitor-export-XXXXXX";
+    CHECK(mkdtemp(parallel_directory));
+    HistoryStore parallel_store(parallel_directory, 64 * data.size(), 16 * data.size());
+    CHECK(parallel_store.recover());
+    for (unsigned i = 0; i < 48; ++i) {
+        bucket.start_uptime_ms = i * 300000;
+        bucket.sensors[0].average = 10.0 + i;
+        bucket.sensors[0].minimum = 9.0 + i;
+        bucket.sensors[0].maximum = 11.0 + i;
+        CHECK(parallel_store.append(bucket));
+    }
+    std::array<std::string, 2> csv_exports;
+    std::array<unsigned, 2> export_rows{};
+    std::array<bool, 2> export_ok{};
+    auto export_history = [&](size_t index) {
+        csv_exports[index] = history_csv_header();
+        export_ok[index] = parallel_store.visit([&](const Bucket &record) {
+            for (const auto &reading : record.sensors) {
+                csv_exports[index] += history_csv_row(record, reading, false);
+                ++export_rows[index];
+            }
+            return true;
+        });
+    };
+    std::thread first_export(export_history, 0);
+    std::thread second_export(export_history, 1);
+    first_export.join();
+    second_export.join();
+    CHECK(export_ok[0] && export_ok[1]);
+    CHECK(export_rows[0] == 48 && export_rows[1] == 48);
+    CHECK(csv_exports[0] == csv_exports[1]);
+    std::filesystem::remove_all(parallel_directory);
     auto last = std::filesystem::path(directory) / "00000003.tmh";
     {
         std::ofstream corrupt(last, std::ios::binary | std::ios::app);

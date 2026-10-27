@@ -229,6 +229,11 @@ behavior.
 no secret matches in 237 reviewable files/logs. Device-side OTA and oversized
 body cases in the security API script still require the ESP32.
 
+Host storage tests also exercise two concurrent 48-row CSV visits and verify
+identical output. `tools/verify.sh --host` passes. T06-14 still needs device
+HTTP concurrency plus physical LittleFS exhaustion, power-loss and reboot
+acceptance.
+
 The USB device API script additionally rejects a JSON body over 2,048 bytes;
 only Python syntax has been checked. Run it on the ESP32 to validate server
 handling of oversized bodies and connection cleanup.

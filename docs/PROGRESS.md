@@ -695,3 +695,9 @@ Re-ran `python3 tools/check-secret-leaks.py` with the private local device test
 secrets available. It found no secret match across 237 reviewable files/logs.
 The device security acceptance script remains unrun because the ESP32 is
 unavailable.
+
+The storage host test now runs two CSV-style `HistoryStore::visit` calls at
+once against 48 persisted records and checks both complete exports match. The
+full `tools/verify.sh --host` passes (9 core suites, display, simulator, 53 web
+tests, lint, format, typecheck and build). This covers concurrent host reads;
+the HTTP/service and physical LittleFS gates in T06-14 remain open.
