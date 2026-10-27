@@ -11,7 +11,7 @@ offline/connecting/connected Wi-Fi state changes, and time becoming available.
 `T03-08`, `T04-10`, and `T04-11` are checked. `T04-01`, `T04-03`, and the other
 physical display gates remain open pending panel validation. The full
 `tools/verify.sh --firmware` passed (9 CTests, simulator, headless LVGL, 53 web
-tests, lint/format/typecheck/build, pinned IDF build); image 0x1e3360 bytes with
+tests, lint/format/typecheck/build, pinned IDF build); image 0x1e3fd0 bytes with
 53% OTA slot headroom. No flashing was performed. TODO: 102 checked, 56 open.
 
 Clock-jump follow-up: host review found that two partial aggregates could share
@@ -21,8 +21,16 @@ trusted UTC buckets only at the next unoccupied boundary. A regression covers
 the step, uptime-only interval, and UTC recovery. DST conversion and monotonic
 display cycling also pass host tests. `T05-17` is checked; real SNTP/device
 behavior still needs the board and an owner test network. The pinned full
-verifier passes again; image is 0x1e3a40 bytes with 53% OTA slot headroom.
-TODO count: 103 checked, 55 open.
+verifier passes again; image is 0x1e3fd0 bytes with 53% OTA slot headroom.
+TODO count: 109 checked, 49 open.
+
+Clock-service follow-up: host tests now exercise cold-start unknown UTC, monotonic
+time progression during an offline interval, an unsynchronized aggregate, and
+same-boot recovery into trusted UTC after synchronization. The configured NTP
+hostname/timezone path, SNTP callback quality flag and DST formatting were
+reviewed and the settings/DST tests pass. `T05-14/15/16` are checked for
+software behavior; real association, SNTP sync and radio-loss acceptance still
+require the board and owner network.
 
 Ralph loop resumed on 2026-10-27 from [HANDOFF.md](HANDOFF.md). The owner says
 the ESP32 is currently unavailable; do not attempt device tests or connect the

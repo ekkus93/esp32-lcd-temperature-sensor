@@ -130,8 +130,22 @@ void history_and_clock() {
     CHECK(!clock.utc(100000));
     clock.synchronize(100000, 1800000000);
     CHECK(clock.utc(105000) == 1800000005);
+    // The monotonic wall-clock estimate continues while Wi-Fi is unavailable.
+    CHECK(clock.utc(705000) == 1800000605);
     auto split = history.add(registry, bucket_ms * 2 + sample_ms, 1800000000);
     CHECK(split && !split->utc_seconds && split->sensors[0].partial);
+
+    Aggregator sync_recovery(77);
+    registry.sample({{id, 18}}, 0);
+    CHECK(!sync_recovery.add(registry, 0));
+    registry.sample({{id, 19}}, 295000);
+    auto unknown_window = sync_recovery.add(registry, 295000, 1800000120);
+    CHECK(unknown_window && unknown_window->boot_id == 77 && !unknown_window->utc_seconds &&
+          unknown_window->sensors[0].partial);
+    registry.sample({{id, 20}}, 595000);
+    auto trusted_window = sync_recovery.add(registry, 595000, 1800000420);
+    CHECK(trusted_window && trusted_window->boot_id == 77 &&
+          trusted_window->utc_seconds == 1800000000 && trusted_window->sensors[0].partial);
 }
 void configuration_transitions() {
     Registry registry;

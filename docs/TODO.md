@@ -26,7 +26,7 @@
 - [x] **T01-06** Add code formatting/linting rules for C/C++ and TypeScript, and a lightweight CI workflow or reproducible local verification script.
 - [x] **T01-07** Build a host simulator/fake sensor and time provider so the REST/WebSocket/LVGL view models can be tested with zero physical sensors.
 - [x] **T01-08** Define shared data types/state names, semantic versioning for API and persistent schema, and a machine-checkable API contract usable from TypeScript.
-- [x] **T01-09** Record baseline build size, binary image/map, internal heap/PSRAM requirements and available flash/OTA headroom. Current LCD-runtime build: image 0x1e3a40 bytes, 53% free in the 4 MiB OTA slot; startup logs report PSRAM and internal heap, and the display runtime logs internal heap after LVGL/panel initialization. Physical refresh/memory measurements remain under T04-03.
+- [x] **T01-09** Record baseline build size, binary image/map, internal heap/PSRAM requirements and available flash/OTA headroom. Current LCD-runtime build: image 0x1e3fd0 bytes, 53% free in the 4 MiB OTA slot; startup logs report PSRAM and internal heap, and the display runtime logs internal heap after LVGL/panel initialization. Physical refresh/memory measurements remain under T04-03.
 
 **Phase gate:** `idf.py build`, Vite production build, frontend tests and host tests run cleanly; firmware can boot to a diagnosable idle state on actual board when available.
 
@@ -107,9 +107,9 @@
 - [ ] **T05-13 [HW]** Verify runtime 5-second BOOT behavior **and** standard USB auto-flash/manual BOOT+RESET ROM download mode on photographed dual-USB-C board.
 
 ### Time service
-- [ ] **T05-14** Integrate SNTP/NTP (configurable server), sync quality metadata, time zone and DST handling.
-- [ ] **T05-15** Continue monotonic/wall clock when Wi-Fi drops; on cold boot without sync do **not** fabricate UTC, and display `--:--`.
-- [ ] **T05-16** Define and test unsynchronized aggregate/event timestamp format, boot ID/uptime mapping and same-boot recovery after NTP becomes available.
+- [x] **T05-14** Integrate SNTP/NTP (configurable server), sync quality metadata, time zone and DST handling. Versioned device settings configure a validated NTP hostname and timezone; the clock service marks synchronization only from the SNTP callback, publishes transition events, and formats local time with POSIX DST rules. Host tests cover settings validation and supported-zone winter/summer conversion. Actual network synchronization remains a device check under T05-18.
+- [x] **T05-15** Continue monotonic/wall clock when Wi-Fi drops; on cold boot without sync do **not** fabricate UTC, and display `--:--`. `trusted_utc()` remains empty until SNTP sync and stays anchored to the system wall clock independently of Wi-Fi association; the host clock model checks cold start and monotonic progression, and the headless display regression covers missing time. Radio-loss behavior remains for device acceptance under T05-18.
+- [x] **T05-16** Define and test unsynchronized aggregate/event timestamp format, boot ID/uptime mapping and same-boot recovery after NTP becomes available. Unsynchronized records carry the boot ID and monotonic uptime with absent UTC; clock-sync events and subsequent aggregates use trusted UTC. Host regression verifies an unknown partial window followed by a trusted partial window under the same boot ID. Device SNTP verification remains under T05-18.
 - [x] **T05-17** Verify timezone changes and NTP clock jumps do not disturb monotonic display cycling or create overlapping/misordered 5-minute history records. Host tests cover POSIX DST rules and monotonic display dwell; the aggregator now retains uptime-only partial records after a wall-clock step until a non-overlapping UTC window is available. A host regression checks the step, unknown-time interval, and UTC recovery. Real SNTP behavior remains a device check.
 - [ ] **T05-18 [HW]** Test from blank NVS: AP onboarding on phone, wrong Wi-Fi password, AP reconnect, successful station setup, time sync, and offline recovery.
 
