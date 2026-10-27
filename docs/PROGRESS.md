@@ -652,3 +652,10 @@ and CRC-invalid ROM IDs, selector counts at and above five, an excessive point
 count, and an overlong query. `python3 -m py_compile tools/device_api_test.py`
 and `git diff --check` pass. These request/response cases require the ESP32 and
 were not run.
+
+Added a five-probe registry integration test: configure distinct names,
+thresholds, and calibration; disconnect all five through debounce; reconnect in
+reverse discovery order; and verify stable ROM mappings/readings plus rejection
+of a sixth probe. `tools/verify.sh --host` passed (9/9 CTests, simulator,
+display, 53 web tests, lint/format/typecheck/build). `T10-07` remains open for a
+true storage-full failure injection.

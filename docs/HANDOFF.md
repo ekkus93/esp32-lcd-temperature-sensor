@@ -203,3 +203,8 @@ factory reset remain open under T09-15.
 `tools/device_api_test.py` now also has pending history API checks for malformed
 ROM IDs, five/six selectors, point-count bounds, and oversized query strings.
 Only its syntax has been checked; device API execution remains unavailable.
+
+The host alert integration now covers disconnect/reconnect for all five probes
+in reverse order, distinct configuration and calibration, and sixth-probe
+rejection. The complete host verifier passed. `T10-07` still needs a true
+storage-exhaustion scenario.
