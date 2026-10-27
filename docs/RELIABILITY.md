@@ -33,8 +33,9 @@ T10-05/08.
 
 ## Web bundle measurement
 
-The 2026-10-27 production build reports 637,631 bytes raw and 202,577 bytes
-gzip for all 13 embedded assets. The eagerly loaded JavaScript chunks are
+The 2026-10-27 production build reports 639,363 bytes raw and 203,464 bytes
+gzip for all 14 embedded assets (including the HTML entry point). The eagerly
+loaded JavaScript chunks are
 587.40 kB raw and 184.29 kB gzip (index plus authentication); lazy routes are
 loaded separately. A cold Chromium 156/Linux load from local Vite preview took
 619 ms through the browser `load` event. It transferred 186,348 bytes of

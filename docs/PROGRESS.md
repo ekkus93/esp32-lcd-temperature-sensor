@@ -701,3 +701,17 @@ once against 48 persisted records and checks both complete exports match. The
 full `tools/verify.sh --host` passes (9 core suites, display, simulator, 53 web
 tests, lint, format, typecheck and build). This covers concurrent host reads;
 the HTTP/service and physical LittleFS gates in T06-14 remain open.
+
+Closed the software recovery-path portion of T10-04: the OTA request aborts
+failed/incomplete writes without selecting them, bootloader pending-verify
+supports rollback before startup health confirmation, and nonblank history
+corruption remains preserved while sampling continues. `HISTORY_FORMAT.md` now
+connects these behaviors to Wi-Fi/AP/USB retry and backup/restore steps. Real
+interruption and forced-rollback acceptance remains pending hardware.
+
+The pinned `tools/verify.sh --firmware` run passes after the concurrent-store
+test and recovery documentation: 9/9 host suites, simulator, display, 53 web
+tests and ESP-IDF v6.1 build. The linked image is 0x17c8a0 bytes with 63% OTA
+slot headroom. CMake packed 14 embedded assets (639,363 raw / 203,464 gzip
+bytes); T09-20 and T10-03 bundle figures were updated. No device was flashed.
+Current TODO count: 99 checked, 59 open checkboxes (158 total).

@@ -234,6 +234,19 @@ identical output. `tools/verify.sh --host` passes. T06-14 still needs device
 HTTP concurrency plus physical LittleFS exhaustion, power-loss and reboot
 acceptance.
 
+T10-04 now documents the OTA recovery sequence: interrupted Wi-Fi/upload aborts
+without selecting the partial slot; pending-verify boot can roll back; damaged
+nonblank history is preserved and sampling continues. Recovery steps for AP,
+USB flashing and raw history backup/restore are in `HISTORY_FORMAT.md`. Actual
+power/network interruption and forced rollback remain hardware acceptance.
+
+Latest pinned full verification passes: 9/9 host suites, simulator integration,
+headless display, 53 web tests, lint, formatting, typecheck, production build,
+and ESP-IDF v6.1 firmware build. The image is 0x17c8a0 bytes (63% OTA slot
+headroom); the generated asset catalog contains 14 files, 639,363 raw / 203,464
+gzip bytes. TODO currently has 99 checked and 59 open checkboxes. ESP32 was not
+flashed because it is unavailable.
+
 The USB device API script additionally rejects a JSON body over 2,048 bytes;
 only Python syntax has been checked. Run it on the ESP32 to validate server
 handling of oversized bodies and connection cleanup.

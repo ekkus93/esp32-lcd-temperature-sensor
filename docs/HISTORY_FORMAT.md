@@ -95,6 +95,20 @@ mode and the documented ESP-IDF flash command. Preserve the history partition
 and use the original partition layout during firmware recovery. Forced rollback
 and interrupted-upload recovery still require device acceptance tests.
 
+If Wi-Fi drops or credentials change during an upload, the request read fails
+or reaches its deadline; the OTA handler aborts the inactive-slot write and
+leaves the current boot partition selected. Restore connectivity through the
+device AP or USB setup path, check the reported running slot/version, then retry
+the image upload. If power fails after a complete image is selected but before
+health confirmation, ESP-IDF's pending-verify bootloader state can return to the
+previous slot; startup marks the image valid only after two acquisition and
+publish cycles. If history reports unavailable after a reset, do not format the
+nonblank partition. Keep sampling on the running firmware, preserve the raw
+partition using the backup procedure above, then restore a known-good backup or
+use the documented explicit recovery procedure. Firmware recovery must preserve
+the history offset and partition table. These code paths are implemented; forced
+power/network interruption and rollback still need physical acceptance.
+
 ## Queries and CSV
 
 `GET /api/v1/history` bounds a half-open range to 31 days and returns at most
