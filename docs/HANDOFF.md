@@ -2,6 +2,23 @@
 
 ## Current state
 
+### Latest Ralph-loop checkpoint — 2026-10-27
+
+The reset UI/API now offers distinct confirmed actions to clear credentials and
+device settings while preserving history, or to erase history too. The reset
+choice is stored as an NVS intent and applied before history/network services
+start. Contract generation, 7 focused web tests, all 56 web tests, the full
+`tools/verify.sh`, and an ESP-IDF v6.1 build pass. `T09-15` remains open until
+the reset is exercised against a disposable device/image; do not invoke a valid
+reset on an owner device. The board is currently unavailable per the owner, so
+no device commands or LCD/probe connections were attempted in this pass.
+
+The TODO remains 113 checked and 45 open. Progress is blocked on physical LCD,
+probe, power-loss, OTA success/rollback, long-run and system-reset acceptance,
+plus a private Wi-Fi credentials file for station/NTP/phone onboarding. See the
+T02, T04, T05, T06, T09 and T10 entries in `TODO.md`; preserve the explicit
+electrical safety gates before connecting peripherals.
+
 The required backlog is [TODO.md](TODO.md); see the latest checkpoint below for
 the current checked/open count. This is an active development build, not a
 release. Firmware targets an ESP32-S3 with ESP-IDF v6.1; the web app is React,
@@ -166,10 +183,10 @@ and Wi-Fi loss checks remain open under T05-18.
 - Radio association, DHCP, NTP, and phone onboarding need an owner-created
   private JSON file with `ssid` and `password`; the owner has not supplied its
   absolute path. Do not put the file or credentials in Git or logs.
-- T09-15 full factory reset still needs the owner's data policy choice: should
-  that explicit action erase LittleFS history as well as settings/credentials,
-  or preserve history? USB admin-credential recovery remains narrower and
-  preserves sensor settings, Wi-Fi, and history.
+- T09-15 now exposes two explicit factory-reset choices: preserve history, or
+  erase it. Both reset credentials and device settings. The implementation and
+  host/device route checks still need verification; do not trigger a successful
+  reset on the owner's board because that destroys stored credentials/data.
 
 Earlier checkpoint:
 

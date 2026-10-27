@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://temperature-monitor.local/contracts/system-factory-reset.schema.json",
+  "title": "System factory reset acceptance",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status"],
+  "properties": {
+    "status": { "const": "resetting" }
+  }
+}

@@ -19,6 +19,7 @@
 #include "http_api.hpp"
 #include "monitor.hpp"
 #include "nvs_flash.h"
+#include "ota_service.hpp"
 #include "provisioning_service.hpp"
 #include "sampling_service.hpp"
 #include "settings_service.hpp"
@@ -38,6 +39,12 @@ extern "C" void app_main() {
     // Preserve existing NVS on corruption/schema mismatch; report and keep running.
     if (nvs != ESP_OK)
         ESP_LOGE(tag, "NVS unavailable: %s; no automatic erase", esp_err_to_name(nvs));
+    else {
+        const auto reset = monitor::apply_pending_factory_reset();
+        if (reset != ESP_OK)
+            ESP_LOGE(tag, "Factory reset could not be completed: %s; reset intent preserved",
+                     esp_err_to_name(reset));
+    }
     monitor::DeviceSettingsService device_settings;
     auto device_load = device_settings.initialize(simulated);
     if (device_load != ESP_OK)

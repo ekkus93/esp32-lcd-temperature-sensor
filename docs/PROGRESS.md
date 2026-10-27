@@ -1,5 +1,21 @@
 # Implementation progress
 
+## 2026-10-27 — factory reset options and current validation
+
+Settings now presents two separately confirmed factory-reset choices. Both
+clear NVS credentials and device settings; only the second erases the LittleFS
+history partition. A committed mode marker is applied at early startup before
+history workers run. The API requires an authenticated CSRF-protected request
+with exactly one `erase_history` boolean. Generated response contract, tests,
+user/history docs, and TODO descriptions were updated.
+
+Validation passed: 7 focused API/UI tests, all 56 web tests, Prettier, ESLint,
+TypeScript, production build, full `tools/verify.sh` (9 host CTests, simulator,
+display, web suite), and ESP-IDF v6.1 firmware build (0x1e4f40 bytes, 53% app
+slot headroom). No successful destructive reset was issued. The ESP32 is
+currently unavailable; keep `T09-15` open until a disposable acceptance target
+verifies both data-retention modes. No LCD or probes were attached.
+
 ## Current checkpoint — resume here
 
 The 2026-10-27 LCD software checkpoint adds the `esp_lcd` ST7789 SPI and LVGL

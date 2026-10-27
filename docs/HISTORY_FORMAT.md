@@ -82,10 +82,16 @@ python -m esptool --chip esp32s3 -p PORT write-flash 0x820000 history-backup.bin
 Do not use a full-chip erase or change the partition table before preserving
 needed data. A normal full `idf.py flash` updates the firmware boot chain and
 OTA metadata but does not write the history partition when the partition layout
-is unchanged. Device UI does not currently provide history backup/restore or a
-full factory-reset operation. The physical USB administrator-credential
-recovery command removes only admin enrollment; it preserves Wi-Fi, sensor
-settings, and history and is not a factory reset.
+is unchanged. Device UI does not provide history backup/restore. Its two
+confirmed factory-reset choices both erase NVS, including Wi-Fi credentials,
+administrator enrollment, sensor configuration, and device preferences. The
+preserve-history choice leaves the `history` partition intact; the erase-history
+choice erases that partition too. A committed reset intent is processed at
+startup before history workers run. If reset processing fails, the intent and
+data are preserved for recovery; ordinary corruption never triggers a reset or
+format. The physical USB administrator-credential recovery command removes only
+admin enrollment; it preserves Wi-Fi, sensor settings, and history and is not a
+factory reset.
 
 OTA writes the inactive 4 MiB application slot and validates the image before
 selecting it. The bootloader rollback path remains available until startup

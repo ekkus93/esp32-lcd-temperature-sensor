@@ -1,7 +1,10 @@
 #include "ota_service.hpp"
 #include "esp_app_desc.h"
 #include "esp_ota_ops.h"
+#include "esp_partition.h"
 #include "esp_timer.h"
+#include "nvs.h"
+#include "nvs_flash.h"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -11,7 +14,10 @@
 namespace monitor {
 namespace {
 std::atomic<bool> upload_active{false};
+std::atomic<bool> reset_active{false};
 esp_timer_handle_t reboot_timer = nullptr;
+constexpr char reset_namespace[] = "monitor_system";
+constexpr char reset_key[] = "factory_reset";
 
 esp_err_t response(httpd_req_t *request, const char *status, const char *message) {
     httpd_resp_set_status(request, status);
@@ -51,6 +57,69 @@ bool schedule_reboot() {
     if (!reboot_available())
         return false;
     return esp_timer_start_once(reboot_timer, 1500000) == ESP_OK;
+}
+
+bool schedule_factory_reset(bool erase_history) {
+    bool expected = false;
+    if (!reset_active.compare_exchange_strong(expected, true))
+        return false;
+    if (!reboot_available()) {
+        reset_active = false;
+        return false;
+    }
+    nvs_handle_t handle;
+    if (nvs_open(reset_namespace, NVS_READWRITE, &handle) != ESP_OK) {
+        reset_active = false;
+        return false;
+    }
+    const auto mode = uint8_t(erase_history ? 2 : 1);
+    auto result = nvs_set_u8(handle, reset_key, mode);
+    if (result == ESP_OK)
+        result = nvs_commit(handle);
+    nvs_close(handle);
+    if (result != ESP_OK || !schedule_reboot()) {
+        if (nvs_open(reset_namespace, NVS_READWRITE, &handle) == ESP_OK) {
+            nvs_erase_key(handle, reset_key);
+            nvs_commit(handle);
+            nvs_close(handle);
+        }
+        reset_active = false;
+        return false;
+    }
+    return true;
+}
+
+esp_err_t apply_pending_factory_reset() {
+    nvs_handle_t handle;
+    auto result = nvs_open(reset_namespace, NVS_READONLY, &handle);
+    if (result == ESP_ERR_NVS_NOT_FOUND)
+        return ESP_OK;
+    if (result != ESP_OK)
+        return result;
+    uint8_t mode = 0;
+    result = nvs_get_u8(handle, reset_key, &mode);
+    nvs_close(handle);
+    if (result == ESP_ERR_NVS_NOT_FOUND)
+        return ESP_OK;
+    if (result != ESP_OK || (mode != 1 && mode != 2))
+        return result == ESP_OK ? ESP_ERR_INVALID_STATE : result;
+
+    // The intent is processed before history/network workers start, so no queued
+    // writes can race an explicitly requested history erase.
+    if (mode == 2) {
+        const auto *history =
+            esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "history");
+        if (!history)
+            return ESP_ERR_NOT_FOUND;
+        result = esp_partition_erase_range(history, 0, history->size);
+        if (result != ESP_OK)
+            return result;
+    }
+    result = nvs_flash_erase();
+    if (result != ESP_OK)
+        return result;
+    esp_restart();
+    return ESP_OK;
 }
 
 OtaStatus ota_status() {

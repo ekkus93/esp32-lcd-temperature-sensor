@@ -66,7 +66,12 @@ measurements; it does not acknowledge or clear active alarms.
 
 Settings shows the running firmware version, slot, OTA state, and storage
 health. **Restart device** asks for confirmation and preserves Wi-Fi,
-administrator, sensor, and history data. To update, choose a compatible ESP-IDF `.bin` image no larger than 4 MiB,
+administrator, sensor, and history data. Factory reset offers two separately
+confirmed choices. **Reset settings, preserve history** clears Wi-Fi,
+administrator, sensor configuration, and preferences while retaining history.
+**Factory reset and erase history** also erases all stored temperature and event
+history. Save any needed export first; reset cannot be undone. To update, choose
+a compatible ESP-IDF `.bin` image no larger than 4 MiB,
 confirm installation, keep the device powered during upload, and wait for the
 restart message before reloading the page. The device validates an image before
 selecting its boot slot. Upload and rollback still require real-device
@@ -75,7 +80,6 @@ acceptance; see [TODO.md](TODO.md).
 The owner selected local HTTP and accepted its LAN confidentiality limitation.
 Authentication and CSRF checks protect actions, but HTTP does not encrypt
 passwords, sessions, or Wi-Fi credentials from other devices on the same LAN.
-Do not expose the device through WAN port forwarding. Full factory-reset
-controls are not yet available. Physical USB administrator
+Do not expose the device through WAN port forwarding. Physical USB administrator
 recovery is separate and preserves Wi-Fi, sensor settings, and history; see
 [`SECURITY_DESIGN.md`](SECURITY_DESIGN.md).

@@ -367,6 +367,20 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                 esp_restart();
             return result;
         }
+        if (path == "/api/v1/system/factory-reset" && r->method == HTTP_POST) {
+            auto input = body(r);
+            if (!input || cJSON_GetArraySize(input.get()) != 1)
+                return error(r, "400 Bad Request", "Expected erase_history boolean");
+            auto *erase = cJSON_GetObjectItemCaseSensitive(input.get(), "erase_history");
+            if (!cJSON_IsBool(erase))
+                return error(r, "400 Bad Request", "Expected erase_history boolean");
+            if (!schedule_factory_reset(cJSON_IsTrue(erase)))
+                return error(r, "503 Service Unavailable", "Could not schedule factory reset");
+            httpd_resp_set_status(r, "202 Accepted");
+            httpd_resp_set_type(r, "application/json");
+            httpd_resp_set_hdr(r, "Cache-Control", "no-store");
+            return httpd_resp_send(r, "{\"status\":\"resetting\"}", HTTPD_RESP_USE_STRLEN);
+        }
         if (path == "/api/v1/settings" && (r->method == HTTP_GET || r->method == HTTP_PATCH)) {
             DeviceOptions options;
             uint64_t revision = 0;

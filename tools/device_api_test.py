@@ -264,6 +264,17 @@ try:
           'safe restart requires CSRF authorization')
     check(call('/api/v1/system/reboot','POST',{'unexpected':True},authorized)['status']==400,
           'safe restart rejects request bodies')
+    check(call('/api/v1/system/factory-reset','POST',{'erase_history':False},origin)['status']==401,
+          'anonymous factory-reset request rejected')
+    check(call('/api/v1/system/factory-reset','POST',{'erase_history':False},
+               {**origin,'Cookie':cookie})['status']==401,
+          'factory reset requires CSRF authorization')
+    check(call('/api/v1/system/factory-reset','POST',{},authorized)['status']==400,
+          'factory reset rejects a missing retention choice')
+    check(call('/api/v1/system/factory-reset','POST',{'erase_history':False,'extra':True},authorized)['status']==400,
+          'factory reset rejects extra fields')
+    check(call('/api/v1/system/factory-reset','POST',{'erase_history':'false'},authorized)['status']==400,
+          'factory reset requires a boolean retention choice')
     reboot_login=call('/api/v1/auth/login','POST',{'password':password},origin)
     check(reboot_login['status']==200,'second administrator session for restart acceptance')
     reboot_cookie=reboot_login['cookie'].split(';',1)[0]
