@@ -148,6 +148,17 @@ int main() {
     CHECK(mixed_count == 2);
     std::filesystem::remove_all(directory);
 
+    // Linux /dev/full deterministically injects ENOSPC at the append boundary.
+    char full_directory[] = "/tmp/monitor-full-XXXXXX";
+    CHECK(mkdtemp(full_directory));
+    const auto full_path = std::filesystem::path(full_directory) / "00000000.tmh";
+    CHECK(symlink("/dev/full", full_path.c_str()) == 0);
+    HistoryStore no_space(full_directory, 1024, 512);
+    CHECK(no_space.recover());
+    CHECK(!no_space.append(bucket));
+    CHECK(no_space.bytes() == 0);
+    std::filesystem::remove_all(full_directory);
+
     char event_directory[] = "/tmp/monitor-events-XXXXXX";
     CHECK(mkdtemp(event_directory));
     const std::string event_path = std::string(event_directory) + "/events.bin";

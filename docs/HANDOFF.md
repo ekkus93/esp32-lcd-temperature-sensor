@@ -2,7 +2,7 @@
 
 ## Current state
 
-The required backlog is [TODO.md](TODO.md); 97 named items are checked. This is
+The required backlog is [TODO.md](TODO.md); 98 named items are checked. This is
 an active development build, not a release. Firmware targets an ESP32-S3 with ESP-IDF v6.1; the web app is
 React, TypeScript and Vite. Core acquisition, protected local HTTP, Wi-Fi setup,
 settings, a simulated five-probe provider, bounded temperature history, and a
@@ -206,5 +206,7 @@ Only its syntax has been checked; device API execution remains unavailable.
 
 The host alert integration now covers disconnect/reconnect for all five probes
 in reverse order, distinct configuration and calibration, and sixth-probe
-rejection. The complete host verifier passed. `T10-07` still needs a true
-storage-exhaustion scenario.
+rejection. A `/dev/full` test injects `ENOSPC` and verifies failed appends are
+reported. The full host verifier passes and `T10-07` is checked. Actual LittleFS
+exhaustion, concurrent export, and physical power-loss checks remain open under
+`T06-14/16`.

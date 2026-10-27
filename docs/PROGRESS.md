@@ -28,7 +28,7 @@ rate limit, plus the complete protected API suite. The main image is about
 are implemented; physical probe/LCD checks and event-journal device verification remain open.
 
 
-97 named TODO items are checked with software/device evidence. The remaining
+98 named TODO items are checked with software/device evidence. The remaining
 items are open; this is not a release-ready implementation. Current validation
 is recorded in [the baseline report](validation/2026-10-25-baseline.md),
 [device API results](validation/device-api-results.txt), and
@@ -657,5 +657,13 @@ Added a five-probe registry integration test: configure distinct names,
 thresholds, and calibration; disconnect all five through debounce; reconnect in
 reverse discovery order; and verify stable ROM mappings/readings plus rejection
 of a sixth probe. `tools/verify.sh --host` passed (9/9 CTests, simulator,
-display, 53 web tests, lint/format/typecheck/build). `T10-07` remains open for a
-true storage-full failure injection.
+display, 53 web tests, lint/format/typecheck/build).
+
+Added a deterministic append-failure test by linking the active segment path to
+Linux `/dev/full`; `HistoryStore::append` observes the resulting `ENOSPC` and
+reports failure without claiming bytes were stored. The full host verifier passed
+again. With the prior alert, replacement, clock, reconnect, settings-corruption,
+and 24-hour cases, all simulation criteria for `T10-07` now pass; it is checked.
+This does not verify a physically full LittleFS partition. `T06-14` remains open
+for concurrent export and hardware power-loss/full-partition checks. The named
+TODO count is now 98/145.
