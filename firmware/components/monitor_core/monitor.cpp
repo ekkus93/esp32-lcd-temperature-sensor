@@ -28,11 +28,24 @@ std::optional<Bucket> Aggregator::add(const Registry &registry, int64_t now_ms,
         anchor_ms_ = now_ms;
         anchor_utc_ = utc;
         if (utc) {
-            start_ = now_ms;
-            utc_ = (*utc / 300) * 300;
-            const auto duration = bucket_ms - (*utc % 300) * 1000;
-            deadline_ = now_ms + duration;
-            partial_ = duration != bucket_ms;
+            const auto aligned_utc = (*utc / 300) * 300;
+            if (!next_utc_boundary_ || aligned_utc >= *next_utc_boundary_) {
+                start_ = now_ms;
+                utc_ = aligned_utc;
+                next_utc_boundary_ = aligned_utc + 300;
+                const auto duration = bucket_ms - (*utc % 300) * 1000;
+                deadline_ = now_ms + duration;
+                partial_ = duration != bucket_ms;
+            } else {
+                // A backward step or forward step within the same UTC window
+                // would otherwise give two records the same five-minute key.
+                // Keep this interval boot-relative until wall time reaches the
+                // next unoccupied trusted boundary.
+                start_ = now_ms;
+                utc_.reset();
+                deadline_ = now_ms + bucket_ms;
+                partial_ = true;
+            }
         } else {
             start_ = (now_ms / bucket_ms) * bucket_ms;
             utc_.reset();

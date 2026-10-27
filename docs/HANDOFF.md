@@ -110,10 +110,17 @@ orientation/color testing. Host display tests verify immediate live-reading
 repaint, Wi-Fi state changes, and clock restoration. The full
 `tools/verify.sh --firmware` passes: 9 host CTests, simulator checks, one
 headless display test, 53 web tests, lint/format/typecheck/build and pinned
-ESP-IDF v6.1 firmware build. Image is 0x1e3360 bytes with 53% OTA slot headroom.
+ESP-IDF v6.1 firmware build. Image is 0x1e3a40 bytes with 53% OTA slot headroom.
 No board was available: panel offsets/color order/rotation/readability/refresh,
 DMA timing, and the test pattern remain unverified physically. Current TODO
 count: 102 checked and 56 open checkboxes. No flash was performed.
+
+Clock-jump follow-up: the aggregator now marks a post-step interval as
+boot-relative if its aligned UTC bucket would collide with the preceding
+trusted bucket, and resumes UTC once the next unused boundary is reached. Host
+coverage includes the step/recovery path; timezone/DST and monotonic display
+tests also pass. `T05-17` is checked. The firmware image is 0x1e3a40 bytes.
+TODO count is now 103 checked and 55 open.
 
 ## Resume prerequisites
 

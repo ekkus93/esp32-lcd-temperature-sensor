@@ -14,6 +14,16 @@ physical display gates remain open pending panel validation. The full
 tests, lint/format/typecheck/build, pinned IDF build); image 0x1e3360 bytes with
 53% OTA slot headroom. No flashing was performed. TODO: 102 checked, 56 open.
 
+Clock-jump follow-up: host review found that two partial aggregates could share
+one UTC five-minute key after an NTP step within the same wall-clock window.
+The aggregator now stores such intervals with boot-relative uptime and resumes
+trusted UTC buckets only at the next unoccupied boundary. A regression covers
+the step, uptime-only interval, and UTC recovery. DST conversion and monotonic
+display cycling also pass host tests. `T05-17` is checked; real SNTP/device
+behavior still needs the board and an owner test network. The pinned full
+verifier passes again; image is 0x1e3a40 bytes with 53% OTA slot headroom.
+TODO count: 103 checked, 55 open.
+
 Ralph loop resumed on 2026-10-27 from [HANDOFF.md](HANDOFF.md). The owner says
 the ESP32 is currently unavailable; do not attempt device tests or connect the
 LCD/probes until it returns. Captive DNS, DHCP DNS configuration, OS probe

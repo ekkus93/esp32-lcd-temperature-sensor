@@ -233,6 +233,20 @@ void bucket_alignment() {
     auto split = jumped.add(registry, sample_ms, 1800000105);
     CHECK(split && split->boot_id == 75 && split->utc_seconds == 1800000000 &&
           split->sensors[0].count == 1 && split->sensors[0].partial);
+
+    Aggregator stepped(76);
+    registry.sample({{id, 20}}, 0);
+    CHECK(!stepped.add(registry, 0, 1800000000));
+    registry.sample({{id, 21}}, sample_ms);
+    auto before_step = stepped.add(registry, sample_ms, 1800000105);
+    CHECK(before_step && before_step->utc_seconds == 1800000000 && before_step->sensors[0].partial);
+    registry.sample({{id, 22}}, 305000);
+    auto unsynced = stepped.add(registry, 305000, 1800000405);
+    CHECK(unsynced && !unsynced->utc_seconds && unsynced->start_uptime_ms == sample_ms &&
+          unsynced->sensors[0].partial);
+    registry.sample({{id, 23}}, 605000);
+    auto recovered = stepped.add(registry, 605000, 1800000705);
+    CHECK(recovered && recovered->utc_seconds == 1800000300 && recovered->sensors[0].partial);
 }
 void aggregate_metadata() {
     Registry registry;

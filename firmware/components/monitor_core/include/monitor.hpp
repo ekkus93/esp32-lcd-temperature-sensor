@@ -44,6 +44,7 @@ class Aggregator {
     std::optional<int64_t> start_;
     std::optional<int64_t> utc_;
     std::optional<int64_t> anchor_utc_;
+    std::optional<int64_t> next_utc_boundary_;
     int64_t anchor_ms_ = 0;
     int64_t deadline_ = 0;
     std::optional<int64_t> last_sample_;
