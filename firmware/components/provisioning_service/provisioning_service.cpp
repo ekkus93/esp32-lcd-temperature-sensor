@@ -10,6 +10,7 @@
 #include "monitor.hpp"
 #include "nvs.h"
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -19,6 +20,7 @@
 #include <vector>
 namespace monitor {
 namespace {
+std::atomic<unsigned> hold_progress{0};
 void button(void *context) {
     auto &wifi = *static_cast<WifiService *>(context);
     gpio_config_t config{};
@@ -28,8 +30,11 @@ void button(void *context) {
     gpio_config(&config);
     BootButton button;
     while (true) {
-        if (button.update(gpio_get_level(static_cast<gpio_num_t>(PIN_BOOT)) == 0,
-                          esp_timer_get_time() / 1000))
+        const int64_t now = esp_timer_get_time() / 1000;
+        const bool provision =
+            button.update(gpio_get_level(static_cast<gpio_num_t>(PIN_BOOT)) == 0, now);
+        hold_progress.store(button.progress(now));
+        if (provision)
             wifi.provision();
         vTaskDelay(pdMS_TO_TICKS(10));
     }
@@ -275,5 +280,8 @@ void console(void *context) {
 bool start_provisioning_controls(WifiService &wifi) {
     bool ok = xTaskCreate(button, "boot_button", 3072, &wifi, 2, nullptr) == pdPASS;
     return xTaskCreate(console, "usb_setup", 16384, &wifi, 1, nullptr) == pdPASS && ok;
+}
+unsigned boot_hold_progress() {
+    return hold_progress.load();
 }
 } // namespace monitor

@@ -1,0 +1,10 @@
+menu "Temperature monitor LCD"
+
+config MONITOR_LCD_TEST_PATTERN
+	bool "Show ST7789 color and orientation diagnostics"
+	default n
+	help
+		Replace the normal display view with RGB bars and corner markers for
+		physical panel bring-up. Keep disabled for normal firmware builds.
+
+endmenu

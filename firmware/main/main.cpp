@@ -3,6 +3,8 @@
 #include "captive_service.hpp"
 #include "clock_service.hpp"
 #include "device_settings_service.hpp"
+#include "display_model.hpp"
+#include "display_runtime.hpp"
 #include "esp_app_desc.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -80,11 +82,15 @@ extern "C" void app_main() {
     auto load = settings.load(registry);
     if (load != ESP_OK && load != ESP_ERR_NVS_NOT_FOUND)
         ESP_LOGE(tag, "Sensor settings unavailable: %s", esp_err_to_name(load));
+    monitor::DisplayRuntime display;
+    if (!display.initialize())
+        ESP_LOGE(tag, "LCD unavailable; sensor/network services continue without display");
+    monitor::TrendCache trend_cache;
     monitor::SamplingService sampling;
     esp_err_t bus_status = sampling.initialize(simulated);
     if (bus_status != ESP_OK)
         ESP_LOGE(tag, "Bus init failed: %s", esp_err_to_name(bus_status));
-    ESP_LOGI(tag, "READY no peripherals required; DQ=%d; LCD/backlight disabled", PIN_ONEWIRE_DATA);
+    ESP_LOGI(tag, "READY no peripherals required; DQ=%d; backlight disabled", PIN_ONEWIRE_DATA);
     monitor::JournalEvent boot_event{};
     boot_event.boot_id = boot_id;
     boot_event.kind = monitor::EventKind::reboot;
@@ -160,6 +166,7 @@ extern "C" void app_main() {
         }
         if (auto bucket = aggregator.add(registry, sampled_at,
                                          simulated ? std::nullopt : monitor::trusted_utc())) {
+            trend_cache.add(*bucket);
             if (!history.submit(*bucket))
                 ESP_LOGE(tag, "History queue unavailable/full");
         }
@@ -176,6 +183,19 @@ extern "C" void app_main() {
         api.publish(registry, sampled_at, history.healthy(),
                     (!simulated && monitor::clock_synchronized()),
                     simulated ? std::string{} : monitor::utc_text());
+        if (display.ready()) {
+            monitor::DeviceOptions options;
+            device_settings.get(options, device_revision, device_writable);
+            const auto network = wifi.info();
+            monitor::DisplayStatus display_status;
+            display_status.wifi = network.state;
+            display_status.local_time = simulated ? "" : monitor::local_time_text();
+            display_status.logging = history.healthy();
+            display_status.button_progress = monitor::boot_hold_progress();
+            display.update(registry, trend_cache, options, display_status, sampled_at,
+                           network.provisioning, wifi.ap_ssid(), wifi.ap_password(),
+                           auth.setup_secret());
+        }
         if (!simulated && !ota_boot_checked && ++healthy_cycles >= 2) {
             const auto *running = esp_ota_get_running_partition();
             esp_ota_img_states_t state{};

@@ -2,13 +2,14 @@
 
 ## Current state
 
-The required backlog is [TODO.md](TODO.md); 98 named items are checked. This is
-an active development build, not a release. Firmware targets an ESP32-S3 with ESP-IDF v6.1; the web app is
-React, TypeScript and Vite. Core acquisition, protected local HTTP, Wi-Fi setup,
-settings, a simulated five-probe provider, bounded temperature history, and a
-headless LVGL renderer are implemented. The physical LCD and sensors have not
-been connected or validated. Keep their outputs disabled; review GPIO15 and the
-electrical design before connecting them.
+The required backlog is [TODO.md](TODO.md); see the latest checkpoint below for
+the current checked/open count. This is an active development build, not a
+release. Firmware targets an ESP32-S3 with ESP-IDF v6.1; the web app is React,
+TypeScript and Vite. Core acquisition, protected local HTTP, Wi-Fi setup,
+settings, bounded temperature history, headless LVGL rendering, and an
+`esp_lcd` ST7789/LVGL runtime are implemented. Physical LCD and sensor behavior
+has not been validated. GPIO15 remains untouched; complete electrical checks
+before attaching the backlight or probes.
 
 The latest work adds `TMH2` five-minute records with per-ROM label and state
 metadata, legacy `TMH1` read support, and authenticated streaming CSV export.
@@ -99,6 +100,22 @@ backlog; no physical LCD or sensor was connected, and owner Wi-Fi credentials
 remain unavailable for successful station, NTP, and phone-onboarding checks.
 
 ## Latest verification checkpoint — 2026-10-27
+
+The ST7789 runtime is now integrated into the main sampling loop. It uses
+documented SPI GPIOs (SCLK 12, MOSI 11, CS 10, DC 9, RST 14), 20 MHz SPI, and
+two 240×40 PSRAM/DMA RGB565 LVGL buffers with byte swap and lock-protected UI
+updates. GPIO15/backlight is not initialized. An opt-in
+`CONFIG_MONITOR_LCD_TEST_PATTERN` shows RGB bars and corner markers for physical
+orientation/color testing. Host display tests verify immediate live-reading
+repaint, Wi-Fi state changes, and clock restoration. The full
+`tools/verify.sh --firmware` passes: 9 host CTests, simulator checks, one
+headless display test, 53 web tests, lint/format/typecheck/build and pinned
+ESP-IDF v6.1 firmware build. Image is 0x1e3360 bytes with 53% OTA slot headroom.
+No board was available: panel offsets/color order/rotation/readability/refresh,
+DMA timing, and the test pattern remain unverified physically. Current TODO
+count: 102 checked and 56 open checkboxes. No flash was performed.
+
+Earlier checkpoint:
 
 The `ws_live` ESP-IDF component now owns WebSocket client tracking, read-only
 frame handling and coalesced broadcasts. `http_api` retains origin/session

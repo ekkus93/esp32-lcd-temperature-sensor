@@ -26,7 +26,7 @@
 - [x] **T01-06** Add code formatting/linting rules for C/C++ and TypeScript, and a lightweight CI workflow or reproducible local verification script.
 - [x] **T01-07** Build a host simulator/fake sensor and time provider so the REST/WebSocket/LVGL view models can be tested with zero physical sensors.
 - [x] **T01-08** Define shared data types/state names, semantic versioning for API and persistent schema, and a machine-checkable API contract usable from TypeScript.
-- [x] **T01-09** Record baseline build size, binary image/map, internal heap/PSRAM requirements and available flash/OTA headroom.
+- [x] **T01-09** Record baseline build size, binary image/map, internal heap/PSRAM requirements and available flash/OTA headroom. Current LCD-runtime build: image 0x1e3360 bytes, 53% free in the 4 MiB OTA slot; startup logs report PSRAM and internal heap, and the display runtime logs internal heap after LVGL/panel initialization. Physical refresh/memory measurements remain under T04-03.
 
 **Phase gate:** `idf.py build`, Vite production build, frontend tests and host tests run cleanly; firmware can boot to a diagnosable idle state on actual board when available.
 
@@ -62,7 +62,7 @@
 - [x] **T03-05** Implement per-sensor thresholds, alarm enabling, hysteresis, sample persistence/debounce and separate bus/system fault logic.
 - [x] **T03-06** Distinguish never-installed sensor slots from formerly connected expected sensors. No empty-slot alarm.
 - [x] **T03-07** Generate alert raised/cleared/recovered events with monotonic sequence IDs; throttle duplicates; optionally support acknowledgement without hiding an active fault.
-- [ ] **T03-08** Publish changes promptly to LCD and network without requiring five-minute history writes.
+- [x] **T03-08** Publish changes promptly to LCD and network without requiring five-minute history writes. The main loop publishes every acquisition cycle (five seconds on device), updates the LCD from the same current registry snapshot, and only adds trend data when a five-minute bucket closes. The headless LVGL regression verifies that a new temperature changes the rendered framebuffer while history remains empty; physical panel refresh remains open under T04.
 - [x] **T03-09** Test per-sensor disconnection debounce, reconnection, sensor disable/re-enable, low/high hysteresis, calibration offset, duplicate-fault suppression and bus-wide outage.
 - [ ] **T03-10** Test NVS corruption/reboot/migration: no cross-contamination of ROM IDs, limits or stored label mappings. Host tests now round-trip two distinct ROM configurations and reconstruct them in reverse discovery order, while exercising byte corruption, truncation and unknown versions. The simulated-device script now verifies two ROM configurations across an ESP32 restart, but that extended device check has not run; TMS1 is the first deployed settings format, so unknown versions are rejected and preserved rather than migrated.
 
@@ -79,8 +79,8 @@
 - [x] **T04-07** Implement `basic` (Overview always; default) and `extended` (Overview→Trends→Overview) display modes.
 - [x] **T04-08** Implement independent web-configurable dwell settings; defaults **20 seconds Overview**, **10 seconds Trends**, bounded **5–300 seconds** each; use monotonic timers and apply changes without reboot. Versioned device settings expose and persist both values; the LVGL view reconfigures its monotonic cycle when they change. Device-options host tests cover defaults, boundaries, and runtime reconfiguration. Physical LCD timing remains T04-14.
 - [x] **T04-09** Show temporary **SoftAP provisioning** screen with generated SSID, setup credential/code and `192.168.4.1`; not a third normal user-selectable page.
-- [ ] **T04-10** Show connecting/offline/online Wi-Fi and clock-validity states without blocking sensor monitoring or overriding the Overview indefinitely.
-- [ ] **T04-11** Render `--:--` without trusted time; refresh local time with timezone/DST once synchronized.
+- [x] **T04-10** Show connecting/offline/online Wi-Fi and clock-validity states without blocking sensor monitoring or overriding the Overview indefinitely. Main passes current Wi-Fi and synchronized local-time state into the shared view without blocking acquisition; headless LVGL regressions verify offline→connecting→connected and unavailable→available clock repaint. Physical LCD appearance remains open under T04-14.
+- [x] **T04-11** Render `--:--` without trusted time; refresh local time with timezone/DST once synchronized. The view substitutes `--:--` for an empty trusted-time value and receives the timezone-aware local time on every sample cycle. Headless render regression verifies the unsynchronized-to-synchronized display change; physical validation remains open under T04-14.
 - [x] **T04-12** Implement efficient event-driven repaint and small trend cache; do not reload LittleFS or reallocate all LVGL objects per screen switch.
 - [x] **T04-13** Add screenshots/simulated render tests for 0–5 probes, longest allowed names, negative temperatures, five warnings, and `NO DATA` trends.
 - [ ] **T04-14 [HW]** Inspect physical readability at the real screen size, adjust font sizes/truncation/contrast and confirm cycling/alerts over long soak test.

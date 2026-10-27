@@ -2,6 +2,18 @@
 
 ## Current checkpoint — resume here
 
+The 2026-10-27 LCD software checkpoint adds the `esp_lcd` ST7789 SPI and LVGL
+runtime using GPIO 12/11/10/9/14, two 240×40 PSRAM/DMA buffers, and a lock around
+view updates. GPIO15 remains unused. Optional `CONFIG_MONITOR_LCD_TEST_PATTERN`
+shows color bars and corner markers; no panel or sensor was connected. Host
+render coverage now includes live temperature repaint before a history bucket,
+offline/connecting/connected Wi-Fi state changes, and time becoming available.
+`T03-08`, `T04-10`, and `T04-11` are checked. `T04-01`, `T04-03`, and the other
+physical display gates remain open pending panel validation. The full
+`tools/verify.sh --firmware` passed (9 CTests, simulator, headless LVGL, 53 web
+tests, lint/format/typecheck/build, pinned IDF build); image 0x1e3360 bytes with
+53% OTA slot headroom. No flashing was performed. TODO: 102 checked, 56 open.
+
 Ralph loop resumed on 2026-10-27 from [HANDOFF.md](HANDOFF.md). The owner says
 the ESP32 is currently unavailable; do not attempt device tests or connect the
 LCD/probes until it returns. Captive DNS, DHCP DNS configuration, OS probe

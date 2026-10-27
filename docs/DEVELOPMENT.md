@@ -93,7 +93,11 @@ Run with the activated IDF Python environment. The test checks repeated health
 samples, cadence, zero fabricated probes, heap availability and panic output.
 Physical sensor acquisition is disabled by default. Enable it with
 `idf.py menuconfig` only after connecting the powered bus and one external
-4.7 kΩ pull-up. LCD/backlight GPIOs are not driven by this development build.
+4.7 kΩ pull-up. The normal firmware initializes the ST7789 SPI/LVGL runtime on
+SCLK 12, MOSI 11, CS 10, DC 9 and RST 14 when the LCD is attached. It never
+drives GPIO15; leave the backlight unconnected until its electrical behavior is
+verified. Set `CONFIG_MONITOR_LCD_TEST_PATTERN=y` for color bars/corner markers
+during physical panel bring-up; the normal UI is restored by disabling it.
 
 For ROM download recovery: hold BOOT, press/release RESET, then release BOOT.
 After flashing, release both buttons and tap RESET if the board remains in
@@ -206,8 +210,13 @@ Install `libpng-dev` for host framebuffer exports. After ESP-IDF has resolved th
 pinned LVGL source, `tools/verify.sh` builds/runs both portable core suites and
 `firmware/display_tests`. Software PNGs are written under `.build/display/`;
 reviewed fixtures are in `docs/validation/lcd-simulation/`. The firmware compiles
-the shared view, but no panel or backlight is initialized. Physical integration
-still requires the documented electrical sign-off.
+the shared view. The normal firmware also initializes `esp_lcd` ST7789 SPI and
+LVGL using two PSRAM/DMA buffers, with lock-protected updates. The optional
+`CONFIG_MONITOR_LCD_TEST_PATTERN` displays color bars and corner markers for
+panel bring-up. Neither host rendering nor compilation proves panel color,
+offset, rotation, readability, refresh latency, or electrical safety; physical
+integration still requires the documented electrical sign-off. GPIO15 remains
+untouched.
 
 Device preferences use `GET/PATCH /api/v1/settings`, the shared
 `contracts/device-settings.schema.json`, and boot/revision `If-Match` tokens.
