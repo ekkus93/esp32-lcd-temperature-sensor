@@ -57,6 +57,14 @@ probes were connected, and no firmware was flashed. The old unavailability
 note above is historical; board-dependent work still needs peripherals and,
 for station/NTP tests, owner Wi-Fi credentials.
 
+The isolated simulation image also completed the expanded two-ROM sensor
+settings test. Distinct labels, limits and calibrations survived a protected
+ESP32 restart without cross-contamination; invalid/stale updates and live
+calibration/alert behavior passed. The normal firmware was restored and passed
+the bare-board smoke again. `T03-10` is now checked. Evidence and commands are
+in [sensor NVS results](validation/device-sensor-nvs-results.txt). No LCD or
+physical probes were connected.
+
 The durable event journal is implemented in LittleFS (128 KiB cap, CRC records,
 compaction, tail recovery, cursor pagination). Eight host CTest suites, the
 headless renderer suite, 49 web tests, lint, typecheck, production build and

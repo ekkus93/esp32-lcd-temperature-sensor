@@ -110,6 +110,12 @@ and no panic. No peripherals were attached and no flash was performed. See
 the earlier statement that the board was unavailable, but sensor, LCD, Wi-Fi
 association, and other hardware acceptance remain open.
 
+The isolated five-fake-probe simulation image was used to complete the
+two-ROM NVS restart test (`T03-10`), then the regular image was restored and
+passed the bare-board smoke again. The simulation uses separate sensor
+settings/history namespaces and did not enable physical GPIOs. See
+[sensor NVS results](validation/device-sensor-nvs-results.txt).
+
 ## Latest verification checkpoint — 2026-10-27
 
 The ST7789 runtime is now integrated into the main sampling loop. It uses

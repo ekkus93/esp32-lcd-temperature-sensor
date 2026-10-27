@@ -15,3 +15,23 @@ read-only. No physical probe or LCD was enabled.
 The normal firmware was restored and passed a 15-second bare-board USB smoke:
 READY, zero sensors, disabled bus/LCD, healthy history, expected 5-second
 health cadence and no panic. The simulation image was not left on the board.
+
+## 2026-10-27 — expanded two-ROM reboot acceptance
+
+Rebuilt and flashed the isolated `firmware/build-sim` image with ESP-IDF v6.1.
+`python tools/device_sensor_test.py --port /dev/ttyACM0` passed authenticated
+sensor edits, input and revision rejection, per-ROM calibration and alert
+behavior, disable/re-enable, and distinct labels/limits/calibration for two
+ROM IDs. A protected system restart returned the simulation image to READY;
+`python tools/device_sensor_test.py --port /dev/ttyACM0 --verify-reboot` then
+confirmed both ROM configurations persisted independently. The test computes
+the expected fake temperature from the ROM ordinal, so it does not depend on
+display ordering. `python3 -m py_compile tools/device_sensor_test.py` passed.
+
+The regular `firmware/build` image was restored and its 20-second
+`tools/device_smoke.py --port /dev/ttyACM0 --seconds 20` passed: READY, zero
+sensors, disabled sensor bus and LCD/backlight, healthy history, positive heap,
+five-second health cadence and no panic. Neither the LCD nor probes were
+connected. This verifies the device settings path with simulated providers;
+it is not physical sensor evidence. TMS1 is the first settings schema, so there
+is no older deployed format to migrate.

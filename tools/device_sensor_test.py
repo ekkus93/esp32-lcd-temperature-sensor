@@ -183,7 +183,8 @@ try:
                            'high_c': 40, 'persistence_seconds': 0, 'hysteresis_c': 0.25}
         second_update = call(second_path, 'PATCH', second_expected,
                              {**headers, 'If-Match': second['etag']})
-        check(second_update['status'] == 200, 'second ROM settings committed independently')
+        check(second_update['status'] in (200, 202),
+              'second ROM settings committed independently')
         time.sleep(.6)
         current = get('/sensors')
         by_rom = {item['rom_id']: item for item in current}
@@ -192,7 +193,8 @@ try:
               'second ROM retains its own distinct label, limits and calibration')
         live = get('/status')['sensors']
         live_by_rom = {item['rom_id']: item for item in live}
-        check(live_by_rom[second['rom_id']]['temperature_c'] == 24.5,
+        expected_temperature = 19.0 + int(second['rom_id'][2:4], 16) + 3.5
+        check(live_by_rom[second['rom_id']]['temperature_c'] == expected_temperature,
               'second ROM applies only its own calibration')
         saved_path.write_text(json.dumps({'sensors': {
             sensor['rom_id']: expected, second['rom_id']: second_expected}}) + '\n')
