@@ -8,7 +8,11 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import { getHistory, type HistoryResult } from '../api/history';
+import {
+  getHistory,
+  historyExportUrl,
+  type HistoryResult,
+} from '../api/history';
 import { temperature } from '../api/client';
 import type { Snapshot } from '../api/generated';
 const ranges = [
@@ -39,6 +43,7 @@ export default function HistoryView({
   const key = `${boot}:${hours}:${refresh}`;
   const result = loaded?.key === key ? loaded.value : null;
   const error = failure?.key === key ? failure.message : '';
+  const exportUrl = historyExportUrl(snapshot, hours);
   useEffect(() => {
     let cancelled = false;
     getHistory(snapshot, hours)
@@ -73,6 +78,15 @@ export default function HistoryView({
           ))}
           <Button onClick={() => setRefresh(refresh + 1)}>
             Refresh history
+          </Button>
+          <Button
+            component="a"
+            href={exportUrl}
+            disabled={!exportUrl}
+            target="_blank"
+            rel="noopener"
+          >
+            Export five-minute CSV
           </Button>
         </Stack>
         {error && <Alert severity="error">{error}</Alert>}

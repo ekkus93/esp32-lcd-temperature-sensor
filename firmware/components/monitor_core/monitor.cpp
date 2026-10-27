@@ -268,10 +268,9 @@ std::optional<Bucket> Aggregator::add(const Registry &registry, int64_t now_ms,
     if (start_ && (now_ms >= deadline_ || clock_change)) {
         finished = Bucket{boot_id_, *start_, utc_, {}};
         for (const auto &a : accumulators_)
-            if (a.count) {
-                finished->sensors.push_back({a.rom, a.sum / a.count, a.minimum, a.maximum, a.count,
-                                             partial_ || clock_change || a.count < 60});
-            }
+            finished->sensors.push_back({a.rom, a.count ? a.sum / a.count : 0, a.minimum, a.maximum,
+                                         a.count, partial_ || clock_change || a.count < 60, a.name,
+                                         a.state_flags});
         start_.reset();
         accumulators_.clear();
     }
@@ -293,15 +292,17 @@ std::optional<Bucket> Aggregator::add(const Registry &registry, int64_t now_ms,
     }
     last_sample_ = now_ms;
     for (const auto &sensor : registry.sensors()) {
-        if (!sensor.temperature || !sensor.settings.enabled || !sensor.last_seen_ms ||
-            *sensor.last_seen_ms != now_ms)
-            continue;
         auto it = std::find_if(accumulators_.begin(), accumulators_.end(),
                                [&](const Accumulator &a) { return a.rom == sensor.rom; });
         if (it == accumulators_.end()) {
             accumulators_.push_back({sensor.rom});
             it = accumulators_.end() - 1;
         }
+        it->name = sensor.settings.name;
+        it->state_flags |= uint16_t(1u << unsigned(sensor.state));
+        if (!sensor.temperature || !sensor.settings.enabled || !sensor.last_seen_ms ||
+            *sensor.last_seen_ms != now_ms)
+            continue;
         double value = *sensor.temperature;
         if (!it->count)
             it->minimum = it->maximum = value;

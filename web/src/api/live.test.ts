@@ -61,12 +61,12 @@ it('marks silent connections stale', async () => {
   );
 });
 it('does not let a delayed initial REST response replace a newer boot from WebSocket', async () => {
-  let finish!: (value: unknown) => void;
+  let finish!: (value: Response) => void;
   vi.mocked(fetch).mockImplementationOnce(
     () =>
-      new Promise((resolve) => {
+      new Promise<Response>((resolve) => {
         finish = resolve;
-      }) as Promise<Response>,
+      }),
   );
   const receive = vi.fn();
   stop = subscribeLive(receive, vi.fn());
@@ -76,7 +76,7 @@ it('does not let a delayed initial REST response replace a newer boot from WebSo
   finish({
     ok: true,
     json: async () => ({ ...empty, boot_id: 'old-boot', sequence: 999 }),
-  });
+  } as Response);
   await vi.advanceTimersByTimeAsync(1);
   expect(receive).toHaveBeenCalledOnce();
   expect(receive.mock.calls[0][0].boot_id).toBe('new-boot');

@@ -1,0 +1,19 @@
+PASS: administrator login
+PASS: read /status
+PASS: explicit simulation image with five fake providers; safe to mutate
+PASS: read /sensors
+PASS: read /history?from=0&to=610000&boot_id=150f13dc652d6472&max_points=2
+PASS: history records explicitly identify simulated unsynchronized time
+PASS: persisted five-minute buckets reduced within point bound
+PASS: history extrema and counts are consistent
+PASS: read /history?from=0&to=610000&boot_id=150f13dc652d6472&max_points=2&rom_id=2801000000000029
+PASS: ROM history selector
+PASS: unbounded history request rejected
+PASS: ambiguous duplicate query rejected
+PASS: read /history?from=0&to=1000000&boot_id=0000000000000000
+PASS: unknown boot never borrows another boot history
+PASS: CSV export requires an administrator session
+PASS: streamed five-minute CSV export
+PASS: CSV identifies simulation and unknown UTC without inventing time
+PASS: version-two persisted names and state flags exported from LittleFS
+PASS: CSV refuses graph downsampling parameters

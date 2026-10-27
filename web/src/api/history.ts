@@ -60,10 +60,11 @@ const validate = new Ajv().compile<HistoryResult>({
     },
   },
 });
-export async function getHistory(
+function historyQuery(
   snapshot: Snapshot,
   hours: number,
-): Promise<HistoryResult> {
+  maxPoints?: number,
+): URLSearchParams {
   const synchronized =
     snapshot.clock.synchronized && snapshot.clock.utc !== null;
   const to = synchronized
@@ -73,9 +74,26 @@ export async function getHistory(
   const query = new URLSearchParams({
     from: String(Math.max(0, to - hours * 3600000)),
     to: String(Math.max(1, to)),
-    max_points: '120',
   });
+  if (maxPoints !== undefined) query.set('max_points', String(maxPoints));
   if (!synchronized) query.set('boot_id', snapshot.boot_id);
+  return query;
+}
+export function historyExportUrl(
+  snapshot: Snapshot,
+  hours: number,
+): string | undefined {
+  try {
+    return '/api/v1/history/export?' + historyQuery(snapshot, hours).toString();
+  } catch {
+    return undefined;
+  }
+}
+export async function getHistory(
+  snapshot: Snapshot,
+  hours: number,
+): Promise<HistoryResult> {
+  const query = historyQuery(snapshot, hours, 120);
   const value = await request<unknown>('/history?' + query.toString());
   if (
     !validate(value) ||

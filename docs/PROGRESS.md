@@ -2,14 +2,14 @@
 
 ## Current checkpoint — resume here
 
-Active work: captive-portal DNS and OS detection redirects. Last completed
-normal-image suite: `/tmp/temperature-network-progress-device.log` (full API,
-real scan, nonexistent-network timeout, preserved setup/credentials, cadence).
-The normal image is currently flashed; no physical peripherals are needed.
+The owner requested a stop and a handoff after finishing the history/CSV work.
+Resume from [HANDOFF.md](HANDOFF.md) and the remaining items in
+[TODO.md](TODO.md). Captive DNS, DHCP DNS configuration, OS probe redirects and
+live-client race fixes were verified before this handoff.
 
 
 Sensor configuration REST/UI and bounded in-memory alert views are implemented.
-Six core host suites, the LVGL render suite and 25 frontend tests pass. The real ESP32 simulation build
+Eight core host suites, the LVGL render suite and 30 frontend tests pass. The real ESP32 simulation build
 passed calibration, alarm/disable transitions, malformed/duplicate fields,
 missing/stale If-Match rejection, and NVS settings persistence after restart.
 Simulation data is isolated from real settings/history. See
@@ -18,11 +18,11 @@ History query/reduction is integrated with LittleFS and the web History page;
 the ESP32 simulation passed persisted query/filter/bounds checks. The normal
 firmware passed a real radio scan (nearby networks, no association) and its
 rate limit, plus the complete protected API suite. The main image is about
-1.46 MB against each 4 MiB OTA slot. CSV export, historical label metadata,
-physical probe/LCD checks and durable event history remain open.
+1.48 MB against each 4 MiB OTA slot. Historical label metadata and CSV export
+are implemented; physical probe/LCD checks and durable event history remain open.
 
 
-61 named TODO items are checked with software/device evidence. The remaining
+66 named TODO items are checked with software/device evidence. The remaining
 items are open; this is not a release-ready implementation. Current validation
 is recorded in [the baseline report](validation/2026-10-25-baseline.md),
 [device API results](validation/device-api-results.txt), and
@@ -36,13 +36,35 @@ verify DHCP/candidate failure recovery, credential persistence, clock sync and
 runtime BOOT provisioning. A phone onboarding check remains separate.
 
 The LCD and probes should remain disconnected for now. Their electrical and
-physical gates are intentionally deferred; GPIO15 remains untouched.
+physical gates are intentionally deferred; GPIO15 remains untouched. The board
+is currently unavailable; the flashed image is unknown after an interrupted
+normal-image restore. Do not report a successful restore without rechecking.
 
 Local HTTP was explicitly accepted by the owner. Development setup/admin
 credentials are in ignored mode-0600 files under `.build/`; the real device
 administrator was created by automated tests. Use those private files for
-local development, never attach them to reports. No Git push/release/deployment
-has been performed; working changes are not committed.
+local development, never attach them to reports. The owner committed and pushed
+checkpoint `1a496b6`; this handoff captures subsequent work. No release or
+deployment has been performed.
+
+## 2026-10-26 — History format and CSV handoff
+
+Binary `TMH2` records retain per-ROM UTF-8 names and state flags, including
+zero-valid-count windows. Legacy `TMH1` remains readable without inventing
+historical names. Authenticated CSV export streams full five-minute records with
+simulation, timestamp-quality, ROM and validity fields. The web History page
+links to the export and labels its resolution. See [format details](HISTORY_FORMAT.md).
+
+The real ESP32 simulation passed the CSV cases in
+[device-history-csv-results.txt](validation/device-history-csv-results.txt):
+authentication, persisted names/flags, unknown UTC, simulation markers and
+query rejection. `tools/verify.sh --firmware` passed locally at handoff: eight
+host CTest suites, one headless LVGL suite, clang-format, Prettier, ESLint, 30
+Vitest tests, TypeScript/Vite build, exact SDK check and firmware build. The
+normal firmware image is 0x1699d0 bytes against a 0x400000-byte OTA slot.
+The ESP32 was unavailable for this final build, so it has not been flashed or
+tested on-device. T07-05 stays open because absent entire history windows do not
+yet have explicit gap markers in the HTTP contract.
 
 
 ## 2026-10-25 — Initial implementation
@@ -250,3 +272,22 @@ Tab/Enter navigation showed focus and worked. Computed contrast checks found
 the orange warning badge at 3.11:1 in light mode; the adjusted palette produces
 5.79:1 there and 10.62:1 in dark mode. Other checked status/form/navigation text
 exceeded 4.5:1. Twenty-five frontend tests pass.
+
+## 2026-10-26 — Resumed checkpoint
+
+Owner commit/push `1a496b6` imported source, specifications and mockups. GitHub
+contents and rendered README relative documentation links were verified.
+The resumed strict TypeScript build exposed a mock-resolver type mismatch in a
+new test; it is fixed. Seven core CTest suites, LVGL renders, 28 frontend tests,
+format/lint/strict typecheck and exact-IDF build all pass. The board was flashed
+and passed full API/auth/radio-scan tests and captive HTTP/UDP tests.
+
+Captive DNS binds only the AP address, advertises that DNS server through the
+DHCP configuration, returns IPv4 AP answers with zero TTL and explicit AAAA
+no-data responses, rejects compressed/malformed queries and bounds input to
+512 bytes. OS connectivity probe redirects apply only while setup is active;
+API Host/Origin checks stay enforced. Actual DHCP client/phone onboarding still
+needs owner participation. See [captive checks](validation/device-captive-results.txt).
+
+Live client regression tests now reject delayed REST replies after a newer boot,
+callbacks from retired sockets and snapshots from retired boot IDs.

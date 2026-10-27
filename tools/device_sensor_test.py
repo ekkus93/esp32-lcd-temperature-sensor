@@ -5,6 +5,8 @@ Only simulation's isolated NVS namespace is modified. Credentials and transport
 payloads stay private. Run --verify-reboot after resetting the same image.
 """
 import argparse
+import csv
+import io
 import json
 import os
 import sys
@@ -116,6 +118,17 @@ try:
               'ambiguous duplicate query rejected')
         check(not get('/history?from=0&to=1000000&boot_id=0000000000000000')['points'],
               'unknown boot never borrows another boot history')
+        export_path = '/history/export?from=0&to=' + str(snapshot['uptime_ms'] + 300000) + '&boot_id=' + snapshot['boot_id']
+        check(call(export_path)['status'] == 401, 'CSV export requires an administrator session')
+        exported = call(export_path, headers=headers)
+        check(exported['status'] == 200, 'streamed five-minute CSV export')
+        rows = list(csv.DictReader(io.StringIO(exported['body'])))
+        check(rows and all(row['simulated']=='1' and row['units']=='C' and row['timestamp_quality']=='boot_uptime'
+              and row['utc_seconds']=='' for row in rows), 'CSV identifies simulation and unknown UTC without inventing time')
+        check(all(row['sensor_name'] and row['name_source']=='recorded' and int(row['state_flags'],16)>0 for row in rows),
+              'version-two persisted names and state flags exported from LittleFS')
+        check(call(export_path+'&max_points=2',headers=headers)['status']==400,
+              'CSV refuses graph downsampling parameters')
         sys.exit(0)
     path = '/sensors/' + sensor['rom_id']
     saved_path = Path('.build/sensor-persistence.json')

@@ -3,6 +3,7 @@
 #include "clock_service.hpp"
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
+#include "history_csv.hpp"
 #include "web_assets.h"
 #include <algorithm>
 #include <charconv>
@@ -502,7 +503,8 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
             }
             return json(r, output.get());
         }
-        if (path == "/api/v1/history" && r->method == HTTP_GET) {
+        if ((path == "/api/v1/history" || path == "/api/v1/history/export") &&
+            r->method == HTTP_GET) {
             const auto length = httpd_req_get_url_query_len(r);
             if (!length || length > 256)
                 return error(r, "400 Bad Request", "Bounded history query required");
@@ -555,6 +557,45 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
             }
             if (!valid || !valid_query(query))
                 return error(r, "400 Bad Request", "Invalid history bounds or selector");
+            if (path == "/api/v1/history/export") {
+                if (std::find(keys.begin(), keys.end(), "max_points") != keys.end())
+                    return error(r, "400 Bad Request",
+                                 "CSV exports full five-minute records; omit max_points");
+                bool started = false;
+                auto start = [&]() {
+                    if (started)
+                        return true;
+                    started = true;
+                    httpd_resp_set_type(r, "text/csv; charset=utf-8");
+                    httpd_resp_set_hdr(r, "Content-Disposition",
+                                       "attachment; filename=temperature-history.csv");
+                    httpd_resp_set_hdr(r, "Cache-Control", "no-store");
+                    return httpd_resp_send_chunk(r, history_csv_header(), HTTPD_RESP_USE_STRLEN) ==
+                           ESP_OK;
+                };
+                const bool ok = history_->visit(query, [&](const Bucket &bucket) {
+                    if (!start())
+                        return false;
+                    for (const auto &sensor : bucket.sensors) {
+                        if (!query.roms.empty() && std::find(query.roms.begin(), query.roms.end(),
+                                                             sensor.rom) == query.roms.end())
+                            continue;
+                        const auto row = history_csv_row(bucket, sensor, simulated_);
+                        if (httpd_resp_send_chunk(r, row.data(), row.size()) != ESP_OK)
+                            return false;
+                    }
+                    return true;
+                });
+                if (!ok) {
+                    if (!started)
+                        return error(r, "503 Service Unavailable", "History unavailable or busy");
+                    httpd_sess_trigger_close(server_, httpd_req_to_sockfd(r));
+                    return ESP_FAIL;
+                }
+                if (!start())
+                    return ESP_FAIL;
+                return httpd_resp_send_chunk(r, nullptr, 0);
+            }
             std::vector<HistoryPoint> points;
             bool truncated = false;
             if (!history_->query(query, points, truncated))

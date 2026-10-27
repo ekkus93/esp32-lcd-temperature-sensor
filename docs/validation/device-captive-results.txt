@@ -1,0 +1,10 @@
+PASS: narrow OS captive probe redirects /generate_204
+PASS: narrow OS captive probe redirects /hotspot-detect.html
+PASS: narrow OS captive probe redirects /connecttest.txt
+PASS: narrow OS captive probe redirects /ncsi.txt
+PASS: captive Host exception never grants API access
+PASS: offline setup app served directly from device
+PASS: real UDP DNS A answer on AP interface with preserved transaction ID
+PASS: captive address has zero cache lifetime
+PASS: AAAA query has explicit no-data reply
+PASS: malformed compressed DNS query ignored without crashing

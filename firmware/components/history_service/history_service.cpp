@@ -2,6 +2,7 @@
 #include "esp_littlefs.h"
 #include "esp_log.h"
 #include "esp_partition.h"
+#include "esp_timer.h"
 #include "freertos/task.h"
 #include <algorithm>
 #include <array>
@@ -71,6 +72,41 @@ bool HistoryService::submit(const Bucket &bucket) {
         return false;
     }
     return true;
+}
+bool HistoryService::visit(const HistoryQuery &query,
+                           const std::function<bool(const Bucket &)> &visitor) {
+    if (!valid_query(query) || !mutex_ || xSemaphoreTake(mutex_, pdMS_TO_TICKS(500)) != pdTRUE)
+        return false;
+    const int64_t deadline = esp_timer_get_time() / 1000 + 15000;
+    bool complete = true;
+    unsigned visited = 0;
+    bool ok = store_ && store_->visit([&](const Bucket &bucket) {
+        if (++visited % 32 == 0)
+            vTaskDelay(1);
+        if (esp_timer_get_time() / 1000 >= deadline) {
+            complete = false;
+            return false;
+        }
+        int64_t time = bucket.start_uptime_ms;
+        if (query.boot_id) {
+            if (bucket.boot_id != *query.boot_id)
+                return true;
+        } else {
+            if (!bucket.utc_seconds || *bucket.utc_seconds < 0 ||
+                *bucket.utc_seconds > INT64_MAX / 1000)
+                return true;
+            time = *bucket.utc_seconds * 1000;
+        }
+        if (time < query.from || time >= query.to)
+            return true;
+        if (!visitor(bucket)) {
+            complete = false;
+            return false;
+        }
+        return true;
+    });
+    xSemaphoreGive(mutex_);
+    return ok && complete;
 }
 void HistoryService::worker(void *context) {
     auto &self = *static_cast<HistoryService *>(context);

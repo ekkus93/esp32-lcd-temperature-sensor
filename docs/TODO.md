@@ -7,7 +7,7 @@
 
 ## Working agreement
 
-- [ ] **T00-01** Create the GitHub repository and import `docs/SPEC.md`, `docs/TODO.md`, the three existing detailed design/wiring documents, and all SVG/PNG mockups; verify relative links render on GitHub.
+- [x] **T00-01** Create the GitHub repository and import `docs/SPEC.md`, `docs/TODO.md`, the three existing detailed design/wiring documents, and all SVG/PNG mockups; verify relative links render on GitHub.
 - [x] **T00-02** Set up reproducible **ESP-IDF v6.1** + Vite local development instructions for Ubuntu (no containers required), pinning the exact v6.1 source revision/toolchain; include installation, environment setup, `idf.py --version`, flashing/monitor and clean-build commands.
 - [x] **T00-03** Establish task tracking: check a box **only after implementation and its acceptance checks pass**; add commit ID, test command/output, hardware notes and known issues to concise progress records where useful.
 - [x] **T00-04** Implement software/host tests **before waiting for physical hardware**, but do not claim real sensor/LCD/Wi-Fi/OTA verification until tested on the ESP32.
@@ -120,14 +120,14 @@
 - [x] **T06-01** Create and validate a custom 16 MB ESP-IDF partition CSV with two ~4 MB OTA application slots, an appropriately aligned ~4 MB history LittleFS partition and necessary NVS/OTA/system partitions.
 - [x] **T06-02** Measure real firmware/image size with embedded static web app against both OTA slots; adjust sizes only with documented memory/retention tradeoffs.
 - [ ] **T06-03** Integrate/test LittleFS mount, health reporting, free-space reserve and recovery from missing/corrupt partition state (never wipe valid history automatically).
-- [ ] **T06-04** Specify a versioned compact binary aggregate schema: per-ROM avg/min/max in °C, valid count, status/partial flags, integrity check, timestamp quality/boot ID and stable ID mapping.
+- [x] **T06-04** Specify a versioned compact binary aggregate schema: per-ROM avg/min/max in °C, valid count, status/partial flags, integrity check, timestamp quality/boot ID and stable ID mapping.
 - [x] **T06-05** Collect all valid live readings into **300-second buckets**; persist only one aggregate per completed five-minute bucket, not raw 5-second records.
 - [ ] **T06-06** Define bucket alignment to trusted UTC, handling of unknown clock, reboot mid-window and NTP jump; never silently invent missing samples.
 - [x] **T06-07** Guarantee min/max/count/average calculations respect disabled/disconnected intervals and gaps; test partial buckets.
 - [x] **T06-08** Implement append-only bounded segments with version headers/CRC, startup scan/indexing and safe recovery from interrupted last write.
 - [x] **T06-09** Implement oldest-completed-segment eviction and space reserve; no unbounded growth or flash writes after every 5-second sample.
 - [ ] **T06-10** Create separately bounded/rate-limited event log for alarms, recoveries, bus faults, Wi-Fi changes, time sync, reboot and write failures.
-- [ ] **T06-11** Provide a memory-bounded history query and streamed CSV export with validity, ROM ID, timestamp quality and sensor name metadata.
+- [x] **T06-11** Provide a memory-bounded history query and streamed CSV export with validity, ROM ID, timestamp quality and sensor name metadata.
 - [x] **T06-12** Create efficient downsampling for 1h/24h/7d/30d UI queries while preserving gaps and selected min/max values.
 - [x] **T06-13** Implement RAM-only recent trend cache feeding LVGL sparklines without repeated history partition reads every frame.
 - [ ] **T06-14** Test rollover, wear-sensitive write cadence, old-record eviction, append corruption, no space, missing/corrupt metadata, simultaneous export, power-loss simulation and reboot.
@@ -168,14 +168,14 @@
 
 ### App shell and Dashboard
 - [x] **T09-01** Build responsive Material 3 app shell with accessible desktop sidebar and mobile navigation; light/dark modes, local icons/fonts, keyboard focus and reduced motion.
-- [ ] **T09-02** Implement authoritative REST + WebSocket TypeScript client with reconnection, timeout/stale-state marking, sequence-gap detection and state validation.
+- [x] **T09-02** Implement authoritative REST + WebSocket TypeScript client with reconnection, timeout/stale-state marking, sequence-gap detection and state validation.
 - [ ] **T09-03** Implement Dashboard cards for 0–5 probes: live temperature, label, state icons/text, recent *RAM-only* sparkline if wanted, latest-update age, Wi-Fi/logging status.
 - [ ] **T09-04** Present active alerts visibly without hiding other sensors; empty slots and disabled/missing sensors are semantically different.
 
 ### History
 - [ ] **T09-05** Build History page using persisted five-minute data; 1h/24h/7d/30d selectors, ROM-series selection, avg/min/max, gap rendering and user time zone.
 - [ ] **T09-06** Keep chart bundle small through code splitting/tree-shaking; add bounded pan/zoom interactions appropriate for phones.
-- [ ] **T09-07** Provide CSV export and clearly label five-minute aggregate resolution (do not imply detailed raw five-second storage).
+- [x] **T09-07** Provide CSV export and clearly label five-minute aggregate resolution (do not imply detailed raw five-second storage).
 
 ### Sensors and Alerts
 - [x] **T09-08** Build Sensors page: rename, optional LCD short label, display order, enable/disable, temperature correction, threshold/min-max/hysteresis/delay, ROM address display.

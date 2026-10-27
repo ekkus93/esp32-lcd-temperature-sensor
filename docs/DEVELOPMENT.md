@@ -170,7 +170,12 @@ Responses contain count-weighted average, min/max, valid count and partial flag.
 Empty intervals remain absent. `truncated=true` reports omitted overlapping or
 excess mixed-boot records. No client should silently plot those as complete data.
 Queries serialize filesystem access while acquisition continues through its
-bounded write queue. CSV export and historical label metadata remain open.
+bounded write queue. `GET /api/v1/history/export` accepts the same selectors
+except `max_points` and streams full five-minute CSV rows with recorded labels,
+state flags, timestamp quality, and an explicit simulation marker. See
+[HISTORY_FORMAT.md](HISTORY_FORMAT.md) for the binary and CSV schemas, legacy
+record behavior, and retention estimates. Export requires an administrator
+session. A zero-count row has empty temperature fields.
 
 With the simulation firmware running, use
 `python tools/device_sensor_test.py --port /dev/ttyACM0 --history-only` to check

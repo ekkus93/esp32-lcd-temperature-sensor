@@ -2,6 +2,7 @@
 #include "monitor.hpp"
 #include <functional>
 namespace monitor {
+constexpr size_t max_history_record_bytes = 335;
 // All integer fields are encoded little-endian; no native struct padding is persisted.
 std::vector<uint8_t> encode_bucket(const Bucket &bucket);
 std::optional<Bucket> decode_bucket(const std::vector<uint8_t> &bytes);

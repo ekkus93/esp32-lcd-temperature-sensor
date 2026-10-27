@@ -95,6 +95,8 @@ struct Aggregate {
     double maximum;
     unsigned count;
     bool partial;
+    std::string name{};       // last label observed in this bucket; empty for legacy records
+    uint16_t state_flags = 0; // bit per State observed, including intervals with no valid sample
 };
 struct Bucket {
     uint64_t boot_id;
@@ -116,6 +118,8 @@ class Aggregator {
         double minimum = 0;
         double maximum = 0;
         unsigned count = 0;
+        std::string name{};
+        uint16_t state_flags = 0;
     };
     uint64_t boot_id_;
     std::optional<int64_t> start_;

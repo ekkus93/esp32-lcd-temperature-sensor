@@ -1,9 +1,14 @@
 #include "fake_bus.hpp"
+#include "history_csv.hpp"
 #include "monitor.hpp"
 #include <cstdlib>
 #include <iostream>
 // Fake time and bus use the same domain logic as firmware. No physical sensors are required.
 int main(int argc, char **argv) {
+    if (argc > 1 && std::string(argv[1]) == "--csv-header") {
+        std::cout << monitor::history_csv_header();
+        return 0;
+    }
     unsigned count = argc > 1 ? std::strtoul(argv[1], nullptr, 10) : 5;
     if (count > monitor::max_sensors)
         return 2;

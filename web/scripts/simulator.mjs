@@ -7,6 +7,7 @@ import schema from '../../contracts/snapshot.schema.json' with { type: 'json' };
 const validate = new Ajv().compile(schema);
 const binary = fileURLToPath(new URL('../../.build/host/monitor_sim', import.meta.url));
 const count = process.argv[2] ?? '5';
+const csvHeader = execFileSync(binary, ['--csv-header'], {encoding:'utf8'});
 let snapshot = JSON.parse(execFileSync(binary, [count], { encoding: 'utf8' }));
 if (!validate(snapshot)) throw new Error(JSON.stringify(validate.errors));
 const start = Date.now();
@@ -18,6 +19,7 @@ const server = http.createServer((req, res) => {
   else if (req.url === '/api/v1/settings') res.end(JSON.stringify({schema_version:1,etag:'simulator-settings',revision:0,writable:false,units:'C',display_mode:'basic',overview_seconds:20,trends_seconds:10,lookback_minutes:60,timezone:'UTC',ntp_server:'pool.ntp.org'}));
   else if (req.url === '/api/v1/status') res.end(JSON.stringify(snapshot));
   else if (req.url === '/api/v1/sensors') res.end(JSON.stringify(snapshot.sensors.map(s=>({rom_id:s.rom_id,etag:`"simulator:${s.rom_id}:1"`,revision:1,name:s.name,short_name:'',enabled:s.enabled,disconnect_alert:true,order:s.order,calibration_c:0,low_c:null,high_c:null,hysteresis_c:.5,persistence_seconds:15,state:s.state}))));
+  else if (req.url.startsWith('/api/v1/history/export?')) {res.setHeader('Content-Type','text/csv; charset=utf-8');res.setHeader('Content-Disposition','attachment; filename=temperature-simulation-history.csv');res.end(csvHeader);}
   else if (req.url.startsWith('/api/v1/history?')) res.end(JSON.stringify({schema_version:1,simulated:true,truncated:false,time_basis:'uptime',points:[]}));
   else if (req.url === '/api/v1/alerts') res.end(JSON.stringify({active:[],events:[]}));
   else { res.writeHead(404); res.end('{"error":"Not found"}'); }

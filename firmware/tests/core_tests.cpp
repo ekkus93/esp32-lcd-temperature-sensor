@@ -205,6 +205,33 @@ void bucket_alignment() {
     CHECK(aligned && aligned->utc_seconds == 1800000000 && aligned->sensors[0].count == 59 &&
           aligned->sensors[0].partial);
 }
+void aggregate_metadata() {
+    Registry registry;
+    const auto id = rom(31);
+    registry.sample({{id, 10}}, 0);
+    Aggregator history(90);
+    for (int64_t now = 0; now <= 600000; now += sample_ms) {
+        if (now == 150000) {
+            auto settings = registry.sensors()[0].settings;
+            settings.enabled = false;
+            settings.name = "Renamed freezer";
+            CHECK(registry.configure(id, settings, now));
+        }
+        registry.sample({{id, 10}}, now);
+        auto bucket = history.add(registry, now);
+        if (now == 300000) {
+            CHECK(bucket && bucket->sensors[0].name == "Renamed freezer");
+            CHECK(bucket->sensors[0].count == 30 && bucket->sensors[0].partial);
+            CHECK(bucket->sensors[0].state_flags ==
+                  ((1u << unsigned(State::normal)) | (1u << unsigned(State::disabled))));
+        }
+        if (now == 600000) {
+            CHECK(bucket && bucket->sensors[0].count == 0 && bucket->sensors[0].partial);
+            CHECK(bucket->sensors[0].average == 0 &&
+                  bucket->sensors[0].state_flags == (1u << unsigned(State::disabled)));
+        }
+    }
+}
 void controls() {
     DisplayCycle display;
     CHECK(!display.trends(100000));
@@ -236,6 +263,7 @@ int run_core_tests() {
     configuration_transitions();
     bus_permutations();
     bucket_alignment();
+    aggregate_metadata();
     controls();
     std::cout << "PASS: identity, CRC, invalid data, alerts, aggregates, clock, display and BOOT\n";
     return 0;

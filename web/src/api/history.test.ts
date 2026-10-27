@@ -1,8 +1,23 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { getHistory } from './history';
+import { getHistory, historyExportUrl } from './history';
 import { empty as fixture } from './fixtures';
 import { parseSnapshot } from './client';
 const empty = parseSnapshot(fixture);
+it('exports full-resolution records with explicit boot scope and no graph downsampling limit', () => {
+  const url = historyExportUrl({ ...empty, uptime_ms: 7200000 }, 1);
+  expect(url).toContain('/api/v1/history/export?');
+  expect(url).toContain('boot_id=');
+  expect(url).toContain('from=3600000&to=7200000');
+  expect(url).not.toContain('max_points');
+});
+it('keeps an invalid clock from producing an unsafe export URL', () => {
+  expect(
+    historyExportUrl(
+      { ...empty, clock: { synchronized: true, utc: 'invalid' } },
+      1,
+    ),
+  ).toBeUndefined();
+});
 afterEach(() => vi.unstubAllGlobals());
 const response = {
   schema_version: 1,

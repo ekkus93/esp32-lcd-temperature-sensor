@@ -11,6 +11,7 @@ class HistoryService {
     bool start(bool simulated = false);
     bool submit(const Bucket &bucket);
     bool query(const HistoryQuery &query, std::vector<HistoryPoint> &points, bool &truncated);
+    bool visit(const HistoryQuery &query, const std::function<bool(const Bucket &)> &visitor);
     bool healthy() const {
         return healthy_.load();
     }
