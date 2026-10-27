@@ -199,3 +199,7 @@ pass (image 0x17c8a0 bytes). The device API script now covers authorization,
 body rejection, restart-to-READY, and session invalidation, but was not run
 because the ESP32 is unavailable. Physical restart acceptance and a full
 factory reset remain open under T09-15.
+
+`tools/device_api_test.py` now also has pending history API checks for malformed
+ROM IDs, five/six selectors, point-count bounds, and oversized query strings.
+Only its syntax has been checked; device API execution remains unavailable.

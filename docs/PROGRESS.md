@@ -646,3 +646,9 @@ rejection, nonempty-body rejection, a successful authenticated restart, return
 to READY, and session invalidation. Python syntax compilation and `git diff
 --check` pass. The device script was not run because the ESP32 is unavailable;
 factory-reset semantics/action also remain open.
+
+Extended the pending device API script with history endpoint checks for malformed
+and CRC-invalid ROM IDs, selector counts at and above five, an excessive point
+count, and an overlong query. `python3 -m py_compile tools/device_api_test.py`
+and `git diff --check` pass. These request/response cases require the ESP32 and
+were not run.

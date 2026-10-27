@@ -182,6 +182,21 @@ try:
     history = json.loads(history_response['body'])
     check(history_response['status']==200 and history['points']==[] and history['gaps']==[],
           'history contract returns explicit gap list on empty device history')
+    valid_rom='2801000000000029'
+    rom_selectors='&rom_id='+valid_rom
+    five_rom_selectors=rom_selectors*5
+    check(call(history_path+five_rom_selectors,headers=authorized)['status']==200,
+          'history accepts the five-sensor selector limit')
+    check(call(history_path+five_rom_selectors+rom_selectors,headers=authorized)['status']==400,
+          'history rejects more than five ROM selectors')
+    check(call(history_path+'&rom_id=zzzzzzzzzzzzzzzz',headers=authorized)['status']==400,
+          'history rejects malformed ROM IDs')
+    check(call(history_path+'&rom_id=2801000000000000',headers=authorized)['status']==400,
+          'history rejects ROM IDs with invalid CRC')
+    check(call(history_path+'&max_points=513',headers=authorized)['status']==400,
+          'history rejects a point count above its bound')
+    check(call('/api/v1/history?'+('x'*300),headers=authorized)['status']==400,
+          'history rejects an oversized query string')
     alerts_response = call('/api/v1/alerts?limit=10',headers=authorized)
     alerts = json.loads(alerts_response['body'])
     check(alerts_response['status']==200 and alerts['event_log_healthy'] is True
