@@ -202,6 +202,18 @@ try:
     check(call('/api/v1/wifi/connect','POST',nested,authorized)['status']==400,'excessive JSON nesting rejected')
     check(call('/api/v1/wifi/connect','POST',{'ssid':'x'*33,'password':'irrelevant-password'},authorized)['status']==400,'oversized SSID rejected')
     check(call('/api/v1/auth/enroll','POST',{'setup_secret':setup.get('setup_secret',''),'password':password},origin)['status']==403,'bootstrap enrollment cannot be reused')
+    check(call('/api/v1/system/reboot','POST',None,origin)['status']==401,
+          'anonymous safe-restart request rejected')
+    check(call('/api/v1/system/reboot','POST',None,
+               {**origin,'Cookie':cookie})['status']==401,
+          'safe restart requires CSRF authorization')
+    check(call('/api/v1/system/reboot','POST',{'unexpected':True},authorized)['status']==400,
+          'safe restart rejects request bodies')
+    reboot_login=call('/api/v1/auth/login','POST',{'password':password},origin)
+    check(reboot_login['status']==200,'second administrator session for restart acceptance')
+    reboot_cookie=reboot_login['cookie'].split(';',1)[0]
+    reboot_csrf=json.loads(reboot_login['body'])['csrf']
+    reboot_authorized={**origin,'Cookie':reboot_cookie,'X-CSRF-Token':reboot_csrf}
     check(call('/api/v1/auth/logout','POST',{},authorized)['status']==200,'logout')
     check(call('/api/v1/status',headers=authorized)['status']==401,'logged-out cookie invalidated')
     check(call('/api/v1/not-a-route')['status']==401,'unknown API remains behind authentication')
@@ -213,6 +225,19 @@ try:
     times=[int(value) for value in re.findall(rb'HEALTH uptime_ms=([0-9]+)',health_traffic)]
     Path('.build/auth-cadence.json').write_text(json.dumps({'uptime_samples':times,'deltas':[b-a for a,b in zip(times,times[1:])]},indent=2)+'\n')
     check(len(times)>=2 and all(4000<=b-a<=6000 for a,b in zip(times,times[1:])) and all(abs(value-(times[0]+index*5000))<=1000 for index,value in enumerate(times)), 'sampling cadence survives password verification')
+    restart=call('/api/v1/system/reboot','POST',None,reboot_authorized)
+    check(restart['status']==202 and json.loads(restart['body'])['status']=='rebooting',
+          'authenticated safe restart is acknowledged')
+    restart_output=bytearray()
+    restart_deadline=time.monotonic()+20
+    while time.monotonic()<restart_deadline:
+        restart_output.extend(port.read(1024))
+        if b'monitor: READY no peripherals required' in restart_output:
+            break
+    check(b'monitor: READY no peripherals required' in restart_output,
+          'device restarts and returns to READY after safe-restart acceptance')
+    check(call('/api/v1/status',headers=reboot_authorized)['status']==401,
+          'restart invalidates the prior in-memory administrator session')
     print('Device API tests passed; administrator password saved privately at',admin_path)
 finally:
     port.close()

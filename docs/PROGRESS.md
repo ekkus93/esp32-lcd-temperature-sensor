@@ -640,3 +640,9 @@ type and browser tests for CSRF use, confirmation, success, decline, and errors.
 display test, 53 web tests, lint/format/typecheck/build, and ESP-IDF v6.1 link;
 image size is 0x17c8a0 bytes with 63% OTA slot headroom. Device restart timing
 and the full factory-reset operation remain open under T09-15.
+
+Extended `tools/device_api_test.py` to verify anonymous and missing-CSRF restart
+rejection, nonempty-body rejection, a successful authenticated restart, return
+to READY, and session invalidation. Python syntax compilation and `git diff
+--check` pass. The device script was not run because the ESP32 is unavailable;
+factory-reset semantics/action also remain open.

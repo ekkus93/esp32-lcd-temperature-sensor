@@ -195,5 +195,7 @@ power-loss checks remain open.
 Settings now includes a confirmed data-preserving restart request at
 `POST /api/v1/system/reboot`, guarded by the shared session/Origin/CSRF checks
 and delayed until after acknowledgement. Host tests and the pinned firmware build
-pass (image 0x17c8a0 bytes); physical restart acceptance and a full factory
-reset remain open under T09-15.
+pass (image 0x17c8a0 bytes). The device API script now covers authorization,
+body rejection, restart-to-READY, and session invalidation, but was not run
+because the ESP32 is unavailable. Physical restart acceptance and a full
+factory reset remain open under T09-15.
