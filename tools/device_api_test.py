@@ -215,6 +215,10 @@ try:
     check(call('/api/v1/wifi/connect','POST','{bad json',authorized)['status']==400,'malformed JSON rejected')
     nested='{"x":'+('['*30)+'0'+(']'*30)+'}'
     check(call('/api/v1/wifi/connect','POST',nested,authorized)['status']==400,'excessive JSON nesting rejected')
+    oversized_json='{"ssid":"'+('x'*2040)+'","password":""}'
+    check(len(oversized_json)>2048 and len(oversized_json)<4096
+          and call('/api/v1/wifi/connect','POST',oversized_json,authorized)['status']==400,
+          'oversized JSON request body rejected')
     check(call('/api/v1/wifi/connect','POST',{'ssid':'x'*33,'password':'irrelevant-password'},authorized)['status']==400,'oversized SSID rejected')
     check(call('/api/v1/auth/enroll','POST',{'setup_secret':setup.get('setup_secret',''),'password':password},origin)['status']==403,'bootstrap enrollment cannot be reused')
     check(call('/api/v1/system/reboot','POST',None,origin)['status']==401,

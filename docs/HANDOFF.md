@@ -214,3 +214,7 @@ exhaustion, concurrent export, and physical power-loss checks remain open under
 The WebSocket simulator test now injects a stalled send socket and confirms the
 configured buffer limit terminates it; its four-client cap and 30 reconnects
 also pass. Firmware socket backpressure still needs device acceptance.
+
+The USB device API script additionally rejects a JSON body over 2,048 bytes;
+only Python syntax has been checked. Run it on the ESP32 to validate server
+handling of oversized bodies and connection cleanup.

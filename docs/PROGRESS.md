@@ -673,3 +673,8 @@ server-side socket after its initial snapshot and asserting the send-buffer
 limit terminates it. The standalone simulator test passes with the client cap,
 invalid-frame rejection, and 30 reconnect cycles. This covers simulator
 behavior only; firmware slow-client acceptance remains pending device access.
+
+Added a pending device API case with a valid JSON body just over the firmware's
+2,048-byte request limit; the bridge request stays below its own 4,096-byte cap.
+`python3 -m py_compile tools/device_api_test.py` passes. The live endpoint check
+was not run because the ESP32 is unavailable.
