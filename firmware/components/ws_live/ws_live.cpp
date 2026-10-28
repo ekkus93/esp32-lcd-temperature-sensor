@@ -16,6 +16,12 @@ bool WsLive::add_client(int fd, const std::string &token) {
     Client *slot = nullptr;
     for (auto &client : clients_) {
         if (client.fd == fd) {
+            if (client.quarantined) {
+                // A prior partial send poisoned this stream. Refuse reuse
+                // until the HTTP server has actually closed the socket.
+                httpd_sess_trigger_close(server_, fd);
+                return false;
+            }
             slot = &client;
             break;
         }
@@ -43,6 +49,7 @@ bool WsLive::add_client(int fd, const std::string &token) {
         return false;
     slot->fd = fd;
     slot->token = token;
+    slot->quarantined = false;
     return true;
 }
 
@@ -89,17 +96,24 @@ void WsLive::broadcast(void *context) {
     // HTTP sockets into a fixed-size array fails when unrelated REST/asset
     // clients outnumber the array, silently starving every live subscriber.
     const auto now_ms = esp_timer_get_time() / 1000;
-    for (const auto &client : self.clients_) {
+    for (auto &client : self.clients_) {
         const int fd = client.fd;
         // The HTTP server may have closed/reused a registered descriptor.
         // Never send a WebSocket frame to a non-WebSocket connection.
         if (fd < 0 || httpd_ws_get_fd_info(self.server_, fd) != HTTPD_WS_CLIENT_WEBSOCKET)
             continue;
+        if (client.quarantined) {
+            // A previous nonblocking send failed and close was refused.
+            // Retrying a frame could corrupt the RFC 6455 stream.
+            httpd_sess_trigger_close(self.server_, fd);
+            continue;
+        }
         if (!self.auth_->authorize(client.token, now_ms)) {
             httpd_sess_trigger_close(self.server_, fd);
             continue;
         }
         if (!ws_frame::send_text_nonblocking(fd, text, send)) {
+            client.quarantined = true;
             ESP_LOGW("ws_live", "Closing slow or failed WebSocket send for fd=%d", fd);
             httpd_sess_trigger_close(self.server_, fd);
         }

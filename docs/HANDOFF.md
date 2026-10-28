@@ -1,3 +1,7 @@
+## 2026-10-28 — software-only WebSocket failed-send quarantine
+
+A failed nonblocking WebSocket send now quarantines its client even when the HTTP server refuses to close it. No further frames are sent on the possibly corrupted stream; closure is retried. Host POSIX socket-pair coverage exercises backpressure, refused close, drained socket, eventual close and unaffected healthy subscriber. Exact-head CI verification pending. T07-10 still requires physical ESP32 network/backpressure acceptance; no device, owner Wi-Fi, flash, OTA, destructive reset or power-loss work was performed.
+
 ## 2026-10-28 software-only WebSocket close-error verification
 
 The read-only live endpoint now fails its handler if a forbidden client data frame cannot be closed by the HTTP server; an expired WebSocket whose close is refused is never sent snapshots, and healthy subscribers continue. Native HTTP-server/POSIX-socket shim regressions cover both failures. Exact-commit GitHub Actions passed for implementation `a034505fb7972bfe29c2994cb7fdc1301fc6e801` (run 40685306378) and follow-up regression `593dcf928841101492ae25e7335358136138136a` (run 40685901007): native C++, Python diagnostics, simulated REST/WebSocket, headless LVGL, React, and pinned ESP-IDF v6.1 compilation. T07-10 stays open for real-device slow-client/concurrent-network acceptance; no device, secrets, flashing, reset, OTA or physical power-loss work was done.

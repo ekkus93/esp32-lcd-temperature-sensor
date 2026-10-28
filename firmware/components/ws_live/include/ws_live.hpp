@@ -20,6 +20,9 @@ class WsLive {
     struct Client {
         int fd = -1;
         std::string token;
+        // A failed partial send may leave a malformed frame on the wire.
+        // Do not write again until the HTTP server closes this connection.
+        bool quarantined = false;
     };
     httpd_handle_t server_ = nullptr;
     AuthService *auth_ = nullptr;

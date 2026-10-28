@@ -263,6 +263,48 @@ int main() {
     assert(was_closed(admission_peers[1][0]));
     for (size_t i : {size_t(0), size_t(2), size_t(3), size_t(4)})
         assert(!was_closed(admission_peers[i][0]));
+    // A failed nonblocking send can leave a partial RFC 6455 frame. If
+    // httpd refuses to close the socket, quarantine it: even after TCP
+    // backpressure clears, never send another frame on that stream.
+    monitor::WsLive quarantine;
+    quarantine.configure(reinterpret_cast<httpd_handle_t>(1), auth, [&] { return payload; });
+    std::array<std::array<int, 2>, 2> quarantine_peers{};
+    for (auto &pair : quarantine_peers) {
+        assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pair.data()) == 0);
+        add_websocket(pair[0]);
+        assert(quarantine.add_client(pair[0], "valid"));
+    }
+    while (send(quarantine_peers[0][0], fill.data(), fill.size(), MSG_DONTWAIT) > 0) {
+    }
+    assert(errno == EAGAIN || errno == EWOULDBLOCK);
+    closed_fds.clear();
+    fail_close = true;
+    assert(quarantine.schedule());
+    assert(!was_closed(quarantine_peers[0][0]));
+    drain(quarantine_peers[1][1], payload);
+    std::array<char, 8192> scratch{};
+    ssize_t received = 0;
+    size_t drained_bytes = 0;
+    while ((received = recv(quarantine_peers[0][1], scratch.data(), scratch.size(),
+                            MSG_DONTWAIT)) > 0)
+        drained_bytes += static_cast<size_t>(received);
+    assert(drained_bytes > 0);
+    assert(received == -1 && (errno == EAGAIN || errno == EWOULDBLOCK));
+    assert(quarantine.schedule());
+    assert(!was_closed(quarantine_peers[0][0]));
+    assert(recv(quarantine_peers[0][1], scratch.data(), scratch.size(), MSG_DONTWAIT) == -1);
+    assert(errno == EAGAIN || errno == EWOULDBLOCK);
+    drain(quarantine_peers[1][1], payload);
+    assert(!quarantine.add_client(quarantine_peers[0][0], "valid"));
+    fail_close = false;
+    assert(quarantine.schedule());
+    assert(was_closed(quarantine_peers[0][0]));
+    drain(quarantine_peers[1][1], payload);
+    for (auto &pair : quarantine_peers) {
+        close(pair[0]);
+        close(pair[1]);
+    }
+
     for (auto &pair : admission_peers) {
         close(pair[0]);
         close(pair[1]);
