@@ -344,6 +344,9 @@ void WifiService::worker(void *context) {
                 }
                 self.ip_ = command.ip;
                 self.state_ = 2;
+                // A transient loss during the candidate handoff must give
+                // clients a fresh setup grace period after reconnection.
+                ap_window.station_reconnected(now);
                 attempts = 0;
                 next_retry = 0;
                 if (trying) {
@@ -366,6 +369,9 @@ void WifiService::worker(void *context) {
                     self.last_reason_ = int(command.ip);
                 self.state_ = 0;
                 self.ip_ = 0;
+                // Keep provisioning reachable if the new station drops
+                // before its AP-to-STA handoff grace period completes.
+                ap_window.station_disconnected();
                 if (!trying && self.saved_ssid_[0])
                     next_retry = now + (1000LL << std::min(attempts++, 5u));
             } else if (command.kind == open_ap) {
@@ -403,7 +409,7 @@ void WifiService::worker(void *context) {
             next_retry = 0;
             self.station(self.saved_ssid_, self.saved_password_);
         }
-        if (ap_window.should_close(now, trying))
+        if (ap_window.should_close(now, trying, self.state_ == 2))
             self.set_ap(false);
     }
 }

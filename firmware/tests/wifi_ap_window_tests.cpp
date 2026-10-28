@@ -6,38 +6,52 @@
 
 int main() {
     monitor::WifiApWindow ap;
-    assert(!ap.should_close(1000000, false));
+    assert(!ap.should_close(1000000, false, true));
 
-    // Explicit BOOT/setup recovery stays available for 10 minutes.
+    // Explicit BOOT/setup recovery lasts ten minutes while online and must
+    // not disappear when the router is offline at the expiry instant.
     ap.manual_open(1000);
-    assert(!ap.should_close(600999, false));
-    assert(!ap.should_close(601000, true));
-    assert(ap.should_close(601000, false));
-    assert(!ap.should_close(601001, false));
+    assert(!ap.should_close(600999, false, true));
+    assert(!ap.should_close(601000, true, true));
+    assert(!ap.should_close(601000, false, false));
+    assert(ap.should_close(601000, false, true));
+    assert(!ap.should_close(601001, false, true));
 
-    // Successful credential handoff gives clients 30 seconds to reconnect.
+    // A successful candidate gets 30 seconds of setup/AP overlap.
     ap.candidate_started();
     ap.candidate_connected(2000000);
-    assert(!ap.should_close(2029999, false));
-    assert(ap.should_close(2030000, false));
+    assert(!ap.should_close(2029999, false, true));
+    assert(ap.should_close(2030000, false, true));
 
-    // A new attempt must cancel that earlier success's pending shutdown.
+    // If DHCP connectivity disappears before handoff, retain the AP even
+    // beyond the old deadline. A later reconnect gets a fresh 30 seconds.
+    ap.candidate_started();
     ap.candidate_connected(3000000);
-    ap.candidate_started();
-    assert(!ap.should_close(3030000, false)); // Candidate failed; AP stays up.
-    assert(!ap.should_close(3600000, false));
+    ap.station_disconnected();
+    assert(!ap.should_close(3030000, false, false));
+    assert(!ap.should_close(3100000, false, true));
+    ap.station_reconnected(3100000);
+    assert(!ap.should_close(3129999, false, true));
+    assert(ap.should_close(3130000, false, true));
 
-    // On retry, only the new successful candidate may schedule AP shutdown.
-    ap.candidate_started();
+    // Starting a new candidate clears the old reconnect grace period.
     ap.candidate_connected(4000000);
-    assert(!ap.should_close(4030000, true));
-    assert(ap.should_close(4030000, false));
+    ap.station_disconnected();
+    ap.candidate_started();
+    ap.station_reconnected(4100000);
+    assert(!ap.should_close(4300000, false, true));
+    ap.candidate_connected(4400000);
+    assert(!ap.should_close(4430000, true, true));
+    assert(ap.should_close(4430000, false, true));
 
-    // Manual recovery during a pending handoff replaces the shorter timeout.
+    // Manual BOOT recovery overrides a pending candidate timer and is not
+    // shortened by later station reconnect events.
     ap.candidate_connected(5000000);
+    ap.station_disconnected();
     ap.manual_open(5001000);
-    assert(!ap.should_close(5030000, false));
-    assert(ap.should_close(5601000, false));
+    ap.station_reconnected(5002000);
+    assert(!ap.should_close(5030000, false, true));
+    assert(ap.should_close(5601000, false, true));
 
-    std::cout << "wifi AP deadline: retry cancellation, handoff, BOOT hold PASS\n";
+    std::cout << "wifi AP deadline: handoff, disconnect, reconnect, BOOT hold PASS\n";
 }
