@@ -23,9 +23,11 @@ int main() {
     CHECK(mkdtemp(root));
     for (size_t probe_count : {size_t(1), size_t(5)}) {
         Bucket first{123, 0, std::nullopt, {}};
-        for (size_t i = 0; i < probe_count; ++i)
-            first.sensors.push_back({probes[i].rom, 20, 19, 21, 60, false,
-                                     "Probe " + std::to_string(i), 0});
+        for (size_t i = 0; i < probe_count; ++i) {
+            Aggregate sensor{probes[i].rom, 20, 19, 21, 60, false};
+            sensor.name = "Probe " + std::to_string(i);
+            first.sensors.push_back(sensor);
+        }
         Bucket next = first;
         next.start_uptime_ms = 300000;
         const auto encoded = encode_bucket(next);

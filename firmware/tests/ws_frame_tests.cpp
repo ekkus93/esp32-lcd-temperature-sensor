@@ -6,8 +6,8 @@
 #include <cstdint>
 #include <string>
 #include <sys/socket.h>
-#include <vector>
 #include <unistd.h>
+#include <vector>
 
 namespace {
 struct FakeSocket {
@@ -98,8 +98,8 @@ int main() {
     assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
     int send_buffer = 4096;
     assert(setsockopt(sockets[0], SOL_SOCKET, SO_SNDBUF, &send_buffer, sizeof(send_buffer)) == 0);
-    assert(!monitor::ws_frame::send_text_nonblocking(sockets[0], std::string(512 * 1024, 'x'),
-                                                     send));
+    const std::string huge_frame(512 * 1024, 'x');
+    assert(!monitor::ws_frame::send_text_nonblocking(sockets[0], huge_frame, send));
     close(sockets[0]);
     close(sockets[1]);
 }
