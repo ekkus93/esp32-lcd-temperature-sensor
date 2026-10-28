@@ -1,5 +1,19 @@
 # Implementation progress
 
+## 2026-10-27 — reject empty inbound WebSocket commands (software-only)
+
+The production `WsLive::receive` handler no longer silently accepts zero-byte
+text, binary or control frames on its read-only live endpoint. All inbound
+client frames request session closure; malformed/oversized headers and receive
+failures also return an error. The existing HTTP/WebSocket host shim now covers
+empty and nonempty frame types, the 1,024/1,025-byte boundary, and read errors.
+An additional local native mock compile/run passed without an ESP32-S3.
+
+This improves `T07-10` software coverage but does not establish physical
+ESP32 TCP backpressure, session-eviction timing, or Wi-Fi endurance. `T07-10`
+remains unchecked pending device acceptance; no device was accessed.
+
+
 ## 2026-10-27 — byte-by-byte interrupted history write recovery
 
 Added `history_power_cut_tests` to simulate interrupted TMH2 writes at every

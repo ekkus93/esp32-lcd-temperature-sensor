@@ -47,11 +47,10 @@ esp_err_t WsLive::receive(httpd_req_t *request) {
         httpd_sess_trigger_close(server_, fd);
         return ESP_FAIL;
     }
-    // The live channel is server-to-client only; unexpected commands are closed.
-    if (frame.type == HTTPD_WS_TYPE_CLOSE || frame.len) {
-        httpd_sess_trigger_close(server_, fd);
-        return ESP_OK;
-    }
+    // The live channel is server-to-client only, including empty frames.
+    // Closing also prevents a zero-length masked command or control frame
+    // from silently bypassing the read-only policy.
+    httpd_sess_trigger_close(server_, fd);
     return ESP_OK;
 }
 

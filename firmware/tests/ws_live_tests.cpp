@@ -21,6 +21,7 @@ void (*queued_fn)(void *) = nullptr;
 void *queued_arg = nullptr;
 size_t inbound_length = 0;
 int inbound_type = 1;
+bool fail_inbound_read = false;
 
 void add_websocket(int fd) {
     websocket_fds.push_back(fd);
@@ -44,7 +45,7 @@ int httpd_req_to_sockfd(httpd_req_t *request) {
 esp_err_t httpd_ws_recv_frame(httpd_req_t *, httpd_ws_frame_t *frame, size_t) {
     frame->len = inbound_length;
     frame->type = inbound_type;
-    return ESP_OK;
+    return fail_inbound_read ? ESP_FAIL : ESP_OK;
 }
 int httpd_ws_get_fd_info(httpd_handle_t, int fd) {
     return std::find(websocket_fds.begin(), websocket_fds.end(), fd) != websocket_fds.end()
@@ -144,18 +145,31 @@ int main() {
     drain(peers[2][1], payload);
     drain(peers[3][1], payload);
 
-    // The channel is server-to-client: oversized and nonempty inbound frames
-    // cause closure, but an empty non-close frame does not.
+    // Even an empty text/binary or control frame is unsolicited input on
+    // this server-to-client-only endpoint and must close the session.
     httpd_req_t req{peers[2][0]};
-    inbound_length = 0;
-    assert(live.receive(&req) == ESP_OK);
-    assert(!was_closed(req.fd));
+    for (int type : {1, 2, 8, 9, 10}) {
+        inbound_type = type;
+        inbound_length = 0;
+        closed_fds.clear();
+        assert(live.receive(&req) == ESP_OK);
+        assert(was_closed(req.fd));
+    }
+    // The allowed header length bound does not permit client writes.
+    for (size_t length : {size_t(1), size_t(1024)}) {
+        inbound_length = length;
+        closed_fds.clear();
+        assert(live.receive(&req) == ESP_OK);
+        assert(was_closed(req.fd));
+    }
     inbound_length = 1025;
+    closed_fds.clear();
     assert(live.receive(&req) == ESP_FAIL);
     assert(was_closed(req.fd));
-    req.fd = peers[3][0];
-    inbound_length = 1;
-    assert(live.receive(&req) == ESP_OK);
+    fail_inbound_read = true;
+    inbound_length = 0;
+    closed_fds.clear();
+    assert(live.receive(&req) == ESP_FAIL);
     assert(was_closed(req.fd));
 
     for (auto &pair : peers) {
