@@ -114,7 +114,21 @@ int main() {
     assert(live.schedule());
     assert(was_closed(peers[0][0])); // TCP backpressure.
     assert(was_closed(peers[1][0])); // Invalid/expired authorization.
-    assert(was_closed(peers[4][0])); // Unregistered WebSocket.
+    // A fifth WebSocket must be rejected at the upgrade gate (add_client),
+    // not addressed by broadcasts; the mock never completes its upgrade.
+    assert(!was_closed(peers[2][0]) && !was_closed(peers[3][0]));
+    drain(peers[2][1], payload);
+    drain(peers[3][1], payload);
+
+    // More than six simultaneous HTTP/asset sessions used to make
+    // httpd_get_client_list fail and silently skip *all* live broadcasts.
+    // The production broadcaster must continue delivering to registered
+    // live sessions without enumerating unrelated HTTP clients.
+    for (int fd = 100; fd < 112; ++fd)
+        http_fds.push_back(fd);
+    const int before_many_http = queued_count;
+    assert(live.schedule());
+    assert(queued_count == before_many_http + 1);
     assert(!was_closed(peers[2][0]) && !was_closed(peers[3][0]));
     drain(peers[2][1], payload);
     drain(peers[3][1], payload);

@@ -1,3 +1,19 @@
+## 2026-10-28 — concurrent HTTP sessions cannot starve live WebSocket broadcasts (software-only)
+
+Production `WsLive` previously used `httpd_get_client_list` with only six
+entries, despite the separate four-WebSocket limit. More than six total
+HTTP/asset/WS sessions could cause enumeration to fail and suppress all live
+updates. Broadcasting now iterates only the four registered WebSocket slots;
+each descriptor is checked against the HTTP server's current WebSocket type
+before sending, avoiding writes to recycled REST connections. Existing session
+authorization, slow-client close, bounded nonblocking sends, and work
+coalescing remain in place. The native production `WsLive` POSIX-socket
+test adds twelve unrelated HTTP sockets and requires healthy peers to receive
+the next frame. This is deterministic host coverage, **not** ESP32 TCP
+backpressure, Wi-Fi-client concurrency, or physical device acceptance.
+`T07-10` stays unchecked pending real-device behavior. Exact-commit CI result
+will be recorded after the new SHA has finished its workflow.
+
 ## 2026-10-28 — physical-probe qualification report coverage (software-only)
 
 The read-only `tools/sensor_hardware_report.py` analyzer previously could pass

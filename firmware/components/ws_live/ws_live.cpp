@@ -68,19 +68,17 @@ void WsLive::broadcast(void *context) {
     const auto text = self.snapshot_ ? self.snapshot_() : std::string{};
     if (text.empty())
         return;
-    size_t count = 6;
-    int sockets[6]{};
-    if (httpd_get_client_list(self.server_, &count, sockets) != ESP_OK)
-        return;
+    // Only registered live sessions need a broadcast. Enumerating *all*
+    // HTTP sockets into a fixed-size array fails when unrelated REST/asset
+    // clients outnumber the array, silently starving every live subscriber.
     const auto now_ms = esp_timer_get_time() / 1000;
-    for (size_t i = 0; i < count; ++i) {
-        const int fd = sockets[i];
-        if (httpd_ws_get_fd_info(self.server_, fd) != HTTPD_WS_CLIENT_WEBSOCKET)
+    for (const auto &client : self.clients_) {
+        const int fd = client.fd;
+        // The HTTP server may have closed/reused a registered descriptor.
+        // Never send a WebSocket frame to a non-WebSocket connection.
+        if (fd < 0 || httpd_ws_get_fd_info(self.server_, fd) != HTTPD_WS_CLIENT_WEBSOCKET)
             continue;
-        auto found = self.clients_.begin();
-        while (found != self.clients_.end() && found->fd != fd)
-            ++found;
-        if (found == self.clients_.end() || !self.auth_->authorize(found->token, now_ms)) {
+        if (!self.auth_->authorize(client.token, now_ms)) {
             httpd_sess_trigger_close(self.server_, fd);
             continue;
         }
