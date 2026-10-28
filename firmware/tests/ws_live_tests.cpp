@@ -285,9 +285,12 @@ int main() {
     std::array<char, 8192> scratch{};
     ssize_t received = 0;
     size_t drained_bytes = 0;
-    while ((received = recv(quarantine_peers[0][1], scratch.data(), scratch.size(),
-                            MSG_DONTWAIT)) > 0)
+    while (true) {
+        received = recv(quarantine_peers[0][1], scratch.data(), scratch.size(), MSG_DONTWAIT);
+        if (received <= 0)
+            break;
         drained_bytes += static_cast<size_t>(received);
+    }
     assert(drained_bytes > 0);
     assert(received == -1 && (errno == EAGAIN || errno == EWOULDBLOCK));
     assert(quarantine.schedule());
