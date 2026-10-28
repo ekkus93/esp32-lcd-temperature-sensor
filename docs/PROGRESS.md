@@ -1,3 +1,19 @@
+## 2026-10-27 — diagnostic reporting hardening (software-only)
+
+Exact-commit CI `6dc58704cfd2872adb46ef5bcd53fcdab6af6911`
+(run 40641683891) **passed** C++ formatting, native host CTests including
+the new production sensor diagnostics counters, Python report tests, simulated
+WebSocket/API, headless LVGL, React checks, and pinned ESP-IDF v6.1 firmware
+compilation. Prior formatting and host-header include errors were corrected.
+
+The numeric-only report now enforces advancing acquisition cycles, validates
+cumulative probe/fault/latency counter consistency, and applies its read-latency
+threshold to the firmware's *cumulative maximum* rather than just the last
+sampled duration. This catches a transient slow conversion even when it
+occurred between serial log records. Added host regressions for the hidden
+latency spike, stagnant cycles, and impossible counters. The updated exact-head
+CI is pending; no hardware acceptance is claimed. `T02-15` remains unchecked.
+
 ## 2026-10-27 — physical sensor instrumentation prepared (no hardware)
 
 Added read-only `SensorDiagnostics` counters to the normal firmware acquisition

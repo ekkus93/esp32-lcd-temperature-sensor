@@ -35,6 +35,15 @@ def report(samples, expected_probes=None, min_records=2,
                     "max_read_ms"):
             if after[key] < before[key]:
                 errors.append("counter reset or regression: " + key)
+    for item in samples:
+        if item["last_probes"] > item["max_probes"]:
+            errors.append("probe count exceeds cumulative maximum")
+        if item["last_read_ms"] > item["max_read_ms"]:
+            errors.append("read latency exceeds cumulative maximum")
+        if item["fault_cycles"] > item["cycles"]:
+            errors.append("fault cycles exceed acquisition cycles")
+    if len(samples) >= 2 and samples[-1]["cycles"] <= samples[0]["cycles"]:
+        errors.append("no new acquisition cycles observed")
     if expected_probes is not None and any(
             item["last_probes"] != expected_probes for item in samples):
         errors.append("observed probe count differs from expected")
@@ -44,7 +53,8 @@ def report(samples, expected_probes=None, min_records=2,
         errors.append("invalid readings exceeded limit")
     if max_faults is not None and faults_delta > max_faults:
         errors.append("fault cycles exceeded limit")
-    observed_max_ms = max((item["last_read_ms"] for item in samples), default=0)
+    # The firmware counter includes spikes that occurred between log snapshots.
+    observed_max_ms = max((item["max_read_ms"] for item in samples), default=0)
     if max_read_ms is not None and observed_max_ms > max_read_ms:
         errors.append("sampling latency exceeded limit")
     return {

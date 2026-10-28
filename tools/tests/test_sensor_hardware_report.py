@@ -10,11 +10,12 @@ sensor = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(sensor)
 
 
-def line(cycles, probes, valid, invalid, faults, latency=750):
+def line(cycles, probes, valid, invalid, faults, latency=750, lifetime_max=None):
     return (
         f"I (12345) monitor: SENSOR_DIAG cycles={cycles} last_probes={probes} "
         f"max_probes={probes} valid={valid} invalid={invalid} "
-        f"fault_cycles={faults} last_read_ms={latency} max_read_ms={latency}"
+        f"fault_cycles={faults} last_read_ms={latency} "
+        f"max_read_ms={latency if lifetime_max is None else lifetime_max}"
     )
 
 
@@ -41,6 +42,24 @@ class SensorDiagnosticsReportTests(unittest.TestCase):
         second = sensor.parse_line(line(1, 1, 1, 0, 0))
         self.assertFalse(sensor.report([first, second])["passed"])
         self.assertFalse(sensor.report([], min_records=2)["passed"])
+
+    def test_detects_unobserved_latency_spike(self):
+        # Last readings are fast, but a previous acquisition was too slow.
+        samples = [sensor.parse_line(line(10, 5, 50, 0, 0, 200, 1100)),
+                   sensor.parse_line(line(11, 5, 55, 0, 0, 180, 1100))]
+        result = sensor.report(samples, expected_probes=5, max_read_ms=1000)
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["max_observed_read_ms"], 1100)
+        self.assertIn("sampling latency exceeded limit", result["errors"])
+
+    def test_rejects_stagnant_and_inconsistent_counters(self):
+        stagnant = [sensor.parse_line(line(5, 1, 5, 0, 0)),
+                    sensor.parse_line(line(5, 1, 5, 0, 0))]
+        self.assertIn("no new acquisition cycles observed",
+                      sensor.report(stagnant)["errors"])
+        inconsistent = sensor.parse_line(line(6, 1, 6, 0, 0, 900, 500))
+        self.assertIn("read latency exceeds cumulative maximum",
+                      sensor.report([stagnant[0], inconsistent])["errors"])
 
     def test_log_mode_does_not_emit_secrets(self):
         with tempfile.TemporaryDirectory() as tmp:
