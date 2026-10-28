@@ -1,3 +1,24 @@
+## 2026-10-28 — late Wi-Fi scan completion releases scan ownership (software-only)
+
+A scan-done event arriving at or after the ten-second scan deadline could
+consume `WifiScanWindow`'s deadline and skip the worker's periodic timeout
+cleanup. The `scanning_` flag then remained true indefinitely, rejecting
+future scan requests. `WifiScanWindow::completed()` now returns distinct
+accepted/ignored/timed-out outcomes. The production worker discards the
+stale AP list and clears `scanning_` immediately on a timed-out completion;
+canceled or duplicate events remain ignored without changing candidate state.
+
+Native C++17 scan-policy regression verifies all three completion outcomes,
+the exact deadline boundary, repeated events and cancellation. Implementation
+commit `b1bafe7555a0c1ea867527531c8b2dc26a90aa98` passed exact-commit
+GitHub Actions run `40760479694`: native C++/Python, simulated REST/WebSocket,
+headless LVGL, React verification and pinned ESP-IDF v6.1 compilation.
+This is host-only coverage, not real ESP32 radio/event-ordering or owner Wi-Fi
+qualification. T05-04/T05-18 remain open, as do physical DS18B20/LCD,
+LittleFS power interruption, OTA success/rollback, disposable factory reset
+and sustained-load acceptance. No owner credentials, hardware, flashing,
+reset or OTA were used.
+
 ## 2026-10-28 — stale Wi-Fi scan completion isolation (software-only)
 
 The Wi-Fi worker now rejects `WIFI_EVENT_SCAN_DONE` after a canceled,
