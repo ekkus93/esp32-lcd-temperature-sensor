@@ -91,8 +91,9 @@ void WsLive::broadcast(void *context) {
     } clear{self.pending_};
 
     const auto text = self.snapshot_ ? self.snapshot_() : std::string{};
-    if (text.empty())
-        return;
+    // An empty snapshot suppresses data frames, not session maintenance.
+    // Otherwise failed-close quarantine and expired sessions can linger
+    // indefinitely while the producer has no data to publish.
     // Only registered live sessions need a broadcast. Enumerating *all*
     // HTTP sockets into a fixed-size array fails when unrelated REST/asset
     // clients outnumber the array, silently starving every live subscriber.
@@ -114,6 +115,8 @@ void WsLive::broadcast(void *context) {
             httpd_sess_trigger_close(self.server_, fd);
             continue;
         }
+        if (text.empty())
+            continue;
         if (!ws_frame::send_text_nonblocking(fd, text, send)) {
             client.quarantined = true;
             ESP_LOGW("ws_live", "Closing slow or failed WebSocket send for fd=%d", fd);

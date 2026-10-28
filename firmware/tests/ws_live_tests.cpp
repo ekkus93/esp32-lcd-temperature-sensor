@@ -299,10 +299,47 @@ int main() {
     assert(errno == EAGAIN || errno == EWOULDBLOCK);
     drain(quarantine_peers[1][1], payload);
     assert(!quarantine.add_client(quarantine_peers[0][0], "valid"));
+    // Even if the snapshot producer has no data, a quarantined stream
+    // must be closed once the HTTP server allows it. Healthy subscribers
+    // receive no empty WebSocket data frame.
     fail_close = false;
+    std::string dynamic_payload;
+    quarantine.configure(reinterpret_cast<httpd_handle_t>(1), auth,
+                         [&] { return dynamic_payload; });
     assert(quarantine.schedule());
     assert(was_closed(quarantine_peers[0][0]));
+    assert(recv(quarantine_peers[1][1], scratch.data(), scratch.size(), MSG_DONTWAIT) == -1);
+    assert(errno == EAGAIN || errno == EWOULDBLOCK);
+    dynamic_payload = payload;
+    assert(quarantine.schedule());
     drain(quarantine_peers[1][1], payload);
+
+    // Expired sessions must also be evicted without waiting for the first
+    // nonempty snapshot, while an authorized subscriber remains connected.
+    monitor::WsLive empty_snapshot;
+    empty_snapshot.configure(reinterpret_cast<httpd_handle_t>(1), auth,
+                             [&] { return dynamic_payload; });
+    std::array<std::array<int, 2>, 2> empty_peers{};
+    for (auto &pair : empty_peers) {
+        assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pair.data()) == 0);
+        add_websocket(pair[0]);
+    }
+    assert(empty_snapshot.add_client(empty_peers[0][0], "expired"));
+    assert(empty_snapshot.add_client(empty_peers[1][0], "valid"));
+    dynamic_payload.clear();
+    closed_fds.clear();
+    assert(empty_snapshot.schedule());
+    assert(was_closed(empty_peers[0][0]));
+    assert(!was_closed(empty_peers[1][0]));
+    assert(recv(empty_peers[1][1], scratch.data(), scratch.size(), MSG_DONTWAIT) == -1);
+    assert(errno == EAGAIN || errno == EWOULDBLOCK);
+    dynamic_payload = payload;
+    assert(empty_snapshot.schedule());
+    drain(empty_peers[1][1], payload);
+    for (auto &pair : empty_peers) {
+        close(pair[0]);
+        close(pair[1]);
+    }
     for (auto &pair : quarantine_peers) {
         close(pair[0]);
         close(pair[1]);
