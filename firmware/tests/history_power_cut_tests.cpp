@@ -5,7 +5,9 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <string>
+#include <vector>
 #include <unistd.h>
 
 using namespace monitor;
@@ -76,8 +78,35 @@ int main() {
                 CHECK(count == 2);
             }
         }
+
+        // A complete last record with one corrupted byte is not a partial
+        // power-cut write. Never erase it to make recovery appear successful,
+        // even when no subsequent valid record exists to disambiguate it.
+        const auto final_file = path / "00000000.tmh";
+        for (size_t index = 0; index < first_bytes.size(); ++index) {
+            if (index == 6 || index == 7)
+                continue; // Mutated length can mimic a genuinely incomplete tail.
+            std::filesystem::remove_all(path);
+            HistoryStore before(path.string(), 4 * 4096, 4096);
+            CHECK(before.recover() && before.append(first));
+            auto damaged = first_bytes;
+            damaged[index] ^= 1;
+            {
+                std::ofstream write(final_file, std::ios::binary | std::ios::trunc);
+                CHECK(write.good());
+                write.write(reinterpret_cast<const char *>(damaged.data()), damaged.size());
+                CHECK(write.good());
+            }
+            HistoryStore restarted(path.string(), 4 * 4096, 4096);
+            CHECK(!restarted.recover());
+            CHECK(std::filesystem::file_size(final_file) == damaged.size());
+            std::ifstream original(final_file, std::ios::binary);
+            const std::vector<uint8_t> preserved((std::istreambuf_iterator<char>(original)),
+                                                 std::istreambuf_iterator<char>());
+            CHECK(preserved == damaged);
+        }
     }
     std::filesystem::remove_all(root);
-    std::cout << "PASS: every one- and five-probe TMH2 power-cut prefix/rollover recovers "
-                 "without data loss\n";
+    std::cout << "PASS: one/five-probe TMH2 interrupted prefixes and complete-record "
+                 "corruption preservation\n";
 }

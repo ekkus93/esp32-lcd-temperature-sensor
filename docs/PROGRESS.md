@@ -1,3 +1,21 @@
+## 2026-10-27 — preserve complete CRC-damaged history records (software-only)
+
+The history recovery path previously truncated an invalid final record without
+checking whether its declared length had already been fully written. A complete
+record with one damaged payload or CRC byte could therefore be silently erased
+as if it were a power-cut prefix. Recovery now permits tail truncation only for
+a recognized, structurally incomplete TMH1/TMH2 record. Complete invalid
+records, unknown/malformed headers, and unsupported record lengths are retained
+and cause recovery failure, preserving forensic data for safe diagnosis.
+
+Expanded `history_power_cut_tests`: single-byte mutations of complete one-
+and five-probe final records (excluding length-field ambiguity) must produce
+an explicit failure and preserve the original damaged bytes. Existing exhaustive
+prefix/rollover tests continue to require successful incomplete-tail recovery.
+All cases are native/POSIX simulations, not LittleFS or hardware power-loss
+acceptance. `T06-14` and `T06-16` stay unchecked. Full CI is required for
+this exact source change; no physical device, owner network, OTA or reset used.
+
 ## 2026-10-27 — Wi-Fi scan policy verified on exact commit
 
 Exact-commit GitHub Actions run 40625289515 for `bd7ecb3e` completed
