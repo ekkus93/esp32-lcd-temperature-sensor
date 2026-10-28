@@ -903,3 +903,20 @@ zero sensors, backlight disabled. No LCD or probes were connected. Keep
 Current TODO count: 114 checked, 44 open. See [HANDOFF.md](HANDOFF.md) for
 remaining hardware, owner-network, disposable reset, OTA, stability and release
 gates.
+
+
+## 2026-10-27 — host production WebSocket broadcaster regression
+
+Added a host integration test compiling the production `WsLive` broadcaster
+and RFC 6455 sender with minimal HTTP/auth/time test doubles and actual POSIX
+socket pairs. The targeted native executable passed with strict
+`-Wall -Wextra -Werror -Wpedantic` flags. Cases cover four authorized
+slots/fifth rejection, an ordinary HTTP client alongside WebSockets, a saturated
+non-reading socket that is closed without blocking healthy peers, an expired
+session and an unregistered socket being closed, healthy peers receiving exact
+unmasked text frames, closed-slot reuse, queued broadcast coalescing, failed
+queue retry, and invalid inbound-frame closure. The host suite is now wired
+into CTest. This is *not* a device-level TCP/window or ESP-IDF HTTP-session
+eviction proof; T07-10 stays open. No hardware, owner credentials, reset,
+flashing or OTA operation was performed. Exact-head GitHub Actions verification
+is required after the commit.

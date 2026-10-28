@@ -62,3 +62,10 @@ add_executable(history_power_cut_tests history_power_cut_tests.cpp)
 target_link_libraries(history_power_cut_tests PRIVATE monitor_core)
 target_compile_options(history_power_cut_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_test(NAME history_power_cut_recovery COMMAND history_power_cut_tests)
+
+# Exercise the production WsLive broadcast/authorization/session-close path
+# with a host HTTP-server shim and real POSIX sockets; no ESP32 needed.
+add_executable(ws_live_tests ws_live_tests.cpp ../components/ws_live/ws_live.cpp ../components/ws_live/ws_frame.cpp)
+target_include_directories(ws_live_tests PRIVATE ws_mocks ../components/ws_live/include)
+target_compile_options(ws_live_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
+add_test(NAME websocket_live_client_isolation COMMAND ws_live_tests)
