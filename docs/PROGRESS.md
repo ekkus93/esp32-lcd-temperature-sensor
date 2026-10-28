@@ -1,3 +1,16 @@
+## 2026-10-28 — reject replayed diagnostic evidence (software-only)
+
+The numeric-only physical-probe report previously accepted repeated identical
+`SENSOR_DIAG` snapshots as distinct health records when acquisition cycles
+advanced only between the first and last lines. That could inflate
+`--min-records` without proving independent sampling windows. It now requires
+a strictly advancing acquisition counter between every adjacent record and
+requires at least two snapshots with advancing cycles even if
+`--min-records 1` is specified. Host regression covers replayed snapshots,
+the single-record loophole, and a valid five-probe interval. This does not
+verify physical probe reliability; T02-15 remains unchecked. Exact-commit
+GitHub Actions qualification is pending for this change.
+
 ## 2026-10-28 — per-observed-probe diagnostic rate sanity checks (software-only)
 
 The physical qualification log analyzer now bounds cumulative valid/invalid

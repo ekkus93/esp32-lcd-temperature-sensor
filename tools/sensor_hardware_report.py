@@ -37,6 +37,10 @@ def report(samples, expected_probes=None, min_records=2,
             if after[key] < before[key]:
                 errors.append("counter reset or regression: " + key)
         cycle_delta = after["cycles"] - before["cycles"]
+        # Each diagnostic emission must represent a new acquisition window.
+        # Replayed/duplicated log lines must not satisfy --min-records.
+        if cycle_delta == 0:
+            errors.append("acquisition cycles did not advance between records")
         reading_delta = (after["valid"] + after["invalid"] -
                          before["valid"] - before["invalid"])
         if cycle_delta >= 0 and reading_delta > 5 * cycle_delta:
@@ -61,7 +65,7 @@ def report(samples, expected_probes=None, min_records=2,
             errors.append("cumulative readings exceed acquisition capacity")
         if item["valid"] + item["invalid"] > item["max_probes"] * item["cycles"]:
             errors.append("cumulative readings exceed observed probe capacity")
-    if len(samples) >= 2 and samples[-1]["cycles"] <= samples[0]["cycles"]:
+    if len(samples) < 2 or samples[-1]["cycles"] <= samples[0]["cycles"]:
         errors.append("no new acquisition cycles observed")
     if expected_probes is not None and any(
             item["last_probes"] != expected_probes for item in samples):

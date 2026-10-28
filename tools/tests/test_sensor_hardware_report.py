@@ -116,6 +116,25 @@ class SensorDiagnosticsReportTests(unittest.TestCase):
         new_probe = sensor.parse_line(line(11, 2, 12, 0, 0))
         self.assertTrue(sensor.report([one, new_probe])["passed"])
 
+    def test_rejects_replayed_records_and_single_record_qualification(self):
+        first = sensor.parse_line(line(10, 5, 50, 0, 0))
+        second = sensor.parse_line(line(11, 5, 55, 0, 0))
+        # An exact duplicate must not count as a fresh health interval,
+        # even when the first and last counters advance.
+        replayed = sensor.report([first, first, second],
+                                 expected_probes=5, min_records=3,
+                                 min_valid_per_cycle=5)
+        self.assertIn("acquisition cycles did not advance between records",
+                      replayed["errors"])
+        self.assertFalse(replayed["passed"])
+        self.assertTrue(sensor.report([first, second], expected_probes=5,
+                                      min_valid_per_cycle=5)["passed"])
+        # Lowering --min-records cannot manufacture evidence of an
+        # acquisition interval from a single serial log line.
+        one = sensor.report([first], expected_probes=5, min_records=1)
+        self.assertIn("no new acquisition cycles observed", one["errors"])
+        self.assertFalse(one["passed"])
+
     def test_log_mode_does_not_emit_secrets(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "device.log"
