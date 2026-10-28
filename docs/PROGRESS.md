@@ -1,3 +1,17 @@
+## 2026-10-28 — fail-closed physical diagnostic parsing and interval faults (software-only)
+
+The read-only `SENSOR_DIAG` analyzer now rejects ambiguous or damaged
+numeric records instead of silently overwriting duplicate fields or parsing
+partial values. The parser requires the exact expected ordered fields, so
+concatenated UART output cannot manufacture a passing health snapshot.
+The analyzer also rejects a fault-cycle counter increase larger than the
+number of new acquisition cycles, even when both cumulative counters
+individually appear plausible. Added Python host regressions for duplicates,
+concatenation, malformed fields, non-ASCII digits and impossible fault
+intervals. This does not establish physical 1-Wire reliability, and
+`T02-15` stays unchecked. Exact-commit CI is the verification gate;
+no board, network credentials, LCD, OTA, reset or power-loss test was used.
+
 ## 2026-10-28 — reject replayed diagnostic evidence (software-only)
 
 The numeric-only physical-probe report previously accepted repeated identical

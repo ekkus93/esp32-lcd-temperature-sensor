@@ -6,23 +6,28 @@ stores raw device logs, Wi-Fi details, credentials, ROM IDs or settings.
 """
 import argparse
 import json
-import re
 import sys
 import time
 from pathlib import Path
 
 KEYS = ("cycles", "last_probes", "max_probes", "valid", "invalid",
         "fault_cycles", "last_read_ms", "max_read_ms")
-PAIR = re.compile(r"([a-z_]+)=(\d+)")
-
-
 def parse_line(line):
     if "SENSOR_DIAG " not in line:
         return None
-    numeric = dict((name, int(value)) for name, value in
-                   PAIR.findall(line.split("SENSOR_DIAG ", 1)[1]))
-    return {name: numeric[name] for name in KEYS} if all(
-        name in numeric for name in KEYS) else None
+    # Reject truncated, duplicated, reordered or concatenated records rather
+    # than accidentally assembling a plausible sample from damaged UART text.
+    fields = line.split("SENSOR_DIAG ", 1)[1].strip().split()
+    if len(fields) != len(KEYS):
+        return None
+    numeric = {}
+    for expected, field in zip(KEYS, fields):
+        name, separator, value = field.partition("=")
+        if (separator != "=" or name != expected or not value.isascii()
+                or not value.isdecimal()):
+            return None
+        numeric[name] = int(value)
+    return numeric
 
 
 def report(samples, expected_probes=None, min_records=2,
@@ -52,6 +57,9 @@ def report(samples, expected_probes=None, min_records=2,
             errors.append("readings exceed observed probe acquisition capacity")
         if cycle_delta == 0 and reading_delta != 0:
             errors.append("readings changed without acquisition cycle")
+        fault_delta = after["fault_cycles"] - before["fault_cycles"]
+        if cycle_delta >= 0 and fault_delta > cycle_delta:
+            errors.append("fault cycles exceed interval acquisition capacity")
     for item in samples:
         if item["last_probes"] > item["max_probes"]:
             errors.append("probe count exceeds cumulative maximum")

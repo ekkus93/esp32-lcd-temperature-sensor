@@ -25,6 +25,26 @@ class SensorDiagnosticsReportTests(unittest.TestCase):
         self.assertIsNone(sensor.parse_line("SENSOR_DIAG cycles=3 invalid=0"))
         self.assertEqual(sensor.parse_line(line(2, 5, 10, 0, 0))["last_probes"], 5)
 
+    def test_rejects_ambiguous_or_damaged_uart_records(self):
+        good = line(2, 1, 2, 0, 0)
+        self.assertIsNotNone(sensor.parse_line(good))
+        self.assertIsNone(sensor.parse_line(good + " cycles=999"))
+        self.assertIsNone(sensor.parse_line(
+            good.replace("valid=2", "valid=2 valid=2")))
+        self.assertIsNone(sensor.parse_line(
+            good.replace("last_probes=1", "last_probes=1garbage")))
+        self.assertIsNone(sensor.parse_line(good + " SENSOR_DIAG cycles=3"))
+        self.assertIsNone(sensor.parse_line(
+            good.replace("max_probes=1", "max_probes=١")))
+
+    def test_fault_cycles_cannot_outpace_acquisition(self):
+        before = sensor.parse_line(line(10, 1, 10, 0, 0))
+        after = sensor.parse_line(line(11, 1, 11, 0, 2))
+        result = sensor.report([before, after], expected_probes=1)
+        self.assertFalse(result["passed"])
+        self.assertIn("fault cycles exceed interval acquisition capacity",
+                      result["errors"])
+
     def test_clean_and_failed_qualification(self):
         samples = [sensor.parse_line(line(10, 5, 50, 0, 0)),
                    sensor.parse_line(line(11, 5, 55, 0, 0))]
