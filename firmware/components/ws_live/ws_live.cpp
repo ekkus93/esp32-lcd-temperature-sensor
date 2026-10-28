@@ -47,9 +47,11 @@ esp_err_t WsLive::receive(httpd_req_t *request) {
         httpd_sess_trigger_close(server_, fd);
         return ESP_FAIL;
     }
-    // The live channel is server-to-client only, including empty frames.
-    // Closing also prevents a zero-length masked command or control frame
-    // from silently bypassing the read-only policy.
+    // Keep the historical behavior for empty RFC 6455 control heartbeats.
+    // Data frames, including empty text/binary commands, are never allowed.
+    if (frame.len == 0 &&
+        (frame.type == HTTPD_WS_TYPE_PING || frame.type == HTTPD_WS_TYPE_PONG))
+        return ESP_OK;
     httpd_sess_trigger_close(server_, fd);
     return ESP_OK;
 }

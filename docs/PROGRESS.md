@@ -3,10 +3,11 @@
 ## 2026-10-27 — reject empty inbound WebSocket commands (software-only)
 
 The production `WsLive::receive` handler no longer silently accepts zero-byte
-text, binary or control frames on its read-only live endpoint. All inbound
-client frames request session closure; malformed/oversized headers and receive
-failures also return an error. The existing HTTP/WebSocket host shim now covers
-empty and nonempty frame types, the 1,024/1,025-byte boundary, and read errors.
+text or binary commands on its read-only live endpoint. Empty Ping/Pong
+protocol control frames retain their prior permitted behavior; nonempty
+unsolicited messages trigger closure, while malformed/oversized headers and
+receive failures return an error. The HTTP/WebSocket host shim covers these
+frame-type distinctions, the 1,024/1,025-byte boundary, and read failures.
 An additional local native mock compile/run passed without an ESP32-S3.
 
 This improves `T07-10` software coverage but does not establish physical

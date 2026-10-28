@@ -13,6 +13,8 @@ struct httpd_ws_frame_t {
     int type = 0;
 };
 constexpr int HTTPD_WS_TYPE_CLOSE = 8;
+constexpr int HTTPD_WS_TYPE_PING = 9;
+constexpr int HTTPD_WS_TYPE_PONG = 10;
 constexpr int HTTPD_WS_CLIENT_WEBSOCKET = 2;
 constexpr int HTTPD_WS_CLIENT_INVALID = 0;
 int httpd_req_to_sockfd(httpd_req_t *request);

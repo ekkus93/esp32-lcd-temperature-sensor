@@ -148,13 +148,26 @@ int main() {
     // Even an empty text/binary or control frame is unsolicited input on
     // this server-to-client-only endpoint and must close the session.
     httpd_req_t req{peers[2][0]};
-    for (int type : {1, 2, 8, 9, 10}) {
+    for (int type : {1, 2, 8}) {
         inbound_type = type;
         inbound_length = 0;
         closed_fds.clear();
         assert(live.receive(&req) == ESP_OK);
         assert(was_closed(req.fd));
     }
+    // Empty Ping/Pong control messages remain allowed as before, while
+    // nonempty unexpected control messages are still rejected.
+    for (int type : {HTTPD_WS_TYPE_PING, HTTPD_WS_TYPE_PONG}) {
+        inbound_type = type;
+        inbound_length = 0;
+        closed_fds.clear();
+        assert(live.receive(&req) == ESP_OK);
+        assert(!was_closed(req.fd));
+        inbound_length = 1;
+        assert(live.receive(&req) == ESP_OK);
+        assert(was_closed(req.fd));
+    }
+    inbound_type = 1;
     // The allowed header length bound does not permit client writes.
     for (size_t length : {size_t(1), size_t(1024)}) {
         inbound_length = length;
