@@ -138,8 +138,10 @@ int main() {
         CHECK(!restarted.recover());
         CHECK(std::filesystem::file_size(active_file) == original_size);
         std::ifstream preserved(active_file, std::ios::binary);
-        const std::vector<uint8_t> persisted((std::istreambuf_iterator<char>(preserved)),
-                                              std::istreambuf_iterator<char>());
+        std::vector<uint8_t> persisted;
+        char byte = 0;
+        while (preserved.get(byte))
+            persisted.push_back(static_cast<uint8_t>(byte));
         CHECK(persisted.size() == original_size);
         CHECK(std::equal(valid_prefix.begin(), valid_prefix.end(), persisted.begin()));
         CHECK(std::equal(unknown.begin(), unknown.end(),
