@@ -22,10 +22,22 @@ let output = "";
 child.stdout.on("data", (data) => (output += data));
 child.stderr.on("data", (data) => (output += data));
 const sockets = new Set();
+// The simulator sends its first snapshot immediately upon WebSocket connection.
+// Register the message handler before "open": otherwise the first frame can
+// arrive between connect() resolving and nextMessage() subscribing.
+const pendingMessages = new WeakMap();
 function connect(target = address) {
   return new Promise((resolve, reject) => {
     const socket = new WebSocket(target);
     sockets.add(socket);
+    const state = { buffer: [], waiters: [] };
+    pendingMessages.set(socket, state);
+    socket.on("message", (data, binary) => {
+      const frame = { data, binary };
+      const waiter = state.waiters.shift();
+      if (waiter) waiter(frame);
+      else state.buffer.push(frame);
+    });
     const timeout = setTimeout(
       () => reject(new Error("WebSocket connect timed out")),
       5000,
@@ -41,16 +53,19 @@ function connect(target = address) {
   });
 }
 function nextMessage(socket, timeoutMs = 6500) {
+  const state = pendingMessages.get(socket);
+  assert.ok(state, "nextMessage requires a socket created by connect");
+  if (state.buffer.length) return Promise.resolve(state.buffer.shift());
   return new Promise((resolve, reject) => {
+    const deliver = (frame) => {
+      clearTimeout(timeout);
+      resolve(frame);
+    };
     const timeout = setTimeout(() => {
-      socket.off("message", onMessage);
+      state.waiters.splice(state.waiters.indexOf(deliver), 1);
       reject(new Error("WebSocket snapshot timed out"));
     }, timeoutMs);
-    function onMessage(data, binary) {
-      clearTimeout(timeout);
-      resolve({ data, binary });
-    }
-    socket.once("message", onMessage);
+    state.waiters.push(deliver);
   });
 }
 function closed(socket, timeoutMs = 3000) {

@@ -924,3 +924,15 @@ is required after the commit.
 The first exact-head CI run for `7a989859` stopped at the C++ formatting gate;
 no test or firmware result was claimed from that run. The follow-up commit
 normalizes the new test/shim formatting and requires a fresh exact-head CI pass.
+
+
+The exact-head CI for `727f2974` passed the C++ formatting gate,
+all 12 native CTests (including the new production WebSocket integration
+test), and the pinned ESP-IDF v6.1 compilation. It then failed in the
+pre-existing Node simulator integration: a WebSocket snapshot timed out.
+The simulator transmits its first snapshot synchronously on connection, but
+the test previously attached its first message listener only *after* the
+`open` promise resolved, allowing an initial-frame race. The test now
+buffers messages from socket construction and consumes queued frames before
+waiting, eliminating that timing gap. Exact-head CI must confirm the complete
+web/simulator/display gate; no device-level slow-client proof is claimed.
