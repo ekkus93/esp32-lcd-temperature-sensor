@@ -111,8 +111,15 @@ void WsLive::broadcast(void *context) {
         const int fd = client.fd;
         // The HTTP server may have closed/reused a registered descriptor.
         // Never send a WebSocket frame to a non-WebSocket connection.
-        if (fd < 0 || httpd_ws_get_fd_info(self.server_, fd) != HTTPD_WS_CLIENT_WEBSOCKET)
+        if (fd < 0)
             continue;
+        if (httpd_ws_get_fd_info(self.server_, fd) != HTTPD_WS_CLIENT_WEBSOCKET) {
+            // The HTTP server has dropped this registration. Forget the
+            // token/slot so a reused descriptor cannot inherit a previous
+            // subscriber's authorization without a fresh add_client call.
+            client = Client{};
+            continue;
+        }
         if (client.quarantined) {
             // A previous nonblocking send failed and close was refused.
             // Retrying a frame could corrupt the RFC 6455 stream.

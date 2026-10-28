@@ -389,6 +389,29 @@ int main() {
         close(pair[1]);
     }
 
+    // A descriptor can disappear from the HTTP server's WebSocket registry
+    // without an explicit WsLive close callback. Reclaim the stale slot and
+    // require a fresh authenticated admission if that descriptor is reused.
+    monitor::WsLive stale_registration;
+    stale_registration.configure(reinterpret_cast<httpd_handle_t>(1), auth,
+                                 [&] { return payload; });
+    int stale_pair[2]{};
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, stale_pair) == 0);
+    add_websocket(stale_pair[0]);
+    assert(stale_registration.add_client(stale_pair[0], "valid"));
+    websocket_fds.erase(std::remove(websocket_fds.begin(), websocket_fds.end(), stale_pair[0]),
+                        websocket_fds.end());
+    assert(stale_registration.schedule()); // Detect the vanished registration.
+    add_websocket(stale_pair[0]);         // Simulate descriptor reuse by HTTPD.
+    assert(stale_registration.schedule());
+    assert(recv(stale_pair[1], scratch.data(), scratch.size(), MSG_DONTWAIT) == -1);
+    assert(errno == EAGAIN || errno == EWOULDBLOCK);
+    assert(stale_registration.add_client(stale_pair[0], "valid"));
+    assert(stale_registration.schedule());
+    drain(stale_pair[1], payload);
+    close(stale_pair[0]);
+    close(stale_pair[1]);
+
     for (auto &pair : admission_peers) {
         close(pair[0]);
         close(pair[1]);
