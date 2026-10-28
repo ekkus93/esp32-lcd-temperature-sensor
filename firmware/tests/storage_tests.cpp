@@ -289,6 +289,39 @@ int main() {
     event.uptime_ms += 500;
     CHECK(journal.append(event) && journal.bytes() == before_throttle);
     CHECK(journal.bytes() <= 4 * event_record_bytes);
+    // A repeated event within one second may be coalesced, but a distinct
+    // transition or newly known UTC timestamp must never disappear merely
+    // because its final state and detail match the preceding event.
+    const std::string dedup_path = std::string(event_directory) + "/dedup.bin";
+    EventStore distinct_events(dedup_path, 8 * event_record_bytes);
+    CHECK(distinct_events.recover());
+    JournalEvent transition{};
+    transition.boot_id = 987;
+    transition.uptime_ms = 1000;
+    transition.kind = EventKind::sensor_state;
+    transition.rom = rom;
+    transition.previous = State::normal;
+    transition.state = State::high;
+    CHECK(distinct_events.append(transition));
+    transition.uptime_ms = 1500;
+    CHECK(distinct_events.append(transition));
+    CHECK(distinct_events.bytes() == event_record_bytes); // Exact duplicate.
+    transition.previous = State::low;
+    transition.uptime_ms = 1600;
+    CHECK(distinct_events.append(transition));
+    CHECK(distinct_events.bytes() == 2 * event_record_bytes);
+    transition.utc_seconds = 1800000000;
+    transition.uptime_ms = 1700;
+    CHECK(distinct_events.append(transition));
+    CHECK(distinct_events.bytes() == 3 * event_record_bytes);
+    EventStore dedup_restarted(dedup_path, 8 * event_record_bytes);
+    CHECK(dedup_restarted.recover());
+    const auto distinct_page = dedup_restarted.page(0, 50);
+    CHECK(distinct_page.available && distinct_page.events.size() == 3);
+    CHECK(distinct_page.events[1].previous == State::low);
+    CHECK(!distinct_page.events[1].utc_seconds);
+    CHECK(distinct_page.events[2].utc_seconds == transition.utc_seconds);
+
     auto event_page = journal.page(0, 2);
     CHECK(event_page.events.size() == 2 && event_page.has_more && event_page.oldest_available > 1 &&
           event_page.next_after == event_page.events.back().sequence);

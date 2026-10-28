@@ -189,7 +189,8 @@ bool EventStore::append(const JournalEvent &input) {
     if (last_event_ && input.boot_id == last_event_->boot_id &&
         input.uptime_ms >= last_event_->uptime_ms &&
         input.uptime_ms - last_event_->uptime_ms < 1000 && input.kind == last_event_->kind &&
-        input.rom == last_event_->rom && input.state == last_event_->state &&
+        input.rom == last_event_->rom && input.previous == last_event_->previous &&
+        input.state == last_event_->state && input.utc_seconds == last_event_->utc_seconds &&
         input.detail == last_event_->detail)
         return true;
     if (bytes() + event_record_bytes > max_bytes_ && !compact())
