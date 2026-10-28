@@ -136,8 +136,10 @@ void WifiService::event(void *context, esp_event_base_t base, int32_t id, void *
     if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
         command.kind = got_ip;
         command.ip = static_cast<ip_event_got_ip_t *>(data)->ip_info.ip.addr;
-    } else if (base == WIFI_EVENT && id == WIFI_EVENT_SCAN_DONE)
+    } else if (base == WIFI_EVENT && id == WIFI_EVENT_SCAN_DONE) {
         command.kind = scan_done;
+        command.ip = data ? static_cast<wifi_event_sta_scan_done_t *>(data)->status : 1;
+    }
     else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
         command.kind = disconnected;
         command.ip = static_cast<wifi_event_sta_disconnected_t *>(data)->reason;
@@ -288,13 +290,20 @@ void WifiService::worker(void *context) {
             } else if (command.kind == scan_done) {
                 // Ignore completion events queued after a timeout or candidate
                 // takeover; they must not overwrite scan results mid-join.
-                const auto completion = scan_window.completed(esp_timer_get_time() / 1000);
+                const auto completion =
+                    scan_window.completed(esp_timer_get_time() / 1000, command.ip == 0);
                 if (completion != WifiScanWindow::Completion::accepted) {
-                    if (completion == WifiScanWindow::Completion::timed_out) {
-                        // The deadline was consumed by the late event, so the
-                        // periodic timeout branch can no longer clear scanning_.
+                    if (completion == WifiScanWindow::Completion::timed_out ||
+                        completion == WifiScanWindow::Completion::failed) {
+                        // A failed scan is not a successful empty result. Drop
+                        // cached APs so clients cannot use stale scan evidence.
+                        // Late completion also consumes the deadline, so the
+                        // periodic timeout path cannot release scanning_.
                         esp_wifi_clear_ap_list();
+                        xSemaphoreTake(self.scan_mutex_, portMAX_DELAY);
+                        self.networks_.clear();
                         self.scanning_ = false;
+                        xSemaphoreGive(self.scan_mutex_);
                     }
                     continue;
                 }
@@ -400,7 +409,10 @@ void WifiService::worker(void *context) {
         if (scan_window.expired(now)) {
             esp_wifi_scan_stop();
             esp_wifi_clear_ap_list();
+            xSemaphoreTake(self.scan_mutex_, portMAX_DELAY);
+            self.networks_.clear();
             self.scanning_ = false;
+            xSemaphoreGive(self.scan_mutex_);
         }
         if (trying && now >= deadline) {
             trying = false;

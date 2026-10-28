@@ -16,15 +16,18 @@ class WifiScanWindow {
     bool active() const {
         return deadline_ms_ != 0;
     }
-    enum class Completion { ignored, accepted, timed_out };
-    Completion completed(int64_t now_ms) {
+    enum class Completion { ignored, accepted, failed, timed_out };
+    Completion completed(int64_t now_ms, bool driver_success) {
         // A late completion must release scan ownership even when the worker
-        // has not yet run its periodic timeout check.
+        // has not yet run its periodic timeout check. Failed driver scans must
+        // not be mistaken for valid results from an earlier scan.
         if (!active())
             return Completion::ignored;
         const bool timely = now_ms < deadline_ms_;
         cancel();
-        return timely ? Completion::accepted : Completion::timed_out;
+        if (!timely)
+            return Completion::timed_out;
+        return driver_success ? Completion::accepted : Completion::failed;
     }
     bool expired(int64_t now_ms) {
         if (!active() || now_ms < deadline_ms_)
