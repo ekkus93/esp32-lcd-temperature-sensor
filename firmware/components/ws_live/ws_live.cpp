@@ -95,7 +95,11 @@ void WsLive::broadcast(void *context) {
         }
     } clear{self.pending_};
 
-    const auto text = self.snapshot_ ? self.snapshot_() : std::string{};
+    // Most sampling cycles have no live subscribers. Avoid building the
+    // potentially large JSON snapshot until an authorized WebSocket needs it.
+    // Keep session expiry and quarantine cleanup active even without data.
+    std::string text;
+    bool snapshot_loaded = false;
     // An empty snapshot suppresses data frames, not session maintenance.
     // Otherwise failed-close quarantine and expired sessions can linger
     // indefinitely while the producer has no data to publish.
@@ -119,6 +123,10 @@ void WsLive::broadcast(void *context) {
         if (!self.auth_->authorize(client.token, now_ms)) {
             httpd_sess_trigger_close(self.server_, fd);
             continue;
+        }
+        if (!snapshot_loaded) {
+            text = self.snapshot_ ? self.snapshot_() : std::string{};
+            snapshot_loaded = true;
         }
         if (text.empty())
             continue;

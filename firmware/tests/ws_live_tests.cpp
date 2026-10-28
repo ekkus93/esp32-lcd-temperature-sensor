@@ -354,6 +354,41 @@ int main() {
         close(pair[1]);
     }
 
+    // Snapshot construction can consume heap on a constrained ESP32.
+    // It must be skipped when no authorized subscriber can receive data,
+    // without postponing expired-session cleanup; multiple healthy peers
+    // must still share one snapshot per broadcast.
+    int snapshot_calls = 0;
+    monitor::WsLive lazy_snapshot;
+    lazy_snapshot.configure(reinterpret_cast<httpd_handle_t>(1), auth, [&] {
+        ++snapshot_calls;
+        return payload;
+    });
+    assert(lazy_snapshot.schedule());
+    assert(snapshot_calls == 0);
+    fake_now_us = 1000000;
+    std::array<std::array<int, 2>, 3> lazy_peers{};
+    for (auto &pair : lazy_peers) {
+        assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pair.data()) == 0);
+        add_websocket(pair[0]);
+    }
+    assert(lazy_snapshot.add_client(lazy_peers[0][0], "expiring"));
+    fake_now_us = 2000000;
+    closed_fds.clear();
+    assert(lazy_snapshot.schedule());
+    assert(snapshot_calls == 0);
+    assert(was_closed(lazy_peers[0][0]));
+    assert(lazy_snapshot.add_client(lazy_peers[1][0], "valid"));
+    assert(lazy_snapshot.add_client(lazy_peers[2][0], "valid"));
+    assert(lazy_snapshot.schedule());
+    assert(snapshot_calls == 1);
+    drain(lazy_peers[1][1], payload);
+    drain(lazy_peers[2][1], payload);
+    for (auto &pair : lazy_peers) {
+        close(pair[0]);
+        close(pair[1]);
+    }
+
     for (auto &pair : admission_peers) {
         close(pair[0]);
         close(pair[1]);
