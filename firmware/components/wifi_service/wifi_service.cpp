@@ -1,4 +1,5 @@
 #include "wifi_service.hpp"
+#include "wifi_credentials.hpp"
 #include "auth_service.hpp"
 #include "dhcpserver/dhcpserver.h"
 #include "esp_log.h"
@@ -112,14 +113,16 @@ esp_err_t WifiService::start() {
         nvs_close(handle);
         return result;
     }
-    uint8_t record[99]{};
+    uint8_t record[kStationRecordV2Size]{};
     size = sizeof(record);
-    auto saved = nvs_get_blob(handle, "station1", record, &size);
-    if (saved == ESP_OK && size == 99 && record[0] == 1 && record[33] == 0 && record[98] == 0) {
-        std::memcpy(saved_ssid_, record + 1, 33);
-        std::memcpy(saved_password_, record + 34, 65);
-        saved_credentials_ = saved_ssid_[0] != 0;
+    const auto saved = nvs_get_blob(handle, "station1", record, &size);
+    StationCredentials credentials;
+    if (saved == ESP_OK && decode_station_credentials(record, size, credentials)) {
+        std::memcpy(saved_ssid_, credentials.ssid.c_str(), credentials.ssid.size() + 1);
+        std::memcpy(saved_password_, credentials.password.c_str(), credentials.password.size() + 1);
+        saved_credentials_ = true;
     }
+    // Reject malformed station records without erasing them or attempting to join with bad data.
     nvs_close(handle);
     if (xTaskCreate(worker, "wifi_control", 6144, this, 2, nullptr) != pdPASS)
         return ESP_ERR_NO_MEM;
@@ -166,27 +169,20 @@ void WifiService::set_ap(bool enabled) {
     }
 }
 bool WifiService::save(const char *ssid, const char *password) {
-    uint8_t record[99]{};
-    record[0] = 1;
-    std::memcpy(record + 1, ssid, 33);
-    std::memcpy(record + 34, password, 65);
+    std::array<uint8_t, kStationRecordV2Size> record{};
+    if (!encode_station_credentials(ssid, password, record))
+        return false;
     nvs_handle_t handle;
     if (nvs_open("monitor_wifi", NVS_READWRITE, &handle) != ESP_OK)
         return false;
-    auto result = nvs_set_blob(handle, "station1", record, sizeof(record));
+    auto result = nvs_set_blob(handle, "station1", record.data(), record.size());
     if (result == ESP_OK)
         result = nvs_commit(handle);
     nvs_close(handle);
     return result == ESP_OK;
 }
 bool WifiService::connect(const std::string &ssid, const std::string &password) {
-    if (!queue_ || ssid.empty() || ssid.size() > 32 || password.size() > 64 ||
-        (!password.empty() && password.size() < 8) || ssid.find('\0') != std::string::npos ||
-        password.find('\0') != std::string::npos ||
-        (password.size() == 64 &&
-         !std::all_of(password.begin(), password.end(), [](unsigned char c) {
-             return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
-         })))
+    if (!queue_ || !valid_station_credentials(ssid, password))
         return false;
     Command command{};
     command.kind = candidate;

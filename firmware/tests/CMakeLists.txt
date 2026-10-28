@@ -69,3 +69,9 @@ add_executable(ws_live_tests ws_live_tests.cpp ../components/ws_live/ws_live.cpp
 target_include_directories(ws_live_tests PRIVATE ws_mocks ../components/ws_live/include)
 target_compile_options(ws_live_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_test(NAME websocket_live_client_isolation COMMAND ws_live_tests)
+
+# Exercise the same station NVS codec used by the firmware, without Wi-Fi hardware.
+add_executable(wifi_credentials_tests wifi_credentials_tests.cpp)
+target_include_directories(wifi_credentials_tests PRIVATE ../components/wifi_service/include)
+target_compile_options(wifi_credentials_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
+add_test(NAME wifi_station_nvs_corruption COMMAND wifi_credentials_tests)

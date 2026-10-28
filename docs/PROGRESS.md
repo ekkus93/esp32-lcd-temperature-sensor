@@ -976,3 +976,25 @@ headless test, native host suites, React checks and pinned ESP-IDF v6.1
 compilation. `T10-02` remains unchecked: no real panel visibility,
 OTA success, forced rollback or bootloader behavior was exercised here.
 No board, probe, Wi-Fi credentials, factory reset or OTA flash was used.
+
+## 2026-10-27 — versioned station credential record hardening (host-only)
+
+Added a shared, pure C++ station credential codec used by the firmware NVS load,
+NVS commit and candidate validation paths. Existing 99-byte v1 station records
+remain readable; new successful candidate connections write a 103-byte v2
+record with CRC32, bounded zero-terminated fields and canonical zero padding.
+Malformed versions, truncated records, invalid lengths, noncanonical padding
+and checksum errors are rejected without erasing the saved blob or attempting
+an invalid association. CRC32 detects accidental corruption; it is **not**
+confidentiality or tamper-resistant authentication. No credentials are logged.
+
+Native host test: `c++ -std=c++17 -Wall -Wextra -Werror -Wpedantic
+-I firmware/components/wifi_service/include
+firmware/tests/wifi_credentials_tests.cpp -o /tmp/wifi_credentials_tests &&
+/tmp/wifi_credentials_tests` (equivalent isolated local compile): PASS.
+Coverage includes 103 single-byte mutations, all truncated v2 lengths,
+legacy v1 compatibility, empty/64-hex passwords, and invalid input bounds.
+CTest integration and pinned ESP-IDF v6.1 build await exact-commit GitHub
+Actions confirmation. T05-01/04/05/11/18 remain open for real Wi-Fi
+association, DHCP, candidate rollback, saved-network continuity and onboarding.
+No board, Wi-Fi credentials, factory reset, flash or OTA was used.

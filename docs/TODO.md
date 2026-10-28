@@ -90,7 +90,7 @@
 ## Phase 5 — Wi-Fi provisioning, recovery button, timekeeping
 
 ### Networking and captive portal
-- [ ] **T05-01** Initialize station-mode Wi-Fi with saved NVS credentials, reconnection/backoff and consistent status events.
+- [ ] **T05-01** Initialize station-mode Wi-Fi with saved NVS credentials, reconnection/backoff and consistent status events. The station credential codec now reads legacy v1 records and writes CRC32-protected v2 records, rejects malformed/truncated/corrupt records without erasing them, and shares SSID/password validation with candidate requests. Native host regression covers byte mutations, truncation, legacy compatibility, and length constraints. Actual saved-network DHCP/reconnect and error-event behavior still need owner-network/device acceptance.
 - [x] **T05-02** Implement first-boot password-protected SoftAP with deterministic unique SSID suffix and device-unique setup secret (no universal password).
 - [x] **T05-03** Serve a complete local captive-portal-compatible provisioning page, including SSID scanning, manual entry, password validation, error states and `http://192.168.4.1` fallback. The offline SPA is embedded in firmware; captive DNS/probe redirects and direct `/setup` access passed device checks. Frontend tests cover scanning, manual SSID fallback and failed connection retry. Phone/DHCP onboarding remains T05-18.
 - [ ] **T05-04** Implement candidate Wi-Fi validation (prefer temporary AP+STA) without destroying prior credentials or setup connectivity on failure.
@@ -102,7 +102,7 @@
 ### BOOT long press (runtime only)
 - [x] **T05-09** Configure existing **GPIO0 BOOT** as an input after startup; use debounced monotonic long-press FSM (exact **5 seconds**) with short-press ignore and no repeated trigger while held.
 - [ ] **T05-10** Show hold-progress feedback on LCD; enter SoftAP when threshold reached while temperature sampling/logging continue. BOOT hold progress now flows atomically to the LCD view, and the host renderer checks progress feedback; the five-second physical hold, AP transition, and continued acquisition/logging still need device verification.
-- [ ] **T05-11** Preserve prior Wi-Fi settings during re-provisioning until candidate network verification succeeds; do not factory-reset on ordinary BOOT hold.
+- [ ] **T05-11** Preserve prior Wi-Fi settings during re-provisioning until candidate network verification succeeds; do not factory-reset on ordinary BOOT hold. Candidate success remains the only station NVS write path; the versioned credential codec preserves legacy records and rejects corruption without erasing existing data. Real previous-network preservation and BOOT recovery still require device/owner-network acceptance.
 - [x] **T05-12** Test GPIO0 FSM on host with bounce, restart, held-at-boot and long hold cases.
 - [ ] **T05-13 [HW]** Verify runtime 5-second BOOT behavior **and** standard USB auto-flash/manual BOOT+RESET ROM download mode on photographed dual-USB-C board.
 
