@@ -589,3 +589,16 @@ the asynchronous 202/overlap 409 behavior and timeout, and confirmed setup AP
 remained available with blank credentials. This is first-boot recovery evidence
 only. Existing-owner-network preservation and successful station handoff still
 need private Wi-Fi credentials; `T05-04/05/11/18` remain open.
+
+## 2026-10-28 — Failed scan completion follow-up
+
+Production `wifi_service` now checks `WIFI_EVENT_SCAN_DONE` driver status
+instead of treating every timely completion as a successful scan. The
+`WifiScanWindow` policy distinguishes failed versus timed-out completions;
+both discard stale AP lists and release scanning state. Native regression
+tests cover success, failure, duplicate/canceled events and deadline edges.
+Formatting-only CI failed on `625263a8` (run 40769800800), then the corrected
+exact source commit `bfb5ce45` passed run 40769907886 (native C++/Python,
+simulated REST/WebSocket, headless LVGL, React, pinned ESP-IDF v6.1).
+No ESP32, LCD, probes, owner network, OTA, reset or power interruption was
+used. Keep T05-04/T05-18 and all physical acceptance gates unchecked.

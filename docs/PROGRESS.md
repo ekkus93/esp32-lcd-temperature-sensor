@@ -1150,3 +1150,25 @@ candidate DHCP/reconnect and owner-network/phone onboarding evidence.
 The physical sensor/LCD, LittleFS interruption, OTA success/rollback,
 disposable-device factory reset and sustained-load acceptance gates also
 remain open.
+
+## 2026-10-28 — Reject failed Wi-Fi scan completions (software-only)
+
+The Wi-Fi worker previously ignored the ESP-IDF scan-done status and could
+interpret a driver-failed scan as successful, potentially returning cached AP
+records. It now propagates the scan-done status to the deadline policy, which
+distinguishes ignored, accepted, failed and timed-out completions. Failed and
+timed-out scans clear cached AP results and release scan ownership without
+publishing stale results. Native tests cover all four outcomes, duplicate
+events, and the exact ten-second deadline.
+
+The initial source commit `625263a853837f90e827fc5ecee850f3b1977d29`
+failed only the C++ formatting gate (run 40769800800). The corrected source
+commit `bfb5ce452daa5b04edc70d171a8efce66388775b` passed exact-commit
+GitHub Actions run 40769907886: formatting, native C++/Python tests, simulated
+REST/WebSocket integration, headless LVGL, React verification and pinned
+ESP-IDF v6.1 firmware compilation. No device, owner credentials, OTA,
+factory reset or physical storage interruption was used.
+
+T05-04/T05-18 remain open for actual radio scan-failure events, AP+STA
+handoff, DHCP and phone onboarding. Other physical sensor/LCD, LittleFS
+power-loss, OTA/rollback and sustained-load gates remain open.
