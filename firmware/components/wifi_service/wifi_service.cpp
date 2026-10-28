@@ -1,4 +1,3 @@
-#include "wifi_credentials.hpp"
 #include "wifi_service.hpp"
 #include "auth_service.hpp"
 #include "dhcpserver/dhcpserver.h"
@@ -12,6 +11,7 @@
 #include "monitor.hpp"
 #include "nvs.h"
 #include "psa/crypto.h"
+#include "wifi_credentials.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>

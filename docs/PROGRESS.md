@@ -1003,3 +1003,8 @@ Exact-head CI for `4472c3aa` stopped at the C++ formatting gate before
 running tests/firmware. The next commit fixes the three clang-format violations
 reported by the runner (include order and two line wraps). It requires a new
 exact-commit CI run; no firmware acceptance is inferred from the failed run.
+
+CI `87a34f9f` again stopped at formatting: the firmware translation unit's
+primary header must remain first and the new credential header belongs among
+the remaining sorted includes. The header's two line wraps now pass; a fresh
+exact-head CI is required for the corrected include order.
