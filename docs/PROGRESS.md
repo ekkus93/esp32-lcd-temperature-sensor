@@ -1,3 +1,7 @@
+## 2026-10-28 — maintain WebSocket cleanup with empty snapshots (host-only)
+
+The production live broadcaster previously returned immediately on an empty snapshot, indefinitely postponing expired-token eviction and retries to close quarantined WebSocket streams whenever the producer had no data. It now continues session maintenance while suppressing empty data frames. Native HTTP-server/POSIX-socket tests cover both expired-token eviction and successful retry of a previously refused quarantine close with empty snapshots, plus isolation of healthy clients and resumed delivery after data returns. Exact-commit `70d228d3d517a3fb8f5d1bebda4680a32b018178` **passed** GitHub Actions run `40702928583`: 18 native CTests, Python diagnostics, simulated REST/WebSocket, headless LVGL, React checks, and pinned ESP-IDF v6.1 firmware compilation. T07-10 remains unchecked pending real ESP32 TCP slow-client, concurrency, and network-recovery acceptance. No hardware was accessed or flashed; no owner Wi-Fi/admin secrets, OTA, factory reset, or physical LittleFS interruption were used.
+
 ## 2026-10-28 — quarantine failed WebSocket sends when close is refused (host-only)
 
 The production broadcaster now marks a live socket as quarantined after a failed nonblocking RFC 6455 send. If the HTTP server refuses the requested close, subsequent broadcasts retry closing but never send another frame into a possibly partial stream; admission also refuses reusing that descriptor until closure. A native POSIX-socket regression saturates one peer, injects close refusal, drains its TCP backlog, checks that no new frame appears, then verifies eventual close while a healthy peer continues receiving. The first attempt `e8d22c9a` failed clang-format; `06bf7428` exposed an existing test that expected reuse of a closed slot. The implementation now clears a quarantined slot after confirmed close. Exact-commit `26b5d23e960a5ecc30e47b35c3bf87519b1ae920` **passed** GitHub Actions run `40694536202`: all 18 native CTests, Python diagnostics, simulated REST/WebSocket, headless LVGL, React lint/tests/build, and pinned ESP-IDF v6.1 firmware compilation. T07-10 remains unchecked for real-device backpressure/concurrency. No hardware, credentials, flashing, OTA, reset or physical LittleFS interruption was used.
@@ -998,17 +1002,3 @@ open under T07-08/09. Standalone `npm --prefix web run test:simulator` passed.
 ## 2026-10-27 — History and OTA recovery documentation
 
 `HISTORY_FORMAT.md` now documents LittleFS corruption handling, safe partition
-backup/restore commands and offsets, the distinction between administrator
-credential recovery and factory reset, and OTA rollback/USB recovery. It
-explicitly notes that a full factory-reset action is not yet implemented. The
-pinned esptool command syntax was checked locally; no device data was read or
-written. `T11-06` is checked. Checked TODO count: 92 of 145.
-
-Host storage verification now asserts the encoded size of maximum-label TMH2
-records for one through five probes. `validation/history-retention-estimate.md`
-records the measured byte counts and payload-only forecast; actual oldest/latest
-device timestamps remain open under T06-15. The 8-suite host storage run passed.
-
-
-## 2026-10-27 — User guide
-
