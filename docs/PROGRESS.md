@@ -1,3 +1,15 @@
+## 2026-10-28 — Dated project handoff and checklist audit
+
+Created [ESP32_TEMPERATURE_MONITOR_HANDOFF_2026-10-28.md](ESP32_TEMPERATURE_MONITOR_HANDOFF_2026-10-28.md)
+from exact `master` baseline `5d98b0e9ff0c570e52b5c24396bbf82457693a37` after verifying
+GitHub Actions run 40779733269 passed. `docs/TODO.md` contains 114 checked
+and 44 open checkboxes (158 total: 72.15%); numbered/working-agreement
+progress is 114/145 (78.62%). Open boxes: 31 numbered implementation/device
+acceptance tasks, 7 definition-of-done gates, 6 optional non-v1 blockers.
+Last software integrity fixes are complete and CI-verified; this checkpoint
+does not close hardware/owner-network/OTA/LittleFS/physical-reset acceptance.
+No owner secrets or devices were accessed.
+
 ## 2026-10-28 — History UTC integrity and event transition preservation (software-only)
 
 Two independent native-testable storage integrity fixes landed directly on master.

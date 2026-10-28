@@ -1,3 +1,15 @@
+## 2026-10-28 — Dated project status checkpoint
+
+The comprehensive date-stamped handoff is in
+[ESP32_TEMPERATURE_MONITOR_HANDOFF_2026-10-28.md](ESP32_TEMPERATURE_MONITOR_HANDOFF_2026-10-28.md).
+At baseline `5d98b0e9ff0c570e52b5c24396bbf82457693a37`, exact-commit CI 40779733269
+passed. The canonical TODO totals 114 checked / 44 open = 72.15% of all
+158 checkboxes, or 114/145 = 78.62% for working-agreement + numbered
+implementation tasks (31 numbered tasks still open). Seven definition-of-done
+and six nonblocking optional items account for the other 13 open boxes.
+Physical hardware, owner-network, OTA, reset, power interruption and soak
+acceptance remain open. No physical device or credential operation occurred.
+
 ## 2026-10-28 — Host-only storage integrity follow-up
 
 History TMH1/TMH2 now rejects noncanonical unsynchronized timestamps and
