@@ -402,7 +402,8 @@ int main() {
     websocket_fds.erase(std::remove(websocket_fds.begin(), websocket_fds.end(), stale_pair[0]),
                         websocket_fds.end());
     assert(stale_registration.schedule()); // Detect the vanished registration.
-    add_websocket(stale_pair[0]); // Simulate descriptor reuse by HTTPD.
+    // Simulate descriptor reuse by HTTPD.
+    add_websocket(stale_pair[0]);
     assert(stale_registration.schedule());
     assert(recv(stale_pair[1], scratch.data(), scratch.size(), MSG_DONTWAIT) == -1);
     assert(errno == EAGAIN || errno == EWOULDBLOCK);
