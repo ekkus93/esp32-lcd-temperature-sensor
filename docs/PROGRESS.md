@@ -1,3 +1,29 @@
+## 2026-10-27 — physical sensor instrumentation prepared (no hardware)
+
+Added read-only `SensorDiagnostics` counters to the normal firmware acquisition
+path. When the physical 1-Wire bus is explicitly enabled, it logs numeric-only
+`SENSOR_DIAG` records once per health interval: cumulative acquisition cycles,
+valid/invalid readings, shared-bus fault cycles, current/maximum probe count,
+and last/maximum read latency. Counters are not emitted when the sensor bus is
+disabled or for simulated readings. No ROM IDs, Wi-Fi settings, administrator
+secrets or temperatures appear in this diagnostic log. Existing bare-board
+safety defaults remain unchanged, including disabled GPIO4 and untouched BLK.
+
+Added the non-destructive `tools/sensor_hardware_report.py` serial/log analyzer.
+Live collection sets DTR/RTS low before opening, captures only recognized
+numeric fields in memory, and optionally writes sanitized summary JSON. It
+cannot flash, alter NVS, reset hardware or operate the LCD/backlight. Native
+CTest uses the production counter implementation; Python unittest exercises
+parsing, counters, threshold failures and secret-free output. Actual-device
+qualification (physical five probes, pull-up, CRC reliability, scan latency,
+retention, LCD electrical checks and long-run reliability) remains **open**.
+
+To run locally **after** verifying physical wiring and deliberately enabling
+`CONFIG_MONITOR_SENSOR_BUS` in a separate owner-managed build, use:
+`python3 tools/sensor_hardware_report.py --port /dev/ttyACM0 --seconds 180 --expected-probes 5 --min-records 24 --max-invalid 0 --max-faults 0 --output .build/sensor-qualification.json`.
+This reports numeric data but does not, by itself, prove final hardware
+acceptance. Never attach an unverified LCD backlight to GPIO15.
+
 ## 2026-10-27 — repeated event-journal recovery state (software-only)
 
 The event journal previously retained `last_event_` after a successful

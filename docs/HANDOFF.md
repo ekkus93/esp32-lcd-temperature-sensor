@@ -2,6 +2,11 @@
 
 ## Current state
 
+### Physical sensor qualification preparation — 2026-10-27
+
+Firmware now has read-only SENSOR_DIAG aggregate counters and a safe local serial/log analyzer at `tools/sensor_hardware_report.py`. They are host-testable and emit no sensor ROMs or credentials. A physical DS18B20 bus still requires deliberate `CONFIG_MONITOR_SENSOR_BUS` enablement after wiring and 4.7 kΩ pull-up checks. Do not connect the LCD backlight to GPIO15 without electrical sign-off. All hardware/owner-network/OTA/power-loss/reset acceptance remains unchecked. See `docs/PROGRESS.md` for the test command and current exact-head CI evidence.
+
+
 The latest software-only change isolates the Wi-Fi scan timeout from failed
 or denied scan requests. Only accepted scans arm a ten-second deadline;
 scan completion and candidate takeover cancel it. Native CTest verifies the

@@ -23,6 +23,7 @@
 #include "ota_service.hpp"
 #include "provisioning_service.hpp"
 #include "sampling_service.hpp"
+#include "sensor_diagnostics.hpp"
 #include "settings_service.hpp"
 #include "wifi_service.hpp"
 
@@ -100,6 +101,7 @@ extern "C" void app_main() {
         ESP_LOGE(tag, "LCD unavailable; sensor/network services continue without display");
     monitor::TrendCache trend_cache;
     monitor::SamplingService sampling;
+    monitor::SensorDiagnostics sensor_diagnostics;
     esp_err_t bus_status = sampling.initialize(simulated);
     if (bus_status != ESP_OK)
         ESP_LOGE(tag, "Bus init failed: %s", esp_err_to_name(bus_status));
@@ -128,8 +130,13 @@ extern "C" void app_main() {
                 settings_dirty = true;
         }
         auto before = registry.sensors().size();
+        const int64_t read_started_ms = esp_timer_get_time() / 1000;
         auto readings = sampling.read(now);
-        auto sampled_at = simulated ? int64_t(simulated_tick * 5000) : esp_timer_get_time() / 1000;
+        const int64_t read_ended_ms = esp_timer_get_time() / 1000;
+        if (sampling.enabled())
+            sensor_diagnostics.observe(readings, sampling.fault(),
+                                       read_ended_ms - read_started_ms);
+        auto sampled_at = simulated ? int64_t(simulated_tick * 5000) : read_ended_ms;
         registry.sample(readings, sampled_at, sampling.fault());
         for (const auto &event : registry.events()) {
             if (event.sequence <= last_event_sequence)
@@ -262,6 +269,22 @@ extern "C" void app_main() {
                 static_cast<unsigned>(internal_free), static_cast<unsigned>(internal_min),
                 static_cast<unsigned>(internal_largest), static_cast<unsigned>(psram_free),
                 static_cast<unsigned>(psram_min), static_cast<unsigned>(stack_min));
+            // Numeric-only physical-bus evidence. Never log ROM IDs,
+            // credentials, network names or fabricated simulated readings.
+            if (sampling.enabled()) {
+                ESP_LOGI(tag,
+                         "SENSOR_DIAG cycles=%llu last_probes=%u max_probes=%u "
+                         "valid=%llu invalid=%llu fault_cycles=%llu "
+                         "last_read_ms=%lld max_read_ms=%lld",
+                         static_cast<unsigned long long>(sensor_diagnostics.cycles),
+                         static_cast<unsigned>(sensor_diagnostics.last_probes),
+                         static_cast<unsigned>(sensor_diagnostics.max_probes),
+                         static_cast<unsigned long long>(sensor_diagnostics.valid),
+                         static_cast<unsigned long long>(sensor_diagnostics.invalid),
+                         static_cast<unsigned long long>(sensor_diagnostics.fault_cycles),
+                         static_cast<long long>(sensor_diagnostics.last_read_ms),
+                         static_cast<long long>(sensor_diagnostics.max_read_ms));
+            }
         }
         ++simulated_tick;
         vTaskDelayUntil(&wake, pdMS_TO_TICKS(simulated ? 250 : 5000));

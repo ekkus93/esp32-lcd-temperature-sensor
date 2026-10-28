@@ -93,3 +93,9 @@ add_executable(wifi_scan_window_tests wifi_scan_window_tests.cpp)
 target_include_directories(wifi_scan_window_tests PRIVATE ../components/wifi_service/include)
 target_compile_options(wifi_scan_window_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_test(NAME wifi_scan_candidate_isolation COMMAND wifi_scan_window_tests)
+
+# Production read-only physical bus diagnostics use the same host-tested counters.
+add_executable(sensor_diagnostics_tests sensor_diagnostics_tests.cpp)
+target_include_directories(sensor_diagnostics_tests PRIVATE ../components/monitor_types/include)
+target_compile_options(sensor_diagnostics_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
+add_test(NAME sensor_hardware_diagnostics COMMAND sensor_diagnostics_tests)

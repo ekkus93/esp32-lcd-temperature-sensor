@@ -49,7 +49,7 @@
 - [x] **T02-12** Implement temperature-offset calibration at presentation/service boundary and consistent °C machine-unit payloads.
 - [x] **T02-13** Write automated tests with simulated bus: zero to five sensors, permutations, duplicate IDs, CRC failure, 85°C startup, missing conversion, recovery, sixth probe, one-wire bus fault.
 - [ ] **T02-14 [HW]** Verify **one** 4.7 kΩ pull-up GPIO4↔3V3, no parallel adapter-board pull-ups, correct common GND, and initial sensor read.
-- [ ] **T02-15 [HW]** Exercise all 1–5 physical probes, identify ROM IDs, measure cycle latency and cable signal reliability, then detach/reinsert sensor(s) safely.
+- [ ] **T02-15 [HW]** Exercise all 1–5 physical probes, identify ROM IDs, measure cycle latency and cable signal reliability, then detach/reinsert sensor(s) safely. Read-only firmware SENSOR_DIAG counters and a non-destructive numeric-only local report tool are prepared; physical probe/latency/stability acceptance remains open.
 
 **Phase gate:** actual/simulated identities are stable; no read may be invented, and a bus-wide fault does not trigger five misleading independent disconnect errors.
 
