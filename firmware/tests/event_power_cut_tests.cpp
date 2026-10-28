@@ -74,8 +74,10 @@ int main() {
     }};
     for (const auto &future : future_headers) {
         for (size_t count = 4; count <= future.size(); ++count) {
-            // A different minor version only becomes identifiable at byte 6.
-            if (future[3] == '1' && future[4] == 1 && count < 6)
+            // Only reject a future format once its incompatible byte exists.
+            // TME1 alone is a valid prefix; a new major version appears at
+            // byte 5, and a new minor version at byte 6.
+            if (future[3] == '1' && (count < 5 || (future[4] == 1 && count < 6)))
                 continue;
             {
                 std::ofstream output(path, std::ios::binary | std::ios::trunc);
