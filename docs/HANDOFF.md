@@ -2,6 +2,30 @@
 
 ## Current state
 
+### Latest software-only checkpoint — 2026-10-27
+
+On master, the station NVS credential codec now preserves valid legacy 99-byte
+records and writes 103-byte CRC32-checked records only after candidate
+connection success. Invalid records are rejected without erasure. The
+independent host regression covers 103 byte mutations, truncation, invalid
+bounds and legacy compatibility. The OTA pending-verify path now requires two
+acquisition/publish cycles **and** successful history worker, Wi-Fi stack,
+authentication, HTTP server and sampling initialization before validating the
+new image. Missing probes/LCD, router connectivity and unsynchronized NTP
+remain permitted offline operating states.
+
+Exact-commit CI passed for both changes: `46c71c45` (run 40619609849) and
+`7a811855` (run 40620255967), including pinned ESP-IDF v6.1 firmware,
+native host tests, simulated WebSockets, headless LVGL and React checks.
+The TODO has 114 checked and 44 open entries. T05-01/04/05/11/18,
+T10-01/02/03 and the physical acceptance gates remain **unchecked**:
+no real station/DHCP handoff, OTA success/rollback, physical LCD/probe,
+LittleFS power interruption or destructive reset was performed. Do not use
+owner credentials, flash or reset an owner device for these tests. The
+earlier hardware-dependent notes below remain historical evidence, not
+permission to repeat device operations in a hardware-free run.
+
+
 ### Latest Ralph-loop checkpoint — 2026-10-27
 
 #### Current stop point — 2026-10-27

@@ -1030,3 +1030,19 @@ The first exact-head OTA-policy CI (`cd804630`) stopped at clang-format,
 without executing tests or the SDK build. The follow-up replaces a wrapped
 aggregate initializer with explicit named health fields and normalizes the
 host test's namespace declaration. A fresh exact-head CI pass is required.
+
+## 2026-10-27 — exact-commit verification of both software changes
+
+The Wi-Fi station credential codec change passed GitHub Actions at exact commit
+`46c71c45425a6769854102889a4222524a555c58`, run
+[40619609849](https://github.com/ekkus93/esp32-lcd-temperature-sensor/actions/runs/40619609849).
+The OTA startup-health policy change passed at exact commit
+`7a8118552b9882421aab2a61b73a39c45fa959d4`, run
+[40620255967](https://github.com/ekkus93/esp32-lcd-temperature-sensor/actions/runs/40620255967).
+Both completed successfully, including C++ formatting, native host suites,
+simulator and headless LVGL tests, React verification and pinned ESP-IDF v6.1
+firmware compilation. The second run also uploaded a firmware binary and build
+manifest. These are software/build gates, **not** proof of real Wi-Fi station
+association, OTA success/rollback, LCD/probe operation or flash power-loss
+recovery. The checked/open TODO count remains 114/44. No owner credentials,
+physical peripherals or reset device were used.
