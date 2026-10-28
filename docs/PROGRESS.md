@@ -920,3 +920,7 @@ into CTest. This is *not* a device-level TCP/window or ESP-IDF HTTP-session
 eviction proof; T07-10 stays open. No hardware, owner credentials, reset,
 flashing or OTA operation was performed. Exact-head GitHub Actions verification
 is required after the commit.
+
+The first exact-head CI run for `7a989859` stopped at the C++ formatting gate;
+no test or firmware result was claimed from that run. The follow-up commit
+normalizes the new test/shim formatting and requires a fresh exact-head CI pass.

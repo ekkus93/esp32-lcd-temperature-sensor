@@ -22,7 +22,9 @@ void *queued_arg = nullptr;
 size_t inbound_length = 0;
 int inbound_type = 1;
 
-void add_websocket(int fd) { websocket_fds.push_back(fd); }
+void add_websocket(int fd) {
+    websocket_fds.push_back(fd);
+}
 bool was_closed(int fd) {
     return std::find(closed_fds.begin(), closed_fds.end(), fd) != closed_fds.end();
 }
@@ -36,7 +38,9 @@ void drain(int fd, const std::string &payload) {
 }
 } // namespace
 
-int httpd_req_to_sockfd(httpd_req_t *request) { return request->fd; }
+int httpd_req_to_sockfd(httpd_req_t *request) {
+    return request->fd;
+}
 esp_err_t httpd_ws_recv_frame(httpd_req_t *, httpd_ws_frame_t *frame, size_t) {
     frame->len = inbound_length;
     frame->type = inbound_type;
@@ -77,7 +81,9 @@ esp_err_t httpd_sess_trigger_close(httpd_handle_t, int fd) {
                         websocket_fds.end());
     return ESP_OK;
 }
-int64_t esp_timer_get_time() { return 1000000; }
+int64_t esp_timer_get_time() {
+    return 1000000;
+}
 
 int main() {
     monitor::WsLive live;
@@ -100,7 +106,8 @@ int main() {
     // A non-reading peer must be evicted without starving other clients.
     // Fill its kernel send queue before the broadcast; no ESP32 is needed.
     const std::string fill(4096, 'z');
-    while (send(peers[0][0], fill.data(), fill.size(), MSG_DONTWAIT) > 0) {}
+    while (send(peers[0][0], fill.data(), fill.size(), MSG_DONTWAIT) > 0) {
+    }
     assert(errno == EAGAIN || errno == EWOULDBLOCK);
     http_fds.push_back(peers[4][1]); // A concurrent non-WebSocket HTTP client.
     assert(live.schedule());

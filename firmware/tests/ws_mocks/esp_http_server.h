@@ -5,8 +5,13 @@ using esp_err_t = int;
 constexpr esp_err_t ESP_OK = 0;
 constexpr esp_err_t ESP_FAIL = -1;
 using httpd_handle_t = void *;
-struct httpd_req_t { int fd; };
-struct httpd_ws_frame_t { size_t len = 0; int type = 0; };
+struct httpd_req_t {
+    int fd;
+};
+struct httpd_ws_frame_t {
+    size_t len = 0;
+    int type = 0;
+};
 constexpr int HTTPD_WS_TYPE_CLOSE = 8;
 constexpr int HTTPD_WS_CLIENT_WEBSOCKET = 2;
 constexpr int HTTPD_WS_CLIENT_INVALID = 0;

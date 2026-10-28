@@ -8,6 +8,7 @@ class AuthService {
     Session *authorize(const std::string &token, int64_t) {
         return token == "valid" ? &session_ : nullptr;
     }
+
   private:
     Session session_{};
 };
