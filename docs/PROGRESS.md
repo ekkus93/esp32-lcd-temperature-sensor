@@ -1,3 +1,18 @@
+## 2026-10-27 — reject stale Wi-Fi scan timeout after denied scan (software-only)
+
+The Wi-Fi worker previously armed a 10-second scan-stop timer before
+checking whether `esp_wifi_scan_start` succeeded or whether candidate
+association already occupied the radio. A rejected scan could therefore
+trigger an unrelated `esp_wifi_scan_stop` later during station association.
+The production worker now uses a host-testable `WifiScanWindow` policy:
+only accepted scans arm the deadline, and completion/candidate takeover
+cancel it. A new native CTest covers failed/denied scan starts, the exact
+10-second boundary, one-shot expiry, cancellation, and successive scans.
+The isolated C++17 host test passed with strict warnings enabled.
+Full pinned ESP-IDF v6.1/React/LVGL/host CI remains the exact-head gate.
+No RF, owner network, ESP32 board, LCD, probes, OTA, reset or flash was used.
+`T05-04` stays unchecked pending owner-network/device handoff acceptance.
+
 ## 2026-10-27 — cancel stale AP handoff deadline on Wi-Fi retry (software-only)
 
 Previously a successful candidate scheduled setup AP shutdown after 30 seconds,

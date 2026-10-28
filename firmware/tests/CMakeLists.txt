@@ -87,3 +87,9 @@ add_executable(ota_boot_policy_tests ota_boot_policy_tests.cpp)
 target_include_directories(ota_boot_policy_tests PRIVATE ../components/ota_service/include)
 target_compile_options(ota_boot_policy_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_test(NAME ota_startup_health_policy COMMAND ota_boot_policy_tests)
+
+# A rejected Wi-Fi scan must not leave a timer that interrupts candidate STA.
+add_executable(wifi_scan_window_tests wifi_scan_window_tests.cpp)
+target_include_directories(wifi_scan_window_tests PRIVATE ../components/wifi_service/include)
+target_compile_options(wifi_scan_window_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
+add_test(NAME wifi_scan_candidate_isolation COMMAND wifi_scan_window_tests)

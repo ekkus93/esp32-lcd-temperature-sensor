@@ -2,6 +2,12 @@
 
 ## Current state
 
+The latest software-only change isolates the Wi-Fi scan timeout from failed
+or denied scan requests. Only accepted scans arm a ten-second deadline;
+scan completion and candidate takeover cancel it. Native CTest verifies the
+policy; exact-head CI is required for firmware integration. No RF, owner
+credentials or hardware acceptance is claimed. T05-04 remains open.
+
 ### Latest software-only checkpoint — 2026-10-27
 
 On master, the station NVS credential codec now preserves valid legacy 99-byte

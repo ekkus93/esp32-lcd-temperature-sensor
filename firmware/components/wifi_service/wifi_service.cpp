@@ -12,6 +12,7 @@
 #include "nvs.h"
 #include "psa/crypto.h"
 #include "wifi_ap_window.hpp"
+#include "wifi_scan_window.hpp"
 #include "wifi_credentials.hpp"
 #include <algorithm>
 #include <cstdio>
@@ -261,8 +262,9 @@ void WifiService::worker(void *context) {
     auto &self = *static_cast<WifiService *>(context);
     bool trying = false;
     Command proposed{};
-    int64_t deadline = 0, candidate_start = 0, next_retry = 0, scan_deadline = 0;
+    int64_t deadline = 0, candidate_start = 0, next_retry = 0;
     WifiApWindow ap_window;
+    WifiScanWindow scan_window;
     unsigned attempts = 0;
     if (self.saved_ssid_[0])
         self.station(self.saved_ssid_, self.saved_password_);
@@ -277,11 +279,14 @@ void WifiService::worker(void *context) {
                 config.show_hidden = false;
                 config.scan_time.active.min = 30;
                 config.scan_time.active.max = 80;
-                scan_deadline = now + 10000;
-                if (trying || esp_wifi_scan_start(&config, false) != ESP_OK)
+                const bool accepted = !trying && esp_wifi_scan_start(&config, false) == ESP_OK;
+                // A rejected scan must not leave a timer that later interrupts
+                // a Wi-Fi candidate association or restored station connection.
+                scan_window.started(now, accepted);
+                if (!accepted)
                     self.scanning_ = false;
             } else if (command.kind == scan_done) {
-                scan_deadline = 0;
+                scan_window.cancel();
                 wifi_ap_record_t records[20]{};
                 uint16_t count = 20;
                 std::vector<ScannedNetwork> results;
@@ -312,7 +317,7 @@ void WifiService::worker(void *context) {
                 if (self.scanning_) {
                     esp_wifi_scan_stop();
                     self.scanning_ = false;
-                    scan_deadline = 0;
+                    scan_window.cancel();
                 }
                 self.set_ap(true);
                 // An earlier successful candidate may have queued AP shutdown.
@@ -375,11 +380,10 @@ void WifiService::worker(void *context) {
             esp_wifi_disconnect();
             self.station(proposed.ssid, proposed.password);
         }
-        if (scan_deadline && now >= scan_deadline) {
+        if (scan_window.expired(now)) {
             esp_wifi_scan_stop();
             esp_wifi_clear_ap_list();
             self.scanning_ = false;
-            scan_deadline = 0;
         }
         if (trying && now >= deadline) {
             trying = false;
