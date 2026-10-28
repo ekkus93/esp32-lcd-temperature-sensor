@@ -314,6 +314,47 @@ int main() {
     EventStore future_journal(event_path, 4 * event_record_bytes);
     CHECK(!future_journal.recover());
     CHECK(std::filesystem::file_size(event_path) == 6);
+    // A reused store must discard its previous duplicate-suppression state
+    // after an empty-file recovery or after recreating a missing journal.
+    // Otherwise append() reports success but silently drops the first event.
+    const std::string reused_path = std::string(event_directory) + "/reused.bin";
+    EventStore reused(reused_path, 4 * event_record_bytes);
+    CHECK(reused.recover());
+    CHECK(reused.append(event));
+    CHECK(reused.bytes() == event_record_bytes);
+    {
+        std::ofstream empty(reused_path, std::ios::binary | std::ios::trunc);
+        CHECK(empty.good());
+    }
+    CHECK(reused.recover());
+    CHECK(reused.append(event));
+    CHECK(reused.bytes() == event_record_bytes);
+    CHECK(std::filesystem::remove(reused_path));
+    CHECK(reused.recover());
+    CHECK(reused.append(event));
+    CHECK(reused.bytes() == event_record_bytes);
+    // A failed recovery must not partially advance in-memory sequence state.
+    auto later = event;
+    later.uptime_ms += 1000;
+    CHECK(reused.append(later));
+    {
+        std::fstream corrupt(reused_path, std::ios::binary | std::ios::in | std::ios::out);
+        CHECK(corrupt.good());
+        corrupt.seekp(static_cast<std::streamoff>(event_record_bytes));
+        corrupt.put('X');
+    }
+    CHECK(!reused.recover());
+    CHECK(std::filesystem::file_size(reused_path) == 2 * event_record_bytes);
+    {
+        std::fstream repair(reused_path, std::ios::binary | std::ios::in | std::ios::out);
+        CHECK(repair.good());
+        repair.seekp(static_cast<std::streamoff>(event_record_bytes));
+        repair.put('T');
+    }
+    CHECK(reused.recover());
+    later.uptime_ms += 1000;
+    CHECK(reused.append(later));
+    CHECK(reused.page(0, 50).events.back().sequence == 3);
     std::filesystem::remove_all(event_directory);
     char cadence_directory[] = "/tmp/monitor-cadence-XXXXXX";
     CHECK(mkdtemp(cadence_directory));

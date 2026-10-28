@@ -108,13 +108,18 @@ bool EventStore::recover() {
         FILE *created = std::fopen(path_.c_str(), "wb");
         if (!created)
             return false;
-        return std::fclose(created) == 0;
+        if (std::fclose(created) != 0)
+            return false;
+        last_sequence_ = 0;
+        last_event_.reset();
+        return true;
     }
     std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(input)), {});
     if (bytes.size() > max_bytes_)
         return false;
     const size_t complete = bytes.size() / event_record_bytes;
     uint64_t previous_sequence = 0;
+    std::optional<JournalEvent> recovered_last_event;
     for (size_t offset = 0; offset < complete * event_record_bytes; offset += event_record_bytes) {
         std::vector<uint8_t> record(bytes.begin() + offset,
                                     bytes.begin() + offset + event_record_bytes);
@@ -122,7 +127,7 @@ bool EventStore::recover() {
         if (!event || event->sequence <= previous_sequence)
             return false;
         previous_sequence = event->sequence;
-        last_event_ = *event;
+        recovered_last_event = *event;
     }
     // Never modify a damaged journal merely because its final write was
     // interrupted: validate every complete record before trimming the tail.
@@ -144,6 +149,7 @@ bool EventStore::recover() {
             return false;
     }
     last_sequence_ = previous_sequence;
+    last_event_ = recovered_last_event;
     return true;
 }
 
