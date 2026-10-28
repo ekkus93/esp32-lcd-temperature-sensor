@@ -286,7 +286,10 @@ void WifiService::worker(void *context) {
                 if (!accepted)
                     self.scanning_ = false;
             } else if (command.kind == scan_done) {
-                scan_window.cancel();
+                // Ignore completion events queued after a timeout or candidate
+                // takeover; they must not overwrite scan results mid-join.
+                if (!scan_window.completed(esp_timer_get_time() / 1000))
+                    continue;
                 wifi_ap_record_t records[20]{};
                 uint16_t count = 20;
                 std::vector<ScannedNetwork> results;
