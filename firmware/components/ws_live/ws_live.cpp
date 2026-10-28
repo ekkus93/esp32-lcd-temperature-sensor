@@ -1,44 +1,10 @@
 #include "ws_live.hpp"
+#include "ws_frame.hpp"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include <sys/socket.h>
 
 namespace monitor {
-namespace {
-bool send_nonblocking(int fd, const uint8_t *data, size_t length) {
-    size_t sent = 0;
-    while (sent < length) {
-        const auto result = send(fd, data + sent, length - sent, MSG_DONTWAIT);
-        if (result <= 0)
-            return false;
-        sent += size_t(result);
-    }
-    return true;
-}
-
-bool send_text_frame_nonblocking(int fd, const std::string &payload) {
-    uint8_t header[10]{};
-    size_t header_length = 2;
-    header[0] = 0x81; // FIN + text frame
-    if (payload.size() <= 125) {
-        header[1] = uint8_t(payload.size());
-    } else if (payload.size() <= UINT16_MAX) {
-        header[1] = 126;
-        header[2] = uint8_t(payload.size() >> 8);
-        header[3] = uint8_t(payload.size());
-        header_length = 4;
-    } else {
-        header[1] = 127;
-        const auto length = uint64_t(payload.size());
-        for (unsigned index = 0; index < 8; ++index)
-            header[2 + index] = uint8_t(length >> ((7 - index) * 8));
-        header_length = 10;
-    }
-    return send_nonblocking(fd, header, header_length) &&
-           send_nonblocking(fd, reinterpret_cast<const uint8_t *>(payload.data()), payload.size());
-}
-} // namespace
-
 void WsLive::configure(httpd_handle_t server, AuthService &auth,
                        std::function<std::string()> snapshot) {
     server_ = server;
@@ -117,7 +83,7 @@ void WsLive::broadcast(void *context) {
             httpd_sess_trigger_close(self.server_, fd);
             continue;
         }
-        if (!send_text_frame_nonblocking(fd, text)) {
+        if (!ws_frame::send_text_nonblocking(fd, text, send)) {
             ESP_LOGW("ws_live", "Closing slow or failed WebSocket send for fd=%d", fd);
             httpd_sess_trigger_close(self.server_, fd);
         }

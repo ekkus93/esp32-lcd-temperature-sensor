@@ -1,5 +1,23 @@
 # Implementation progress
 
+## 2026-10-27 — hardware-independent WebSocket send hardening
+
+Extracted the production RFC 6455 nonblocking frame sender into `ws_frame` so
+the ESP32 path and native regression tests compile the **same implementation**.
+The sender now uses a shared 16-call budget across header and payload, preventing
+pathological short writes or repeated `EINTR` from monopolizing the HTTP worker.
+It returns failure on `EAGAIN`, a closed/broken socket, or exhausted budget;
+`ws_live` requests session closure on any failed or partial frame. Native tests
+exercise framing across all three payload-length encodings, partial writes,
+`EINTR`, `EAGAIN`, `EPIPE`, `ECONNRESET` and bounded calls.
+
+Sandbox native CMake/CTest: **10/10 passed** (new suite `websocket_send_backpressure`).
+This is deterministic injected transport evidence only; it does not demonstrate
+ESP32/LwIP TCP-window exhaustion or verify that the async HTTP session close
+actually completes. Keep `T07-10` unchecked until physical device acceptance.
+No LCD, 1-Wire probe, Wi-Fi credentials or destructive operation were used.
+
+
 ## 2026-10-27 — factory reset options and current validation
 
 Settings now presents two separately confirmed factory-reset choices. Both

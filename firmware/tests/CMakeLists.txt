@@ -50,3 +50,9 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 add_executable(csv_fixture csv_fixture.cpp)
 target_link_libraries(csv_fixture PRIVATE monitor_core)
 add_test(NAME history_csv COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/csv_test.py $<TARGET_FILE:csv_fixture>)
+
+# The same RFC 6455 sender is compiled for ESP-IDF and fault-injected here.
+add_executable(ws_frame_tests ws_frame_tests.cpp ../components/ws_live/ws_frame.cpp)
+target_include_directories(ws_frame_tests PRIVATE ../components/ws_live/include)
+target_compile_options(ws_frame_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
+add_test(NAME websocket_send_backpressure COMMAND ws_frame_tests)
