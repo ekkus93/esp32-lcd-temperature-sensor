@@ -288,8 +288,16 @@ void WifiService::worker(void *context) {
             } else if (command.kind == scan_done) {
                 // Ignore completion events queued after a timeout or candidate
                 // takeover; they must not overwrite scan results mid-join.
-                if (!scan_window.completed(esp_timer_get_time() / 1000))
+                const auto completion = scan_window.completed(esp_timer_get_time() / 1000);
+                if (completion != WifiScanWindow::Completion::accepted) {
+                    if (completion == WifiScanWindow::Completion::timed_out) {
+                        // The deadline was consumed by the late event, so the
+                        // periodic timeout branch can no longer clear scanning_.
+                        esp_wifi_clear_ap_list();
+                        self.scanning_ = false;
+                    }
                     continue;
+                }
                 wifi_ap_record_t records[20]{};
                 uint16_t count = 20;
                 std::vector<ScannedNetwork> results;

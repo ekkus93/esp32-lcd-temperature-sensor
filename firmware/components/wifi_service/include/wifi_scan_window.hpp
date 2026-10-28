@@ -16,12 +16,15 @@ class WifiScanWindow {
     bool active() const {
         return deadline_ms_ != 0;
     }
-    bool completed(int64_t now_ms) {
-        // A delayed completion after timeout or candidate takeover must not
-        // overwrite scan results or change the state of a station join.
-        const bool valid = active() && now_ms < deadline_ms_;
+    enum class Completion { ignored, accepted, timed_out };
+    Completion completed(int64_t now_ms) {
+        // A late completion must release scan ownership even when the worker
+        // has not yet run its periodic timeout check.
+        if (!active())
+            return Completion::ignored;
+        const bool timely = now_ms < deadline_ms_;
         cancel();
-        return valid;
+        return timely ? Completion::accepted : Completion::timed_out;
     }
     bool expired(int64_t now_ms) {
         if (!active() || now_ms < deadline_ms_)
