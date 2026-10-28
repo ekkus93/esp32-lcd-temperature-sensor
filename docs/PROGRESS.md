@@ -1,3 +1,14 @@
+## 2026-10-27 — closed WebSocket peer safety (software-only)
+
+The production RFC 6455 nonblocking sender now also supplies `MSG_NOSIGNAL`
+when the platform defines it, retaining `MSG_DONTWAIT` on all platforms.
+This ensures a peer that disconnects just before a queued send cannot cause a
+process-wide POSIX SIGPIPE. Added a real-socket sender regression and a
+production `WsLive` broadcaster test with one already-closed peer, two healthy
+WebSocket subscribers and a concurrent HTTP connection. These tests are
+hardware-independent and do not exercise ESP32/LwIP session-close completion
+or establish the firmware TCP slow-client cutoff. Leave `T07-10` unchecked.
+
 # Implementation progress
 
 ## 2026-10-27 — reject empty inbound WebSocket commands (software-only)

@@ -145,6 +145,21 @@ int main() {
     drain(peers[2][1], payload);
     drain(peers[3][1], payload);
 
+    // Peer disappearance during a queued broadcast must close only that
+    // WebSocket and leave healthy subscribers and HTTP connections intact.
+    int disconnected[2]{};
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, disconnected) == 0);
+    add_websocket(disconnected[0]);
+    assert(live.add_client(disconnected[0], "valid"));
+    close(disconnected[1]);
+    closed_fds.clear();
+    assert(live.schedule());
+    assert(was_closed(disconnected[0]));
+    assert(!was_closed(peers[2][0]) && !was_closed(peers[3][0]));
+    drain(peers[2][1], payload);
+    drain(peers[3][1], payload);
+    close(disconnected[0]);
+
     // Even an empty text/binary or control frame is unsolicited input on
     // this server-to-client-only endpoint and must close the session.
     httpd_req_t req{peers[2][0]};

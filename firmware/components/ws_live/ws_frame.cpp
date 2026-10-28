@@ -14,7 +14,14 @@ bool send_bytes_nonblocking(int fd, const uint8_t *data, size_t length, Sender s
     size_t sent = 0;
     while (sent < length && calls_remaining) {
         --calls_remaining;
-        const ssize_t result = sender(fd, data + sent, length - sent, MSG_DONTWAIT);
+        // Suppress a process-wide SIGPIPE on POSIX when a peer disappears
+        // between the HTTP server's socket enumeration and this write.
+        // ESP-IDF/LwIP builds that lack MSG_NOSIGNAL retain MSG_DONTWAIT.
+        int flags = MSG_DONTWAIT;
+#ifdef MSG_NOSIGNAL
+        flags |= MSG_NOSIGNAL;
+#endif
+        const ssize_t result = sender(fd, data + sent, length - sent, flags);
         if (result < 0 && errno == EINTR)
             continue;
         if (result <= 0 || size_t(result) > length - sent)

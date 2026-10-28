@@ -102,4 +102,13 @@ int main() {
     assert(!monitor::ws_frame::send_text_nonblocking(sockets[0], huge_frame, send));
     close(sockets[0]);
     close(sockets[1]);
+
+    // A peer may disconnect immediately before a scheduled broadcast.
+    // The native sender must return failure instead of terminating the
+    // firmware/host process with SIGPIPE (POSIX MSG_NOSIGNAL).
+    int disconnected[2]{};
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, disconnected) == 0);
+    close(disconnected[1]);
+    assert(!monitor::ws_frame::send_text_nonblocking(disconnected[0], "gone", send));
+    close(disconnected[0]);
 }
