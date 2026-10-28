@@ -6,9 +6,9 @@ struct Session {};
 class AuthService {
   public:
     Session *authorize(const std::string &token, int64_t now_ms) {
-        return (token == "valid" || (token == "expiring" && now_ms < 1500))
-                   ? &session_
-                   : nullptr;
+        if (token == "valid" || (token == "expiring" && now_ms < 1500))
+            return &session_;
+        return nullptr;
     }
 
   private:
