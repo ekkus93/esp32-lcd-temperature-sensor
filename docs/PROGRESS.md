@@ -1,3 +1,16 @@
+## 2026-10-28 — event journal interrupted-write and forward-format preservation (software-only)
+
+Added a native C++ regression that writes every 0–59-byte prefix of a
+second TME1 event after a committed record, reopens the journal, verifies
+the committed event and sequence, and appends another event successfully.
+Recovery now refuses to truncate partial future-format headers after only
+four or five bytes, as well as six-byte incompatible headers. This protects
+unknown data across firmware version changes. The host test is registered
+with the existing native CTest verifier; exact-commit CI is pending.
+T06-14/16 remain open for real ESP32 LittleFS exhaustion, simultaneous
+device exports, physical power interruption and reboot evidence. No
+hardware, owner network, credentials, flashing, OTA or reset was used.
+
 ## 2026-10-28 — fail closed on damaged diagnostic log records (software-only)
 
 The numeric-only physical probe qualification tool now counts malformed

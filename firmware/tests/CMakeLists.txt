@@ -99,3 +99,10 @@ add_executable(sensor_diagnostics_tests sensor_diagnostics_tests.cpp)
 target_include_directories(sensor_diagnostics_tests PRIVATE ../components/monitor_core/include ../components/monitor_types/include)
 target_compile_options(sensor_diagnostics_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_test(NAME sensor_hardware_diagnostics COMMAND sensor_diagnostics_tests)
+
+# Every prefix of an interrupted event append must preserve committed events.
+# Unknown future journal headers must never be truncated during recovery.
+add_executable(event_power_cut_tests event_power_cut_tests.cpp)
+target_link_libraries(event_power_cut_tests PRIVATE monitor_core)
+target_compile_options(event_power_cut_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
+add_test(NAME event_journal_power_cut_recovery COMMAND event_power_cut_tests)

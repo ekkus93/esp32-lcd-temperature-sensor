@@ -134,16 +134,15 @@ bool EventStore::recover() {
     const size_t tail_start = complete * event_record_bytes;
     if (bytes.size() != tail_start) {
         const size_t remaining = bytes.size() - tail_start;
-        if (remaining >= 6) {
-            const bool magic_t = bytes[tail_start] == 'T';
-            const bool magic_m = bytes[tail_start + 1] == 'M';
-            const bool magic_e = bytes[tail_start + 2] == 'E';
-            const bool journal_header = magic_t && magic_m && magic_e;
-            const bool supported_magic = bytes[tail_start + 3] == '1';
-            const bool supported_version = bytes[tail_start + 4] == 1;
-            const bool supported_minor = bytes[tail_start + 5] == 0;
-            if (journal_header && !(supported_magic && supported_version && supported_minor))
-                return false; // Preserve an incomplete future-version record.
+        // Preserve even a four- or five-byte prefix of a newer TME format.
+        // Waiting for all six header bytes used to discard such evidence as
+        // an interrupted write from the current firmware.
+        if (remaining >= 4 && bytes[tail_start] == 'T' && bytes[tail_start + 1] == 'M' &&
+            bytes[tail_start + 2] == 'E') {
+            if (bytes[tail_start + 3] != '1' ||
+                (remaining >= 5 && bytes[tail_start + 4] != 1) ||
+                (remaining >= 6 && bytes[tail_start + 5] != 0))
+                return false;
         }
         if (truncate(path_.c_str(), static_cast<off_t>(tail_start)) != 0)
             return false;
