@@ -959,3 +959,20 @@ WebSocket integration, headless LVGL, and React validation/build gates passed.
 This verifies software-only behavior, not real ESP32 slow-client eviction,
 owner-network association, physical peripherals, power-loss or OTA rollback.
 CI: https://github.com/ekkus93/esp32-lcd-temperature-sensor/actions/runs/40613793567
+
+## 2026-10-27 — OTA status on the read-only LCD (software-only)
+
+Wired the existing OTA partition state into the shared LVGL status model.
+Both normal screens now show `OTA VERIFYING` for `new` or
+`pending_verify` images and `OTA ROLLBACK` for `invalid` or
+`aborted` images. The Wi-Fi/logging line remains visible; a valid
+image returns to the usual history-lookback footer. The headless LVGL
+regression checks both screens and all five state transitions, without
+adding another user-selectable LCD view. The state is sampled by the
+normal five-second update loop, not a new blocking polling task.
+
+Exact-head GitHub Actions is the software acceptance gate for the
+headless test, native host suites, React checks and pinned ESP-IDF v6.1
+compilation. `T10-02` remains unchecked: no real panel visibility,
+OTA success, forced rollback or bootloader behavior was exercised here.
+No board, probe, Wi-Fi credentials, factory reset or OTA flash was used.

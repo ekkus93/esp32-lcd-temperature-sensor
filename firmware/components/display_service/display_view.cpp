@@ -170,6 +170,10 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
         footer += "\nBUS FAULT";
     else if (status.button_progress)
         footer += "\nHold BOOT " + std::to_string(std::min(100u, status.button_progress)) + "%";
+    else if (status.ota_state == "new" || status.ota_state == "pending_verify")
+        footer += "\nOTA VERIFYING";
+    else if (status.ota_state == "invalid" || status.ota_state == "aborted")
+        footer += "\nOTA ROLLBACK";
     else
         footer += "\nPast " + std::to_string(options.lookback_minutes) + " min";
     for (auto *s : {&overview_, &trends_}) {

@@ -115,10 +115,34 @@ int main(int argc, char **argv) {
         lv_refr_now(display);
         CHECK(framebuffer != connecting_frame);
         save("overview-wifi-clock-restored");
+        // The read-only LCD must expose OTA verification/rollback status
+        // without adding a third normal view or masking the Wi-Fi/logging line.
+        auto footer_text = [&] {
+            return std::string(lv_label_get_text(lv_obj_get_child(lv_screen_active(), 2)));
+        };
+        for (const char *state : {"new", "pending_verify"}) {
+            status.ota_state = state;
+            view.render(registry, cache, options, status, 19000);
+            CHECK(footer_text().find("OTA VERIFYING") != std::string::npos);
+            CHECK(footer_text().find("Wi-Fi connected | Log OK") != std::string::npos);
+        }
+        save("overview-ota-verifying");
+        for (const char *state : {"invalid", "aborted"}) {
+            status.ota_state = state;
+            view.render(registry, cache, options, status, 20000);
+            CHECK(footer_text().find("OTA ROLLBACK") != std::string::npos);
+        }
+        status.ota_state = "valid";
+        view.render(registry, cache, options, status, 22000);
+        CHECK(footer_text().find("OTA ") == std::string::npos);
         options.extended = true;
         view.render(registry, cache, options, status, 5000);
+        status.ota_state = "pending_verify";
         view.render(registry, cache, options, status, 25000);
         CHECK(view.showing_trends());
+        CHECK(footer_text().find("OTA VERIFYING") != std::string::npos);
+        status.ota_state.clear();
+        view.render(registry, cache, options, status, 25000);
         save("trends-no-data");
         for (int64_t t = 0; t < 3600000; t += bucket_ms) {
             Bucket bucket{123, t, {}, {}};
@@ -165,5 +189,5 @@ int main(int argc, char **argv) {
     lv_display_delete(display);
     lv_deinit();
     std::cout << "PASS: headless LVGL Overview/Trends, 0-5 probes, warnings, gaps, bounded cache, "
-                 "BOOT feedback and provisioning\n";
+                 "BOOT feedback, OTA status and provisioning\n";
 }

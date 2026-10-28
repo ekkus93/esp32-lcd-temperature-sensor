@@ -199,6 +199,7 @@ extern "C" void app_main() {
             display_status.local_time = simulated ? "" : monitor::local_time_text();
             display_status.logging = history.healthy();
             display_status.button_progress = monitor::boot_hold_progress();
+            display_status.ota_state = monitor::ota_status().state;
             display.update(registry, trend_cache, options, display_status, sampled_at,
                            network.provisioning, wifi.ap_ssid(), wifi.ap_password(),
                            auth.setup_secret());

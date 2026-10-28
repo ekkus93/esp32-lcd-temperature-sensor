@@ -24,6 +24,7 @@ struct DisplayStatus {
     std::string local_time; // empty unless time is trusted and converted by clock service
     bool logging = false;
     unsigned button_progress = 0;
+    std::string ota_state; // pending verification or rollback status, not a new LCD view
 };
 struct DisplayRow {
     uint64_t rom = 0;
