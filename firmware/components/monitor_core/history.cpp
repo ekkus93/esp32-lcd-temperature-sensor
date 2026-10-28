@@ -189,16 +189,15 @@ bool HistoryStore::recover() {
             // unknown/invalid record headers long enough to diagnose them.
             const auto remaining = file_size(path(number)) - good;
             if (remaining >= 40) {
-                const bool known =
-                    input.gcount() == static_cast<std::streamsize>(header.size()) &&
-                    ((std::memcmp(header.data(), "TMH1", 4) == 0 && header[4] == 1 &&
-                      header[5] == 0) ||
-                     (std::memcmp(header.data(), "TMH2", 4) == 0 && header[4] == 2 &&
-                      header[5] == 0));
-                const size_t declared =
-                    uint8_t(header[6]) | (size_t(uint8_t(header[7])) << 8);
-                if (!known || declared < 40 || declared > max_history_record_bytes ||
-                    remaining >= declared)
+                const bool v1 = std::memcmp(header.data(), "TMH1", 4) == 0;
+                const bool v2 = std::memcmp(header.data(), "TMH2", 4) == 0;
+                if (input.gcount() != 8 || header[5] != 0 ||
+                    !((v1 && header[4] == 1) || (v2 && header[4] == 2)))
+                    return false;
+                const size_t low = static_cast<uint8_t>(header[6]);
+                const size_t high = static_cast<uint8_t>(header[7]);
+                const size_t declared = low | (high << 8);
+                if (declared < 40 || declared > max_history_record_bytes || remaining >= declared)
                     return false;
             }
             // Refuse to truncate an interior corrupt record if later valid data exists.

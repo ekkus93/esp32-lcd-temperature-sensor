@@ -7,8 +7,8 @@
 #include <iostream>
 #include <iterator>
 #include <string>
-#include <vector>
 #include <unistd.h>
+#include <vector>
 
 using namespace monitor;
 #define CHECK(expr)                                                                                \
