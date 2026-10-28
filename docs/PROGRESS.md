@@ -1,3 +1,17 @@
+## 2026-10-28 — revalidate administrator sessions at WebSocket admission (host-only)
+
+The HTTP WebSocket pre-handshake checks the administrator session, but an
+already-expired/revoked token could previously be accepted by WsLive::add_client
+if it expired between pre-handshake and slot registration. Admission now
+revalidates the token before allocating or overwriting a client slot. The
+production broadcaster still evicts tokens that expire *after* admission,
+including when snapshots are empty. Native HTTP-shim/POSIX-socket regression
+now uses a simulated clock to cover rejection at admission, later expiry,
+healthy-client isolation, and resumed delivery. No owner device, network
+credentials, flash, OTA, reset or physical power interruption was used.
+Exact-commit CI result: PENDING until GitHub Actions completes.
+T07-10 remains unchecked for actual ESP32 TCP backpressure/concurrency.
+
 ## 2026-10-28 — maintain WebSocket cleanup with empty snapshots (host-only)
 
 The production live broadcaster previously returned immediately on an empty snapshot, indefinitely postponing expired-token eviction and retries to close quarantined WebSocket streams whenever the producer had no data. It now continues session maintenance while suppressing empty data frames. Native HTTP-server/POSIX-socket tests cover both expired-token eviction and successful retry of a previously refused quarantine close with empty snapshots, plus isolation of healthy clients and resumed delivery after data returns. Exact-commit `70d228d3d517a3fb8f5d1bebda4680a32b018178` **passed** GitHub Actions run `40702928583`: 18 native CTests, Python diagnostics, simulated REST/WebSocket, headless LVGL, React checks, and pinned ESP-IDF v6.1 firmware compilation. T07-10 remains unchecked pending real ESP32 TCP slow-client, concurrency, and network-recovery acceptance. No hardware was accessed or flashed; no owner Wi-Fi/admin secrets, OTA, factory reset, or physical LittleFS interruption were used.

@@ -1,3 +1,7 @@
+## 2026-10-28 — WebSocket admission authorization recheck
+
+Production WsLive now revalidates the administrator session at registration, preventing an expired/revoked token from occupying a live slot between HTTP pre-handshake and registration. The native HTTP/POSIX-socket shim uses simulated expiry to cover rejected admission and valid sessions that expire after registration. Exact-commit CI is pending; do not count as verified until the workflow passes. T07-10 stays open for actual ESP32 TCP slow-client/concurrent-session acceptance. No hardware, credentials, flash, OTA, reset or physical power-loss operations occurred.
+
 ## 2026-10-28 — empty-snapshot WebSocket session maintenance
 
 Commit `70d228d3d517a3fb8f5d1bebda4680a32b018178` passed exact-SHA GitHub Actions `40702928583` (native C++/Python, simulated REST/WebSocket, headless LVGL, React, ESP-IDF v6.1). The live broadcaster now evicts expired sessions and retries closing quarantined streams even when snapshot production yields no data; healthy clients receive no empty data frames and resume updates normally. Host socket-pair regression verifies both paths. T07-10 still needs physical ESP32 TCP/backpressure/concurrent-client acceptance. Other deferred owner prerequisites: physical five-probe/1-Wire and LCD electrical qualification, owner Wi-Fi association/DHCP/NTP/phone onboarding, LittleFS power interruption, OTA success/rollback, and disposable-device factory-reset acceptance. No hardware, credentials, flashing, destructive reset, or OTA were used.

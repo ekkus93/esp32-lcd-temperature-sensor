@@ -5,8 +5,10 @@ namespace monitor {
 struct Session {};
 class AuthService {
   public:
-    Session *authorize(const std::string &token, int64_t) {
-        return token == "valid" ? &session_ : nullptr;
+    Session *authorize(const std::string &token, int64_t now_ms) {
+        return (token == "valid" || (token == "expiring" && now_ms < 1500))
+                   ? &session_
+                   : nullptr;
     }
 
   private:

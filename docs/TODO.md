@@ -155,6 +155,9 @@ Event-journal host coverage now exhaustively reopens all 60 interrupted append p
 
 Host-only follow-up (2026-10-28): the production broadcaster now performs expired-session and failed-close quarantine maintenance even when the snapshot callback returns an empty string; it suppresses empty data frames. POSIX socket/HTTP-shim regression checks expired-token eviction, eventual quarantined closure, healthy-client isolation, and delivery after snapshots resume. Exact commit `70d228d3d517a3fb8f5d1bebda4680a32b018178` passed GitHub Actions run `40702928583` (18 native CTests, Python diagnostics, simulated REST/WebSocket, headless LVGL, React checks, pinned ESP-IDF v6.1 compilation). This does **not** close T07-10: real ESP32 concurrent TCP clients, slow-client cutoff, and recovery remain unverified.
 
+
+Admission now revalidates the administrator session at the exact moment a live WebSocket slot is reserved, closing the pre-handshake-to-admission expiry/revocation race. Native production HTTP-shim/POSIX-socket tests reject an already expired token without occupying a slot and simulate valid-at-admission tokens expiring before later broadcast, including empty-snapshot maintenance. This is software-only; real-device T07-10 remains unchecked pending TCP slow-client/concurrency acceptance. Exact-commit CI evidence is recorded in PROGRESS.md.
+
 **Phase gate:** static app and REST/WS can be exercised through a browser against a simulated backend and later the real ESP32; no transport path can stall acquisition tasks.
 
 ## Phase 8 — Authentication and Wi-Fi credential security (release-blocking)

@@ -23,6 +23,7 @@ size_t inbound_length = 0;
 int inbound_type = 1;
 bool fail_inbound_read = false;
 bool fail_close = false;
+int64_t fake_now_us = 1000000;
 
 void add_websocket(int fd) {
     websocket_fds.push_back(fd);
@@ -86,7 +87,7 @@ esp_err_t httpd_sess_trigger_close(httpd_handle_t, int fd) {
     return ESP_OK;
 }
 int64_t esp_timer_get_time() {
-    return 1000000;
+    return fake_now_us;
 }
 
 int main() {
@@ -100,6 +101,9 @@ int main() {
     std::array<std::array<int, 2>, 5> peers{};
     for (auto &pair : peers)
         assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pair.data()) == 0);
+    // An expired or revoked token must not consume a live slot even if
+    // the HTTP handshake previously authorized the request.
+    assert(!live.add_client(peers[0][0], "expired"));
     for (size_t i = 0; i < 4; ++i) {
         add_websocket(peers[i][0]);
         assert(live.add_client(peers[i][0], "valid"));
@@ -109,7 +113,8 @@ int main() {
 
     // Start with four valid slots to exercise the admission cap. Then
     // expire one session before broadcasting to test periodic eviction.
-    assert(live.add_client(peers[1][0], "expired"));
+    assert(live.add_client(peers[1][0], "expiring"));
+    fake_now_us = 2000000; // The accepted session expires before broadcast.
 
     // A non-reading peer must be evicted without starving other clients.
     // Fill its kernel send queue before the broadcast; no ESP32 is needed.
@@ -235,6 +240,7 @@ int main() {
     // An expired administrator token must not monopolize one of four live
     // slots between five-second broadcasts. A fifth valid subscriber can
     // replace the expired one immediately, without evicting healthy peers.
+    fake_now_us = 1000000;
     monitor::WsLive admission;
     admission.configure(reinterpret_cast<httpd_handle_t>(1), auth, [&] { return payload; });
     std::array<std::array<int, 2>, 5> admission_peers{};
@@ -245,7 +251,8 @@ int main() {
     for (size_t i = 0; i < 4; ++i)
         assert(admission.add_client(admission_peers[i][0], "valid"));
     assert(!admission.add_client(admission_peers[4][0], "valid"));
-    assert(admission.add_client(admission_peers[1][0], "expired"));
+    assert(admission.add_client(admission_peers[1][0], "expiring"));
+    fake_now_us = 2000000;
     closed_fds.clear();
     fail_close = true;
     assert(!admission.add_client(admission_peers[4][0], "valid"));
@@ -316,6 +323,7 @@ int main() {
 
     // Expired sessions must also be evicted without waiting for the first
     // nonempty snapshot, while an authorized subscriber remains connected.
+    fake_now_us = 1000000;
     monitor::WsLive empty_snapshot;
     empty_snapshot.configure(reinterpret_cast<httpd_handle_t>(1), auth,
                              [&] { return dynamic_payload; });
@@ -324,8 +332,9 @@ int main() {
         assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pair.data()) == 0);
         add_websocket(pair[0]);
     }
-    assert(empty_snapshot.add_client(empty_peers[0][0], "expired"));
+    assert(empty_snapshot.add_client(empty_peers[0][0], "expiring"));
     assert(empty_snapshot.add_client(empty_peers[1][0], "valid"));
+    fake_now_us = 2000000;
     dynamic_payload.clear();
     closed_fds.clear();
     assert(empty_snapshot.schedule());

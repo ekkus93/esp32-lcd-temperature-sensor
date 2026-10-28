@@ -13,6 +13,11 @@ void WsLive::configure(httpd_handle_t server, AuthService &auth,
 }
 
 bool WsLive::add_client(int fd, const std::string &token) {
+    // The HTTP pre-handshake authenticated this token, but the session can
+    // expire or be revoked before admission runs. Never reserve a slot for
+    // an invalid session, even when a slot is currently available.
+    if (!server_ || !auth_ || fd < 0 || !auth_->authorize(token, esp_timer_get_time() / 1000))
+        return false;
     Client *slot = nullptr;
     for (auto &client : clients_) {
         if (client.fd == fd) {
