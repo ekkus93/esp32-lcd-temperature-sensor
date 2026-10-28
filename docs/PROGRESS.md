@@ -1,3 +1,22 @@
+## 2026-10-28 — retire vanished WebSocket registrations (host-only)
+
+Production `WsLive::broadcast` now clears a subscriber slot when the ESP-IDF
+HTTP server no longer reports its descriptor as a WebSocket. Previously that
+stale registration could survive a broadcast, retaining its old token and
+potentially sending a snapshot if the same descriptor later reappeared in
+the HTTPD WebSocket registry without a new `add_client` admission.
+A native POSIX-socket/HTTP-shim regression removes a registered descriptor
+from the server registry, broadcasts, simulates descriptor reuse, confirms
+no unsolicited frames, then confirms delivery only after authenticated
+readmission. Two earlier CI attempts (`70931d28`, `c3b399c4`) failed the
+clang-format gate on an inline test comment; corrected exact-SHA
+`66d1ace2961e483c6b8442a96ea8d2e0b85addbc` **passed** GitHub Actions
+`40733956707`: native C++/Python host tests, simulated REST/WebSocket,
+headless LVGL, React checks and pinned ESP-IDF v6.1 compilation.
+This is host-only evidence, not proof of ESP32 fd-reuse or TCP behavior;
+T07-10/T10-05 remain unchecked. No hardware, owner credentials, flashing,
+OTA, factory reset or physical LittleFS interruption was used.
+
 ## 2026-10-28 — skip live snapshot allocation without authorized subscribers (host-only)
 
 The production WebSocket broadcaster previously built a complete JSON snapshot

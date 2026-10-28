@@ -1,3 +1,15 @@
+## 2026-10-28 — stale WebSocket descriptor reclamation (software-only)
+
+The production broadcaster now retires registrations whose fd is no longer
+recognized as a WebSocket by HTTPD, preventing an old subscriber token from
+surviving an observed disconnect and authorizing frames after simulated fd
+reuse. Native POSIX-socket/HTTPD-shim tests require fresh authorized admission
+before delivery. Two formatting-only CI failures were corrected; exact-SHA
+`66d1ace2` passed Actions run `40733956707` with native/Python,
+simulated API/WebSocket, headless LVGL, React and pinned ESP-IDF v6.1.
+T07-10/T10-05 and all hardware/owner-network/OTA/reset/LittleFS power-loss
+acceptance remain open. No device or secrets were used.
+
 ## 2026-10-28 — lazy WebSocket snapshots (software-only)
 
 Production WsLive now avoids constructing snapshot JSON without an authorized
