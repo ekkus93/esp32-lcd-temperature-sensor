@@ -2,6 +2,14 @@
 
 ## Current state
 
+### 2026-10-28 damaged diagnostic log evidence
+
+The sensor qualification analyzer now fails closed when a `SENSOR_DIAG`-marked
+line is malformed instead of silently skipping it. It emits only a numeric
+`malformed_records` count. Host regression is added; exact-head CI is required.
+This does not close physical T02-15 or any owner-device gate.
+
+
 ### 2026-10-28 diagnostic-evidence integrity
 
 Exact-commit CI `f36e8839` (run 40661726628) **passed** the native,

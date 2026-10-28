@@ -1,5 +1,6 @@
 """Host-only regression for numeric sensor diagnostics; no serial device."""
 import importlib.util
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -154,6 +155,45 @@ class SensorDiagnosticsReportTests(unittest.TestCase):
         one = sensor.report([first], expected_probes=5, min_records=1)
         self.assertIn("no new acquisition cycles observed", one["errors"])
         self.assertFalse(one["passed"])
+
+    def test_malformed_diagnostic_evidence_fails_closed(self):
+        good_first = line(10, 5, 50, 0, 0)
+        good_last = line(12, 5, 60, 0, 0)
+        records, malformed = sensor.extract_records([
+            "unrelated startup log\n",
+            good_first + "\n",
+            "SENSOR_DIAG cycles=11 last_probes=5 valid=55\n",
+            good_last + "\n",
+        ])
+        self.assertEqual(len(records), 2)
+        self.assertEqual(malformed, 1)
+        result = sensor.report(records, expected_probes=5,
+                               min_valid_per_cycle=5,
+                               malformed_records=malformed)
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["malformed_records"], 1)
+        self.assertIn("malformed diagnostic records observed", result["errors"])
+        # A marker cut off before its fields must also count as damaged.
+        self.assertEqual(sensor.extract_records(["SENSOR_DIAG\n"]), ([], 1))
+        self.assertTrue(sensor.report(records, expected_probes=5,
+                                      min_valid_per_cycle=5)["passed"])
+
+    def test_cli_rejects_malformed_log_without_leaking_text(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "device.log"
+            output = Path(tmp) / "result.json"
+            path.write_text(
+                line(10, 5, 50, 0, 0) + "\n"
+                + "SENSOR_DIAG valid=SECRET_DO_NOT_ECHO\n"
+                + line(12, 5, 60, 0, 0) + "\n")
+            self.assertEqual(sensor.main(["--log", str(path),
+                                          "--expected-probes", "5",
+                                          "--min-valid-per-cycle", "5",
+                                          "--output", str(output)]), 1)
+            result = json.loads(output.read_text())
+            self.assertEqual(result["malformed_records"], 1)
+            self.assertFalse(result["passed"])
+            self.assertNotIn("SECRET_DO_NOT_ECHO", output.read_text())
 
     def test_log_mode_does_not_emit_secrets(self):
         with tempfile.TemporaryDirectory() as tmp:

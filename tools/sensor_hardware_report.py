@@ -32,8 +32,10 @@ def parse_line(line):
 
 def report(samples, expected_probes=None, min_records=2,
            max_invalid=None, max_faults=None, max_read_ms=None,
-           min_valid_per_cycle=0):
+           min_valid_per_cycle=0, malformed_records=0):
     errors = []
+    if malformed_records:
+        errors.append("malformed diagnostic records observed")
     if len(samples) < min_records:
         errors.append("too few diagnostic records")
     for before, after in zip(samples, samples[1:]):
@@ -98,6 +100,7 @@ def report(samples, expected_probes=None, min_records=2,
     return {
         "passed": not errors,
         "records": len(samples),
+        "malformed_records": malformed_records,
         "observed_cycles": samples[-1]["cycles"] - samples[0]["cycles"] if samples else 0,
         "valid_delta": valid_delta,
         "min_valid_per_cycle": min_valid_per_cycle,
@@ -111,6 +114,25 @@ def report(samples, expected_probes=None, min_records=2,
     }
 
 
+def extract_records(lines):
+    """Keep only numeric evidence and count damaged diagnostic lines.
+
+    Non-diagnostic lines are ignored without storing or echoing their text.
+    A damaged SENSOR_DIAG line cannot be silently skipped during qualification.
+    """
+    records = []
+    malformed = 0
+    for line in lines:
+        if "SENSOR_DIAG" not in line:
+            continue
+        item = parse_line(line)
+        if item is None:
+            malformed += 1
+        else:
+            records.append(item)
+    return records, malformed
+
+
 def collect_serial(path, seconds):
     try:
         import serial
@@ -121,14 +143,20 @@ def collect_serial(path, seconds):
     port.rts = False
     port.port = path
     records = []
+    malformed = 0
     with port:
         finish = time.monotonic() + seconds
         while time.monotonic() < finish:
             # Only parse numeric diagnostic lines; never capture or print raw logs.
-            item = parse_line(port.readline(512).decode("utf-8", errors="replace"))
-            if item is not None:
+            line = port.readline(512).decode("utf-8", errors="replace")
+            if "SENSOR_DIAG" not in line:
+                continue
+            item = parse_line(line)
+            if item is None:
+                malformed += 1
+            else:
                 records.append(item)
-    return records
+    return records, malformed
 
 
 def main(argv=None):
@@ -153,10 +181,10 @@ def main(argv=None):
         parser.error("time/count limits must be positive or nonnegative")
     try:
         if args.port:
-            samples = collect_serial(args.port, args.seconds)
+            samples, malformed = collect_serial(args.port, args.seconds)
         else:
             with args.log.open(encoding="utf-8", errors="replace") as handle:
-                samples = [item for line in handle if (item := parse_line(line)) is not None]
+                samples, malformed = extract_records(handle)
     except (OSError, RuntimeError) as exc:
         print("Unable to collect sensor diagnostics: " + type(exc).__name__, file=sys.stderr)
         return 2
@@ -165,7 +193,7 @@ def main(argv=None):
         parser.error("minimum valid readings cannot exceed expected probes")
     result = report(samples, args.expected_probes, args.min_records,
                     args.max_invalid, args.max_faults, args.max_read_ms,
-                    args.min_valid_per_cycle)
+                    args.min_valid_per_cycle, malformed_records=malformed)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
