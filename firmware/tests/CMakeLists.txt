@@ -76,6 +76,12 @@ target_include_directories(wifi_credentials_tests PRIVATE ../components/wifi_ser
 target_compile_options(wifi_credentials_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_test(NAME wifi_station_nvs_corruption COMMAND wifi_credentials_tests)
 
+# Exercise production AP timeout/candidate retry policy without RF hardware.
+add_executable(wifi_ap_window_tests wifi_ap_window_tests.cpp)
+target_include_directories(wifi_ap_window_tests PRIVATE ../components/wifi_service/include)
+target_compile_options(wifi_ap_window_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
+add_test(NAME wifi_provisioning_ap_deadline COMMAND wifi_ap_window_tests)
+
 # Verify the exact production policy that gates OTA image acceptance.
 add_executable(ota_boot_policy_tests ota_boot_policy_tests.cpp)
 target_include_directories(ota_boot_policy_tests PRIVATE ../components/ota_service/include)

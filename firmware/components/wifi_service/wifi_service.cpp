@@ -12,6 +12,7 @@
 #include "nvs.h"
 #include "psa/crypto.h"
 #include "wifi_credentials.hpp"
+#include "wifi_ap_window.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -260,7 +261,8 @@ void WifiService::worker(void *context) {
     auto &self = *static_cast<WifiService *>(context);
     bool trying = false;
     Command proposed{};
-    int64_t deadline = 0, candidate_start = 0, next_retry = 0, close_ap = 0, scan_deadline = 0;
+    int64_t deadline = 0, candidate_start = 0, next_retry = 0, scan_deadline = 0;
+    WifiApWindow ap_window;
     unsigned attempts = 0;
     if (self.saved_ssid_[0])
         self.station(self.saved_ssid_, self.saved_password_);
@@ -313,6 +315,9 @@ void WifiService::worker(void *context) {
                     scan_deadline = 0;
                 }
                 self.set_ap(true);
+                // An earlier successful candidate may have queued AP shutdown.
+                // Cancel it for this attempt so a failure leaves setup reachable.
+                ap_window.candidate_started();
                 proposed = command;
                 trying = true;
                 // Open AP+STA first, then give the HTTP handler time to return 202
@@ -342,7 +347,7 @@ void WifiService::worker(void *context) {
                         std::memcpy(self.saved_password_, proposed.password, 65);
                         self.saved_credentials_ = true;
                         self.attempt_ = 2;
-                        close_ap = now + 30000;
+                        ap_window.candidate_connected(now);
                     } else
                         self.attempt_ = 4;
                     trying = false;
@@ -360,7 +365,7 @@ void WifiService::worker(void *context) {
                     next_retry = now + (1000LL << std::min(attempts++, 5u));
             } else if (command.kind == open_ap) {
                 self.set_ap(true);
-                close_ap = now + 600000;
+                ap_window.manual_open(now);
             }
             std::memset(&command, 0, sizeof(command));
         }
@@ -394,10 +399,8 @@ void WifiService::worker(void *context) {
             next_retry = 0;
             self.station(self.saved_ssid_, self.saved_password_);
         }
-        if (close_ap && now >= close_ap && !trying) {
-            close_ap = 0;
+        if (ap_window.should_close(now, trying))
             self.set_ap(false);
-        }
     }
 }
 } // namespace monitor

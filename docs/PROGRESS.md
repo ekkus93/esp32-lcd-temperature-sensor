@@ -1,3 +1,15 @@
+## 2026-10-27 — cancel stale AP handoff deadline on Wi-Fi retry (software-only)
+
+Previously a successful candidate scheduled setup AP shutdown after 30 seconds,
+but starting a subsequent candidate left that timer active. If the new attempt
+failed, the stale timer could close the AP just after failure, preventing retry.
+The production Wi-Fi worker now cancels the prior close deadline at the start
+of each candidate, and uses a shared small `WifiApWindow` timing policy.
+A new native CTest exercises ten-minute manual setup recovery, the 30-second
+successful handoff, failure/retry cancellation, and overlapping timer events.
+No owner Wi-Fi settings or radio were used. `T05-04` remains open pending
+station/DHCP and saved-network verification on a permitted device.
+
 ## 2026-10-27 — closed WebSocket peer safety (software-only)
 
 The production RFC 6455 nonblocking sender now also supplies `MSG_NOSIGNAL`
