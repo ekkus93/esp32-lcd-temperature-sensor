@@ -139,8 +139,7 @@ void WifiService::event(void *context, esp_event_base_t base, int32_t id, void *
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_SCAN_DONE) {
         command.kind = scan_done;
         command.ip = data ? static_cast<wifi_event_sta_scan_done_t *>(data)->status : 1;
-    }
-    else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
+    } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
         command.kind = disconnected;
         command.ip = static_cast<wifi_event_sta_disconnected_t *>(data)->reason;
     } else
