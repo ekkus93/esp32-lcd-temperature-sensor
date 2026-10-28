@@ -5,10 +5,17 @@ second TME1 event after a committed record, reopens the journal, verifies
 the committed event and sequence, and appends another event successfully.
 Recovery now refuses to truncate partial future-format headers after only
 four or five bytes, as well as six-byte incompatible headers. This protects
-unknown data across firmware version changes. The host test is registered
-with the existing native CTest verifier. Initial exact-commit CI `6ee5fd61`
-(run 40677966521) failed at C++ formatting before test execution; this
-follow-up fixes the formatting and requires a fresh exact-commit CI result.
+unknown data across firmware version changes. The test is registered with native CTest. Initial exact-commit CI
+`6ee5fd61` (run 40677966521) failed C++ formatting; `584d71bf`
+(run 40678201043) also failed formatting. After fixing include order,
+`2689085d` (run 40678337707) compiled the pinned ESP-IDF v6.1
+firmware and ran the host suite, where the new test exposed an incorrect
+assumption about an incomplete yet compatible TME1 header. The regression
+was corrected to reject a future format only once its incompatible byte
+is present. Exact-commit CI `98df8e1eb704f707aaf8b78c2561bb1a6d5abc90`
+(run 40678870619) **passed**: 18 native CTests including event-journal
+interruption, simulated REST/WebSocket, headless LVGL, React checks,
+formatting and pinned ESP-IDF v6.1 firmware compilation.
 T06-14/16 remain open for real ESP32 LittleFS exhaustion, simultaneous
 device exports, physical power interruption and reboot evidence. No
 hardware, owner network, credentials, flashing, OTA or reset was used.

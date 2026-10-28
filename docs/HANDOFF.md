@@ -2,6 +2,17 @@
 
 ## Current state
 
+### 2026-10-28 event journal interrupted-append regression
+
+Exact-commit CI `98df8e1e` (run 40678870619) passed after reconciling
+formatting and a regression-test expectation. The native test now covers
+all 60 interrupted TME1 append prefixes and recovery/sequence continuity;
+firmware recovery preserves incomplete future-version headers from the
+first incompatible byte. All 18 native CTests, simulated API/WebSocket,
+headless LVGL, React and pinned ESP-IDF v6.1 compilation passed. T06-14/16
+remain open for physical LittleFS/power-loss and device concurrency checks.
+No owner device, Wi-Fi credentials, flash, OTA or reset was used.
+
 ### 2026-10-28 damaged diagnostic log evidence
 
 The sensor qualification analyzer now fails closed when a `SENSOR_DIAG`-marked
