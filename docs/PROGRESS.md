@@ -9,7 +9,7 @@ requires at least two snapshots with advancing cycles even if
 `--min-records 1` is specified. Host regression covers replayed snapshots,
 the single-record loophole, and a valid five-probe interval. This does not
 verify physical probe reliability; T02-15 remains unchecked. Exact-commit
-GitHub Actions qualification is pending for this change.
+Exact-commit GitHub Actions `1bec44e72fc43928cc2d3d179e9a648aa113cfe0` (run 40655925832) **passed** native C++ host CTests, Python diagnostic tests, simulated WebSocket/API, headless LVGL, React checks and pinned ESP-IDF v6.1 firmware compilation.
 
 ## 2026-10-28 — per-observed-probe diagnostic rate sanity checks (software-only)
 

@@ -4,6 +4,8 @@
 
 ### 2026-10-28 software-only verification
 
+The latest exact-commit CI `1bec44e7` (run 40655925832) **passed** native host/Python, simulator, headless LVGL, React and pinned ESP-IDF v6.1 checks. The read-only sensor qualification report now rejects duplicated `SENSOR_DIAG` records and one-record reports even with a relaxed `--min-records` setting. This is host-only and does not close T02-15 or authorize attaching probes/backlight. No owner Wi-Fi credentials, physical reset, successful OTA, or LittleFS power-loss evidence was used.
+
 Two commits on `master` passed their own exact-commit GitHub Actions runs:
 `9b49917e` (40652116700) removes a six-fd HTTP enumeration bottleneck
 from the four-client live WebSocket broadcaster; `500e82fc`
