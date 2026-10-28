@@ -5,7 +5,8 @@
 The latest software-only change isolates the Wi-Fi scan timeout from failed
 or denied scan requests. Only accepted scans arm a ten-second deadline;
 scan completion and candidate takeover cancel it. Native CTest verifies the
-policy; exact-head CI is required for firmware integration. No RF, owner
+policy; exact-head CI passed for `bd7ecb3e` (run 40625289515), including
+pinned ESP-IDF v6.1 firmware and the full host/display/web workflow. No RF, owner
 credentials or hardware acceptance is claimed. T05-04 remains open.
 
 ### Latest software-only checkpoint — 2026-10-27

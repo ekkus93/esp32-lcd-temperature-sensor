@@ -1,3 +1,16 @@
+## 2026-10-27 — Wi-Fi scan policy verified on exact commit
+
+Exact-commit GitHub Actions run 40625289515 for `bd7ecb3e` completed
+successfully: the C++ formatting gate, all native host tests including
+`wifi_scan_candidate_isolation`, simulated WebSocket/API integration,
+headless LVGL regression, React lint/typecheck/tests/build, and pinned
+ESP-IDF v6.1 firmware compilation passed. The preceding `10f69b00`
+run failed only at the include-order formatting gate; the corrected
+commit passed the complete workflow. This establishes software-only
+regression coverage, not real Wi-Fi scanning/association or station DHCP.
+`T05-04` remains unchecked pending owner-network/device verification.
+CI: https://github.com/ekkus93/esp32-lcd-temperature-sensor/actions/runs/40625289515
+
 ## 2026-10-27 — exact-head CI formatting follow-up
 
 The first exact-commit CI run for `10f69b00` stopped at clang-format
