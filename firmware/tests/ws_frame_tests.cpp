@@ -5,8 +5,9 @@
 #include <cerrno>
 #include <cstdint>
 #include <string>
-#include <vector>
 #include <sys/socket.h>
+#include <vector>
+#include <unistd.h>
 
 namespace {
 struct FakeSocket {
@@ -90,4 +91,15 @@ int main() {
     assert(!monitor::ws_frame::send_text_nonblocking(3, std::string(1000, 'x'), send_stub));
     assert(starvation.calls == 16);
     assert(!monitor::ws_frame::send_text_nonblocking(3, "hello", nullptr));
+
+    // A real unconsumed socket must fail promptly despite kernel buffering.
+    // This exercises MSG_DONTWAIT on POSIX, not ESP-IDF TCP or its HTTP stack.
+    int sockets[2]{};
+    assert(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == 0);
+    int send_buffer = 4096;
+    assert(setsockopt(sockets[0], SOL_SOCKET, SO_SNDBUF, &send_buffer, sizeof(send_buffer)) == 0);
+    assert(!monitor::ws_frame::send_text_nonblocking(sockets[0], std::string(512 * 1024, 'x'),
+                                                     send));
+    close(sockets[0]);
+    close(sockets[1]);
 }

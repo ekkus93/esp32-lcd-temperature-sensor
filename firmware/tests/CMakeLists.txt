@@ -56,3 +56,9 @@ add_executable(ws_frame_tests ws_frame_tests.cpp ../components/ws_live/ws_frame.
 target_include_directories(ws_frame_tests PRIVATE ../components/ws_live/include)
 target_compile_options(ws_frame_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_test(NAME websocket_send_backpressure COMMAND ws_frame_tests)
+
+# Exhaustively simulate interrupted TMH2 record writes at every byte boundary.
+add_executable(history_power_cut_tests history_power_cut_tests.cpp)
+target_link_libraries(history_power_cut_tests PRIVATE monitor_core)
+target_compile_options(history_power_cut_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
+add_test(NAME history_power_cut_recovery COMMAND history_power_cut_tests)

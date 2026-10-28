@@ -1,5 +1,22 @@
 # Implementation progress
 
+## 2026-10-27 — byte-by-byte interrupted history write recovery
+
+Added `history_power_cut_tests` to simulate interrupted TMH2 writes at every
+byte prefix for one- and five-probe records. Each case exercises both an
+interrupted append within an active segment and one immediately after a
+segment rollover, restarts the store, verifies the completed record is
+preserved, and successfully appends the next record. This covers 568
+deterministic host recovery/restart cases; 11/11 native CTests pass.
+The WebSocket regression also now uses a real POSIX socketpair with a tiny
+send buffer to assert bounded nonblocking behavior. Corrected include order
+after the first exact-head CI detected two clang-format failures, and moved
+the format check earlier in CI.
+
+None of this proves physical LittleFS power-loss behavior, ESP32-socket
+eviction, or real Wi-Fi recovery. Keep `T06-14` and `T07-10` unchecked.
+
+
 ## 2026-10-27 — hardware-independent WebSocket send hardening
 
 Extracted the production RFC 6455 nonblocking frame sender into `ws_frame` so

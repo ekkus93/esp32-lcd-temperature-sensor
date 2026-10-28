@@ -30,6 +30,10 @@ jobs:
             libusb-1.0-0-dev libffi-dev
           sudo ln -sf /usr/bin/clang-format-18 /usr/local/bin/clang-format
 
+      - name: Check C++ formatting before SDK setup
+        run: |
+          rg --files -0 firmware -g '*.cpp' -g '*.hpp' -g '*.h' -g '!**/build/**' -g '!**/managed_components/**' -g '!**/generated/**' | xargs -0 clang-format --dry-run --Werror
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -43,7 +47,17 @@ jobs:
       - name: Build web assets for firmware embedding
         run: npm --prefix web run build
 
+      - name: Cache pinned ESP-IDF toolchain
+        id: idf-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/esp-idf-v6.1
+            ~/.espressif
+          key: ${{ runner.os }}-idf-v6.1-fff9895c82d744c7237be8847347bdd1b07c6643-v1
+
       - name: Install pinned ESP-IDF v6.1
+        if: steps.idf-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -euo pipefail
