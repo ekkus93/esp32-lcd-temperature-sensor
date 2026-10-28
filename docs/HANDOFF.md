@@ -1,3 +1,18 @@
+## 2026-10-28 — AP-to-STA handoff disconnect recovery (software-only)
+
+A candidate that obtained DHCP could disconnect during the 30-second AP
+handoff grace, yet the old deadline would close the setup AP while offline.
+The Wi-Fi worker now cancels that candidate-close deadline on disconnect,
+rearms 30 seconds after reconnect, and only auto-closes the AP when station
+connectivity is present. BOOT manual recovery remains independent of the
+candidate grace period. Native policy regression passed locally; after one
+formatting-only CI failure, exact-SHA `f5d1a25c` passed Actions run
+40743623669 (native/Python, simulated API/WebSocket, headless LVGL, React,
+pinned ESP-IDF v6.1). T05-04/05/11/18 remain open for owner-network DHCP,
+reconnect and phone acceptance. All physical sensor/LCD, LittleFS power-loss,
+OTA success/rollback, destructive reset and soak gates remain deferred. No
+hardware, credentials, flashing, OTA, reset or power-loss tests were used.
+
 ## 2026-10-28 — stale WebSocket descriptor reclamation (software-only)
 
 The production broadcaster now retires registrations whose fd is no longer

@@ -1053,3 +1053,32 @@ open under T07-08/09. Standalone `npm --prefix web run test:simulator` passed.
 ## 2026-10-27 — History and OTA recovery documentation
 
 `HISTORY_FORMAT.md` now documents LittleFS corruption handling, safe partition
+
+## 2026-10-28 — Provisioning AP survives a transient station handoff outage (software-only)
+
+After a candidate successfully obtained an IP address, a queued 30-second
+AP shutdown could still fire if the station disconnected before handoff,
+removing the setup path while the new network was offline. The production
+Wi-Fi worker now informs `WifiApWindow` of disconnect/reconnect events;
+the candidate handoff deadline is cancelled on loss and rearmed for a full
+30 seconds after reconnection. The AP deadline also requires a connected
+station, so an offline BOOT recovery AP does not disappear just because its
+ten-minute timer elapsed. Explicit BOOT recovery overrides any candidate
+deadline; a new candidate cancels a stale reconnect deadline.
+
+Native policy regression covers candidate success, disconnect before expiry,
+old-deadline suppression, reconnect grace, retry cancellation, manual BOOT
+recovery and connected/offline close behavior. A standalone g++ C++17
+-Wall/-Wextra/-Werror/-Wpedantic build of that regression passed locally.
+The first exact-SHA commit `c315e20d` failed formatting-only CI run
+40743478396; formatting correction `f5d1a25c29a6d0e4d8968f67da311952fb650740`
+passed GitHub Actions run 40743623669, including native host C++/Python,
+simulated API/WebSocket, headless LVGL, React verification and pinned
+ESP-IDF v6.1 firmware compilation. No owner device, Wi-Fi credentials,
+flashing, reset, OTA or physical power-loss test was used.
+
+T05-04/T05-05/T05-11/T05-18 remain unchecked pending actual AP+STA
+candidate DHCP/reconnect and owner-network/phone onboarding evidence.
+The physical sensor/LCD, LittleFS interruption, OTA success/rollback,
+disposable-device factory reset and sustained-load acceptance gates also
+remain open.
