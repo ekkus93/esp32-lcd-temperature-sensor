@@ -31,7 +31,10 @@ bool WsLive::add_client(int fd, const std::string &token) {
         for (auto &client : clients_) {
             if (auth_->authorize(client.token, now_ms))
                 continue;
-            httpd_sess_trigger_close(server_, client.fd);
+            // Do not overwrite a still-open unauthorized session if the
+            // HTTP server refuses the close request. Retry on next admission.
+            if (httpd_sess_trigger_close(server_, client.fd) != ESP_OK)
+                continue;
             slot = &client;
             break;
         }

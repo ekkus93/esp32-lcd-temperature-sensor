@@ -22,6 +22,7 @@ void *queued_arg = nullptr;
 size_t inbound_length = 0;
 int inbound_type = 1;
 bool fail_inbound_read = false;
+bool fail_close = false;
 
 void add_websocket(int fd) {
     websocket_fds.push_back(fd);
@@ -77,6 +78,8 @@ esp_err_t httpd_queue_work(httpd_handle_t, void (*fn)(void *), void *arg) {
     return ESP_OK;
 }
 esp_err_t httpd_sess_trigger_close(httpd_handle_t, int fd) {
+    if (fail_close)
+        return ESP_FAIL;
     closed_fds.push_back(fd);
     websocket_fds.erase(std::remove(websocket_fds.begin(), websocket_fds.end(), fd),
                         websocket_fds.end());
@@ -233,6 +236,10 @@ int main() {
     assert(!admission.add_client(admission_peers[4][0], "valid"));
     assert(admission.add_client(admission_peers[1][0], "expired"));
     closed_fds.clear();
+    fail_close = true;
+    assert(!admission.add_client(admission_peers[4][0], "valid"));
+    assert(!was_closed(admission_peers[1][0]));
+    fail_close = false;
     assert(admission.add_client(admission_peers[4][0], "valid"));
     assert(was_closed(admission_peers[1][0]));
     for (size_t i : {size_t(0), size_t(2), size_t(3), size_t(4)})
