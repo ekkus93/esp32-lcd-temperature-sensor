@@ -1008,3 +1008,20 @@ CI `87a34f9f` again stopped at formatting: the firmware translation unit's
 primary header must remain first and the new credential header belongs among
 the remaining sorted includes. The header's two line wraps now pass; a fresh
 exact-head CI is required for the corrected include order.
+
+## 2026-10-27 — OTA boot-health policy (software-only)
+
+Corrected the pending-verify OTA acceptance gate: two completed acquisition
+cycles alone were previously sufficient even if required services had failed
+startup. The new shared C++ policy also requires the history worker, Wi-Fi
+stack, authentication, HTTP server and sensor sampling initialization to have
+succeeded. A missing LCD/probe, offline router or unsynchronized NTP does not
+block acceptance; the device is designed to operate in those states. A failed
+required service leaves a pending image unconfirmed for rollback on a later
+reboot, rather than falsely marking it valid. Host policy regression covers
+zero/one/two cycles and each failed-service permutation. Isolated local C++17
+compile with `-Wall -Wextra -Werror -Wpedantic` passed; exact-head GitHub
+Actions pinned ESP-IDF v6.1 compilation and full test gates are pending.
+
+This is not evidence of successful OTA, forced bootloader rollback or actual
+firmware recovery. T10-02 stays unchecked. No board or owner device was used.

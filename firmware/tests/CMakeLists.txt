@@ -75,3 +75,9 @@ add_executable(wifi_credentials_tests wifi_credentials_tests.cpp)
 target_include_directories(wifi_credentials_tests PRIVATE ../components/wifi_service/include)
 target_compile_options(wifi_credentials_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_test(NAME wifi_station_nvs_corruption COMMAND wifi_credentials_tests)
+
+# Verify the exact production policy that gates OTA image acceptance.
+add_executable(ota_boot_policy_tests ota_boot_policy_tests.cpp)
+target_include_directories(ota_boot_policy_tests PRIVATE ../components/ota_service/include)
+target_compile_options(ota_boot_policy_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
+add_test(NAME ota_startup_health_policy COMMAND ota_boot_policy_tests)

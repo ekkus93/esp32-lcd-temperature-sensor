@@ -19,6 +19,7 @@
 #include "http_api.hpp"
 #include "monitor.hpp"
 #include "nvs_flash.h"
+#include "ota_boot_policy.hpp"
 #include "ota_service.hpp"
 #include "provisioning_service.hpp"
 #include "sampling_service.hpp"
@@ -60,19 +61,24 @@ extern "C" void app_main() {
     ESP_LOGI(tag, "reset_reason=%d", static_cast<int>(esp_reset_reason()));
     uint64_t boot_id = (uint64_t(esp_random()) << 32) | esp_random();
     monitor::HistoryService history;
-    if (!history.start(simulated, boot_id))
+    const bool history_started = history.start(simulated, boot_id);
+    if (!history_started)
         ESP_LOGE(tag, "History worker unavailable");
     monitor::WifiService wifi;
     bool prior_clock_synced = false;
     auto network_status = wifi.start();
     monitor::AuthService auth;
     monitor::HttpApi api;
+    bool auth_started = false;
+    bool http_started = false;
     if (network_status == ESP_OK) {
         if (!monitor::start_clock(device_options))
             ESP_LOGW(tag, "Clock synchronization unavailable");
         auto auth_status = auth.initialize();
-        if (auth_status == ESP_OK) {
-            if (!api.start(auth, wifi, history, device_settings, boot_id, simulated))
+        auth_started = auth_status == ESP_OK;
+        if (auth_started) {
+            http_started = api.start(auth, wifi, history, device_settings, boot_id, simulated);
+            if (!http_started)
                 ESP_LOGE(tag, "HTTP server unavailable");
             if (!monitor::start_captive_dns(wifi))
                 ESP_LOGE(tag, "Captive DNS unavailable; direct AP address remains available");
@@ -212,13 +218,21 @@ extern "C" void app_main() {
             if (state_result != ESP_OK || state != ESP_OTA_IMG_PENDING_VERIFY) {
                 ota_boot_checked = true;
             } else {
-                const esp_err_t valid = esp_ota_mark_app_valid_cancel_rollback();
-                if (valid == ESP_OK) {
-                    ESP_LOGI(tag, "OTA startup health passed; rollback cancelled");
-                    ota_boot_checked = true;
+                const monitor::OtaBootHealth health{healthy_cycles, history_started,
+                                                    network_status == ESP_OK, auth_started,
+                                                    http_started, bus_status == ESP_OK};
+                if (!monitor::ota_boot_health_ready(health)) {
+                    if (healthy_cycles == 2)
+                        ESP_LOGE(tag, "OTA startup services incomplete; image remains pending");
                 } else {
-                    ESP_LOGE(tag, "OTA image remains pending verification: %s",
-                             esp_err_to_name(valid));
+                    const esp_err_t valid = esp_ota_mark_app_valid_cancel_rollback();
+                    if (valid == ESP_OK) {
+                        ESP_LOGI(tag, "OTA startup health passed; rollback cancelled");
+                        ota_boot_checked = true;
+                    } else {
+                        ESP_LOGE(tag, "OTA image remains pending verification: %s",
+                                 esp_err_to_name(valid));
+                    }
                 }
             }
         }
