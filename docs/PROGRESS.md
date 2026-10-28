@@ -1,3 +1,11 @@
+## 2026-10-27 — exact-head CI formatting follow-up
+
+The first exact-commit CI run for `10f69b00` stopped at clang-format
+before host tests or ESP-IDF compilation. Its diagnostic points to the
+Wi-Fi worker include order. This follow-up sorts the new header after
+`wifi_credentials.hpp`; all software acceptance remains subject to the
+new exact-head CI outcome. No device or owner credentials were used.
+
 ## 2026-10-27 — reject stale Wi-Fi scan timeout after denied scan (software-only)
 
 The Wi-Fi worker previously armed a 10-second scan-stop timer before

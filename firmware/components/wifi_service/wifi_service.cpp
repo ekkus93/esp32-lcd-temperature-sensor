@@ -12,8 +12,8 @@
 #include "nvs.h"
 #include "psa/crypto.h"
 #include "wifi_ap_window.hpp"
-#include "wifi_scan_window.hpp"
 #include "wifi_credentials.hpp"
+#include "wifi_scan_window.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
