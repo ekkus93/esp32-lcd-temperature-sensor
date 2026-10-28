@@ -998,3 +998,8 @@ CTest integration and pinned ESP-IDF v6.1 build await exact-commit GitHub
 Actions confirmation. T05-01/04/05/11/18 remain open for real Wi-Fi
 association, DHCP, candidate rollback, saved-network continuity and onboarding.
 No board, Wi-Fi credentials, factory reset, flash or OTA was used.
+
+Exact-head CI for `4472c3aa` stopped at the C++ formatting gate before
+running tests/firmware. The next commit fixes the three clang-format violations
+reported by the runner (include order and two line wraps). It requires a new
+exact-commit CI run; no firmware acceptance is inferred from the failed run.

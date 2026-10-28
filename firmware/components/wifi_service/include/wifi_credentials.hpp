@@ -19,14 +19,12 @@ struct StationCredentials {
 
 inline bool valid_station_credentials(std::string_view ssid, std::string_view password) {
     if (ssid.empty() || ssid.size() > 32 || password.size() > 64 ||
-        (!password.empty() && password.size() < 8) ||
-        ssid.find('\0') != std::string_view::npos ||
+        (!password.empty() && password.size() < 8) || ssid.find('\0') != std::string_view::npos ||
         password.find('\0') != std::string_view::npos)
         return false;
     if (password.size() == 64)
         return std::all_of(password.begin(), password.end(), [](unsigned char c) {
-            return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
-                   (c >= 'A' && c <= 'F');
+            return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
         });
     return true;
 }
