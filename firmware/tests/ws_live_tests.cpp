@@ -250,6 +250,14 @@ int main() {
     fail_close = true;
     assert(!admission.add_client(admission_peers[4][0], "valid"));
     assert(!was_closed(admission_peers[1][0]));
+    // A failed eviction must never leak a snapshot to the expired client,
+    // and must not starve the other authorized subscribers.
+    assert(admission.schedule());
+    for (size_t i : {size_t(0), size_t(2), size_t(3)})
+        drain(admission_peers[i][1], payload);
+    char unexpected = 0;
+    assert(recv(admission_peers[1][1], &unexpected, 1, MSG_DONTWAIT) == -1);
+    assert(errno == EAGAIN || errno == EWOULDBLOCK);
     fail_close = false;
     assert(admission.add_client(admission_peers[4][0], "valid"));
     assert(was_closed(admission_peers[1][0]));
