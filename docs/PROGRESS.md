@@ -11,8 +11,11 @@ The native storage regression reuses one EventStore across truncate/recover,
 unlink/recreate/recover, a damaged committed record, repair/recover, and
 subsequent append; it checks physical file lengths and sequence continuity.
 These are host/POSIX tests, not physical LittleFS or power-loss evidence.
-T06-14/16 remain unchecked. Exact-head CI is required before marking this
-change verified. No board, credentials, reset, flashing, or OTA was used.
+T06-14/16 remain unchecked. Exact-commit CI `e0ed7d25` (run
+40637029464) passed C++ formatting, native host storage/other CTests,
+simulated API/WebSocket and headless LVGL checks, React tests/lint/typecheck/
+production build, and pinned ESP-IDF v6.1 firmware compilation. This verifies
+the software regression only, not physical LittleFS behavior. No board, credentials, reset, flashing, or OTA was used.
 
 ## 2026-10-27 — event journal validation-before-tail-trim (software-only)
 
@@ -798,19 +801,3 @@ device timestamps remain open under T06-15. The 8-suite host storage run passed.
 
 ## 2026-10-27 — User guide
 
-Added `USER_GUIDE.md` for live readings, probe identity/configuration, alerts,
-five-minute graphs/CSV, network changes, display preferences, firmware uploads,
-and the selected local-HTTP security limit. It describes the LCD, reboot and
-factory-reset gaps explicitly. Relative links resolve. `T11-05` is checked.
-Checked TODO count: 94 of 145.
-
-
-`ONBOARDING.md` now documents the device-unique AP/bootstrap credential source,
-first-owner enrollment, station candidate rollback, five-second BOOT recovery,
-and the accepted local-HTTP LAN limitation. It distinguishes implemented
-software behavior from phone/button checks still open under T05. Relative links
-resolve. `T11-04` is checked; count is 96/145.
-
-
-The existing wiring guide was checked against T11-02 and the development guide
-now contains the pinned SDK output, firmware build/configuration/partition
