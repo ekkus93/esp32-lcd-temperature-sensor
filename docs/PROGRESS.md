@@ -1158,7 +1158,10 @@ diagnostic fields for later multi-client/LVGL/flash-write soak testing, but
 does **not** itself demonstrate leak-free operation, DMA availability,
 watchdog safety or a measured device memory floor. T10-05 stays open.
 
-The exact-head GitHub Actions pinned ESP-IDF v6.1 compilation, native host
-CTest, simulated HTTP/WebSocket, headless LVGL and React gates are required
-to validate this source change. No board, LCD, probes, Wi-Fi credentials,
+Exact-head GitHub Actions run 40630837226 at
+`d71922555e6db5bb978967237f4cb43fd00d3d6c` passed (2026-10-28 UTC):
+C++ formatting, native host CTest, simulated HTTP/WebSocket, headless LVGL,
+React checks/build, pinned ESP-IDF v6.1 compilation and firmware artifact
+upload. This is build/test evidence only, not a physical memory measurement.
+CI: https://github.com/ekkus93/esp32-lcd-temperature-sensor/actions/runs/40630837226 No board, LCD, probes, Wi-Fi credentials,
 owner-device reset or OTA operation was used in this iteration.
