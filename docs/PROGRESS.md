@@ -8,8 +8,11 @@ Qualification now fails if any marked record is malformed; unrelated log
 lines are ignored, and only numeric counts (never raw logs, probe IDs,
 credentials or temperatures) enter the report. Python host regressions
 exercise a malformed interval, truncated marker, and CLI JSON output
-without echoing source text. Exact-commit GitHub Actions verification
-is required; physical five-probe qualification remains open under T02-15.
+without echoing source text. Exact-commit GitHub Actions `9ec3ff3c21ec412401da70e33d2fb154e768299d`
+(run 40670068891) **passed** native C++/Python host tests,
+simulated REST/WebSocket, headless LVGL, React checks and pinned
+ESP-IDF v6.1 firmware compilation. Physical five-probe qualification
+remains open under T02-15.
 No device, Wi-Fi credential, flash, reset, OTA or power-loss test was used.
 
 ## 2026-10-28 — fail-closed physical diagnostic parsing and interval faults (software-only)

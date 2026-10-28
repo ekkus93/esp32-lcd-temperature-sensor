@@ -6,7 +6,9 @@
 
 The sensor qualification analyzer now fails closed when a `SENSOR_DIAG`-marked
 line is malformed instead of silently skipping it. It emits only a numeric
-`malformed_records` count. Host regression is added; exact-head CI is required.
+`malformed_records` count. Host regression and exact-commit CI `9ec3ff3c` (run 40670068891)
+passed the full native/Python, simulator, headless LVGL, React and pinned
+ESP-IDF v6.1 workflow.
 This does not close physical T02-15 or any owner-device gate.
 
 
