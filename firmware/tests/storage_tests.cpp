@@ -278,6 +278,22 @@ int main() {
         tail.write("partial", 7);
     }
     const auto valid_bytes = reopened.bytes() - 7;
+    // A corrupted committed event plus a partial final append must not
+    // truncate the tail before reporting the earlier corruption.
+    {
+        std::fstream corrupt(event_path, std::ios::binary | std::ios::in | std::ios::out);
+        CHECK(corrupt.good());
+        corrupt.put('X');
+    }
+    const auto damaged_with_tail = std::filesystem::file_size(event_path);
+    EventStore invalid_before_tail(event_path, 4 * event_record_bytes);
+    CHECK(!invalid_before_tail.recover());
+    CHECK(std::filesystem::file_size(event_path) == damaged_with_tail);
+    {
+        std::fstream repair(event_path, std::ios::binary | std::ios::in | std::ios::out);
+        CHECK(repair.good());
+        repair.put('T');
+    }
     EventStore tail_recovery(event_path, 4 * event_record_bytes);
     CHECK(tail_recovery.recover() && tail_recovery.bytes() == valid_bytes);
     {
@@ -287,6 +303,17 @@ int main() {
     const auto damaged_size = std::filesystem::file_size(event_path);
     EventStore damaged_journal(event_path, 4 * event_record_bytes);
     CHECK(!damaged_journal.recover() && std::filesystem::file_size(event_path) == damaged_size);
+    // A partial record advertising a newer journal format must not be
+    // truncated by an older firmware image on restart.
+    {
+        std::ofstream future(event_path, std::ios::binary | std::ios::trunc);
+        const char version_two[] = {'T', 'M', 'E', '2', 2, 0};
+        future.write(version_two, sizeof(version_two));
+        CHECK(future.good());
+    }
+    EventStore future_journal(event_path, 4 * event_record_bytes);
+    CHECK(!future_journal.recover());
+    CHECK(std::filesystem::file_size(event_path) == 6);
     std::filesystem::remove_all(event_directory);
     char cadence_directory[] = "/tmp/monitor-cadence-XXXXXX";
     CHECK(mkdtemp(cadence_directory));

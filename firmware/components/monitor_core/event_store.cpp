@@ -114,13 +114,8 @@ bool EventStore::recover() {
     if (bytes.size() > max_bytes_)
         return false;
     const size_t complete = bytes.size() / event_record_bytes;
-    if (bytes.size() % event_record_bytes) {
-        if (truncate(path_.c_str(), static_cast<off_t>(complete * event_record_bytes)) != 0)
-            return false;
-        bytes.resize(complete * event_record_bytes);
-    }
     uint64_t previous_sequence = 0;
-    for (size_t offset = 0; offset < bytes.size(); offset += event_record_bytes) {
+    for (size_t offset = 0; offset < complete * event_record_bytes; offset += event_record_bytes) {
         std::vector<uint8_t> record(bytes.begin() + offset,
                                     bytes.begin() + offset + event_record_bytes);
         auto event = decode_event(record);
@@ -128,6 +123,23 @@ bool EventStore::recover() {
             return false;
         previous_sequence = event->sequence;
         last_event_ = *event;
+    }
+    // Never modify a damaged journal merely because its final write was
+    // interrupted: validate every complete record before trimming the tail.
+    const size_t tail_start = complete * event_record_bytes;
+    if (bytes.size() != tail_start) {
+        const size_t remaining = bytes.size() - tail_start;
+        if (remaining >= 6) {
+            const bool journal_header = bytes[tail_start] == 'T' &&
+                                        bytes[tail_start + 1] == 'M' &&
+                                        bytes[tail_start + 2] == 'E';
+            if (journal_header &&
+                (bytes[tail_start + 3] != '1' || bytes[tail_start + 4] != 1 ||
+                 bytes[tail_start + 5] != 0))
+                return false; // Preserve an incomplete future-version record.
+        }
+        if (truncate(path_.c_str(), static_cast<off_t>(tail_start)) != 0)
+            return false;
     }
     last_sequence_ = previous_sequence;
     return true;

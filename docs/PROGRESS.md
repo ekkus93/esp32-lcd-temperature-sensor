@@ -1,3 +1,22 @@
+## 2026-10-27 — event journal validation-before-tail-trim (software-only)
+
+The event-journal recovery code previously truncated a partial final append
+before checking CRCs of the preceding committed records. On an otherwise
+corrupt journal this silently modified evidence even though recovery returned
+failure. Recovery now validates all complete event records and monotonic
+sequences before altering the incomplete tail. A partial header indicating a
+future `TME` journal format is also preserved instead of truncated.
+
+The existing native storage suite now injects an invalid committed record
+followed by a partial write, asserts that failed recovery leaves the entire
+file intact, repairs the committed record, and verifies normal incomplete-tail
+recovery. It also checks that a six-byte future-version prefix is retained
+unchanged. These tests are POSIX simulations only; real LittleFS power
+interruption and device-full acceptance remain outstanding under `T06-14/16`.
+No physical devices, credentials, OTA, flash or reset were used.
+Prior history-tail change passed exact-head CI `6daa43f7` (run 40628503271);
+the new journal change requires its own exact-head CI confirmation.
+
 ## 2026-10-27 — preserve complete CRC-damaged history records (software-only)
 
 The history recovery path previously truncated an invalid final record without
