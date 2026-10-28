@@ -99,10 +99,14 @@ int main() {
         assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pair.data()) == 0);
     for (size_t i = 0; i < 4; ++i) {
         add_websocket(peers[i][0]);
-        assert(live.add_client(peers[i][0], i == 1 ? "expired" : "valid"));
+        assert(live.add_client(peers[i][0], "valid"));
     }
     add_websocket(peers[4][0]);
     assert(!live.add_client(peers[4][0], "valid")); // Four authorized slots maximum.
+
+    // Start with four valid slots to exercise the admission cap. Then
+    // expire one session before broadcasting to test periodic eviction.
+    assert(live.add_client(peers[1][0], "expired"));
 
     // A non-reading peer must be evicted without starving other clients.
     // Fill its kernel send queue before the broadcast; no ESP32 is needed.
