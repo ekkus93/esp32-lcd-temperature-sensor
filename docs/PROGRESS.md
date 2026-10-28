@@ -936,3 +936,11 @@ the test previously attached its first message listener only *after* the
 buffers messages from socket construction and consumes queued frames before
 waiting, eliminating that timing gap. Exact-head CI must confirm the complete
 web/simulator/display gate; no device-level slow-client proof is claimed.
+
+The exact-commit GitHub Actions run `40613793567` for `a8039d38` completed
+successfully (2026-10-28 01:19 UTC): the pinned ESP-IDF v6.1 firmware,
+12 native host CTests including production WebSocket isolation, simulator
+WebSocket integration, headless LVGL, and React validation/build gates passed.
+This verifies software-only behavior, not real ESP32 slow-client eviction,
+owner-network association, physical peripherals, power-loss or OTA rollback.
+CI: https://github.com/ekkus93/esp32-lcd-temperature-sensor/actions/runs/40613793567
