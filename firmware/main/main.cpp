@@ -240,16 +240,29 @@ extern "C" void app_main() {
                 }
             }
         }
-        if (!simulated || simulated_tick % 20 == 0)
+        if (!simulated || simulated_tick % 20 == 0) {
+            const auto internal_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+            const auto internal_min = heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL);
+            const auto internal_largest = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+            const auto psram_free = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+            const auto psram_min = heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM);
+            const auto stack_min = uxTaskGetStackHighWaterMark(nullptr);
             ESP_LOGI(
-                tag, "HEALTH uptime_ms=%lld sensors=%u bus=%s clock=%s history=%d heap=%u",
+                tag,
+                "HEALTH uptime_ms=%lld sensors=%u bus=%s clock=%s history=%d heap=%u "
+                "internal_free=%u internal_min=%u internal_largest=%u psram_free=%u "
+                "psram_min=%u main_stack_min=%u",
                 static_cast<long long>(now), static_cast<unsigned>(registry.sensors().size()),
                 simulated
                     ? "SIMULATED"
                     : (sampling.enabled() ? (sampling.fault() ? "fault" : "ready") : "disabled"),
                 simulated ? "simulated"
                           : (monitor::clock_synchronized() ? "synchronized" : "unsynchronized"),
-                int(history.healthy()), static_cast<unsigned>(esp_get_free_heap_size()));
+                int(history.healthy()), static_cast<unsigned>(esp_get_free_heap_size()),
+                static_cast<unsigned>(internal_free), static_cast<unsigned>(internal_min),
+                static_cast<unsigned>(internal_largest), static_cast<unsigned>(psram_free),
+                static_cast<unsigned>(psram_min), static_cast<unsigned>(stack_min));
+        }
         ++simulated_tick;
         vTaskDelayUntil(&wake, pdMS_TO_TICKS(simulated ? 250 : 5000));
     }

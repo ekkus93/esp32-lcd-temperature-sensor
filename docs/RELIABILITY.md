@@ -27,9 +27,11 @@ Startup logs the application/IDF version, numeric ESP reset reason, PSRAM size,
 internal free heap, NVS, Wi-Fi, bus, LittleFS, and event-journal outcomes.
 Periodic health logs report free heap and history health. The API exposes Wi-Fi
 outcome, history capacity, firmware slot and OTA state. Reset reason is present
-in the startup console log only. Heap minima, per-socket use, and retained
-reset-cause history are not collected; measure them before release as part of
-T10-05/08.
+in the startup console log only. Firmware HEALTH logs now report internal/PSRAM free and minimum-free bytes,
+the largest free internal block, and main-task minimum stack headroom alongside
+total free heap. These counters enable subsequent device soak comparisons, but
+per-socket allocation, retained reset-cause history, and sustained-load memory
+floors are not yet measured; complete T10-05/08 before release.
 
 ## Web bundle and browser measurement
 

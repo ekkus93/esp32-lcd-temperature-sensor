@@ -1146,3 +1146,19 @@ manifest. These are software/build gates, **not** proof of real Wi-Fi station
 association, OTA success/rollback, LCD/probe operation or flash power-loss
 recovery. The checked/open TODO count remains 114/44. No owner credentials,
 physical peripherals or reset device were used.
+
+## 2026-10-27 — firmware resource high-water diagnostics (software-only)
+
+Extended the existing five-second firmware HEALTH log with free and minimum
+internal heap, largest contiguous internal allocation, free and minimum PSRAM,
+and main-task stack high-water headroom. The existing total-free-heap field
+is retained for compatibility. All values come from ESP-IDF heap capabilities
+and FreeRTOS counters; no credentials or session data are logged. This provides
+diagnostic fields for later multi-client/LVGL/flash-write soak testing, but
+does **not** itself demonstrate leak-free operation, DMA availability,
+watchdog safety or a measured device memory floor. T10-05 stays open.
+
+The exact-head GitHub Actions pinned ESP-IDF v6.1 compilation, native host
+CTest, simulated HTTP/WebSocket, headless LVGL and React gates are required
+to validate this source change. No board, LCD, probes, Wi-Fi credentials,
+owner-device reset or OTA operation was used in this iteration.
