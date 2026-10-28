@@ -1,3 +1,29 @@
+## 2026-10-28 — History UTC integrity and event transition preservation (software-only)
+
+Two independent native-testable storage integrity fixes landed directly on master.
+The TMH1/TMH2 history decoder now rejects CRC-valid records that contain a
+nonzero UTC timestamp while the synchronized flag is clear, and rejects
+negative UTC timestamps on both serialization and decoding. This prevents
+silently accepting noncanonical persisted history and exposing invalid time.
+Native storage regression recalculates valid CRCs for deliberately malformed
+legacy and current records and verifies rejection; a valid synchronized
+round-trip still succeeds. Exact-source CI `fca6d9612d351b93e456313b503c8a79522e8229`
+(run 40777903610) **passed**.
+
+EventStore previously suppressed any same-state/same-detail event within one
+second even when the prior state or UTC synchronization status differed.
+Duplicate suppression now also compares the prior state and optional UTC.
+Native storage tests verify exact duplicates remain coalesced, while distinct
+previous-state transitions and newly synchronized UTC events are persisted
+with continuous sequence numbers across reopen. Exact-source CI
+`7c758ada5202c1ad21586a5fc5064ec97fa1d9da` (run 40778698147)
+**passed**. Both workflows include native C++, Python diagnostics, simulated
+REST/WebSocket, headless LVGL, React verification, and pinned ESP-IDF v6.1
+firmware compilation. These are host and simulated tests, not evidence of
+physical LittleFS durability. T06-14/T06-16, hardware/owner Wi-Fi, OTA,
+factory reset and sustained combined-load acceptance remain unchecked.
+No devices, credentials, flashing, OTA, power cycling or reset were used.
+
 ## 2026-10-28 — Preserve short future history-format tails (software-only)
 
 HistoryStore recovery previously checked unknown TMH format/version headers

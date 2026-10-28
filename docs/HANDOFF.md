@@ -1,3 +1,16 @@
+## 2026-10-28 — Host-only storage integrity follow-up
+
+History TMH1/TMH2 now rejects noncanonical unsynchronized timestamps and
+negative UTC values; CRC-recomputed malformed-record regressions pass.
+EventStore now preserves state-transition and UTC-sync changes inside the
+one-second duplicate window while still coalescing exact duplicates.
+Exact-commit CI passed for `fca6d961` (run 40777903610) and
+`7c758ada` (run 40778698147), including native C++, Python,
+simulated REST/WebSocket, headless LVGL, React and pinned ESP-IDF v6.1.
+T06-14/T06-16 and all physical LittleFS/power-loss, hardware,
+owner-network, OTA and destructive-reset acceptance remain open.
+No owner devices or secrets were accessed.
+
 ## 2026-10-28 — Short future-format history headers (software-only)
 
 History recovery now conservatively preserves unknown TMH/version prefixes
