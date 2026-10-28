@@ -1,3 +1,21 @@
+## 2026-10-28 — Preserve short future history-format tails (software-only)
+
+HistoryStore recovery previously checked unknown TMH format/version headers
+only after six bytes were present. An interrupted four- or five-byte TMH3
+header (or TMH2 with an incompatible fifth version byte) was therefore
+truncated as an ordinary incomplete TMH2 write. Recovery now checks the known
+magic at four bytes, schema version at five, and the upper version byte at
+six, refusing recovery without modifying the journal when a future format
+is identified. Existing genuine TMH1/TMH2 interrupted-write recovery is
+preserved. Native `history_power_cut_recovery` tests add short unknown
+headers appended after a valid persisted bucket and assert byte-for-byte
+preservation; existing tests exhaustively cover all partial TMH2 byte
+boundaries for one and five probes, including segment rollover. CI evidence
+must be collected on the exact commit before this is considered verified.
+This is **host/POSIX simulation only**; physical LittleFS interruption,
+OTA rollback, and hardware acceptance remain open (T06-14/16, T10-09).
+No devices, credentials, OTA, flashing, reset or other hardware were used.
+
 ## 2026-10-28 — late Wi-Fi scan completion releases scan ownership (software-only)
 
 A scan-done event arriving at or after the ten-second scan deadline could

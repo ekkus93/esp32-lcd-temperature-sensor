@@ -1,3 +1,12 @@
+## 2026-10-28 — Short future-format history headers (software-only)
+
+History recovery now conservatively preserves unknown TMH/version prefixes
+at four, five and six bytes instead of deleting future-format evidence on
+a rollback. The native host power-cut suite covers byte-for-byte preservation
+and existing genuine TMH2 partial records. Pending exact-head CI evidence.
+Physical LittleFS power-loss/recovery, OTA, hardware and owner network
+acceptance remain open; no device operations were performed.
+
 ## 2026-10-28 — late Wi-Fi scan completion releases scan ownership (software-only)
 
 A scan-done event arriving at or after the ten-second scan deadline could

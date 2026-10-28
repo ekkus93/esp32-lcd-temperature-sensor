@@ -1,6 +1,8 @@
 #include "fake_bus.hpp"
 #include "history.hpp"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -105,6 +107,43 @@ int main() {
                                                  std::istreambuf_iterator<char>());
             CHECK(preserved == damaged);
         }
+    }
+    // Short future-format headers are evidence, not disposable partial
+    // TMH2 records. An older firmware image must preserve them on rollback,
+    // including prefixes after an otherwise committed bucket.
+    const std::vector<std::string> unknown_headers{
+        std::string("TMH3"),
+        std::string("TMH3") + char(3),
+        std::string("TMH2") + char(3),
+        std::string("TMH2") + char(2) + char(1),
+    };
+    Bucket committed{123, 0, std::nullopt, {}};
+    committed.sensors.push_back({probes[0].rom, 20, 19, 21, 60, false});
+    const auto valid_prefix = encode_bucket(committed);
+    CHECK(!valid_prefix.empty());
+    const auto path = std::filesystem::path(root) / "history";
+    const auto active_file = path / "00000000.tmh";
+    for (const auto &unknown : unknown_headers) {
+        std::filesystem::remove_all(path);
+        HistoryStore before(path.string(), 8192, 4096);
+        CHECK(before.recover() && before.append(committed));
+        {
+            std::ofstream tail(active_file, std::ios::binary | std::ios::app);
+            CHECK(tail.good());
+            tail.write(unknown.data(), static_cast<std::streamsize>(unknown.size()));
+            CHECK(tail.good());
+        }
+        const auto original_size = valid_prefix.size() + unknown.size();
+        HistoryStore restarted(path.string(), 8192, 4096);
+        CHECK(!restarted.recover());
+        CHECK(std::filesystem::file_size(active_file) == original_size);
+        std::ifstream preserved(active_file, std::ios::binary);
+        const std::vector<uint8_t> persisted((std::istreambuf_iterator<char>(preserved)),
+                                              std::istreambuf_iterator<char>());
+        CHECK(persisted.size() == original_size);
+        CHECK(std::equal(valid_prefix.begin(), valid_prefix.end(), persisted.begin()));
+        CHECK(std::equal(unknown.begin(), unknown.end(),
+                         persisted.begin() + static_cast<std::ptrdiff_t>(valid_prefix.size())));
     }
     std::filesystem::remove_all(root);
     std::cout << "PASS: one/five-probe TMH2 interrupted prefixes and complete-record "

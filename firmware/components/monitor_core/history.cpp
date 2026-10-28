@@ -179,10 +179,19 @@ bool HistoryStore::recover() {
             input.seekg(static_cast<std::streamoff>(good));
             std::array<char, 8> header{};
             input.read(header.data(), header.size());
-            if (input.gcount() >= 6 && std::memcmp(header.data(), "TMH", 3) == 0 &&
-                !((header[3] == '1' && header[4] == 1 && header[5] == 0) ||
-                  (header[3] == '2' && header[4] == 2 && header[5] == 0)))
-                return false; // Preserve a newer schema during firmware rollback.
+            // Even four or five bytes can identify a future TMH schema.
+            // Do not truncate a partial header that older firmware cannot
+            // safely interpret during rollback. A matching TMH1/TMH2 prefix
+            // still recovers as an interrupted append.
+            const auto header_bytes = input.gcount();
+            if (header_bytes >= 4 && std::memcmp(header.data(), "TMH", 3) == 0) {
+                if (header[3] != '1' && header[3] != '2')
+                    return false;
+                if (header_bytes >= 5 && header[4] != (header[3] == '1' ? 1 : 2))
+                    return false;
+                if (header_bytes >= 6 && header[5] != 0)
+                    return false;
+            }
             // A complete but CRC-damaged final record is not an interrupted
             // append. Fail without deleting its bytes; only a recognizable
             // incomplete tail may be truncated safely. This also preserves
