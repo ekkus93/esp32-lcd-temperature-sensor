@@ -1,11 +1,12 @@
 #include "event_store.hpp"
+
 #include <array>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <vector>
 #include <unistd.h>
+#include <vector>
 
 using namespace monitor;
 #define CHECK(expr)                                                                                \
