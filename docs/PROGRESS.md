@@ -11,8 +11,10 @@ cumulative probe/fault/latency counter consistency, and applies its read-latency
 threshold to the firmware's *cumulative maximum* rather than just the last
 sampled duration. This catches a transient slow conversion even when it
 occurred between serial log records. Added host regressions for the hidden
-latency spike, stagnant cycles, and impossible counters. The updated exact-head
-CI is pending; no hardware acceptance is claimed. `T02-15` remains unchecked.
+latency spike, stagnant cycles, and impossible counters. Exact-commit CI `d6a1ca947ab20647acabad69ca48bd821241ce24`
+(run 40642278541) **passed** all pinned host, display, web, and ESP-IDF v6.1
+checks, including the new numeric-report regressions. No hardware acceptance
+is claimed. `T02-15` remains unchecked.
 
 ## 2026-10-27 — physical sensor instrumentation prepared (no hardware)
 
