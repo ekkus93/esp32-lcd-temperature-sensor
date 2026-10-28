@@ -1,3 +1,21 @@
+## 2026-10-28 — skip live snapshot allocation without authorized subscribers (host-only)
+
+The production WebSocket broadcaster previously built a complete JSON snapshot
+on every sampling broadcast even with zero clients, or only expired/quarantined
+clients. It now lazily calls the snapshot producer at most once per broadcast,
+only after a live authorized subscriber is found. Expired-session eviction and
+failed-close quarantine maintenance continue even without a snapshot. Native
+production HTTP-server-shim/POSIX-socket regression verifies zero producer calls
+with no subscribers or only an expired session, and one shared producer call
+for two healthy peers receiving complete frames. Exact commit
+`d87775554786e120a5463c962221505f1cef45de` passed GitHub Actions run
+`40724203719`: native C++/Python, simulated REST/WebSocket, headless LVGL,
+React and pinned ESP-IDF v6.1 compilation. This reduces avoidable JSON/heap
+work on the memory-constrained device but does not establish measured ESP32
+heap floors, Wi-Fi/TCP backpressure, or concurrent device behavior. Keep
+T07-10 and T10-05 unchecked. No hardware, owner Wi-Fi/admin credentials,
+flashing, OTA, factory reset or physical LittleFS power loss were used.
+
 ## 2026-10-28 — revalidate administrator sessions at WebSocket admission (host-only)
 
 The HTTP WebSocket pre-handshake checks the administrator session, but an

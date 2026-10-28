@@ -1,3 +1,16 @@
+## 2026-10-28 — lazy WebSocket snapshots (software-only)
+
+Production WsLive now avoids constructing snapshot JSON without an authorized
+live subscriber while continuing expiry/quarantine cleanup. Host POSIX socket
+regression covers zero subscribers, expired-only subscribers, and two healthy
+subscribers sharing one producer call. Exact-SHA commit `d8777555` passed
+GitHub Actions run `40724203719` (native/Python, simulated API/WebSocket,
+headless LVGL, React, pinned ESP-IDF v6.1). T07-10/T10-05 remain open for
+physical ESP32 TCP/backpressure and sustained heap-floor evidence. All other
+physical sensor/LCD, owner Wi-Fi/DHCP/NTP, LittleFS interruption, OTA success/
+rollback, and disposable-device factory reset acceptance remains deferred.
+No owner device, credentials, flash, reset or OTA operations were used.
+
 ## 2026-10-28 — WebSocket admission authorization recheck
 
 Production WsLive now revalidates the administrator session at registration, preventing an expired/revoked token from occupying a live slot between HTTP pre-handshake and registration. The native HTTP/POSIX-socket shim uses simulated expiry to cover rejected admission and valid sessions that expire after registration. Initial commit `4f09b9ec` failed clang-format on the host mock; corrected exact-SHA commit `343a86f5` passed GitHub Actions `40715720284` (native/Python, simulator, headless LVGL, React and pinned ESP-IDF v6.1). T07-10 stays open for actual ESP32 TCP slow-client/concurrent-session acceptance. No hardware, credentials, flash, OTA, reset or physical power-loss operations occurred.
