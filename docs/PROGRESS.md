@@ -16,7 +16,10 @@ throughput, exact five-per-cycle success, impossible cumulative/interval
 counts and no-cycle counter changes. This is a host-only evidence gate; no
 physical bus, owner network, LCD, OTA, factory reset or LittleFS power
 interruption was exercised. T02-15 remains unchecked. Exact-commit GitHub
-Actions result must be recorded after the commit completes.
+CI `d9435b4c7c27b0aa73844d20dc9ab019a426c3a9` (run 40648388222)
+**passed** native C++ host tests, Python diagnostic-report regression,
+simulated API/WebSocket, headless LVGL, React checks and pinned ESP-IDF v6.1
+firmware compilation. No device/hardware acceptance is implied.
 
 ## 2026-10-27 — diagnostic reporting hardening (software-only)
 
@@ -98,6 +101,7 @@ unchanged. These tests are POSIX simulations only; real LittleFS power
 interruption and device-full acceptance remain outstanding under `T06-14/16`.
 No physical devices, credentials, OTA, flash or reset were used.
 Both changes passed exact-head CI: history `6daa43f7` (run 40628503271)
+
 and event journal `eb6c5012` (run 40629360797), including native CTests,
 simulated live clients, headless LVGL, React validation and pinned ESP-IDF v6.1
 firmware compilation. The first event-journal CI stopped at clang-format; the
@@ -199,6 +203,7 @@ ESP32 TCP backpressure, session-eviction timing, or Wi-Fi endurance. `T07-10`
 remains unchecked pending device acceptance; no device was accessed.
 
 
+
 ## 2026-10-27 — byte-by-byte interrupted history write recovery
 
 Added `history_power_cut_tests` to simulate interrupted TMH2 writes at every
@@ -298,6 +303,7 @@ lint, format and production build pass. TODO count: 107 checked, 51 open.
 
 Clock-service follow-up: host tests now exercise cold-start unknown UTC, monotonic
 time progression during an offline interval, an unsynchronized aggregate, and
+
 same-boot recovery into trusted UTC after synchronization. The configured NTP
 hostname/timezone path, SNTP callback quality flag and DST formatting were
 reviewed and the settings/DST tests pass. `T05-14/15/16` are checked for
@@ -397,6 +403,7 @@ zero-valid-count windows. Legacy `TMH1` remains readable without inventing
 historical names. Authenticated CSV export streams full five-minute records with
 simulation, timestamp-quality, ROM and validity fields. The web History page
 links to the export and labels its resolution. See [format details](HISTORY_FORMAT.md).
+
 
 The real ESP32 simulation passed the CSV cases in
 [device-history-csv-results.txt](validation/device-history-csv-results.txt):
@@ -498,6 +505,7 @@ were removed. Project npm commands now target the explicit `web/` package.
   only for a fully erased partition, and 3 MiB temperature-history retention
   within the 4 MiB filesystem. Completed segments are preserved on corruption;
   only damaged tails with no later valid records may be truncated.
+
 - One-Wire adapter compiles against pinned ESP-IDF v6.1 and uses one broadcast
   conversion followed by ROM-addressed CRC-validated reads. Physical sensor
   verification remains deferred; compile/host evidence is not sensor hardware
@@ -598,6 +606,7 @@ timeout are implemented; actual password rotation, old-session invalidation and 
 The shared `display_service` LVGL 9.6 renderer compiles under IDF and renders
 240×320 host PNGs. Overview and Trends objects persist across monotonic mode
 switches. Five ROM-ordered rows distinguish empty/off/lost/invalid/stale/bus
+
 fault and alarms; long labels ellipsize, including worst-case negative values.
 The bounded RAM cache stores at most 288 five-minute windows, preserves gaps,
 and feeds LVGL without filesystem reads. Temporary setup is a system screen,
@@ -697,6 +706,7 @@ between returned points. Gaps inside downsampled groups retain the `partial`
 flag; device queries stay bounded and CSV remains streamed. Eight core suites,
 the display suite, 34 frontend tests and the bare-board empty-history API check
 passed. See [history gap results](validation/device-history-gap-results.txt).
+
 
 Independent Overview/Trends dwell settings are persisted through device
 preferences and exposed in Settings. The LVGL view applies changes by restarting
@@ -798,6 +808,7 @@ state, generated into TypeScript and shown in Settings diagnostics. The host
 simulator supplies the same fields. The complete web suite passes 44 tests and
 the ESP-IDF v6.1 build passes (0x179f20 bytes, 63% slot headroom). Safe reboot
 and confirmed factory-reset controls remain open under T09-15.
+
 
 ## 2026-10-27 — Durable event journal and reliability diagnostics
 
