@@ -68,8 +68,9 @@ esp_err_t WsLive::receive(httpd_req_t *request) {
     const bool is_heartbeat = frame.type == HTTPD_WS_TYPE_PING || frame.type == HTTPD_WS_TYPE_PONG;
     if (frame.len == 0 && is_heartbeat)
         return ESP_OK;
-    httpd_sess_trigger_close(server_, fd);
-    return ESP_OK;
+    // A refused close must not make a forbidden client frame look accepted.
+    // Returning ESP_FAIL lets the HTTP server terminate the request/socket.
+    return httpd_sess_trigger_close(server_, fd) == ESP_OK ? ESP_OK : ESP_FAIL;
 }
 
 void WsLive::broadcast(void *context) {

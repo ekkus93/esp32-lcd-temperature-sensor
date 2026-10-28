@@ -221,6 +221,17 @@ int main() {
     assert(live.receive(&req) == ESP_FAIL);
     assert(was_closed(req.fd));
 
+    // If the HTTP server refuses the close request, a forbidden data frame
+    // must fail the handler rather than leave the connection accepted.
+    fail_inbound_read = false;
+    inbound_type = 1;
+    inbound_length = 0;
+    fail_close = true;
+    closed_fds.clear();
+    assert(live.receive(&req) == ESP_FAIL);
+    assert(!was_closed(req.fd));
+    fail_close = false;
+
     // An expired administrator token must not monopolize one of four live
     // slots between five-second broadcasts. A fifth valid subscriber can
     // replace the expired one immediately, without evicting healthy peers.
