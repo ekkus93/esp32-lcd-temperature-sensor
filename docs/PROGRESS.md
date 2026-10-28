@@ -9,7 +9,7 @@ including when snapshots are empty. Native HTTP-shim/POSIX-socket regression
 now uses a simulated clock to cover rejection at admission, later expiry,
 healthy-client isolation, and resumed delivery. No owner device, network
 credentials, flash, OTA, reset or physical power interruption was used.
-Exact-commit CI result: PENDING until GitHub Actions completes.
+Initial commit `4f09b9ec` failed only the clang-format gate on the host authorization mock (run `40715234147`). Corrected commit `343a86f5e89ac1e899798c6ec1d4a08e4ff59882` **passed** exact-SHA GitHub Actions run `40715720284`: C++ formatting, native C++/Python host tests, simulated REST/WebSocket, headless LVGL, React checks, and pinned ESP-IDF v6.1 firmware compilation. The historical tail of this progress file, accidentally omitted by the preceding documentation-only commit, was restored.
 T07-10 remains unchecked for actual ESP32 TCP backpressure/concurrency.
 
 ## 2026-10-28 — maintain WebSocket cleanup with empty snapshots (host-only)
