@@ -9,8 +9,10 @@ New Python host regressions cover an impossible one-probe interval, impossible
 cumulative count, and legitimate mid-window discovery of a second probe.
 The report remains numeric-only and never includes raw serial data or
 credentials. No actual physical readings were observed; `T02-15` remains
-unchecked. The exact-commit host/React/LVGL/ESP-IDF CI gate must pass before
-this change is treated as verified.
+unchecked. Exact-commit CI `500e82fc7443f97eaf9650d37460371fc8c30e18`
+(run 40653332038) **passed** the Python regression, native host,
+simulated API/WebSocket, headless LVGL, React checks, and pinned
+ESP-IDF v6.1 compilation. No physical hardware was accessed.
 
 ## 2026-10-28 — concurrent HTTP sessions cannot starve live WebSocket broadcasts (software-only)
 

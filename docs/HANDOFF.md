@@ -2,6 +2,20 @@
 
 ## Current state
 
+### 2026-10-28 software-only verification
+
+Two commits on `master` passed their own exact-commit GitHub Actions runs:
+`9b49917e` (40652116700) removes a six-fd HTTP enumeration bottleneck
+from the four-client live WebSocket broadcaster; `500e82fc`
+(40653332038) tightens read-only numeric sensor report bounds to the
+largest probe population actually observed. Native C++, Python, simulator,
+headless LVGL, React and pinned ESP-IDF v6.1 checks passed on the
+respective commits. The real-device WebSocket backpressure gate `T07-10`
+and actual probe/bus gate `T02-15` stay open; neither host test
+constitutes physical ESP32, Wi-Fi, LCD, OTA, reset or LittleFS power-loss
+acceptance. Do not enable the unverified backlight or flash/reset owner devices.
+
+
 ### Physical sensor qualification preparation — 2026-10-27
 
 Firmware now has read-only SENSOR_DIAG aggregate counters and a safe local serial/log analyzer at `tools/sensor_hardware_report.py`. They are host-testable and emit no sensor ROMs or credentials. A physical DS18B20 bus still requires deliberate `CONFIG_MONITOR_SENSOR_BUS` enablement after wiring and 4.7 kΩ pull-up checks. Do not connect the LCD backlight to GPIO15 without electrical sign-off. All hardware/owner-network/OTA/power-loss/reset acceptance remains unchecked. Exact-commit CI `6dc58704` (run 40641683891) passed the full host/display/web/ESP-IDF v6.1 workflow. The follow-up hardens the numeric report against hidden read-latency spikes and stagnant counters; exact-commit CI `d6a1ca94` (run 40642278541) passed. See `docs/PROGRESS.md` for the test command. This does not establish physical hardware acceptance.
