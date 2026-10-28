@@ -14,8 +14,11 @@ recovery. It also checks that a six-byte future-version prefix is retained
 unchanged. These tests are POSIX simulations only; real LittleFS power
 interruption and device-full acceptance remain outstanding under `T06-14/16`.
 No physical devices, credentials, OTA, flash or reset were used.
-Prior history-tail change passed exact-head CI `6daa43f7` (run 40628503271);
-the new journal change requires its own exact-head CI confirmation.
+Both changes passed exact-head CI: history `6daa43f7` (run 40628503271)
+and event journal `eb6c5012` (run 40629360797), including native CTests,
+simulated live clients, headless LVGL, React validation and pinned ESP-IDF v6.1
+firmware compilation. The first event-journal CI stopped at clang-format; the
+corrected exact commit passed. No device or physical power-loss evidence exists.
 
 ## 2026-10-27 — preserve complete CRC-damaged history records (software-only)
 
@@ -32,8 +35,9 @@ and five-probe final records (excluding length-field ambiguity) must produce
 an explicit failure and preserve the original damaged bytes. Existing exhaustive
 prefix/rollover tests continue to require successful incomplete-tail recovery.
 All cases are native/POSIX simulations, not LittleFS or hardware power-loss
-acceptance. `T06-14` and `T06-16` stay unchecked. Full CI is required for
-this exact source change; no physical device, owner network, OTA or reset used.
+acceptance. `T06-14` and `T06-16` stay unchecked. Exact-commit CI `6daa43f7` (run 40628503271) passed full native,
+simulator, headless LVGL, React and pinned ESP-IDF v6.1 checks; no physical
+device, owner network, OTA or reset used.
 
 ## 2026-10-27 — Wi-Fi scan policy verified on exact commit
 
