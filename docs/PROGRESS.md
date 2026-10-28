@@ -1,3 +1,16 @@
+## 2026-10-28 — reclaim expired WebSocket sessions at admission (software-only)
+
+The production four-client live WebSocket table could reject a valid new
+administrator connection when an expired/logged-out session still occupied
+a slot between periodic broadcasts. Admission now closes one unauthorized
+session and reuses its slot only when no free/stale descriptor exists.
+A native POSIX/HTTP-server-shim regression fills four valid slots, confirms
+fifth-client rejection, expires one token, and verifies immediate admission
+without closing healthy subscribers. CI verification is pending. This does
+not establish real ESP32 TCP backpressure, Wi-Fi concurrency, or session
+eviction latency; T07-10 remains unchecked. No hardware, secrets, flashing,
+OTA, reset or physical filesystem tests were used.
+
 ## 2026-10-28 — event journal interrupted-write and forward-format preservation (software-only)
 
 Added a native C++ regression that writes every 0–59-byte prefix of a

@@ -214,6 +214,30 @@ int main() {
     assert(live.receive(&req) == ESP_FAIL);
     assert(was_closed(req.fd));
 
+    // An expired administrator token must not monopolize one of four live
+    // slots between five-second broadcasts. A fifth valid subscriber can
+    // replace the expired one immediately, without evicting healthy peers.
+    monitor::WsLive admission;
+    admission.configure(reinterpret_cast<httpd_handle_t>(1), auth, [&] { return payload; });
+    std::array<std::array<int, 2>, 5> admission_peers{};
+    for (auto &pair : admission_peers)
+        assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pair.data()) == 0);
+    for (size_t i = 0; i < 5; ++i)
+        add_websocket(admission_peers[i][0]);
+    for (size_t i = 0; i < 4; ++i)
+        assert(admission.add_client(admission_peers[i][0], "valid"));
+    assert(!admission.add_client(admission_peers[4][0], "valid"));
+    assert(admission.add_client(admission_peers[1][0], "expired"));
+    closed_fds.clear();
+    assert(admission.add_client(admission_peers[4][0], "valid"));
+    assert(was_closed(admission_peers[1][0]));
+    for (size_t i : {size_t(0), size_t(2), size_t(3), size_t(4)})
+        assert(!was_closed(admission_peers[i][0]));
+    for (auto &pair : admission_peers) {
+        close(pair[0]);
+        close(pair[1]);
+    }
+
     for (auto &pair : peers) {
         close(pair[0]);
         close(pair[1]);

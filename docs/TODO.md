@@ -155,6 +155,9 @@ Event-journal host coverage now exhaustively reopens all 60 interrupted append p
 
 ## Phase 8 — Authentication and Wi-Fi credential security (release-blocking)
 
+
+Additional native production WebSocket admission regression now covers reclaiming an expired administrator session when all four live slots are occupied, without evicting valid subscribers. Host-only verification does not close the real-device TCP/backpressure/concurrent-client acceptance gate. Exact-commit CI pending.
+
 - [x] **T08-01** Complete security design gate: define first-owner provisioning/admin enrollment tied to one-time setup secret, account recovery, local access model and LAN transport protection.
 - [x] **T08-02** Implement unique per-device SoftAP credentials and safe NVS storage; verify no universal known factory password is accepted.
 - [x] **T08-03** Implement salted slow password hashing, constant-time verification, change-password flow and bounded lockout/rate-limiting.

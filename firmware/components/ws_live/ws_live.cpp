@@ -23,6 +23,19 @@ bool WsLive::add_client(int fd, const std::string &token) {
                       httpd_ws_get_fd_info(server_, client.fd) != HTTPD_WS_CLIENT_WEBSOCKET))
             slot = &client;
     }
+    if (!slot && auth_) {
+        // An expired or logged-out administrator session must not reserve a
+        // live-client slot until the next periodic broadcast. Close it before
+        // admitting a newly authenticated subscriber.
+        const auto now_ms = esp_timer_get_time() / 1000;
+        for (auto &client : clients_) {
+            if (auth_->authorize(client.token, now_ms))
+                continue;
+            httpd_sess_trigger_close(server_, client.fd);
+            slot = &client;
+            break;
+        }
+    }
     if (!slot)
         return false;
     slot->fd = fd;
