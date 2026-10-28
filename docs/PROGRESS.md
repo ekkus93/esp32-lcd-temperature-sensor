@@ -1025,3 +1025,8 @@ Actions pinned ESP-IDF v6.1 compilation and full test gates are pending.
 
 This is not evidence of successful OTA, forced bootloader rollback or actual
 firmware recovery. T10-02 stays unchecked. No board or owner device was used.
+
+The first exact-head OTA-policy CI (`cd804630`) stopped at clang-format,
+without executing tests or the SDK build. The follow-up replaces a wrapped
+aggregate initializer with explicit named health fields and normalizes the
+host test's namespace declaration. A fresh exact-head CI pass is required.

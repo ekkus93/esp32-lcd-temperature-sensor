@@ -3,8 +3,7 @@
 #include <iostream>
 
 int main() {
-    using monitor::OtaBootHealth;
-    using monitor::ota_boot_health_ready;
+    using namespace monitor;
     OtaBootHealth healthy{2, true, true, true, true, true};
     assert(ota_boot_health_ready(healthy));
     healthy.completed_cycles = 1;

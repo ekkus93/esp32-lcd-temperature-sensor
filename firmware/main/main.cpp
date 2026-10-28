@@ -218,9 +218,13 @@ extern "C" void app_main() {
             if (state_result != ESP_OK || state != ESP_OTA_IMG_PENDING_VERIFY) {
                 ota_boot_checked = true;
             } else {
-                const monitor::OtaBootHealth health{healthy_cycles, history_started,
-                                                    network_status == ESP_OK, auth_started,
-                                                    http_started, bus_status == ESP_OK};
+                monitor::OtaBootHealth health;
+                health.completed_cycles = healthy_cycles;
+                health.history_worker_started = history_started;
+                health.wifi_stack_started = network_status == ESP_OK;
+                health.authentication_started = auth_started;
+                health.http_server_started = http_started;
+                health.sampling_initialized = bus_status == ESP_OK;
                 if (!monitor::ota_boot_health_ready(health)) {
                     if (healthy_cycles == 2)
                         ESP_LOGE(tag, "OTA startup services incomplete; image remains pending");
