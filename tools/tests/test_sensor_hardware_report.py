@@ -61,6 +61,42 @@ class SensorDiagnosticsReportTests(unittest.TestCase):
         self.assertIn("read latency exceeds cumulative maximum",
                       sensor.report([stagnant[0], inconsistent])["errors"])
 
+    def test_detects_missing_valid_reads_and_short_acquisition(self):
+        # Probe discovery alone does not demonstrate successful conversions.
+        missing = [sensor.parse_line(line(10, 5, 0, 0, 0)),
+                   sensor.parse_line(line(11, 5, 0, 0, 0))]
+        result = sensor.report(missing, expected_probes=5)
+        self.assertIn("no valid readings observed", result["errors"])
+        self.assertEqual(result["valid_delta"], 0)
+        # A full five-probe qualification must count five valid conversions
+        # per cycle, not merely have five probes in the final snapshot.
+        partial = [sensor.parse_line(line(10, 5, 50, 0, 0)),
+                   sensor.parse_line(line(12, 5, 59, 0, 0))]
+        self.assertTrue(sensor.report(partial, expected_probes=5)["passed"])
+        self.assertIn(
+            "valid readings per acquisition cycle below minimum",
+            sensor.report(partial, expected_probes=5,
+                          min_valid_per_cycle=5)["errors"])
+        complete = [sensor.parse_line(line(10, 5, 50, 0, 0)),
+                    sensor.parse_line(line(12, 5, 60, 0, 0))]
+        self.assertTrue(sensor.report(complete, expected_probes=5,
+                                      min_valid_per_cycle=5)["passed"])
+
+    def test_rejects_impossible_reading_counters(self):
+        first = sensor.parse_line(line(10, 5, 50, 0, 0))
+        impossible = sensor.parse_line(line(11, 5, 56, 0, 0))
+        self.assertIn("readings exceed five-probe acquisition capacity",
+                      sensor.report([first, impossible])["errors"])
+        excess = sensor.parse_line(line(10, 5, 51, 0, 0))
+        self.assertIn("cumulative readings exceed acquisition capacity",
+                      sensor.report([excess])["errors"])
+        stalled = sensor.parse_line(line(10, 5, 51, 0, 0))
+        self.assertIn("readings changed without acquisition cycle",
+                      sensor.report([first, stalled])["errors"])
+        too_many = sensor.parse_line(line(10, 6, 50, 0, 0))
+        self.assertIn("probe count exceeds firmware capacity",
+                      sensor.report([too_many])["errors"])
+
     def test_log_mode_does_not_emit_secrets(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "device.log"

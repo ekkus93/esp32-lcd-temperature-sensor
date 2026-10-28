@@ -26,7 +26,8 @@ def parse_line(line):
 
 
 def report(samples, expected_probes=None, min_records=2,
-           max_invalid=None, max_faults=None, max_read_ms=None):
+           max_invalid=None, max_faults=None, max_read_ms=None,
+           min_valid_per_cycle=0):
     errors = []
     if len(samples) < min_records:
         errors.append("too few diagnostic records")
@@ -35,6 +36,13 @@ def report(samples, expected_probes=None, min_records=2,
                     "max_read_ms"):
             if after[key] < before[key]:
                 errors.append("counter reset or regression: " + key)
+        cycle_delta = after["cycles"] - before["cycles"]
+        reading_delta = (after["valid"] + after["invalid"] -
+                         before["valid"] - before["invalid"])
+        if cycle_delta >= 0 and reading_delta > 5 * cycle_delta:
+            errors.append("readings exceed five-probe acquisition capacity")
+        if cycle_delta == 0 and reading_delta != 0:
+            errors.append("readings changed without acquisition cycle")
     for item in samples:
         if item["last_probes"] > item["max_probes"]:
             errors.append("probe count exceeds cumulative maximum")
@@ -42,13 +50,24 @@ def report(samples, expected_probes=None, min_records=2,
             errors.append("read latency exceeds cumulative maximum")
         if item["fault_cycles"] > item["cycles"]:
             errors.append("fault cycles exceed acquisition cycles")
+        if item["max_probes"] > 5:
+            errors.append("probe count exceeds firmware capacity")
+        if item["valid"] + item["invalid"] > 5 * item["cycles"]:
+            errors.append("cumulative readings exceed acquisition capacity")
     if len(samples) >= 2 and samples[-1]["cycles"] <= samples[0]["cycles"]:
         errors.append("no new acquisition cycles observed")
     if expected_probes is not None and any(
             item["last_probes"] != expected_probes for item in samples):
         errors.append("observed probe count differs from expected")
     invalid_delta = samples[-1]["invalid"] - samples[0]["invalid"] if samples else 0
+    valid_delta = samples[-1]["valid"] - samples[0]["valid"] if samples else 0
     faults_delta = samples[-1]["fault_cycles"] - samples[0]["fault_cycles"] if samples else 0
+    cycles_delta = samples[-1]["cycles"] - samples[0]["cycles"] if samples else 0
+    if expected_probes is not None and expected_probes > 0 and cycles_delta > 0:
+        if valid_delta <= 0:
+            errors.append("no valid readings observed")
+    if cycles_delta > 0 and valid_delta < min_valid_per_cycle * cycles_delta:
+        errors.append("valid readings per acquisition cycle below minimum")
     if max_invalid is not None and invalid_delta > max_invalid:
         errors.append("invalid readings exceeded limit")
     if max_faults is not None and faults_delta > max_faults:
@@ -61,6 +80,8 @@ def report(samples, expected_probes=None, min_records=2,
         "passed": not errors,
         "records": len(samples),
         "observed_cycles": samples[-1]["cycles"] - samples[0]["cycles"] if samples else 0,
+        "valid_delta": valid_delta,
+        "min_valid_per_cycle": min_valid_per_cycle,
         "invalid_delta": invalid_delta,
         "fault_cycles_delta": faults_delta,
         "last_probe_count": samples[-1]["last_probes"] if samples else None,
@@ -102,6 +123,9 @@ def main(argv=None):
     parser.add_argument("--max-invalid", type=int)
     parser.add_argument("--max-faults", type=int)
     parser.add_argument("--max-read-ms", type=int)
+    parser.add_argument("--min-valid-per-cycle", type=int, default=0,
+                        choices=range(0, 6),
+                        help="minimum average valid readings per acquisition (0-5)")
     parser.add_argument("--output", type=Path, help="optional numeric-only JSON report")
     args = parser.parse_args(argv)
     if args.seconds <= 0 or args.min_records < 1 or any(
@@ -117,8 +141,12 @@ def main(argv=None):
     except (OSError, RuntimeError) as exc:
         print("Unable to collect sensor diagnostics: " + type(exc).__name__, file=sys.stderr)
         return 2
+    if (args.expected_probes is not None and
+            args.min_valid_per_cycle > args.expected_probes):
+        parser.error("minimum valid readings cannot exceed expected probes")
     result = report(samples, args.expected_probes, args.min_records,
-                    args.max_invalid, args.max_faults, args.max_read_ms)
+                    args.max_invalid, args.max_faults, args.max_read_ms,
+                    args.min_valid_per_cycle)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
