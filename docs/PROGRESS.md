@@ -10,8 +10,11 @@ is identified. Existing genuine TMH1/TMH2 interrupted-write recovery is
 preserved. Native `history_power_cut_recovery` tests add short unknown
 headers appended after a valid persisted bucket and assert byte-for-byte
 preservation; existing tests exhaustively cover all partial TMH2 byte
-boundaries for one and five probes, including segment rollover. CI evidence
-must be collected on the exact commit before this is considered verified.
+boundaries for one and five probes, including segment rollover. Initial implementation `ea71e085` failed C++ formatting (CI run
+40772106565); corrected commit `5c35b6be5f2b360c5e46be6dead10bd24f792977`
+passed exact-commit CI run 40772204709, including native C++ storage/
+power-cut tests, Python diagnostics, simulated REST/WebSocket, headless LVGL,
+React checks and pinned ESP-IDF v6.1 firmware compilation.
 This is **host/POSIX simulation only**; physical LittleFS interruption,
 OTA rollback, and hardware acceptance remain open (T06-14/16, T10-09).
 No devices, credentials, OTA, flashing, reset or other hardware were used.

@@ -3,7 +3,7 @@
 History recovery now conservatively preserves unknown TMH/version prefixes
 at four, five and six bytes instead of deleting future-format evidence on
 a rollback. The native host power-cut suite covers byte-for-byte preservation
-and existing genuine TMH2 partial records. Pending exact-head CI evidence.
+and existing genuine TMH2 partial records. Exact-commit CI `5c35b6be` (run 40772204709) passed the native host power-cut regression, Python, simulated API/WebSocket, headless LVGL, React and pinned ESP-IDF v6.1 build.
 Physical LittleFS power-loss/recovery, OTA, hardware and owner network
 acceptance remain open; no device operations were performed.
 
