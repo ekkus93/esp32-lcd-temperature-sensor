@@ -19,7 +19,8 @@ bool WsLive::add_client(int fd, const std::string &token) {
             if (client.quarantined) {
                 // A prior partial send poisoned this stream. Refuse reuse
                 // until the HTTP server has actually closed the socket.
-                httpd_sess_trigger_close(server_, fd);
+                if (httpd_sess_trigger_close(server_, fd) == ESP_OK)
+                    client = Client{};
                 return false;
             }
             slot = &client;
@@ -105,7 +106,8 @@ void WsLive::broadcast(void *context) {
         if (client.quarantined) {
             // A previous nonblocking send failed and close was refused.
             // Retrying a frame could corrupt the RFC 6455 stream.
-            httpd_sess_trigger_close(self.server_, fd);
+            if (httpd_sess_trigger_close(self.server_, fd) == ESP_OK)
+                client = Client{};
             continue;
         }
         if (!self.auth_->authorize(client.token, now_ms)) {
@@ -115,7 +117,8 @@ void WsLive::broadcast(void *context) {
         if (!ws_frame::send_text_nonblocking(fd, text, send)) {
             client.quarantined = true;
             ESP_LOGW("ws_live", "Closing slow or failed WebSocket send for fd=%d", fd);
-            httpd_sess_trigger_close(self.server_, fd);
+            if (httpd_sess_trigger_close(self.server_, fd) == ESP_OK)
+                client = Client{};
         }
     }
 }
