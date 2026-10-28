@@ -134,8 +134,7 @@ extern "C" void app_main() {
         auto readings = sampling.read(now);
         const int64_t read_ended_ms = esp_timer_get_time() / 1000;
         if (sampling.enabled())
-            sensor_diagnostics.observe(readings, sampling.fault(),
-                                       read_ended_ms - read_started_ms);
+            sensor_diagnostics.observe(readings, sampling.fault(), read_ended_ms - read_started_ms);
         auto sampled_at = simulated ? int64_t(simulated_tick * 5000) : read_ended_ms;
         registry.sample(readings, sampled_at, sampling.fault());
         for (const auto &event : registry.events()) {

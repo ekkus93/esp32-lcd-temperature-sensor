@@ -13,9 +13,12 @@ int main() {
     assert(stats.cycles == 1 && stats.valid == 1 && stats.invalid == 0);
     assert(stats.last_probes == 1 && stats.max_probes == 1);
     assert(stats.last_read_ms == 752 && stats.max_read_ms == 752);
-    std::vector<Reading> five = {{1, 20.0, true}, {2, 21.0, true},
-                                 {3, std::nullopt, true}, {4, 23.0, true},
-                                 {5, std::nullopt, false}};
+    std::vector<Reading> five;
+    five.push_back({1, 20.0, true});
+    five.push_back({2, 21.0, true});
+    five.push_back({3, std::nullopt, true});
+    five.push_back({4, 23.0, true});
+    five.push_back({5, std::nullopt, false});
     stats.observe(five, false, 785);
     assert(stats.cycles == 2 && stats.valid == 4 && stats.invalid == 2);
     assert(stats.last_probes == 5 && stats.max_probes == 5);
