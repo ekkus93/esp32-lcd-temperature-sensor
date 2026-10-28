@@ -1,3 +1,16 @@
+## 2026-10-28 — stale Wi-Fi scan completion isolation (software-only)
+
+The Wi-Fi worker now rejects `WIFI_EVENT_SCAN_DONE` after a canceled,
+timed-out, rejected or already completed scan, rather than publishing stale
+scan results or changing state during candidate association. The production
+scan policy and native C++17 regression passed locally, and exact-SHA
+`51c31210` passed GitHub Actions `40754183030` (native/Python,
+simulated API/WebSocket, headless LVGL, React and pinned ESP-IDF v6.1).
+Physical scan/candidate handoff and phone/DHCP onboarding remain open under
+T05-04/T05-18. All hardware, LittleFS interruption, OTA/rollback, owner
+Wi-Fi, factory-reset and long-soak acceptance remains deferred. No owner
+device, secrets, flashing, OTA or reset were used.
+
 ## 2026-10-28 — independent BOOT recovery and candidate AP deadlines (software-only)
 
 The Wi-Fi AP policy now preserves an owner-initiated ten-minute BOOT recovery

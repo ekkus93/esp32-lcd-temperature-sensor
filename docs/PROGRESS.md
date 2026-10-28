@@ -1,3 +1,27 @@
+## 2026-10-28 — ignore canceled/late Wi-Fi scan completion events (host-only)
+
+The production Wi-Fi worker previously processed every queued
+`WIFI_EVENT_SCAN_DONE`, including events arriving after a scan timed out
+or was canceled for candidate station association. A late completion could
+replace the previous network list and clear scan state during a candidate
+handoff. `WifiScanWindow::completed(now_ms)` now accepts only an active
+scan that completed before its ten-second deadline; the worker ignores
+late/unowned completion events without reading scan records. The worker
+reads current monotonic time at completion rather than relying on the
+timestamp captured before its queue wait.
+
+Native C++17 scan-policy regression passed locally with
+`g++ -std=c++17 -Wall -Wextra -Werror -Wpedantic`; it covers valid
+completion, duplicate completion, candidate cancellation, rejected scans,
+timeout, and a completion at the deadline. Exact-SHA implementation
+`51c31210fed28abcd1a98d47ac010140e3faf9db` **passed** GitHub
+Actions run `40754183030`, including native C++/Python, simulated
+REST/WebSocket, headless LVGL, React checks and pinned ESP-IDF v6.1
+compilation. This does not prove actual ESP-IDF Wi-Fi event ordering,
+owner-network DHCP/scan behavior or phone onboarding. T05-04 and T05-18
+remain unchecked. No owner hardware, credentials, flashing, OTA, reset
+or physical LittleFS power loss was used.
+
 ## 2026-10-28 — preserve BOOT provisioning window across candidate DHCP (host-only)
 
 The production `WifiApWindow` previously reused one AP-close deadline for
