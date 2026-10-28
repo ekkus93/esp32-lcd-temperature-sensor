@@ -35,8 +35,7 @@ class WifiApWindow {
         reconnect_pending_ = false;
     }
     bool should_close(int64_t now_ms, bool candidate_active, bool station_connected) {
-        if (candidate_active || !station_connected || deadline_ms_ == 0 ||
-            now_ms < deadline_ms_)
+        if (candidate_active || !station_connected || deadline_ms_ == 0 || now_ms < deadline_ms_)
             return false;
         deadline_ms_ = 0;
         candidate_handoff_ = false;
