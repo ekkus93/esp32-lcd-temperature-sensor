@@ -13,7 +13,7 @@ from pathlib import Path
 
 KEYS = ("cycles", "last_probes", "max_probes", "valid", "invalid",
         "fault_cycles", "last_read_ms", "max_read_ms")
-PAIR = re.compile(r"([a-z_]+)=(\\d+)")
+PAIR = re.compile(r"([a-z_]+)=(\d+)")
 
 
 def parse_line(line):
