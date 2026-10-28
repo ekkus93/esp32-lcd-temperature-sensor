@@ -9,8 +9,11 @@ number of new acquisition cycles, even when both cumulative counters
 individually appear plausible. Added Python host regressions for duplicates,
 concatenation, malformed fields, non-ASCII digits and impossible fault
 intervals. This does not establish physical 1-Wire reliability, and
-`T02-15` stays unchecked. Exact-commit CI is the verification gate;
-no board, network credentials, LCD, OTA, reset or power-loss test was used.
+`T02-15` stays unchecked. Exact-commit GitHub Actions CI `f36e8839a0136f7ca1891043aca945f28e76c704`
+(run 40661726628) **passed** native C++ and Python host tests,
+simulated REST/WebSocket, headless LVGL, React verification and pinned
+ESP-IDF v6.1 compilation. No board, network credentials, LCD, OTA,
+reset or power-loss test was used.
 
 ## 2026-10-28 — reject replayed diagnostic evidence (software-only)
 

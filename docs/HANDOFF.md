@@ -2,6 +2,16 @@
 
 ## Current state
 
+### 2026-10-28 diagnostic-evidence integrity
+
+Exact-commit CI `f36e8839` (run 40661726628) **passed** the native,
+Python, simulator, headless LVGL, React and pinned ESP-IDF v6.1 gates.
+The read-only physical sensor report now rejects ambiguous/duplicated UART
+fields and impossible interval fault-cycle growth. These are host-only
+integrity checks, not physical five-probe qualification. `T02-15` and all
+other hardware/owner-network/OTA/reset/LittleFS power-loss gates remain open.
+No owner device was touched.
+
 ### 2026-10-28 software-only verification
 
 The latest exact-commit CI `1bec44e7` (run 40655925832) **passed** native host/Python, simulator, headless LVGL, React and pinned ESP-IDF v6.1 checks. The read-only sensor qualification report now rejects duplicated `SENSOR_DIAG` records and one-record reports even with a relaxed `--min-records` setting. This is host-only and does not close T02-15 or authorize attaching probes/backlight. No owner Wi-Fi credentials, physical reset, successful OTA, or LittleFS power-loss evidence was used.
