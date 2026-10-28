@@ -1,3 +1,26 @@
+## 2026-10-28 — preserve BOOT provisioning window across candidate DHCP (host-only)
+
+The production `WifiApWindow` previously reused one AP-close deadline for
+owner-requested BOOT recovery (10 minutes) and successful Wi-Fi candidate
+handoff (30 seconds). Starting or completing a candidate during manual
+recovery could silently replace the ten-minute owner window and close the
+provisioning AP after only 30 seconds. The policy now tracks both deadlines
+independently and closes only when both have elapsed, the candidate is idle,
+and station connectivity is present. After a handoff disconnect, a fresh
+30-second grace is required on reconnection even if manual recovery expired.
+
+Native C++17 policy regression passed locally with
+`g++ -std=c++17 -Wall -Wextra -Werror -Wpedantic`, including BOOT before,
+during and after candidate success, failed/retried candidates, disconnected
+handoff, and a long offline interval. Exact-SHA implementation commit
+`862078e43cd34bdab56afbd1add4d2d65a027c8a` **passed** GitHub
+Actions run `40752450935`: native C++/Python tests, simulated
+REST/WebSocket, headless LVGL, React checks, and pinned ESP-IDF v6.1
+compilation. This is software-only timing evidence. Physical BOOT button,
+owner-network DHCP/reconnect, phone onboarding, and AP-to-STA acceptance
+remain open under T05-04/05/10/11/18. No owner hardware, Wi-Fi/admin
+credentials, flashing, OTA, factory reset or physical power loss was used.
+
 ## 2026-10-28 — retire vanished WebSocket registrations (host-only)
 
 Production `WsLive::broadcast` now clears a subscriber slot when the ESP-IDF

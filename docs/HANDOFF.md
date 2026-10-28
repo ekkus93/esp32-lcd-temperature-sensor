@@ -1,3 +1,17 @@
+## 2026-10-28 — independent BOOT recovery and candidate AP deadlines (software-only)
+
+The Wi-Fi AP policy now preserves an owner-initiated ten-minute BOOT recovery
+window even when a candidate starts, succeeds, fails, or retries during that
+window. A separate 30-second candidate handoff grace is refreshed after
+station reconnect. Native C++17 timing regression passed locally, and exact
+implementation SHA `862078e4` passed GitHub Actions `40752450935`
+(native/Python, simulated REST/WebSocket, headless LVGL, React and pinned
+ESP-IDF v6.1). T05-04/05/10/11/18 remain open for physical BOOT behavior,
+owner Wi-Fi/DHCP, AP-to-STA and phone onboarding. The LCD/backlight, five
+DS18B20 probes, LittleFS power loss, OTA/rollback, destructive factory
+reset and sustained-load acceptance still need owner hardware. No device
+or credentials were accessed and no flash/reset/OTA was performed.
+
 ## 2026-10-28 — AP-to-STA handoff disconnect recovery (software-only)
 
 A candidate that obtained DHCP could disconnect during the 30-second AP
