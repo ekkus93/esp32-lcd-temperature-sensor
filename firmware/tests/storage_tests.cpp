@@ -3,6 +3,7 @@
 #include "history.hpp"
 #include "history_csv.hpp"
 #include "history_mount_policy.hpp"
+#include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <filesystem>
@@ -76,6 +77,40 @@ int main() {
     }
     auto restored = decode_bucket(data);
     CHECK(restored && restored->sensors[0].average == -10.123 && !restored->utc_seconds);
+    // A CRC-valid record with the UTC-present flag cleared must not
+    // smuggle a timestamp into a nominally unsynchronized history bucket.
+    // Negative UTC timestamps are rejected on both encode and decode.
+    auto negative_utc = bucket;
+    negative_utc.utc_seconds = -1;
+    CHECK(encode_bucket(negative_utc).empty());
+    auto synchronized = bucket;
+    synchronized.utc_seconds = 1800000000;
+    const auto synchronized_bytes = encode_bucket(synchronized);
+    CHECK(decode_bucket(synchronized_bytes)->utc_seconds == synchronized.utc_seconds);
+    const auto update_crc = [](std::vector<uint8_t> &bytes) {
+        uint32_t crc = ~uint32_t{0};
+        for (size_t i = 0; i < bytes.size() - 4; ++i) {
+            crc ^= bytes[i];
+            for (unsigned bit = 0; bit < 8; ++bit)
+                crc = (crc >> 1) ^ (0xedb88320u & (0u - (crc & 1u)));
+        }
+        crc = ~crc;
+        for (unsigned i = 0; i < 4; ++i)
+            bytes[bytes.size() - 4 + i] = static_cast<uint8_t>(crc >> (8 * i));
+    };
+    auto hidden_utc = synchronized_bytes;
+    hidden_utc[33] = 0;
+    update_crc(hidden_utc);
+    CHECK(!decode_bucket(hidden_utc));
+    auto negative_on_disk = synchronized_bytes;
+    std::fill(negative_on_disk.begin() + 24, negative_on_disk.begin() + 32, 0xff);
+    update_crc(negative_on_disk);
+    CHECK(!decode_bucket(negative_on_disk));
+    auto legacy_hidden_utc = legacy;
+    legacy_hidden_utc[24] = 1;
+    update_crc(legacy_hidden_utc);
+    CHECK(!decode_bucket(legacy_hidden_utc));
+
     for (std::size_t i = 0; i < data.size(); ++i) {
         auto corrupt = data;
         corrupt[i] ^= 1;

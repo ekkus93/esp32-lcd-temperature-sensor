@@ -50,7 +50,8 @@ std::optional<Bucket> next(std::istream &in) {
 }
 } // namespace
 std::vector<uint8_t> encode_bucket(const Bucket &bucket) {
-    if (bucket.sensors.size() > max_sensors || bucket.start_uptime_ms < 0)
+    if (bucket.sensors.size() > max_sensors || bucket.start_uptime_ms < 0 ||
+        (bucket.utc_seconds && *bucket.utc_seconds < 0))
         return {};
     std::vector<uint8_t> out{'T', 'M', 'H', '2'};
     put(out, 2, 2);
@@ -99,9 +100,14 @@ std::optional<Bucket> decode_bucket(const std::vector<uint8_t> &in) {
     if ((!legacy && !current) || get(in, 6, 2) != in.size() || in[32] > 5 || in[33] > 1 || in[34] ||
         in[35] || get(in, in.size() - 4, 4) != crc32(in.data(), in.size() - 4))
         return std::nullopt;
+    // An unsynchronized bucket must not carry a hidden UTC timestamp.
+    // A synchronized bucket must not expose a negative/unrepresentable UTC.
+    const uint64_t encoded_utc = get(in, 24, 8);
+    if ((!in[33] && encoded_utc != 0) || (in[33] && (encoded_utc >> 63) != 0))
+        return std::nullopt;
     Bucket bucket{get(in, 8, 8), static_cast<int64_t>(get(in, 16, 8)), std::nullopt, {}};
     if (in[33])
-        bucket.utc_seconds = static_cast<int64_t>(get(in, 24, 8));
+        bucket.utc_seconds = static_cast<int64_t>(encoded_utc);
     size_t pos = 36;
     const size_t end = in.size() - 4;
     for (unsigned i = 0; i < in[32]; ++i) {
