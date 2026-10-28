@@ -49,8 +49,7 @@ esp_err_t WsLive::receive(httpd_req_t *request) {
     }
     // Keep the historical behavior for empty RFC 6455 control heartbeats.
     // Data frames, including empty text/binary commands, are never allowed.
-    const bool is_heartbeat =
-        frame.type == HTTPD_WS_TYPE_PING || frame.type == HTTPD_WS_TYPE_PONG;
+    const bool is_heartbeat = frame.type == HTTPD_WS_TYPE_PING || frame.type == HTTPD_WS_TYPE_PONG;
     if (frame.len == 0 && is_heartbeat)
         return ESP_OK;
     httpd_sess_trigger_close(server_, fd);
