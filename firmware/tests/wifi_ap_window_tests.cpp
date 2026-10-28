@@ -53,5 +53,45 @@ int main() {
     assert(!ap.should_close(5030000, false, true));
     assert(ap.should_close(5601000, false, true));
 
-    std::cout << "wifi AP deadline: handoff, disconnect, reconnect, BOOT hold PASS\n";
+    // BOOT opened before a candidate must survive successful DHCP handoff.
+    ap.manual_open(7000000);
+    ap.candidate_started();
+    ap.candidate_connected(7001000);
+    assert(!ap.should_close(7031000, false, true));
+    assert(!ap.should_close(7599999, false, true));
+    assert(ap.should_close(7600000, false, true));
+
+    // BOOT opened during a candidate must not be shortened by its success.
+    ap.candidate_started();
+    ap.manual_open(8000000);
+    ap.candidate_connected(8005000);
+    assert(!ap.should_close(8035000, false, true));
+    assert(ap.should_close(8600000, false, true));
+
+    // BOOT opened after candidate success retains its full manual window.
+    ap.candidate_started();
+    ap.candidate_connected(9000000);
+    ap.manual_open(9005000);
+    assert(!ap.should_close(9030000, false, true));
+    assert(ap.should_close(9605000, false, true));
+
+    // Failed/retried candidates cannot erase the owner-requested AP window.
+    ap.manual_open(10000000);
+    ap.candidate_started();
+    ap.candidate_started();
+    assert(!ap.should_close(10030000, false, true));
+    assert(ap.should_close(10600000, false, true));
+
+    // After a long outage, fresh DHCP grace is honored even if an earlier
+    // manual BOOT deadline elapsed while the station was disconnected.
+    ap.candidate_started();
+    ap.candidate_connected(11000000);
+    ap.station_disconnected();
+    ap.manual_open(11001000);
+    assert(!ap.should_close(11601000, false, true));
+    ap.station_reconnected(11602000);
+    assert(!ap.should_close(11631999, false, true));
+    assert(ap.should_close(11632000, false, true));
+
+    std::cout << "wifi AP deadline: independent BOOT and handoff windows PASS\n";
 }
