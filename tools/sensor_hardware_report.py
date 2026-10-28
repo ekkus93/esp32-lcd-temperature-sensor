@@ -41,6 +41,11 @@ def report(samples, expected_probes=None, min_records=2,
                          before["valid"] - before["invalid"])
         if cycle_delta >= 0 and reading_delta > 5 * cycle_delta:
             errors.append("readings exceed five-probe acquisition capacity")
+        # max_probes is monotonic and counts actual returned readings.
+        # No interval can contain more readings than cycles * that maximum,
+        # even when the installed bus has fewer than five probes.
+        if cycle_delta >= 0 and reading_delta > after["max_probes"] * cycle_delta:
+            errors.append("readings exceed observed probe acquisition capacity")
         if cycle_delta == 0 and reading_delta != 0:
             errors.append("readings changed without acquisition cycle")
     for item in samples:
@@ -54,6 +59,8 @@ def report(samples, expected_probes=None, min_records=2,
             errors.append("probe count exceeds firmware capacity")
         if item["valid"] + item["invalid"] > 5 * item["cycles"]:
             errors.append("cumulative readings exceed acquisition capacity")
+        if item["valid"] + item["invalid"] > item["max_probes"] * item["cycles"]:
+            errors.append("cumulative readings exceed observed probe capacity")
     if len(samples) >= 2 and samples[-1]["cycles"] <= samples[0]["cycles"]:
         errors.append("no new acquisition cycles observed")
     if expected_probes is not None and any(

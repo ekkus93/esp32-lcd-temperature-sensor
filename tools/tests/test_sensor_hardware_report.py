@@ -97,6 +97,25 @@ class SensorDiagnosticsReportTests(unittest.TestCase):
         self.assertIn("probe count exceeds firmware capacity",
                       sensor.report([too_many])["errors"])
 
+    def test_observed_probe_capacity_bounds_counters(self):
+        # An attached single-probe bus cannot produce five successful
+        # readings per cycle merely because the firmware supports five.
+        one = sensor.parse_line(line(10, 1, 10, 0, 0))
+        double = sensor.parse_line(line(11, 1, 12, 0, 0))
+        self.assertIn(
+            "readings exceed observed probe acquisition capacity",
+            sensor.report([one, double])["errors"])
+        self.assertNotIn(
+            "readings exceed five-probe acquisition capacity",
+            sensor.report([one, double])["errors"])
+        impossible = sensor.parse_line(line(10, 1, 12, 0, 0))
+        self.assertIn(
+            "cumulative readings exceed observed probe capacity",
+            sensor.report([impossible])["errors"])
+        # A newly attached second probe can increase the interval maximum.
+        new_probe = sensor.parse_line(line(11, 2, 12, 0, 0))
+        self.assertTrue(sensor.report([one, new_probe])["passed"])
+
     def test_log_mode_does_not_emit_secrets(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "device.log"

@@ -1,3 +1,17 @@
+## 2026-10-28 — per-observed-probe diagnostic rate sanity checks (software-only)
+
+The physical qualification log analyzer now bounds cumulative valid/invalid
+readings by `max_probes * cycles`, and each interval's readings by the
+later sample's observed `max_probes * cycle_delta`, in addition to the
+absolute five-probe cap. This catches impossible apparent throughput on a
+one-probe bus rather than allowing it because firmware supports five.
+New Python host regressions cover an impossible one-probe interval, impossible
+cumulative count, and legitimate mid-window discovery of a second probe.
+The report remains numeric-only and never includes raw serial data or
+credentials. No actual physical readings were observed; `T02-15` remains
+unchecked. The exact-commit host/React/LVGL/ESP-IDF CI gate must pass before
+this change is treated as verified.
+
 ## 2026-10-28 — concurrent HTTP sessions cannot starve live WebSocket broadcasts (software-only)
 
 Production `WsLive` previously used `httpd_get_client_list` with only six
@@ -11,8 +25,10 @@ coalescing remain in place. The native production `WsLive` POSIX-socket
 test adds twelve unrelated HTTP sockets and requires healthy peers to receive
 the next frame. This is deterministic host coverage, **not** ESP32 TCP
 backpressure, Wi-Fi-client concurrency, or physical device acceptance.
-`T07-10` stays unchecked pending real-device behavior. Exact-commit CI result
-will be recorded after the new SHA has finished its workflow.
+`T07-10` stays unchecked pending real-device behavior. Exact-commit CI
+`9b49917e3752c9bfd6b7a5268f3afd947905ba7e` (run 40652116700)
+**passed** the production WebSocket host regression, simulated API/WebSocket,
+headless LVGL, React checks and pinned ESP-IDF v6.1 firmware build.
 
 ## 2026-10-28 — physical-probe qualification report coverage (software-only)
 
