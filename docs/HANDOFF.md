@@ -2,6 +2,11 @@
 
 ## Current state
 
+### 2026-10-28 — WebSocket admission regression reconciled
+
+Exact-head `949a8871` CI (run 40679993045) failed one native WebSocket test because its four-slot cap expectation contradicted new expired-session reclamation. Host test commit `63272fc4` makes all four initial slots valid before checking rejection, then expires a token for the existing broadcast-eviction test. Exact-SHA CI `63272fc4` (run 40681140003) **passed** native C++/Python, simulated REST/WebSocket, headless LVGL, React and ESP-IDF v6.1 build. T07-10 and hardware/owner-network/LittleFS power-loss/OTA/reset acceptance stay unchecked. No physical devices or credentials were used.
+
+
 ### 2026-10-28 event journal interrupted-append regression
 
 Exact-commit CI `98df8e1e` (run 40678870619) passed after reconciling

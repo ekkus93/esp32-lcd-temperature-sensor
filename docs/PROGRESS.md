@@ -1,3 +1,7 @@
+## 2026-10-28 — reconcile WebSocket admission test after expired-session reclamation (software-only)
+
+Exact-commit CI `949a8871ee4a9292d4dbaea9d42c56342c4acc1d` (run 40679993045) **failed** `websocket_live_client_isolation`: the old test expected a fifth WebSocket to be rejected even while one of four registered sessions was already expired. Production admission deliberately reclaims expired slots. The native POSIX/HTTP-shim regression now first fills four valid slots and asserts fifth-client rejection, then expires a registered token to test broadcast-time eviction. The separate admission-time reclamation regression remains intact. Commit `63272fc4b2be62445d650d3d30dcc40cca73622f` **passed** exact-commit CI run 40681140003, including 18 native CTests, Python diagnostics, simulated REST/WebSocket, headless LVGL, React checks and pinned ESP-IDF v6.1 firmware compilation. No hardware was accessed or flashed, and no owner credentials, OTA, destructive reset or physical power-loss tests were performed. T07-10 remains open for real-device slow-client, eviction and concurrency evidence.
+
 ## 2026-10-28 — reclaim expired WebSocket sessions at admission (software-only)
 
 The production four-client live WebSocket table could reject a valid new
