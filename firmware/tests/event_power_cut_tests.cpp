@@ -1,5 +1,4 @@
 #include "event_store.hpp"
-
 #include <array>
 #include <cstdlib>
 #include <filesystem>
@@ -32,12 +31,12 @@ int main() {
     next.kind = EventKind::wifi_state;
     next.state = State::high;
 
-    const auto committed = encode_event(JournalEvent{1, first.boot_id, first.uptime_ms,
-                                                     first.utc_seconds, first.rom, first.kind,
-                                                     first.previous, first.state, first.detail});
-    const auto interrupted = encode_event(JournalEvent{2, next.boot_id, next.uptime_ms,
-                                                       next.utc_seconds, next.rom, next.kind,
-                                                       next.previous, next.state, next.detail});
+    auto first_encoded = first;
+    first_encoded.sequence = 1;
+    auto next_encoded = next;
+    next_encoded.sequence = 2;
+    const auto committed = encode_event(first_encoded);
+    const auto interrupted = encode_event(next_encoded);
     CHECK(committed.size() == event_record_bytes && interrupted.size() == event_record_bytes);
 
     // Simulate power removal after each possible byte of the next append.

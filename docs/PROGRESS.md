@@ -6,7 +6,9 @@ the committed event and sequence, and appends another event successfully.
 Recovery now refuses to truncate partial future-format headers after only
 four or five bytes, as well as six-byte incompatible headers. This protects
 unknown data across firmware version changes. The host test is registered
-with the existing native CTest verifier; exact-commit CI is pending.
+with the existing native CTest verifier. Initial exact-commit CI `6ee5fd61`
+(run 40677966521) failed at C++ formatting before test execution; this
+follow-up fixes the formatting and requires a fresh exact-commit CI result.
 T06-14/16 remain open for real ESP32 LittleFS exhaustion, simultaneous
 device exports, physical power interruption and reboot evidence. No
 hardware, owner network, credentials, flashing, OTA or reset was used.

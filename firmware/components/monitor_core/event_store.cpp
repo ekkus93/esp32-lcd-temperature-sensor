@@ -139,9 +139,11 @@ bool EventStore::recover() {
         // an interrupted write from the current firmware.
         if (remaining >= 4 && bytes[tail_start] == 'T' && bytes[tail_start + 1] == 'M' &&
             bytes[tail_start + 2] == 'E') {
-            if (bytes[tail_start + 3] != '1' ||
-                (remaining >= 5 && bytes[tail_start + 4] != 1) ||
-                (remaining >= 6 && bytes[tail_start + 5] != 0))
+            if (bytes[tail_start + 3] != '1')
+                return false;
+            if (remaining >= 5 && bytes[tail_start + 4] != 1)
+                return false;
+            if (remaining >= 6 && bytes[tail_start + 5] != 0)
                 return false;
         }
         if (truncate(path_.c_str(), static_cast<off_t>(tail_start)) != 0)
