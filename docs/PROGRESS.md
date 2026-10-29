@@ -10,7 +10,7 @@ lstat() to reject links without following them. Native storage regression
 covers an existing symlink to a preserved segment, a dangling symlink,
 a directory segment, and recovery after removing invalid paths.
 
-Exact-head GitHub Actions verification pending for this commit. This is
+Initial source `b6c89553` failed only the C++ formatting gate (Actions `40834070502`); the test expression has been simplified to satisfy clang-format. Corrected exact-head CI pending. This is
 software-only protection, not real ESP32 LittleFS power interruption,
 wear measurement, OTA/rollback, owner-network, LCD/probe, physical reset or
 sustained-load acceptance. T06-14/T06-16 and all owner/hardware gates

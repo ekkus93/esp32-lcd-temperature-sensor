@@ -267,8 +267,8 @@ int main() {
     CHECK(std::filesystem::remove(guarded_path));
     CHECK(symlink("never-created.bin", guarded_path.c_str()) == 0);
     CHECK(!guarded.recover());
-    CHECK(!std::filesystem::exists(std::filesystem::path(guarded_directory) /
-                                   "never-created.bin"));
+    const auto missing_segment = std::filesystem::path(guarded_directory) / "never-created.bin";
+    CHECK(!std::filesystem::exists(missing_segment));
     CHECK(std::filesystem::remove(guarded_path));
     CHECK(std::filesystem::create_directory(guarded_path));
     CHECK(!guarded.recover());
