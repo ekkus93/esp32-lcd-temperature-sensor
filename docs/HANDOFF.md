@@ -1,3 +1,21 @@
+## 2026-10-29 — Active history segment append integrity (software-only)
+
+HistoryStore now keeps the recovered/committed active-segment fingerprint
+and refuses to append or roll over after a same-inode/size CRC-valid
+rewrite. After a successful fsync, the full expected fingerprint is
+rechecked before the new active state is accepted. Both in-place append
+and rollover have native regression coverage, including repair followed
+by mandatory explicit recovery. The first source commit `5038536d`
+failed formatting-only CI; corrected exact source
+`791451eea2946ed747aa50a56e52eeac998314ea` passed GitHub Actions
+`40942128655` (native C++/Python, simulated REST/WebSocket, headless
+LVGL, React, formatting and pinned ESP-IDF v6.1 compilation).
+FNV-1a is noncryptographic and added LittleFS reads still require device
+latency/heap/wear assessment. Numbered TODO: **114/145 complete**;
+T06-14, T06-16, T10-05 and all sensor/LCD, owner Wi-Fi/phone,
+physical reset, OTA success/rollback and sustained-load gates remain
+open. No hardware, secrets, flashing or destructive tests were used.
+
 ## 2026-10-29 — Cross-segment history export integrity (software-only)
 
 HistoryStore::visit previously fingerprinted each segment before and after its

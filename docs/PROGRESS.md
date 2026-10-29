@@ -1,3 +1,31 @@
+## 2026-10-29 — Verify active history integrity before and after append (software-only)
+
+HistoryStore previously required a recovered active segment to retain its
+path, POSIX inode and byte count, but an external same-size, CRC-valid
+in-place rewrite could survive these checks. The next append (including
+rollover/eviction) could then extend history whose validated contents had
+changed. Recovery now retains a bounded 64-bit FNV-1a fingerprint of the
+active segment; append rechecks those contents before writing or rolling
+over, and compares the expected full segment fingerprint after fsync before
+reporting success. Any mismatch latches the writer closed pending recovery.
+This is accidental-change detection, not cryptographic authentication.
+
+Native C++ regression covers both same-segment append and rollover,
+CRC-valid same-size/inode replacement, refusal without new segments or
+modified byte counts, refusal after repair until explicit recovery, and
+successful recovery/append with two intact rows. The first implementation
+commit `5038536db8ba562232375e386a7bc8cee6968b4f` failed only the C++
+formatting gate (Actions `40941859621`). The corrected exact SHA
+`791451eea2946ed747aa50a56e52eeac998314ea` **passed** GitHub
+Actions `40942128655`: C++ formatting, native C++/Python, simulated
+REST/WebSocket, headless LVGL, React checks and pinned ESP-IDF v6.1
+firmware compilation. Added segment reads need ESP32 LittleFS/heap/timing
+profiling; none was measured here. TODO stays **114/145 complete** (31
+open), with T06-14/T06-16/T10-05 and all physical sensor/LCD,
+owner-network/phone/DHCP, OTA/rollback, disposable reset and soak gates
+unchecked. No hardware, credentials, flashing, OTA, power interruption
+or destructive operation was used.
+
 ## 2026-10-29 — Cross-segment history export integrity (software-only)
 
 HistoryStore::visit previously fingerprinted each segment before and after its
