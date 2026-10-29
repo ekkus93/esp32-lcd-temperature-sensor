@@ -1,3 +1,14 @@
+## 2026-10-29 — History directory substitution guard verified
+
+HistoryStore now refuses missing or symlink-substituted history directories
+during recovery, append and export. Native regression covers directory rename,
+symlink substitution, data preservation, restored recovery and missing-dir
+refusal. Formatting-only CI failed on `6ffa567e`; corrected source
+`2dbbad3f` passed Actions run `40849582879`, including native C++/Python,
+simulated REST/WebSocket, headless LVGL, React and pinned ESP-IDF v6.1.
+No physical LittleFS/power-loss, LCD/probes, owner network, OTA, reset or
+soak acceptance was performed. TODO remains 114/158 checked; 44 open.
+
 ## 2026-10-29 — Exclusive history rollover creation and missing-active guard
 
 HistoryStore now rejects deleted active segments after recovery and exclusively

@@ -1,3 +1,21 @@
+## 2026-10-29 — Refuse missing or substituted history directories (software-only)
+
+HistoryStore now rejects missing/non-directory and host symlinked history
+directories during recovery, append and export instead of silently reporting
+empty history or writing through a substituted directory. Native regression
+renames a populated directory, substitutes a symlink to its original location,
+checks append/export/recovery refusal and unchanged history, restores the
+directory and recovers, then checks missing-directory export refusal.
+
+Initial source `6ffa567ea4a46d0862ce51ba546f2b0b251bfdf1` failed
+C++ formatting in Actions run `40849492146`; corrected source
+`2dbbad3faffcd715658a2eec5de491e2edfeca04` passed exact-SHA
+Actions run `40849582879` (native C++/Python, simulated REST/WebSocket,
+headless LVGL, React and pinned ESP-IDF v6.1 firmware build).
+No physical LittleFS, ESP32, sensors, LCD, owner network, OTA, reset or power
+interruption was used. T06-14/T06-16 remain unchecked, as do other physical
+acceptance gates. TODO remains 114/158 checked; 44 open.
+
 ## 2026-10-29 — Fail closed on missing history segments and exclusive rollover paths (software-only)
 
 HistoryStore now refuses to silently recreate an active segment deleted after
