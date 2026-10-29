@@ -9,7 +9,11 @@ Native regression mutates the sequence and event kind in place, checks both
 duplicate and distinct append refusal, quarantined API reads, and restored
 sequence continuity after repair and fresh recovery. This checks only the
 final record, not arbitrary earlier same-size corruption; API pagination
-continues to scan all records. Exact-commit CI pending.
+continues to scan all records. Initial source `0bbb5262` failed
+C++ formatting-only CI run `40890814193`; corrected source
+`c9699dada0e2d95e1a98fdd38c8708a3ffc86441` **passed** exact-SHA
+GitHub Actions run `40890960369`, including native C++/Python, simulated
+REST/WebSocket, headless LVGL, React and pinned ESP-IDF v6.1 compilation.
 
 T06-14/T06-16 remain open for physical LittleFS/power interruption and
 reboot. No ESP32, LCD, probes, owner Wi-Fi, OTA, factory reset, or flashing

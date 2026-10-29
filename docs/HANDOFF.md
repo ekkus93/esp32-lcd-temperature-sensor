@@ -1,3 +1,18 @@
+## 2026-10-29 — Same-size journal mutation guard verified
+
+EventStore now compares the durable final record with its recovered/appended
+last event before duplicate suppression or new appends. Native regression
+covers same-inode/same-size corruption of the last sequence/kind, failure
+latching, quarantined API pages, repair, recovery and sequence continuity.
+Formatting-only CI failed on `0bbb5262` (Actions `40890814193`);
+corrected source `c9699dad` passed exact-SHA Actions `40890960369`
+(native C++/Python, simulated REST/WebSocket, headless LVGL, React and
+pinned ESP-IDF v6.1). Earlier records with same-size corruption remain
+guarded by full-page/recovery scans, not by the new last-record append check.
+Numbered TODO remains 114/145 complete. T06-14/T06-16 and physical
+sensor/LCD, owner Wi-Fi, OTA/rollback, disposable reset and soak tests remain
+open. No hardware, credentials, flashing or destructive operations were used.
+
 ## 2026-10-29 — Event journal API recovery gate verified
 
 `EventStore::page()` now refuses reads before recovery or after a failed
