@@ -565,6 +565,36 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
     if (!dir)
         return false;
     closedir(dir);
+    // A callback in a later segment can change a previously exported segment
+    // after its individual post-visit check. Retain bounded per-segment
+    // identities and fingerprints until the entire export has finished.
+    struct VerifiedSegment {
+        unsigned number;
+        std::size_t size;
+        uint64_t fingerprint;
+#ifndef ESP_PLATFORM
+        uint64_t device;
+        uint64_t inode;
+#endif
+    };
+    std::vector<VerifiedSegment> verified;
+    const auto unchanged_visited = [&]() {
+        if (!same_history_directory(directory_, initial_directory))
+            return false;
+        for (const auto &segment : verified) {
+            const auto segment_path = path(segment.number);
+            if (!unchanged_segment_contents(segment_path, segment.size, segment.fingerprint))
+                return false;
+#ifndef ESP_PLATFORM
+            struct stat current {};
+            if (lstat(segment_path.c_str(), &current) != 0 || !S_ISREG(current.st_mode) ||
+                static_cast<uint64_t>(current.st_dev) != segment.device ||
+                static_cast<uint64_t>(current.st_ino) != segment.inode)
+                return false;
+#endif
+        }
+        return true;
+    };
     for (auto number : segments()) {
         // The directory can be replaced while a visitor processes a prior
         // segment. Recheck before following the next segment pathname.
@@ -584,6 +614,12 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
         if (!segment_fingerprint(path(number), initial_size, initial_fingerprint) ||
             !segment_has_size(path(number), initial_size))
             return false;
+        VerifiedSegment snapshot{number, initial_size, initial_fingerprint};
+#ifndef ESP_PLATFORM
+        snapshot.device = static_cast<uint64_t>(initial_segment.st_dev);
+        snapshot.inode = static_cast<uint64_t>(initial_segment.st_ino);
+#endif
+        verified.push_back(snapshot);
         std::ifstream input(path(number), std::ios::binary);
         if (!input)
             return false;
@@ -591,9 +627,7 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
         while (auto bucket = next(input)) {
             good = static_cast<std::size_t>(input.tellg());
             if (!visitor(*bucket))
-                return same_history_directory(directory_, initial_directory) &&
-                       same_history_segment(path(number), initial_segment) &&
-                       unchanged_segment_contents(path(number), initial_size, initial_fingerprint);
+                return same_history_segment(path(number), initial_segment) && unchanged_visited();
             if (!same_history_directory(directory_, initial_directory) ||
                 !same_history_segment(path(number), initial_segment))
                 return false;
@@ -607,6 +641,6 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
         if (input.bad() || good != file_size(path(number)))
             return false;
     }
-    return same_history_directory(directory_, initial_directory);
+    return unchanged_visited();
 }
 } // namespace monitor

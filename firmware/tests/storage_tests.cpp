@@ -571,6 +571,47 @@ int main() {
     CHECK(mutation_restored == 2);
     std::filesystem::remove_all(mutation_directory);
 
+    // Mutating an earlier segment from a later segment's callback previously
+    // escaped the per-segment post-visit check. Detect it even when the later
+    // callback stops traversal early, with valid CRCs and unchanged file size.
+    char prior_mutation_directory[] = "/tmp/monitor-visit-prior-mutation-XXXXXX";
+    CHECK(mkdtemp(prior_mutation_directory));
+    HistoryStore prior_mutation_guard(prior_mutation_directory, 8 * data.size(), data.size());
+    CHECK(prior_mutation_guard.recover());
+    CHECK(prior_mutation_guard.append(original_bucket));
+    CHECK(prior_mutation_guard.append(following_bucket));
+    const auto prior_path =
+        std::filesystem::path(prior_mutation_directory) / "00000000.tmh";
+    for (bool stop_early : {false, true}) {
+        unsigned prior_rows = 0;
+        CHECK(!prior_mutation_guard.visit([&](const Bucket &) {
+            if (++prior_rows == 2) {
+                std::fstream out(prior_path, std::ios::binary | std::ios::in | std::ios::out);
+                CHECK(out.good());
+                out.write(reinterpret_cast<const char *>(altered_record.data()),
+                          altered_record.size());
+                out.flush();
+                CHECK(out.good());
+                return !stop_early;
+            }
+            return true;
+        }));
+        CHECK(prior_rows == 2);
+        std::fstream repair(prior_path, std::ios::binary | std::ios::in | std::ios::out);
+        CHECK(repair.good());
+        repair.write(reinterpret_cast<const char *>(original_history_record.data()),
+                     original_history_record.size());
+        repair.flush();
+        CHECK(repair.good());
+    }
+    unsigned prior_restored = 0;
+    CHECK(prior_mutation_guard.visit([&](const Bucket &) {
+        ++prior_restored;
+        return true;
+    }));
+    CHECK(prior_restored == 2);
+    std::filesystem::remove_all(prior_mutation_directory);
+
     // Retention must not erase older, valid segments before a new record is
     // durable. Force a write failure precisely when rollover would evict the
     // oldest segment; all four original records must remain readable.
