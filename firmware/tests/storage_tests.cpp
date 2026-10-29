@@ -292,6 +292,25 @@ int main() {
     CHECK(guarded.recover());
     CHECK(guarded.append(bucket));
     CHECK(guarded.visit([](const Bucket &) { return true; }));
+    // A same-name ordinary replacement file must not receive an append just
+    // because it is regular and contains an otherwise valid history record.
+    const auto guarded_original = std::filesystem::path(guarded_directory) / "original.tmh";
+    std::filesystem::rename(guarded_path, guarded_original);
+    CHECK(std::filesystem::copy_file(guarded_original, guarded_path));
+    const auto replacement_bytes = std::filesystem::file_size(guarded_path);
+    CHECK(!guarded.append(bucket));
+    CHECK(std::filesystem::file_size(guarded_path) == replacement_bytes);
+    CHECK(!guarded.append(bucket)); // Refusal latches writes until recovery.
+    CHECK(std::filesystem::remove(guarded_path));
+    std::filesystem::rename(guarded_original, guarded_path);
+    CHECK(guarded.recover());
+    CHECK(guarded.append(bucket));
+    unsigned restored_segment_rows = 0;
+    CHECK(guarded.visit([&](const Bucket &) {
+        ++restored_segment_rows;
+        return true;
+    }));
+    CHECK(restored_segment_rows == 3);
     std::filesystem::remove_all(guarded_directory);
 
     // Rollover must never follow a pre-created next-segment symlink, and

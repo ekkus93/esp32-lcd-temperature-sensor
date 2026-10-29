@@ -28,6 +28,9 @@ class HistoryStore {
     // Directory identity observed at the most recent successful recovery.
     uint64_t directory_dev_ = 0;
     uint64_t directory_ino_ = 0;
+    // The active segment must still be the file validated by recover()/append().
+    uint64_t active_dev_ = 0;
+    uint64_t active_ino_ = 0;
 #endif
     std::vector<unsigned> segments() const;
     std::string path(unsigned number) const;

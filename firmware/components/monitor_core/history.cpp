@@ -303,6 +303,17 @@ bool HistoryStore::recover() {
         return false;
     directory_dev_ = static_cast<uint64_t>(recovered_directory.st_dev);
     directory_ino_ = static_cast<uint64_t>(recovered_directory.st_ino);
+    if (active_segment_exists_) {
+        struct stat recovered_active {};
+        if (lstat(path(active_).c_str(), &recovered_active) != 0 ||
+            !S_ISREG(recovered_active.st_mode))
+            return false;
+        active_dev_ = static_cast<uint64_t>(recovered_active.st_dev);
+        active_ino_ = static_cast<uint64_t>(recovered_active.st_ino);
+    } else {
+        active_dev_ = 0;
+        active_ino_ = 0;
+    }
 #endif
     append_ready_ = true;
     return true;
@@ -350,6 +361,19 @@ bool HistoryStore::append(const Bucket &bucket) {
         append_ready_ = false;
         return false;
     }
+#ifndef ESP_PLATFORM
+    // A different ordinary file with the same valid name/size is not the
+    // recovered active segment, even when the parent directory is unchanged.
+    if (active_segment_exists_) {
+        struct stat current_active {};
+        if (lstat(path(active_).c_str(), &current_active) != 0 ||
+            static_cast<uint64_t>(current_active.st_dev) != active_dev_ ||
+            static_cast<uint64_t>(current_active.st_ino) != active_ino_) {
+            append_ready_ = false;
+            return false;
+        }
+    }
+#endif
     bool create_new = !active_segment_exists_;
     if (file_size(path(active_)) + data.size() > segment_bytes_) {
         if (active_ >= 99999999)
@@ -382,6 +406,17 @@ bool HistoryStore::append(const Bucket &bucket) {
         append_ready_ = false;
         return false;
     }
+#ifndef ESP_PLATFORM
+    // Revalidate the opened descriptor: path checks alone leave a rename
+    // window between lstat() and open().
+    if (!create_new &&
+        (static_cast<uint64_t>(opened.st_dev) != active_dev_ ||
+         static_cast<uint64_t>(opened.st_ino) != active_ino_)) {
+        close(fd);
+        append_ready_ = false;
+        return false;
+    }
+#endif
     FILE *output = fdopen(fd, create_new ? "wb" : "ab");
     if (!output) {
         close(fd);
@@ -399,6 +434,17 @@ bool HistoryStore::append(const Bucket &bucket) {
         append_ready_ = false;
         return false;
     }
+#ifndef ESP_PLATFORM
+    // Do not report success if the pathname was replaced while writing.
+    struct stat written_active {};
+    if (lstat(path(active_).c_str(), &written_active) != 0 ||
+        written_active.st_dev != opened.st_dev || written_active.st_ino != opened.st_ino) {
+        append_ready_ = false;
+        return false;
+    }
+    active_dev_ = static_cast<uint64_t>(opened.st_dev);
+    active_ino_ = static_cast<uint64_t>(opened.st_ino);
+#endif
     active_segment_exists_ = true;
     // Retention may briefly exceed its configured logical budget by one
     // record. Evict only after fsync succeeds, and fail closed if eviction

@@ -1,3 +1,19 @@
+## 2026-10-29 — Bind native history append to recovered active segment identity (software-only)
+
+Native HistoryStore now retains the active segment device/inode after successful
+recovery, refuses an ordinary same-name replacement before append, checks the
+opened descriptor against the recovered identity, and verifies the pathname
+still resolves to the written inode after flush/fsync/close. Native storage
+regression substitutes a valid regular file, confirms its bytes are unchanged
+and the writer remains latched, then restores the original, recovers and
+appends successfully. This extends the existing directory identity and symlink
+safeguards; ESP-IDF LittleFS retains path/type checks because its VFS has no
+reliable inode identity. The regression and pinned ESP-IDF v6.1 build require
+exact-commit GitHub Actions verification; do not claim CI success before it
+finishes. T06-14/T06-16, physical probes/LCD, owner-network onboarding, OTA,
+reset, sustained load and power-loss acceptance remain unchecked. No hardware,
+credentials or destructive operations were used.
+
 ## 2026-10-29 — Bind history writers to recovered directory identity (software-only)
 
 Native HistoryStore writers previously rejected missing and symlinked history
