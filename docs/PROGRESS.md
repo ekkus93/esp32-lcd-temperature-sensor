@@ -1,3 +1,37 @@
+## 2026-10-29 — Verify event-journal image after fsync (software-only)
+
+EventStore::append previously validated the full recovered journal before
+writing but acknowledged a new sequence after checking only the final file
+size and POSIX inode. A CRC-valid, same-size in-place rewrite during the
+write/fsync interval could therefore make an append appear successful even
+though its durable journal image differed from the expected contents.
+The writer now verifies the complete expected FNV-1a fingerprint, final
+event bytes, and file size after fsync/close and before advancing its
+in-memory cursor. A mismatch quarantines reads and writes until a
+successful explicit recovery. FNV-1a detects accidental changes, not
+adversarial forgery; concurrent writers are still unsupported.
+
+Added `firmware/tests/event_append_integrity_tests.cpp` with deterministic
+GNU-ld `--wrap=fsync` host-only fault injection. The test modifies either
+the first or newest record *after* the production fsync, retaining a valid
+CRC and identical file size, and verifies append refusal, unavailable
+pages, recovery latch, repair plus recovery, and sequence continuity.
+The first implementation `a607f3af` was followed by a test correction;
+`ccd280f0` failed C++ formatting-only CI (Actions `40964337076`).
+Corrected source `174c6d639f9b3d211c59327d27cb1c2f4a05feb4`
+**passed exact-SHA GitHub Actions `40964463330`**: C++ formatting,
+native C++/Python, simulated REST/WebSocket, headless LVGL, React checks,
+and pinned ESP-IDF v6.1 firmware compilation. This is host fault
+injection, not an actual LittleFS power cut or ESP32 concurrency/flash
+latency measurement. Additional post-write journal reads must be
+profiled on hardware.
+
+Numbered TODO remains **114/145 complete (78.62%)**, 31 open.
+T06-14/T06-16/T10-05 and all physical probes/LCD, owner-network
+onboarding, OTA success/rollback, disposable reset, and sustained-load
+acceptance gates remain unchecked. No owner secrets, hardware access,
+flashing, OTA or destructive operations occurred.
+
 ## 2026-10-29 — Preserve altered completed history before eviction (software-only)
 
 HistoryStore previously checked the recovered active segment's size, identity

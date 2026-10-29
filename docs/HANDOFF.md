@@ -1,3 +1,21 @@
+## 2026-10-29 — Post-fsync event-journal integrity (software-only)
+
+The event journal now rechecks the expected complete record stream and
+last durable event after fsync/close, before acknowledging append success.
+A native Linux `--wrap=fsync` regression injects CRC-valid, same-size
+mutations to both earlier and newest records during append, verifies
+fail-closed read/write quarantine, and confirms recovery and sequence
+continuity after restoring original bytes. Corrected source
+`174c6d639f9b3d211c59327d27cb1c2f4a05feb4` passed exact-SHA
+GitHub Actions `40964463330` (native C++/Python, simulated REST/WebSocket,
+headless LVGL, React, formatting and pinned ESP-IDF v6.1 build).
+Earlier `ccd280f0` failed formatting-only CI and was corrected.
+FNV-1a is noncryptographic; post-write read cost and physical LittleFS
+durability remain unmeasured. TODO: **114/145 numbered tasks complete**,
+31 open. Keep T06-14/T06-16/T10-05 and sensor/LCD, owner Wi-Fi/phone,
+OTA rollback, disposable reset, and 24–72h soak gates unchecked.
+No hardware, owner secrets or destructive actions were used.
+
 ## 2026-10-29 — Completed history segment eviction integrity (software-only)
 
 Recovery now seals every retained segment's size, FNV-1a fingerprint
