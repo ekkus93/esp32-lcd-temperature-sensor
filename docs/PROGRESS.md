@@ -1,3 +1,25 @@
+## 2026-10-29 — Preserve journal on exhausted 64-bit event sequence (software-only)
+
+The durable journal uses monotonically increasing 64-bit API cursors. An
+append after sequence UINT64_MAX previously triggered compaction **before**
+checking for sequence overflow, discarding older events even though the new
+record could not be encoded. The guard now runs after duplicate suppression
+but before compaction; new distinct events fail without modifying the journal,
+and existing pages remain available. A native regression preloads two valid
+records with sequences UINT64_MAX-1 and UINT64_MAX at the capacity boundary,
+then verifies append refusal, unchanged file length and retained pagination.
+Initial `7dcf17f9` failed C++ formatting (run 40919078045); formatted
+`03f821a5` exposed the pre-existing placement of compaction before the new
+guard (run 40919196805). Corrected source
+`14259ea170fc58595854c382869551919f22d8e4` **passed** exact-SHA
+GitHub Actions **40919934549**: native C++/Python, simulated REST/WebSocket,
+headless LVGL, React and pinned ESP-IDF v6.1 compilation. Numbered TODO
+remains **114/145 (78.62%)**, with 31 open tasks. T06-14/T06-16 still need
+physical LittleFS exhaustion, power interruption and reboot; owner-network,
+LCD/probes, OTA/rollback, disposable reset and sustained hardware-load
+acceptance also remain open. No hardware, secrets, flashing or destructive
+operations were used.
+
 ## 2026-10-29 — Bounded streaming event journal recovery (software-only)
 
 EventStore::recover() no longer materializes an arbitrarily large journal in

@@ -1,3 +1,16 @@
+## 2026-10-29 — Event journal 64-bit cursor exhaustion guard
+
+The software-only event journal now refuses a distinct append after durable
+sequence UINT64_MAX before retention compaction, preserving the existing
+records and API pagination. The native regression uses two valid near-limit
+records at capacity and checks no temporary compaction file or record loss.
+Exact-source `14259ea170fc58595854c382869551919f22d8e4` passed GitHub
+Actions run `40919934549` (native C++/Python, simulated REST/WebSocket,
+headless LVGL, React, pinned ESP-IDF v6.1). T06-14/T06-16 and all physical
+LittleFS/power-loss, probe/LCD, owner-network, OTA, reset and soak gates
+remain unchecked. Numbered TODO: 114/145 complete. No owner device,
+credentials or destructive operations were involved.
+
 ## 2026-10-29 — Bounded journal recovery follow-up
 
 EventStore recovery now validates 60-byte records incrementally instead of
