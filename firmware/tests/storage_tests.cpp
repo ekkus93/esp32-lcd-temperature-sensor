@@ -539,9 +539,9 @@ int main() {
     const auto mutation_path = std::filesystem::path(mutation_directory) / "00000000.tmh";
     auto altered_bucket = original_bucket;
     altered_bucket.start_uptime_ms = 1234;
-    const auto original_record = encode_bucket(original_bucket);
+    const auto original_history_record = encode_bucket(original_bucket);
     const auto altered_record = encode_bucket(altered_bucket);
-    CHECK(!original_record.empty() && altered_record.size() == original_record.size());
+    CHECK(!original_history_record.empty() && altered_record.size() == original_history_record.size());
     unsigned mutation_rows = 0;
     CHECK(!mutation_guard.visit([&](const Bucket &) {
         if (++mutation_rows == 1) {
@@ -557,8 +557,8 @@ int main() {
     {
         std::fstream repair(mutation_path, std::ios::binary | std::ios::in | std::ios::out);
         CHECK(repair.good());
-        repair.write(reinterpret_cast<const char *>(original_record.data()),
-                     original_record.size());
+        repair.write(reinterpret_cast<const char *>(original_history_record.data()),
+                     original_history_record.size());
         repair.flush();
         CHECK(repair.good());
     }
