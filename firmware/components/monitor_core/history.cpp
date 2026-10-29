@@ -269,6 +269,7 @@ bool HistoryStore::recover() {
     // In-memory segment selection is not trustworthy until recovery succeeds.
     append_ready_ = false;
     active_size_ = 0;
+    active_fingerprint_ = 14695981039346656037ull;
     if (mkdir(directory_.c_str(), 0700) != 0) {
         struct stat info {};
         if (stat(directory_.c_str(), &info) != 0 || !S_ISDIR(info.st_mode))
@@ -386,6 +387,9 @@ bool HistoryStore::recover() {
         if (status != 0 || !S_ISREG(active_metadata.st_mode) || active_metadata.st_size < 0)
             return false;
         active_size_ = static_cast<std::size_t>(active_metadata.st_size);
+        if (!segment_fingerprint(path(active_), active_size_, active_fingerprint_) ||
+            !segment_has_size(path(active_), active_size_))
+            return false;
     }
     append_ready_ = true;
     return true;
@@ -446,7 +450,10 @@ bool HistoryStore::append(const Bucket &bucket) {
         }
     }
 #endif
-    if (active_segment_exists_ && !segment_has_size(path(active_), active_size_)) {
+    // Detect a same-size, CRC-valid in-place edit since the last recovery or
+    // append, including when this write would roll over and evict history.
+    if (active_segment_exists_ &&
+        !unchanged_segment_contents(path(active_), active_size_, active_fingerprint_)) {
         append_ready_ = false;
         return false;
     }
@@ -525,11 +532,19 @@ bool HistoryStore::append(const Bucket &bucket) {
     active_ino_ = static_cast<uint64_t>(opened.st_ino);
 #endif
     const auto written_size = (create_new ? 0 : active_size_) + data.size();
-    if (!segment_has_size(path(active_), written_size)) {
+    uint64_t written_fingerprint = create_new ? 14695981039346656037ull : active_fingerprint_;
+    for (const auto byte : data) {
+        written_fingerprint ^= byte;
+        written_fingerprint *= 1099511628211ull;
+    }
+    // Read back the committed active bytes, not only their size. A concurrent
+    // in-place edit during the write must not be accepted as a durable append.
+    if (!unchanged_segment_contents(path(active_), written_size, written_fingerprint)) {
         append_ready_ = false;
         return false;
     }
     active_size_ = written_size;
+    active_fingerprint_ = written_fingerprint;
     active_segment_exists_ = true;
     // Retention may briefly exceed its configured logical budget by one
     // record. Evict only after fsync succeeds, and fail closed if eviction

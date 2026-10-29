@@ -26,6 +26,8 @@ class HistoryStore {
     bool active_segment_exists_ = false;
     // Recovered/committed byte count of the active segment (including rollover).
     std::size_t active_size_ = 0;
+    // Fingerprint of the recovered/committed active bytes. Accidental-change guard.
+    uint64_t active_fingerprint_ = 0;
 #ifndef ESP_PLATFORM
     // Directory identity observed at the most recent successful recovery.
     uint64_t directory_dev_ = 0;

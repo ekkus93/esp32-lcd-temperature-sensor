@@ -345,6 +345,63 @@ int main() {
     CHECK(size_rows == 3);
     std::filesystem::remove_all(size_directory);
 
+    // A CRC-valid in-place rewrite can retain both the active segment's
+    // size and inode. Reject the next append, including a rollover, until
+    // recovery explicitly revalidates restored data.
+    for (bool rollover : {false, true}) {
+        char fingerprint_directory[] = "/tmp/monitor-history-fingerprint-XXXXXX";
+        CHECK(mkdtemp(fingerprint_directory));
+        auto original_bucket = bucket;
+        original_bucket.start_uptime_ms = 0;
+        auto appended_bucket = original_bucket;
+        appended_bucket.start_uptime_ms = 300000;
+        const auto original_record = encode_bucket(original_bucket);
+        HistoryStore fingerprint_guard(fingerprint_directory, 8 * original_record.size(),
+                                       rollover ? original_record.size()
+                                                : 4 * original_record.size());
+        CHECK(fingerprint_guard.recover());
+        CHECK(fingerprint_guard.append(original_bucket));
+        const auto fingerprint_path =
+            std::filesystem::path(fingerprint_directory) / "00000000.tmh";
+        auto changed_bucket = original_bucket;
+        changed_bucket.start_uptime_ms = 600000;
+        const auto changed_record = encode_bucket(changed_bucket);
+        CHECK(changed_record.size() == original_record.size());
+        {
+            std::fstream changed(fingerprint_path, std::ios::binary | std::ios::in |
+                                                       std::ios::out);
+            CHECK(changed.good());
+            changed.write(reinterpret_cast<const char *>(changed_record.data()),
+                          changed_record.size());
+            changed.flush();
+            CHECK(changed.good());
+        }
+        CHECK(!fingerprint_guard.append(appended_bucket));
+        CHECK(!fingerprint_guard.append(appended_bucket));
+        CHECK(std::filesystem::file_size(fingerprint_path) == original_record.size());
+        CHECK(!std::filesystem::exists(std::filesystem::path(fingerprint_directory) /
+                                      "00000001.tmh"));
+        {
+            std::fstream repaired(fingerprint_path, std::ios::binary | std::ios::in |
+                                                        std::ios::out);
+            CHECK(repaired.good());
+            repaired.write(reinterpret_cast<const char *>(original_record.data()),
+                           original_record.size());
+            repaired.flush();
+            CHECK(repaired.good());
+        }
+        CHECK(!fingerprint_guard.append(appended_bucket));
+        CHECK(fingerprint_guard.recover());
+        CHECK(fingerprint_guard.append(appended_bucket));
+        unsigned rows = 0;
+        CHECK(fingerprint_guard.visit([&](const Bucket &) {
+            ++rows;
+            return true;
+        }));
+        CHECK(rows == 2);
+        std::filesystem::remove_all(fingerprint_directory);
+    }
+
     // Rollover must never follow a pre-created next-segment symlink, and
     // deletion of the active segment after recovery must not be masked.
     char rollover_directory[] = "/tmp/monitor-rollover-path-XXXXXX";
