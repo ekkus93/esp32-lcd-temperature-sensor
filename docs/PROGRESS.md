@@ -1,3 +1,20 @@
+## 2026-10-29 — Fail closed on unverified event journal API pages (software-only)
+
+`EventStore::page()` now requires a successful recovery and quarantines reads after
+an append/recovery failure. Previously a valid original journal restored after a
+failed append could be served as healthy without fresh verification; an instance
+never recovered could also report an empty file as available. Native regression
+checks the pre-recovery state, a failed append followed by file restoration,
+recovery, and normal pagination. Exact-source `97bbecda1e9cf2c11c07b29e16e9985ed6528a06`
+**passed** GitHub Actions `40879054815`: C++ formatting, native C++/Python,
+simulated REST/WebSocket, headless LVGL, React and pinned ESP-IDF v6.1.
+
+Numbered TODO remains **114/145 complete (31 open)**. T06-14/T06-16 still
+require physical LittleFS failure/power interruption and reboot acceptance.
+Physical sensors/LCD, owner-network AP+STA onboarding, OTA success/rollback,
+disposable-device reset and 24–72-hour soak remain unverified. No devices,
+owner credentials, flashing or destructive actions were used.
+
 ## 2026-10-29 — Reconcile storage CI and protect history export file identity (software-only)
 
 The concurrent storage fixture introduced two local variables named `size_guard`

@@ -1,3 +1,13 @@
+## 2026-10-29 — Event journal API recovery gate verified
+
+`EventStore::page()` now refuses reads before recovery or after a failed
+append/recovery until fresh recovery succeeds, even if valid original bytes
+are restored. Native regression passed exact-source `97bbecda` in Actions
+`40879054815`, including host C++/Python, REST/WebSocket simulator, headless
+LVGL, React and pinned ESP-IDF v6.1. Numbered TODO is 114/145 complete;
+T06-14/T06-16 and all physical/owner-network, OTA, reset and soak gates remain
+open. No hardware, credentials or destructive operations were used.
+
 ## 2026-10-29 — Exact-SHA CI restored; segment export identity guarded
 
 The storage test naming collision at `90037ce6` was fixed in `b53bb113`
