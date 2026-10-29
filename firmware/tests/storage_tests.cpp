@@ -995,6 +995,31 @@ int main() {
     second_durable.sequence = 2;
     const auto second_bytes = encode_event(second_durable);
     CHECK(second_bytes.size() == event_record_bytes);
+    // A same-length, CRC-valid change to the final record must not be
+    // served by an API page, including a page that ends before that record.
+    auto valid_last_change = second_durable;
+    valid_last_change.kind = EventKind::storage_error;
+    const auto changed_last_bytes = encode_event(valid_last_change);
+    CHECK(changed_last_bytes.size() == event_record_bytes);
+    {
+        std::fstream changed(altered_last_path, std::ios::binary | std::ios::in | std::ios::out);
+        CHECK(changed.good());
+        changed.seekp(static_cast<std::streamoff>(event_record_bytes));
+        changed.write(reinterpret_cast<const char *>(changed_last_bytes.data()),
+                      changed_last_bytes.size());
+        CHECK(changed.good());
+    }
+    CHECK(std::filesystem::file_size(altered_last_path) == 2 * event_record_bytes);
+    CHECK(!altered_last.page(0, 1).available);
+    CHECK(!altered_last.page(0, 50).available);
+    {
+        std::fstream restored(altered_last_path, std::ios::binary | std::ios::in | std::ios::out);
+        CHECK(restored.good());
+        restored.seekp(static_cast<std::streamoff>(event_record_bytes));
+        restored.write(reinterpret_cast<const char *>(second_bytes.data()), second_bytes.size());
+        CHECK(restored.good());
+    }
+    CHECK(altered_last.page(0, 1).available);
     {
         std::fstream damaged(altered_last_path, std::ios::binary | std::ios::in | std::ios::out);
         CHECK(damaged.good());

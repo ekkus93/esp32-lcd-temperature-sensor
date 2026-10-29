@@ -420,7 +420,8 @@ JournalPage EventStore::page(uint64_t after, size_t limit) const {
     // A journal is not API-readable until recovery has validated it. A failed
     // append/recovery also quarantines reads until another successful recovery.
     if (!append_ready_ || !limit || limit > 50 || !safe_journal_path(path_) ||
-        !expected_journal_size(path_, expected_bytes_) || bytes() > max_bytes_)
+        !expected_journal_size(path_, expected_bytes_) ||
+        !expected_last_record(path_, expected_bytes_, last_event_) || bytes() > max_bytes_)
         return page;
 #ifndef ESP_PLATFORM
     if (!same_journal_file(path_, journal_dev_, journal_ino_))
@@ -452,6 +453,11 @@ JournalPage EventStore::page(uint64_t after, size_t limit) const {
     }
     if (input.bad() ||
         (input.gcount() != 0 && input.gcount() != static_cast<std::streamsize>(buffer.size())))
+        return {};
+    // Reject an in-place change that occurred while the page was scanned.
+    // A valid CRC alone cannot prove the final event is the recovered one.
+    if (!expected_journal_size(path_, expected_bytes_) ||
+        !expected_last_record(path_, expected_bytes_, last_event_))
         return {};
     if (page.events.empty())
         page.next_after = after;
