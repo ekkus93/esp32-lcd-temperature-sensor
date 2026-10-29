@@ -889,19 +889,19 @@ int main() {
     // sequences or be hidden by duplicate suppression. A fresh recovery is
     // required before either the writer or API page may trust the journal.
     const std::string changed_size_path = std::string(event_directory) + "/changed-size.bin";
-    EventStore size_guard(changed_size_path, 4 * event_record_bytes);
-    CHECK(size_guard.recover());
+    EventStore event_size_guard(changed_size_path, 4 * event_record_bytes);
+    CHECK(event_size_guard.recover());
     auto size_first = event;
     size_first.uptime_ms = 1000;
-    CHECK(size_guard.append(size_first));
-    CHECK(size_guard.bytes() == event_record_bytes);
+    CHECK(event_size_guard.append(size_first));
+    CHECK(event_size_guard.bytes() == event_record_bytes);
     std::filesystem::resize_file(changed_size_path, 0);
-    CHECK(!size_guard.append(size_first)); // Would previously deduplicate stale state.
-    CHECK(!size_guard.page(0, 50).available);
-    CHECK(!size_guard.append(next_event)); // Failure latches the writer.
-    CHECK(size_guard.recover());
-    CHECK(size_guard.append(size_first));
-    CHECK(size_guard.page(0, 50).events.size() == 1);
+    CHECK(!event_size_guard.append(size_first)); // Would previously deduplicate stale state.
+    CHECK(!event_size_guard.page(0, 50).available);
+    CHECK(!event_size_guard.append(next_event)); // Failure latches the writer.
+    CHECK(event_size_guard.recover());
+    CHECK(event_size_guard.append(size_first));
+    CHECK(event_size_guard.page(0, 50).events.size() == 1);
     auto externally_added = size_first;
     externally_added.sequence = 2;
     externally_added.uptime_ms += 2000;
@@ -912,13 +912,13 @@ int main() {
         out.write(reinterpret_cast<const char *>(encoded.data()), encoded.size());
         CHECK(out.good());
     }
-    CHECK(!size_guard.append(next_event));
-    CHECK(!size_guard.page(0, 50).available);
-    CHECK(size_guard.recover());
+    CHECK(!event_size_guard.append(next_event));
+    CHECK(!event_size_guard.page(0, 50).available);
+    CHECK(event_size_guard.recover());
     auto after_external = externally_added;
     after_external.uptime_ms += 2000;
-    CHECK(size_guard.append(after_external));
-    const auto restored_size_page = size_guard.page(0, 50);
+    CHECK(event_size_guard.append(after_external));
+    const auto restored_size_page = event_size_guard.page(0, 50);
     CHECK(restored_size_page.available && restored_size_page.events.size() == 3 &&
           restored_size_page.events.back().sequence == 3);
 
