@@ -414,8 +414,9 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
         }
         // A callback may replace the parent directory even on the final
         // segment. Never report a successful export after that substitution.
-        if (!safe_history_directory(directory_) || input.bad() ||
-            good != file_size(path(number)))
+        if (!safe_history_directory(directory_))
+            return false;
+        if (input.bad() || good != file_size(path(number)))
             return false;
     }
     return true;
