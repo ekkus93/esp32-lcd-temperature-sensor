@@ -334,7 +334,7 @@ int main() {
     HistoryStore directory_guard(directory_guard_path, 4 * data.size(), 2 * data.size());
     CHECK(directory_guard.recover());
     CHECK(directory_guard.append(bucket));
-    const auto moved_directory = std::filesystem::path(std::string(directory_guard_path) + "-saved");
+    const std::filesystem::path moved_directory(std::string(directory_guard_path) + "-saved");
     std::filesystem::rename(directory_guard_path, moved_directory);
     CHECK(symlink(moved_directory.c_str(), directory_guard_path) == 0);
     CHECK(!directory_guard.append(bucket));
