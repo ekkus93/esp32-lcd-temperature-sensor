@@ -580,8 +580,7 @@ int main() {
     CHECK(prior_mutation_guard.recover());
     CHECK(prior_mutation_guard.append(original_bucket));
     CHECK(prior_mutation_guard.append(following_bucket));
-    const auto prior_path =
-        std::filesystem::path(prior_mutation_directory) / "00000000.tmh";
+    const auto prior_path = std::filesystem::path(prior_mutation_directory) / "00000000.tmh";
     for (bool stop_early : {false, true}) {
         unsigned prior_rows = 0;
         CHECK(!prior_mutation_guard.visit([&](const Bucket &) {
