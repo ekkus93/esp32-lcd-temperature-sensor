@@ -1,3 +1,16 @@
+## 2026-10-28 — Event-journal pagination integrity (software-only)
+
+The bounded event-journal pagination reader now validates every record beyond
+the requested page boundary before marking the page available. Native regression
+covers a valid three-event one-item page, CRC-valid duplicate sequence in a
+later record, and a torn tail; invalid journals fail closed. Exact-source
+`abafc225ec6599c88a4113fe258bba054215ad5c` passed GitHub Actions
+run 40798587386 (native C++/Python, simulated API/WebSocket, headless LVGL,
+React and pinned ESP-IDF v6.1). T06-14 remains open for actual LittleFS
+power-loss/reboot acceptance. All owner-network, sensor, LCD, OTA, destructive
+reset and combined-load hardware gates remain open. No device or credentials
+were accessed.
+
 ## 2026-10-28 — Dated project status checkpoint
 
 The comprehensive date-stamped handoff is in
