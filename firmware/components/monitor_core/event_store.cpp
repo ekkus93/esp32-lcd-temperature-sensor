@@ -77,8 +77,10 @@ bool expected_last_record(const std::string &path, size_t expected_bytes,
     if (expected.size() != event_record_bytes)
         return false;
     std::ifstream input(path, std::ios::binary);
-    if (!input ||
-        !input.seekg(static_cast<std::streamoff>(expected_bytes - event_record_bytes)))
+    if (!input)
+        return false;
+    input.seekg(static_cast<std::streamoff>(expected_bytes - event_record_bytes));
+    if (!input)
         return false;
     std::array<uint8_t, event_record_bytes> actual{};
     input.read(reinterpret_cast<char *>(actual.data()), actual.size());
