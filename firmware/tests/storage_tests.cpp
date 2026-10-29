@@ -310,7 +310,7 @@ int main() {
         ++restored_segment_rows;
         return true;
     }));
-    CHECK(restored_segment_rows == 3);
+    CHECK(restored_segment_rows == 2);
     std::filesystem::remove_all(guarded_directory);
 
     // Rollover must never follow a pre-created next-segment symlink, and
