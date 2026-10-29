@@ -468,12 +468,20 @@ bool EventStore::append(const JournalEvent &input) {
         return false;
     }
 #endif
-    if (!expected_journal_size(path_, expected_bytes_ + event_record_bytes)) {
+    // The write may have succeeded while another actor changed an earlier
+    // record in place. Size and inode checks cannot detect that case. Verify
+    // the complete expected post-fsync image before acknowledging the append.
+    const size_t written_bytes = expected_bytes_ + event_record_bytes;
+    const uint64_t written_fingerprint =
+        extend_fingerprint(journal_fingerprint_, encoded.data(), encoded.size());
+    if (!expected_journal_size(path_, written_bytes) ||
+        !expected_journal_fingerprint(path_, written_bytes, written_fingerprint) ||
+        !expected_last_record(path_, written_bytes, event)) {
         append_ready_ = false;
         return false;
     }
-    expected_bytes_ += event_record_bytes;
-    journal_fingerprint_ = extend_fingerprint(journal_fingerprint_, encoded.data(), encoded.size());
+    expected_bytes_ = written_bytes;
+    journal_fingerprint_ = written_fingerprint;
     last_sequence_ = event.sequence;
     last_event_ = event;
     return true;

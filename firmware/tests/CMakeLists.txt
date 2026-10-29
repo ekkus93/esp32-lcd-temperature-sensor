@@ -106,3 +106,11 @@ add_executable(event_power_cut_tests event_power_cut_tests.cpp)
 target_link_libraries(event_power_cut_tests PRIVATE monitor_core)
 target_compile_options(event_power_cut_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_test(NAME event_journal_power_cut_recovery COMMAND event_power_cut_tests)
+
+# Inject deterministic post-fsync, CRC-valid edits into the production
+# event journal writer. GNU ld wrapping is host-only, never ESP-IDF firmware.
+add_executable(event_append_integrity_tests event_append_integrity_tests.cpp)
+target_link_libraries(event_append_integrity_tests PRIVATE monitor_core)
+target_link_options(event_append_integrity_tests PRIVATE "LINKER:--wrap=fsync")
+target_compile_options(event_append_integrity_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
+add_test(NAME event_append_post_fsync_integrity COMMAND event_append_integrity_tests)
