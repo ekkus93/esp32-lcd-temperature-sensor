@@ -10,8 +10,10 @@ writer until successful recovery. Host storage regressions check
 post-recovery path substitution, target byte preservation, refusal of a
 symlinked .tmp, and subsequent recovery/sequence continuity.
 
-Exact-head CI must be verified before claiming acceptance. This does not
-establish physical LittleFS power interruption, OTA/rollback, owner Wi-Fi,
+Exact-source `560f998ab2dbb951cb03155eafd0b5497c6e563e` passed GitHub
+Actions run `40836865635`: native C++/Python host regressions, simulated
+REST/WebSocket, headless LVGL, React and pinned ESP-IDF v6.1 firmware
+compilation. This does not establish physical LittleFS power interruption, OTA/rollback, owner Wi-Fi,
 five probes/LCD, factory reset, or sustained-load acceptance; T06-14,
 T06-16 and all hardware/owner gates remain unchecked. No secrets,
 flashing, hardware or destructive reset were used.
