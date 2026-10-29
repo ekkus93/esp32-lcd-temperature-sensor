@@ -1,3 +1,24 @@
+## 2026-10-29 — Detect same-inode event journal size changes (software-only)
+
+EventStore now records the durable journal byte count after recovery, append
+and compaction. Before duplicate suppression, writes or API pagination it
+rejects an in-place truncate or external append even when the original path
+and inode are unchanged; a mismatch latches the writer until re-recovery.
+This prevents a stale duplicate from falsely succeeding after durable events
+were removed and prevents appending an out-of-sync sequence to an altered file.
+Native storage regression exercises both size changes, unavailable API pages,
+writer latching and sequence continuity after a fresh recovery. It does not
+claim to detect arbitrary same-size in-place corruption without a read.
+
+Exact-source commit `1ff9f96ea84a67f8b00fe5a4a5381e5f196720fa` passed
+GitHub Actions run `40871643869`: native C++/Python, simulated REST/WebSocket,
+headless LVGL, React checks and pinned ESP-IDF v6.1 firmware compilation.
+T06-14/T06-16 remain open for physical LittleFS exhaustion, power interruption
+and reboot. ESP32/LCD/probes, owner Wi-Fi, OTA/rollback, destructive reset and
+24–72-hour soak acceptance were not performed. No owner credentials or devices
+were accessed. Numbered TODO remains 114/145 complete (31 open); final
+acceptance and optional backlog are separate.
+
 ## 2026-10-29 — README capability and safety reconciliation (documentation-only)
 
 Updated the repository overview to match implemented React/LVGL/firmware

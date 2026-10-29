@@ -1,3 +1,13 @@
+## 2026-10-29 — Journal same-inode truncation/growth guard passed CI
+
+EventStore rejects same-inode journal size changes before duplicate suppression,
+append and API pagination, requiring fresh recovery before further writes.
+Native regression covers truncation, external append, latching and sequence
+continuity. Source `1ff9f96e` passed exact-SHA Actions `40871643869`
+(host C++/Python, simulated API/WebSocket, headless LVGL, React, ESP-IDF v6.1).
+T06-14/T06-16 and physical sensor/LCD, owner Wi-Fi, OTA, reset and soak gates
+remain open; no devices, credentials or destructive operations were used.
+
 ## 2026-10-29 — History active-segment inode guard passed exact-SHA CI
 
 HistoryStore now refuses a same-name ordinary active-segment replacement after
