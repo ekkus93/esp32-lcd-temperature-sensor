@@ -1,3 +1,28 @@
+## 2026-10-29 — Cross-segment history export integrity (software-only)
+
+HistoryStore::visit previously fingerprinted each segment before and after its
+own traversal. A callback processing a later segment could still rewrite an
+earlier, already-checked segment in place with a valid recomputed CRC and
+unchanged inode/length, allowing a mixed-time export to report success. The
+export now retains bounded per-segment fingerprints and (on POSIX) file
+identities, and rechecks all visited segments at completion or early visitor
+termination. Native regression exercises both paths with two segments,
+mutates the earlier record during the second callback, and confirms normal
+export after restoring the original record. FNV-1a detects accidental
+modification, not cryptographic tampering. The additional streaming reads
+require physical LittleFS/heap/watchdog profiling.
+
+Initial `88ba3f69` failed clang-format (Actions `40937768233`);
+formatted `f2b15226` failed native -Werror on uninitialized snapshot fields
+(Actions `40937869255`). Corrected exact-source
+`f9c379883ab20d2eac67f498b3d3638e60b2b5b6` **passed** GitHub
+Actions `40938539344`: native C++/Python, simulated REST/WebSocket,
+headless LVGL, React and pinned ESP-IDF v6.1 compilation. Numbered TODO
+remains **114/145 (78.62%)**, 31 open. T06-14/T06-16/T10-05 and all
+physical sensor/LCD, owner-network, OTA/rollback, disposable factory-reset
+and soak acceptance gates remain unchecked. No hardware, credentials,
+flashing or destructive operations were used.
+
 ## 2026-10-29 — Reject CRC-valid in-place history changes during export (software-only)
 
 HistoryStore::visit previously verified segment path/inode, size and each
