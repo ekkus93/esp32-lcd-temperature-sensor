@@ -476,8 +476,7 @@ int main() {
     // CRC-valid but non-monotonic sequences must not be served to API
     // clients or compacted: recovery already rejects these journals.
     const std::string sequence_path = std::string(event_directory) + "/sequence.bin";
-    for (const auto &pair : {std::array<uint64_t, 2>{2, 1},
-                             std::array<uint64_t, 2>{1, 1}}) {
+    for (const auto &pair : {std::array<uint64_t, 2>{2, 1}, std::array<uint64_t, 2>{1, 1}}) {
         std::ofstream out(sequence_path, std::ios::binary | std::ios::trunc);
         for (const auto sequence : pair) {
             auto serialized = event;
