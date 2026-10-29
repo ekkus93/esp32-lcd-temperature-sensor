@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 #include <dirent.h>
+#include <fcntl.h>
 #include <fstream>
 #include <iomanip>
 #include <limits>
@@ -261,6 +262,7 @@ bool HistoryStore::recover() {
                 return false;
         }
     }
+    active_segment_exists_ = !files.empty();
     append_ready_ = true;
     return true;
 }
@@ -277,30 +279,61 @@ bool HistoryStore::append(const Bucket &bucket) {
     if (data.empty() || segment_bytes_ < data.size() || max_bytes_ < 2 * segment_bytes_)
         return false;
     // Validate every retained path before eviction and the active path before
-    // append. A symlink substituted after recovery must never be written to.
-    for (auto number : segments()) {
+    // append. Do not silently recreate a segment deleted since recovery.
+    auto files = segments();
+    if ((active_segment_exists_ && (files.empty() || files.back() != active_)) ||
+        (!active_segment_exists_ && !files.empty())) {
+        append_ready_ = false;
+        return false;
+    }
+    for (auto number : files) {
         if (!safe_segment_path(path(number), false)) {
             append_ready_ = false;
             return false;
         }
     }
-    if (!safe_segment_path(path(active_), true)) {
+    if (!safe_segment_path(path(active_), !active_segment_exists_)) {
         append_ready_ = false;
         return false;
     }
+    bool create_new = !active_segment_exists_;
     if (file_size(path(active_)) + data.size() > segment_bytes_) {
         if (active_ >= 99999999)
             return false;
         ++active_;
+        create_new = true;
+    }
+    // A new segment must be created exclusively: never append to a path
+    // substituted between validation and rollover (including a symlink).
+    if (create_new && !safe_segment_path(path(active_), true)) {
+        append_ready_ = false;
+        return false;
     }
     // Do not evict retained history until the replacement record is safely
     // persisted. A failed append (ENOSPC, flush, fsync) must not erase the
     // oldest good segment just to make room for data that never landed.
-    auto files = segments();
     std::size_t total = bytes();
-    FILE *output = std::fopen(path(active_).c_str(), "ab");
-    if (!output)
+    int flags = O_WRONLY | (create_new ? (O_CREAT | O_EXCL) : O_APPEND);
+#if !defined(ESP_PLATFORM) && defined(O_NOFOLLOW)
+    flags |= O_NOFOLLOW;
+#endif
+    const int fd = open(path(active_).c_str(), flags, 0600);
+    if (fd < 0) {
+        append_ready_ = false;
         return false;
+    }
+    struct stat opened {};
+    if (fstat(fd, &opened) != 0 || !S_ISREG(opened.st_mode)) {
+        close(fd);
+        append_ready_ = false;
+        return false;
+    }
+    FILE *output = fdopen(fd, create_new ? "wb" : "ab");
+    if (!output) {
+        close(fd);
+        append_ready_ = false;
+        return false;
+    }
     bool ok = std::fwrite(data.data(), 1, data.size(), output) == data.size();
     if (std::fflush(output) != 0)
         ok = false;
@@ -312,6 +345,7 @@ bool HistoryStore::append(const Bucket &bucket) {
         append_ready_ = false;
         return false;
     }
+    active_segment_exists_ = true;
     // Retention may briefly exceed its configured logical budget by one
     // record. Evict only after fsync succeeds, and fail closed if eviction
     // cannot complete. A subsequent recovery can reconcile the segments.

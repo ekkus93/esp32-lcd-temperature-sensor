@@ -294,6 +294,39 @@ int main() {
     CHECK(guarded.visit([](const Bucket &) { return true; }));
     std::filesystem::remove_all(guarded_directory);
 
+    // Rollover must never follow a pre-created next-segment symlink, and
+    // deletion of the active segment after recovery must not be masked.
+    char rollover_directory[] = "/tmp/monitor-rollover-path-XXXXXX";
+    CHECK(mkdtemp(rollover_directory));
+    HistoryStore rollover_guard(rollover_directory, 4 * data.size(), data.size());
+    CHECK(rollover_guard.recover());
+    CHECK(rollover_guard.append(bucket));
+    const auto rollover_path = std::filesystem::path(rollover_directory) / "00000001.tmh";
+    const auto rollover_target = std::filesystem::path(rollover_directory) / "sentinel.bin";
+    {
+        std::ofstream sentinel(rollover_target, std::ios::binary);
+        sentinel << "untouched";
+    }
+    CHECK(symlink(rollover_target.c_str(), rollover_path.c_str()) == 0);
+    CHECK(!rollover_guard.append(bucket));
+    CHECK(std::filesystem::file_size(rollover_target) == 9);
+    CHECK(!rollover_guard.append(bucket)); // Invalid path latches writer.
+    CHECK(std::filesystem::remove(rollover_path));
+    CHECK(rollover_guard.recover());
+    CHECK(rollover_guard.append(bucket));
+    unsigned rollover_rows = 0;
+    CHECK(rollover_guard.visit([&](const Bucket &) {
+        ++rollover_rows;
+        return true;
+    }));
+    CHECK(rollover_rows == 2);
+    CHECK(std::filesystem::file_size(rollover_target) == 9);
+    const auto current_rollover = std::filesystem::path(rollover_directory) / "00000001.tmh";
+    CHECK(std::filesystem::remove(current_rollover));
+    CHECK(!rollover_guard.append(bucket)); // Missing active file is not recreated.
+    CHECK(!std::filesystem::exists(current_rollover));
+    std::filesystem::remove_all(rollover_directory);
+
     // Retention must not erase older, valid segments before a new record is
     // durable. Force a write failure precisely when rollover would evict the
     // oldest segment; all four original records must remain readable.

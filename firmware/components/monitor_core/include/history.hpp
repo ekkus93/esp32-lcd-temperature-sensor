@@ -22,6 +22,8 @@ class HistoryStore {
     unsigned active_ = 0;
     // No writes before first successful recovery or after a failed append/recovery.
     bool append_ready_ = false;
+    // Detect deletion of the active segment after a successful recovery/write.
+    bool active_segment_exists_ = false;
     std::vector<unsigned> segments() const;
     std::string path(unsigned number) const;
 };
