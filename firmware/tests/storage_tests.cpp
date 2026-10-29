@@ -478,6 +478,37 @@ int main() {
     CHECK(retry_page.available && retry_page.events.size() == 2);
     CHECK(retry_page.events[0].sequence == 1 && retry_page.events[1].sequence == 2);
 
+    // A valid-CRC journal that exceeds its configured capacity is not a
+    // recoverable retention rollover. Reject reads and refuse compaction,
+    // preserving all bytes for diagnosis rather than silently deleting them.
+    const std::string oversized_path = std::string(event_directory) + "/oversized.bin";
+    EventStore oversized(oversized_path, 2 * event_record_bytes);
+    CHECK(oversized.recover());
+    {
+        std::ofstream out(oversized_path, std::ios::binary | std::ios::trunc);
+        for (const auto sequence : {uint64_t(1), uint64_t(2), uint64_t(3)}) {
+            auto serialized = event;
+            serialized.sequence = sequence;
+            const auto encoded = encode_event(serialized);
+            CHECK(encoded.size() == event_record_bytes);
+            out.write(reinterpret_cast<const char *>(encoded.data()), encoded.size());
+        }
+        CHECK(out.good());
+    }
+    CHECK(oversized.bytes() == 3 * event_record_bytes);
+    CHECK(!oversized.page(0, 1).available);
+    auto oversized_next = event;
+    oversized_next.uptime_ms += 2000;
+    CHECK(!oversized.append(oversized_next));
+    CHECK(oversized.bytes() == 3 * event_record_bytes);
+    CHECK(!oversized.recover());
+    CHECK(std::filesystem::file_size(oversized_path) == 3 * event_record_bytes);
+    std::filesystem::resize_file(oversized_path, 2 * event_record_bytes);
+    CHECK(oversized.recover());
+    CHECK(oversized.page(0, 50).events.size() == 2);
+    CHECK(oversized.append(oversized_next));
+    CHECK(oversized.page(0, 50).events.back().sequence == 3);
+
     // CRC-valid but non-monotonic sequences must not be served to API
     // clients or compacted: recovery already rejects these journals.
     const std::string sequence_path = std::string(event_directory) + "/sequence.bin";

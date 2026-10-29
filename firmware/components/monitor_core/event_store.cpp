@@ -162,6 +162,10 @@ bool EventStore::recover() {
 }
 
 bool EventStore::compact() {
+    // Recovery rejects oversized journals. Never silently compact one into
+    // apparently valid data or advance sequences from stale in-memory state.
+    if (bytes() > max_bytes_)
+        return false;
     auto events = read_all(path_);
     if (events.empty())
         return false;
@@ -230,7 +234,7 @@ bool EventStore::append(const JournalEvent &input) {
 
 JournalPage EventStore::page(uint64_t after, size_t limit) const {
     JournalPage page{};
-    if (!limit || limit > 50)
+    if (!limit || limit > 50 || bytes() > max_bytes_)
         return page;
     std::ifstream input(path_, std::ios::binary);
     if (!input)
