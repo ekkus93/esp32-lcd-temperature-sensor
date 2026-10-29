@@ -4,7 +4,7 @@ Native HistoryStore appends now reject ordinary directory replacement after
 successful recovery. The regression preserves substitute segment bytes and
 shows restored writes only after fresh recovery. ESP-IDF LittleFS retains
 path/type safeguards and physical power-loss tests remain outstanding.
-Exact-SHA CI pending; T06-14/T06-16 and owner/hardware gates still open.
+Corrected source `bf8d7fbd` passed exact-commit Actions run `40860928672` after formatting-only initial failure (run `40860714630`). T06-14/T06-16 and owner/hardware gates still open.
 
 ## 2026-10-29 — Native history export directory identity (software-only)
 

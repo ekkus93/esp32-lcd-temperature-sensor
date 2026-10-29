@@ -9,7 +9,7 @@ Native C++ regression constructs a valid replacement ordinary directory with
 the original history segment, refuses writes without mutating its contents,
 restores the original and verifies normal writes after successful recovery.
 ESP-IDF LittleFS lacks reliable inode identity and retains path/type checks.
-Exact-commit CI pending. No physical power loss, owner Wi-Fi, LCD/DS18B20,
+Initial `5b741418` failed formatting-only CI run `40860714630`; corrected exact-SHA `bf8d7fbd64113bb96684eedbc4eb6134172ad10d` passed run `40860928672` (native C++/Python, simulated REST/WebSocket, headless LVGL, React and pinned ESP-IDF v6.1). No physical power loss, owner Wi-Fi, LCD/DS18B20,
 OTA, factory reset or soak testing occurred. T06-14/T06-16 and all hardware
 and owner-network acceptance gates remain unchecked. No secrets or hardware.
 
