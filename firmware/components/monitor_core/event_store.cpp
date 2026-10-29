@@ -241,8 +241,10 @@ JournalPage EventStore::page(uint64_t after, size_t limit) const {
         if (event->sequence <= after)
             continue;
         if (page.events.size() == limit) {
+            // A page boundary is not an integrity boundary: validate the
+            // remaining journal before exposing even the first page.
             page.has_more = true;
-            break;
+            continue;
         }
         page.events.push_back(*event);
         page.next_after = event->sequence;

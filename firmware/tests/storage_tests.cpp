@@ -518,6 +518,52 @@ int main() {
     auto next_sequence_event = event;
     next_sequence_event.uptime_ms += 10000;
     CHECK(!gapped.append(next_sequence_event)); // Compact refuses reordered records.
+    // Even a one-event API page must fail closed when a later record is
+    // CRC-valid but out of sequence, or when the final append is torn.
+    const std::string late_path = std::string(event_directory) + "/late.bin";
+    {
+        std::ofstream out(late_path, std::ios::binary | std::ios::trunc);
+        for (const auto sequence : {uint64_t(1), uint64_t(2), uint64_t(3)}) {
+            auto serialized = event;
+            serialized.sequence = sequence;
+            const auto encoded = encode_event(serialized);
+            CHECK(encoded.size() == event_record_bytes);
+            out.write(reinterpret_cast<const char *>(encoded.data()), encoded.size());
+        }
+        CHECK(out.good());
+    }
+    EventStore late_journal(late_path, 4 * event_record_bytes);
+    CHECK(late_journal.recover());
+    const auto first_page = late_journal.page(0, 1);
+    CHECK(first_page.available && first_page.events.size() == 1 && first_page.has_more &&
+          first_page.next_after == 1);
+    {
+        std::fstream out(late_path, std::ios::binary | std::ios::in | std::ios::out);
+        auto serialized = event;
+        serialized.sequence = 1; // Duplicate after the requested page.
+        const auto encoded = encode_event(serialized);
+        out.seekp(2 * event_record_bytes);
+        out.write(reinterpret_cast<const char *>(encoded.data()), encoded.size());
+        CHECK(out.good());
+    }
+    CHECK(!late_journal.page(0, 1).available);
+    CHECK(!late_journal.page(0, 2).available);
+    {
+        std::fstream out(late_path, std::ios::binary | std::ios::in | std::ios::out);
+        auto serialized = event;
+        serialized.sequence = 3;
+        const auto encoded = encode_event(serialized);
+        out.seekp(2 * event_record_bytes);
+        out.write(reinterpret_cast<const char *>(encoded.data()), encoded.size());
+        CHECK(out.good());
+    }
+    CHECK(late_journal.page(0, 1).available);
+    {
+        std::ofstream out(late_path, std::ios::binary | std::ios::app);
+        out.write("cut", 3);
+        CHECK(out.good());
+    }
+    CHECK(!late_journal.page(0, 1).available);
     std::filesystem::remove_all(event_directory);
     char cadence_directory[] = "/tmp/monitor-cadence-XXXXXX";
     CHECK(mkdtemp(cadence_directory));

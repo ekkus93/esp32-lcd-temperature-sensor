@@ -1,3 +1,17 @@
+## 2026-10-28 — Fail-closed event pagination beyond page boundaries (software-only)
+
+The production EventStore::page reader previously stopped after the first
+record beyond the requested page size. A CRC-valid duplicate or descending
+sequence (or an incomplete write) later in the journal could therefore leave
+the first API page marked available, despite the journal failing recovery.
+Pagination now scans and validates the entire bounded journal while retaining
+only the requested page and has_more cursor semantics. Native storage regression
+covers a valid three-event one-item page, a CRC-valid duplicate in the third
+record, and a torn tail beyond the first page. Exact-commit CI verification
+is pending at this source commit. This does not qualify physical LittleFS,
+power interruption, owner Wi-Fi, LCD/probes, OTA, reset or device load.
+No hardware, credentials, flashing or destructive operations were used.
+
 ## 2026-10-28 — Event journal sequence integrity and full progress restoration (software-only)
 
 The event-journal API pagination and compaction reader now reject
