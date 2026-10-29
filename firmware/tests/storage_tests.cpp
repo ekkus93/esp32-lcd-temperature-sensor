@@ -361,15 +361,16 @@ int main() {
                                                 : 4 * original_record.size());
         CHECK(fingerprint_guard.recover());
         CHECK(fingerprint_guard.append(original_bucket));
-        const auto fingerprint_path =
-            std::filesystem::path(fingerprint_directory) / "00000000.tmh";
+        const auto fingerprint_path = std::filesystem::path(fingerprint_directory) / "00000000.tmh";
+        const auto next_fingerprint_path =
+            std::filesystem::path(fingerprint_directory) / "00000001.tmh";
+        const auto read_write = std::ios::binary | std::ios::in | std::ios::out;
         auto changed_bucket = original_bucket;
         changed_bucket.start_uptime_ms = 600000;
         const auto changed_record = encode_bucket(changed_bucket);
         CHECK(changed_record.size() == original_record.size());
         {
-            std::fstream changed(fingerprint_path, std::ios::binary | std::ios::in |
-                                                       std::ios::out);
+            std::fstream changed(fingerprint_path, read_write);
             CHECK(changed.good());
             changed.write(reinterpret_cast<const char *>(changed_record.data()),
                           changed_record.size());
@@ -379,11 +380,9 @@ int main() {
         CHECK(!fingerprint_guard.append(appended_bucket));
         CHECK(!fingerprint_guard.append(appended_bucket));
         CHECK(std::filesystem::file_size(fingerprint_path) == original_record.size());
-        CHECK(!std::filesystem::exists(std::filesystem::path(fingerprint_directory) /
-                                      "00000001.tmh"));
+        CHECK(!std::filesystem::exists(next_fingerprint_path));
         {
-            std::fstream repaired(fingerprint_path, std::ios::binary | std::ios::in |
-                                                        std::ios::out);
+            std::fstream repaired(fingerprint_path, read_write);
             CHECK(repaired.good());
             repaired.write(reinterpret_cast<const char *>(original_record.data()),
                            original_record.size());
