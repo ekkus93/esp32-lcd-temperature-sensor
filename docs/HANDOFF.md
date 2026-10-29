@@ -1,3 +1,14 @@
+## 2026-10-28 — Storage writer recovery latch (software-only)
+
+A failed re-recovery no longer leaves HistoryStore/EventStore append-enabled
+from a prior successful recovery. Failed event compaction also blocks further
+appends until successful revalidation. Native regression exercises both reused
+writers and repaired-but-not-recovered files; exact-source commit `27e00f04`
+passed Actions run `40804958259` (native C++/Python, simulated API/WebSocket,
+headless LVGL, React, pinned ESP-IDF v6.1). T06-14 and all physical LittleFS,
+owner-network, LCD/probe, OTA, factory-reset and sustained-load gates remain
+open. TODO still 114/158 checked; no hardware or secrets accessed.
+
 ## 2026-10-28 — Event-journal pagination integrity (software-only)
 
 The bounded event-journal pagination reader now validates every record beyond

@@ -1,3 +1,20 @@
+## 2026-10-28 — Fail-closed reused storage recovery and compaction (software-only)
+
+A reused HistoryStore or EventStore could retain write permission from an
+older successful recovery even after a later recovery rejected corrupt data.
+EventStore also left writes enabled after failed journal compaction. Both
+recovery methods now revoke append permission before inspection and restore it
+only after complete successful validation; failed event compaction also latches
+the writer until recovery succeeds. Native storage regression repairs files
+after failed recovery and verifies that appends stay blocked until revalidation;
+a CRC-valid out-of-sequence event journal likewise remains blocked after its
+compaction failure until repaired and recovered. Exact-commit
+`27e00f04198f41de59d542265d5eb6b6ad174e13` passed GitHub Actions
+run `40804958259`: native C++/Python tests, simulated REST/WebSocket,
+headless LVGL, React checks and pinned ESP-IDF v6.1 firmware compilation.
+T06-14 remains open for physical LittleFS, reboot, real retention and power-
+loss acceptance. No hardware, owner credentials, flashing, OTA or reset used.
+
 ## 2026-10-28 — Fail-closed event pagination beyond page boundaries (software-only)
 
 The production EventStore::page reader previously stopped after the first
