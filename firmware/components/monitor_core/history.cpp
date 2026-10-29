@@ -573,8 +573,8 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
         std::size_t size;
         uint64_t fingerprint;
 #ifndef ESP_PLATFORM
-        uint64_t device;
-        uint64_t inode;
+        uint64_t device = 0;
+        uint64_t inode = 0;
 #endif
     };
     std::vector<VerifiedSegment> verified;
