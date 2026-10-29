@@ -124,12 +124,20 @@ int main() {
     char directory[] = "/tmp/monitor-history-XXXXXX";
     CHECK(mkdtemp(directory));
     HistoryStore store(directory, 4 * data.size(), 2 * data.size());
+    CHECK(!store.append(bucket)); // Constructor must not bypass recovery.
+    CHECK(store.bytes() == 0);
     CHECK(store.recover());
     for (unsigned i = 0; i < 8; ++i) {
         bucket.start_uptime_ms = i * 300000;
         CHECK(store.append(bucket));
     }
     CHECK(store.bytes() <= 4 * data.size());
+    // A new writer cannot overwrite or extend existing history before
+    // inspecting the persisted segments and selecting the active one.
+    HistoryStore unchecked_history(directory, 4 * data.size(), 2 * data.size());
+    const auto history_size = store.bytes();
+    CHECK(!unchecked_history.append(bucket));
+    CHECK(unchecked_history.bytes() == history_size);
     unsigned count = 0;
     int64_t first = -1;
     CHECK(store.visit([&](const Bucket &b) {
@@ -310,6 +318,8 @@ int main() {
         CHECK(!decode_event(damaged));
     }
     EventStore journal(event_path, 4 * event_record_bytes);
+    CHECK(!journal.append(event)); // No implicit sequence reset on construction.
+    CHECK(journal.bytes() == 0);
     CHECK(journal.recover());
     for (int64_t i = 0; i < 10; ++i) {
         event.uptime_ms = 5000 + i * 1000;
@@ -317,6 +327,12 @@ int main() {
         event.previous = (i % 2) ? State::high : State::normal;
         CHECK(journal.append(event));
     }
+    // A fresh writer must not append sequence 1 to an existing journal
+    // without recovering the durable last sequence and deduplication state.
+    EventStore unchecked_events(event_path, 4 * event_record_bytes);
+    const auto event_size = journal.bytes();
+    CHECK(!unchecked_events.append(event));
+    CHECK(unchecked_events.bytes() == event_size);
     const auto before_throttle = journal.bytes();
     event.uptime_ms += 500;
     CHECK(journal.append(event) && journal.bytes() == before_throttle);

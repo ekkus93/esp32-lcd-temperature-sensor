@@ -42,7 +42,7 @@ class EventStore {
     size_t max_bytes_;
     uint64_t last_sequence_ = 0;
     std::optional<JournalEvent> last_event_;
-    // A failed buffered append may leave a torn record; require recovery before retry.
-    bool append_ready_ = true;
+    // No writes before first successful recovery or after a failed append/recovery.
+    bool append_ready_ = false;
 };
 } // namespace monitor
