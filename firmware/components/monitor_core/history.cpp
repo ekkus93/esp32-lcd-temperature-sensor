@@ -399,7 +399,9 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
         return false;
     closedir(dir);
     for (auto number : segments()) {
-        if (!safe_segment_path(path(number), false))
+        // The directory can be replaced while a visitor processes a prior
+        // segment. Recheck before following the next segment pathname.
+        if (!safe_history_directory(directory_) || !safe_segment_path(path(number), false))
             return false;
         std::ifstream input(path(number), std::ios::binary);
         if (!input)
@@ -410,7 +412,10 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
             if (!visitor(*bucket))
                 return true;
         }
-        if (input.bad() || good != file_size(path(number)))
+        // A callback may replace the parent directory even on the final
+        // segment. Never report a successful export after that substitution.
+        if (!safe_history_directory(directory_) || input.bad() ||
+            good != file_size(path(number)))
             return false;
     }
     return true;

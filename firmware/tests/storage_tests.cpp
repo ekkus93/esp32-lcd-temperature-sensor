@@ -349,6 +349,40 @@ int main() {
     CHECK(!directory_guard.visit([](const Bucket &) { return true; }));
     CHECK(!directory_guard.append(bucket));
 
+    // A history export callback can run long enough for its parent
+    // directory to be replaced between segments. Do not follow a substituted
+    // directory for the next segment or report a successful export.
+    char visit_directory[] = "/tmp/monitor-visit-directory-XXXXXX";
+    CHECK(mkdtemp(visit_directory));
+    HistoryStore visit_guard(visit_directory, 4 * data.size(), data.size());
+    CHECK(visit_guard.recover());
+    bucket.start_uptime_ms = 0;
+    CHECK(visit_guard.append(bucket));
+    bucket.start_uptime_ms = 300000;
+    CHECK(visit_guard.append(bucket));
+    const auto visit_saved = std::filesystem::path(std::string(visit_directory) + "-saved");
+    unsigned interrupted_rows = 0;
+    CHECK(!visit_guard.visit([&](const Bucket &) {
+        ++interrupted_rows;
+        if (interrupted_rows == 1) {
+            std::filesystem::rename(visit_directory, visit_saved);
+            CHECK(symlink(visit_saved.c_str(), visit_directory) == 0);
+        }
+        return true;
+    }));
+    CHECK(interrupted_rows == 1);
+    CHECK(std::filesystem::file_size(visit_saved / "00000000.tmh") == data.size());
+    CHECK(std::filesystem::file_size(visit_saved / "00000001.tmh") == data.size());
+    CHECK(std::filesystem::remove(visit_directory));
+    std::filesystem::rename(visit_saved, visit_directory);
+    unsigned restored_rows = 0;
+    CHECK(visit_guard.visit([&](const Bucket &) {
+        ++restored_rows;
+        return true;
+    }));
+    CHECK(restored_rows == 2);
+    std::filesystem::remove_all(visit_directory);
+
     // Retention must not erase older, valid segments before a new record is
     // durable. Force a write failure precisely when rollover would evict the
     // oldest segment; all four original records must remain readable.
