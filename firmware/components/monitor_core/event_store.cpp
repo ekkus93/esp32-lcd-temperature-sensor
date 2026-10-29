@@ -1,10 +1,13 @@
 #include "event_store.hpp"
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
+#include <fcntl.h>
 #include <fstream>
 #include <iterator>
+#include <sys/stat.h>
 #include <unistd.h>
 
 namespace monitor {
@@ -109,18 +112,30 @@ bool EventStore::recover() {
     append_ready_ = false;
     if (max_bytes_ < 2 * event_record_bytes)
         return false;
-    std::ifstream input(path_, std::ios::binary);
-    if (!input) {
-        FILE *created = std::fopen(path_.c_str(), "wb");
-        if (!created)
+    // A failed read is not proof that the journal is absent. In particular,
+    // fopen("wb") here would destroy a writeable but unreadable journal.
+    // Refuse symlinks/directories and only create a genuinely missing file.
+    struct stat metadata {};
+    if (lstat(path_.c_str(), &metadata) != 0) {
+        if (errno != ENOENT)
             return false;
-        if (std::fclose(created) != 0)
+        const int fd = open(path_.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0600);
+        if (fd < 0)
+            return false;
+        const bool synced = fsync(fd) == 0;
+        const bool closed = close(fd) == 0;
+        if (!synced || !closed)
             return false;
         last_sequence_ = 0;
         last_event_.reset();
         append_ready_ = true;
         return true;
     }
+    if (!S_ISREG(metadata.st_mode))
+        return false;
+    std::ifstream input(path_, std::ios::binary);
+    if (!input)
+        return false;
     std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(input)), {});
     if (bytes.size() > max_bytes_)
         return false;

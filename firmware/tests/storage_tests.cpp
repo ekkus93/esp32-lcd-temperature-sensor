@@ -317,6 +317,22 @@ int main() {
         damaged[i] ^= 1;
         CHECK(!decode_event(damaged));
     }
+    // Recovery must never truncate or follow an existing unreadable,
+    // redirected, or non-regular journal pathname. A dangling symlink was
+    // previously treated as a missing file by ifstream and fopen("wb")
+    // would create its target, making the symlink look legitimate.
+    const std::string dangling_path = std::string(event_directory) + "/dangling.bin";
+    const std::string dangling_target = std::string(event_directory) + "/never-create.bin";
+    CHECK(symlink(dangling_target.c_str(), dangling_path.c_str()) == 0);
+    EventStore dangling_journal(dangling_path, 4 * event_record_bytes);
+    CHECK(!dangling_journal.recover());
+    CHECK(std::filesystem::is_symlink(dangling_path));
+    CHECK(!std::filesystem::exists(dangling_target));
+    EventStore directory_journal(event_directory, 4 * event_record_bytes);
+    CHECK(!directory_journal.recover());
+    CHECK(std::filesystem::is_directory(event_directory));
+    CHECK(std::filesystem::remove(dangling_path));
+
     EventStore journal(event_path, 4 * event_record_bytes);
     CHECK(!journal.append(event)); // No implicit sequence reset on construction.
     CHECK(journal.bytes() == 0);

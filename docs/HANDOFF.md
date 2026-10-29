@@ -1,3 +1,13 @@
+## 2026-10-28 — Safe event-journal file recovery (software-only)
+
+Recovered journals are no longer at risk of being truncated when a pre-existing
+path cannot be read: lstat rejects symlink/non-regular paths, and initial
+creation requires an exclusive, owner-only file before enabling append.
+Native regression covers dangling symlink, directory refusal and normal
+creation/recovery. Exact-head CI pending; T06-14/T06-16 and owner/hardware
+acceptance remain open. No hardware, credentials, flashing, OTA, destructive
+reset or power interruption were used.
+
 ## 2026-10-28 — Storage writers require explicit successful recovery
 
 HistoryStore and EventStore now initialize append permission to false, so

@@ -1,3 +1,21 @@
+## 2026-10-28 — Refuse unsafe event-journal paths during recovery (software-only)
+
+EventStore recovery now distinguishes a genuinely missing journal from a failed
+read of an existing path. It uses lstat() to reject symlinks and non-regular
+files and open(O_CREAT|O_EXCL) with owner-only permissions for first creation;
+the new empty file must be fsynced and closed successfully before writes are
+enabled. Existing files whose ifstream open fails are preserved rather than
+opened with truncating "wb" access. Host regressions cover a dangling symlink
+whose target must remain absent, a directory mistaken for a journal, and the
+existing normal first-create, reopen and append path.
+
+This is an independent software-only storage safety fix, not proof of physical
+ESP32 LittleFS durability, interrupted power, five-probe/LCD testing, owner
+Wi-Fi/DHCP, OTA rollback, factory reset or sustained load. T06-14/T06-16
+and the remaining hardware gates remain unchecked. Exact-commit CI outcome
+must be recorded after the implementation commit is verified. No owner
+credentials or physical hardware were accessed; no flashing or reset occurred.
+
 ## 2026-10-28 — Require recovery before first storage append (software-only)
 
 HistoryStore and EventStore previously initialized their append-ready latches
