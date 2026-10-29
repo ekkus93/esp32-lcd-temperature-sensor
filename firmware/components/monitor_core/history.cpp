@@ -1,5 +1,6 @@
 #include "history.hpp"
 #include <algorithm>
+#include <cerrno>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -34,6 +35,20 @@ uint64_t get(const std::vector<uint8_t> &in, std::size_t at, unsigned width) {
 std::size_t file_size(const std::string &path) {
     struct stat info {};
     return stat(path.c_str(), &info) == 0 ? info.st_size : 0;
+}
+// A path that was a regular segment during recovery may have been replaced
+// before a later read/write. Do not follow host symlinks or treat a directory
+// as a valid segment. ESP-IDF LittleFS has no symlink support or lstat().
+bool safe_segment_path(const std::string &path, bool allow_missing) {
+    struct stat info {};
+#ifdef ESP_PLATFORM
+    const int status = stat(path.c_str(), &info);
+#else
+    const int status = lstat(path.c_str(), &info);
+#endif
+    if (status == 0)
+        return S_ISREG(info.st_mode);
+    return allow_missing && errno == ENOENT;
 }
 // Read one bounded record. Truncated/corrupt records stop scanning at their offset.
 std::optional<Bucket> next(std::istream &in) {
@@ -169,9 +184,16 @@ bool HistoryStore::recover() {
         if (stat(directory_.c_str(), &info) != 0 || !S_ISDIR(info.st_mode))
             return false;
     }
+    // A failed directory enumeration is not an empty history.
+    auto *dir = opendir(directory_.c_str());
+    if (!dir)
+        return false;
+    closedir(dir);
     auto files = segments();
     active_ = files.empty() ? 0 : files.back();
     for (auto number : files) {
+        if (!safe_segment_path(path(number), false))
+            return false;
         if (file_size(path(number)) > segment_bytes_ + max_history_record_bytes)
             return false;
         std::ifstream input(path(number), std::ios::binary);
@@ -180,6 +202,8 @@ bool HistoryStore::recover() {
         std::size_t good = 0;
         while (auto bucket = next(input))
             good = static_cast<std::size_t>(input.tellg());
+        if (input.bad())
+            return false;
         if (good != file_size(path(number))) {
             // Only the active tail may be repaired. Never alter completed segments.
             if (number != active_)
@@ -193,6 +217,8 @@ bool HistoryStore::recover() {
             // future schema versions and impossible record lengths, including
             // prefixes shorter than a complete eight-byte header.
             const auto header_bytes = input.gcount();
+            if (input.bad())
+                return false;
             const auto remaining = file_size(path(number)) - good;
             if (!header_bytes ||
                 std::memcmp(header.data(), "TMH", std::min<std::streamsize>(3, header_bytes)) != 0)
@@ -217,6 +243,8 @@ bool HistoryStore::recover() {
             input.clear();
             input.seekg(static_cast<std::streamoff>(good + 1));
             std::vector<uint8_t> tail((std::istreambuf_iterator<char>(input)), {});
+            if (input.bad())
+                return false;
             for (std::size_t offset = 0; offset + 40 <= tail.size(); ++offset) {
                 if (std::memcmp(tail.data() + offset, "TMH", 3) != 0)
                     continue;
@@ -248,6 +276,18 @@ bool HistoryStore::append(const Bucket &bucket) {
     auto data = encode_bucket(bucket);
     if (data.empty() || segment_bytes_ < data.size() || max_bytes_ < 2 * segment_bytes_)
         return false;
+    // Validate every retained path before eviction and the active path before
+    // append. A symlink substituted after recovery must never be written to.
+    for (auto number : segments()) {
+        if (!safe_segment_path(path(number), false)) {
+            append_ready_ = false;
+            return false;
+        }
+    }
+    if (!safe_segment_path(path(active_), true)) {
+        append_ready_ = false;
+        return false;
+    }
     if (file_size(path(active_)) + data.size() > segment_bytes_) {
         if (active_ >= 99999999)
             return false;
@@ -283,6 +323,8 @@ bool HistoryStore::append(const Bucket &bucket) {
 }
 bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) const {
     for (auto number : segments()) {
+        if (!safe_segment_path(path(number), false))
+            return false;
         std::ifstream input(path(number), std::ios::binary);
         if (!input)
             return false;
@@ -292,7 +334,7 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
             if (!visitor(*bucket))
                 return true;
         }
-        if (good != file_size(path(number)))
+        if (input.bad() || good != file_size(path(number)))
             return false;
     }
     return true;

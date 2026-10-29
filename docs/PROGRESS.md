@@ -1,3 +1,21 @@
+## 2026-10-29 — History segment path and read-failure integrity (software-only)
+
+HistoryStore now refuses symbolic-link and non-regular segment paths on
+native hosts during recovery, export and append, including a segment
+replaced after successful recovery. It also fails closed when directory
+enumeration or record/tail stream reads fail, rather than assuming an empty
+directory or recoverable interrupted append. ESP-IDF v6.1 uses stat() for
+its LittleFS VFS (which does not support symlinks); host regression uses
+lstat() to reject links without following them. Native storage regression
+covers an existing symlink to a preserved segment, a dangling symlink,
+a directory segment, and recovery after removing invalid paths.
+
+Exact-head GitHub Actions verification pending for this commit. This is
+software-only protection, not real ESP32 LittleFS power interruption,
+wear measurement, OTA/rollback, owner-network, LCD/probe, physical reset or
+sustained-load acceptance. T06-14/T06-16 and all owner/hardware gates
+remain unchecked. No credentials or physical devices were accessed.
+
 ## 2026-10-28 — Event-journal read-error integrity and existing-link regression (software-only)
 
 After exact-source commit `2ceca9d0a51f13347b2f5189228ea86c56ef95ae`

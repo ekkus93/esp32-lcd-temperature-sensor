@@ -248,6 +248,36 @@ int main() {
     CHECK(mixed_count == 2);
     std::filesystem::remove_all(directory);
 
+    // A symlink substituted for a recovered history segment must not be
+    // followed for append, export, or recovery. The original data is preserved.
+    char guarded_directory[] = "/tmp/monitor-segment-path-XXXXXX";
+    CHECK(mkdtemp(guarded_directory));
+    HistoryStore guarded(guarded_directory, 1024, 512);
+    CHECK(guarded.recover());
+    CHECK(guarded.append(bucket));
+    const auto guarded_path = std::filesystem::path(guarded_directory) / "00000000.tmh";
+    const auto preserved_path = std::filesystem::path(guarded_directory) / "preserved.bin";
+    std::filesystem::rename(guarded_path, preserved_path);
+    const auto preserved_bytes = std::filesystem::file_size(preserved_path);
+    CHECK(symlink(preserved_path.c_str(), guarded_path.c_str()) == 0);
+    CHECK(!guarded.append(bucket));
+    CHECK(!guarded.visit([](const Bucket &) { return true; }));
+    CHECK(!guarded.recover());
+    CHECK(std::filesystem::file_size(preserved_path) == preserved_bytes);
+    CHECK(std::filesystem::remove(guarded_path));
+    CHECK(symlink("never-created.bin", guarded_path.c_str()) == 0);
+    CHECK(!guarded.recover());
+    CHECK(!std::filesystem::exists(std::filesystem::path(guarded_directory) /
+                                   "never-created.bin"));
+    CHECK(std::filesystem::remove(guarded_path));
+    CHECK(std::filesystem::create_directory(guarded_path));
+    CHECK(!guarded.recover());
+    CHECK(std::filesystem::remove(guarded_path));
+    CHECK(guarded.recover());
+    CHECK(guarded.append(bucket));
+    CHECK(guarded.visit([](const Bucket &) { return true; }));
+    std::filesystem::remove_all(guarded_directory);
+
     // Linux /dev/full deterministically injects ENOSPC at the append boundary.
     char full_directory[] = "/tmp/monitor-full-XXXXXX";
     CHECK(mkdtemp(full_directory));
