@@ -1,3 +1,11 @@
+## 2026-10-29 — Native history append directory identity (software-only)
+
+Native HistoryStore appends now reject ordinary directory replacement after
+successful recovery. The regression preserves substitute segment bytes and
+shows restored writes only after fresh recovery. ESP-IDF LittleFS retains
+path/type safeguards and physical power-loss tests remain outstanding.
+Exact-SHA CI pending; T06-14/T06-16 and owner/hardware gates still open.
+
 ## 2026-10-29 — Native history export directory identity (software-only)
 
 HistoryStore::visit now binds host exports to the original device/inode;

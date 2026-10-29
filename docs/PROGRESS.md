@@ -1,3 +1,18 @@
+## 2026-10-29 — Bind history writers to recovered directory identity (software-only)
+
+Native HistoryStore writers previously rejected missing and symlinked history
+directories but could append into a different ordinary directory substituted
+after recovery. Successful host recovery now records directory device/inode;
+append rejects a different identity and latches writes until re-recovery.
+
+Native C++ regression constructs a valid replacement ordinary directory with
+the original history segment, refuses writes without mutating its contents,
+restores the original and verifies normal writes after successful recovery.
+ESP-IDF LittleFS lacks reliable inode identity and retains path/type checks.
+Exact-commit CI pending. No physical power loss, owner Wi-Fi, LCD/DS18B20,
+OTA, factory reset or soak testing occurred. T06-14/T06-16 and all hardware
+and owner-network acceptance gates remain unchecked. No secrets or hardware.
+
 ## 2026-10-29 — Refuse regular-directory substitution during history export (software-only)
 
 HistoryStore::visit previously refused a symlink replacement but could accept

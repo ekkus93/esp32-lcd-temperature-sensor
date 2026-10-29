@@ -295,6 +295,15 @@ bool HistoryStore::recover() {
         }
     }
     active_segment_exists_ = !files.empty();
+#ifndef ESP_PLATFORM
+    // A different ordinary directory at this pathname requires re-recovery.
+    struct stat recovered_directory {};
+    if (lstat(directory_.c_str(), &recovered_directory) != 0 ||
+        !same_history_directory(directory_, recovered_directory))
+        return false;
+    directory_dev_ = static_cast<uint64_t>(recovered_directory.st_dev);
+    directory_ino_ = static_cast<uint64_t>(recovered_directory.st_ino);
+#endif
     append_ready_ = true;
     return true;
 }
@@ -311,6 +320,15 @@ bool HistoryStore::append(const Bucket &bucket) {
         append_ready_ = false;
         return false;
     }
+#ifndef ESP_PLATFORM
+    struct stat current_directory {};
+    if (lstat(directory_.c_str(), &current_directory) != 0 ||
+        static_cast<uint64_t>(current_directory.st_dev) != directory_dev_ ||
+        static_cast<uint64_t>(current_directory.st_ino) != directory_ino_) {
+        append_ready_ = false;
+        return false;
+    }
+#endif
     auto data = encode_bucket(bucket);
     if (data.empty() || segment_bytes_ < data.size() || max_bytes_ < 2 * segment_bytes_)
         return false;

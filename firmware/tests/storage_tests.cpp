@@ -345,6 +345,23 @@ int main() {
     std::filesystem::rename(moved_directory, directory_guard_path);
     CHECK(directory_guard.recover());
     CHECK(directory_guard.append(bucket));
+    // A different ordinary history directory with the same valid contents
+    // is not the recovered writer's directory and must not receive appends.
+    const auto original_segment =
+        std::filesystem::path(directory_guard_path) / "00000000.tmh";
+    const auto original_length = std::filesystem::file_size(original_segment);
+    std::filesystem::rename(directory_guard_path, moved_directory);
+    CHECK(std::filesystem::create_directory(directory_guard_path));
+    const auto substitute_segment =
+        std::filesystem::path(directory_guard_path) / "00000000.tmh";
+    CHECK(std::filesystem::copy_file(moved_directory / "00000000.tmh", substitute_segment));
+    CHECK(!directory_guard.append(bucket));
+    CHECK(std::filesystem::file_size(substitute_segment) == original_length);
+    CHECK(!directory_guard.append(bucket)); // Failed identity check latches writer.
+    std::filesystem::remove_all(directory_guard_path);
+    std::filesystem::rename(moved_directory, directory_guard_path);
+    CHECK(directory_guard.recover());
+    CHECK(directory_guard.append(bucket));
     std::filesystem::remove_all(directory_guard_path);
     CHECK(!directory_guard.visit([](const Bucket &) { return true; }));
     CHECK(!directory_guard.append(bucket));

@@ -24,6 +24,11 @@ class HistoryStore {
     bool append_ready_ = false;
     // Detect deletion of the active segment after a successful recovery/write.
     bool active_segment_exists_ = false;
+#ifndef ESP_PLATFORM
+    // Directory identity observed at the most recent successful recovery.
+    uint64_t directory_dev_ = 0;
+    uint64_t directory_ino_ = 0;
+#endif
     std::vector<unsigned> segments() const;
     std::string path(unsigned number) const;
 };
