@@ -1,3 +1,34 @@
+## 2026-10-29 — Preserve altered completed history before eviction (software-only)
+
+HistoryStore previously checked the recovered active segment's size, identity
+and fingerprint but did not retain a seal for older completed segments. A
+same-inode, same-size, CRC-valid modification to an older segment could
+therefore be silently discarded by the next retention eviction. Recovery
+now seals every segment (number, size, FNV-1a fingerprint and POSIX identity).
+Append checks the retained segment set and metadata, preflights each
+would-be eviction victim before writing, and rechecks the seal before
+deletion. Successful append/rollover updates seals; recovery rebuilds them.
+Failed validation latches the writer closed until explicit recovery.
+
+Native C++ regression writes four segments, alters the oldest record with
+a valid recalculated CRC while preserving its size/inode, verifies the
+fifth append fails without creating a new segment or erasing evidence,
+and verifies that repair alone does not bypass the recovery latch.
+After explicit recovery the fifth append succeeds, the oldest segment
+is evicted normally, and all four retained records export successfully.
+
+Source commit `ff2941d0187e7be8a0b40c990fb6d75bc52e81fa` **passed**
+exact-SHA Actions run `40956362940` (C++ formatting, native C++/Python,
+simulated REST/WebSocket, headless LVGL, React, and pinned ESP-IDF v6.1
+firmware compilation). FNV-1a is accidental-change detection rather
+than cryptographic authentication. Per-segment RAM and extra recovery
+and eviction reads need ESP32 LittleFS/heap/latency measurements. The
+numbered TODO remains **114/145 complete** (31 open); T06-14,
+T06-16, T10-05, and all physical probe/LCD, owner Wi-Fi, OTA success
+and rollback, disposable reset, and sustained-load gates remain
+unchecked. No physical hardware, secrets, flashing, OTA or destructive
+operations were used.
+
 ## 2026-10-29 — Validate all retained history after early visitor stop (software-only)
 
 HistoryStore::visit previously returned success as soon as the callback

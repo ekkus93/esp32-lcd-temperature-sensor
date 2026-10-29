@@ -1,3 +1,21 @@
+## 2026-10-29 — Completed history segment eviction integrity (software-only)
+
+Recovery now seals every retained segment's size, FNV-1a fingerprint
+and POSIX identity. Appends check the segment set and metadata and
+verify each planned eviction victim before writing and before deletion,
+preventing silent loss of same-size/inode, CRC-valid edits to older
+segments. Native regression confirms refusal without a new segment,
+retention of altered bytes, a recovery latch after repair, and normal
+eviction/export after explicit recovery. Source `ff2941d0187e7be8a0b40c990fb6d75bc52e81fa`
+passed exact-SHA GitHub Actions `40956362940`: native C++/Python,
+simulated REST/WebSocket, headless LVGL, React, formatting, pinned
+ESP-IDF v6.1 build. Extra recovery/eviction reads and per-segment RAM
+require real-device profiling; FNV-1a is noncryptographic. TODO:
+**114/145 numbered tasks complete**, 31 open. T06-14/T06-16/T10-05
+and sensor/LCD, owner Wi-Fi/phone, OTA rollback, disposable reset and
+soak acceptance remain unchecked. No hardware, credentials, flashing
+or destructive actions were used.
+
 ## 2026-10-29 — Validate all retained history after early visitor stop (software-only)
 
 HistoryStore::visit previously returned success as soon as the callback
