@@ -3,7 +3,9 @@
 Previous platform-conditional recovery fix `2ceca9d0` passed full exact-head
 CI run `40827973869`. The next source change fails closed on journal
 read errors during recovery, compaction and pagination, with a host regression
-ensuring an existing symlink target is preserved. New exact-head CI pending.
+ensuring an existing symlink target is preserved. Corrected exact-head commit `6d41629f811343ab4f30832428ca617f05f08941`
+passed full CI run `40828571625` (native/Python, simulated API/WebSocket,
+headless LVGL, React, pinned ESP-IDF v6.1).
 Hardware/owner acceptance unchanged; no devices, credentials, flashing or
 destructive actions used.
 

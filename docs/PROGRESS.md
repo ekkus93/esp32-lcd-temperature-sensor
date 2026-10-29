@@ -10,7 +10,10 @@ that a symlink to an existing valid journal is rejected and that the target's
 contents remain byte-for-byte unchanged; the earlier dangling-link,
 directory and normal first-create tests remain in place.
 
-The new code has not yet been qualified by its own exact-head CI. No physical
+Exact-source commit `6d41629f811343ab4f30832428ca617f05f08941`
+passed GitHub Actions run `40828571625`: native C++/Python tests,
+simulated REST/WebSocket, headless LVGL, React and pinned ESP-IDF v6.1
+firmware build. No physical
 LittleFS power-cut, ESP32-S3, five-probe/LCD, owner Wi-Fi, OTA rollback,
 factory-reset or combined-load acceptance is claimed. T06-14/T06-16 and all
 hardware/owner prerequisites remain unchecked. No secrets or devices accessed.
