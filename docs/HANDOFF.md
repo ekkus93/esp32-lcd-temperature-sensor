@@ -1,3 +1,27 @@
+## 2026-10-29 — Validate all retained history after early visitor stop (software-only)
+
+HistoryStore::visit previously returned success as soon as the callback
+returned false, allowing a short page to hide a malformed later record
+in the same segment or a subsequent segment. It now stops invoking the
+callback but continues bounded decoding, CRC/length and file identity
+checks, and full-segment/cross-segment fingerprint verification before
+reporting success. Native regression verifies corrupt suffix refusal in
+both segment layouts, exactly one delivered row, and success after
+restoring the original record. This preserves callback early-stop
+semantics but adds read I/O to short history queries.
+
+Initial implementation `cf3cd5717f6114f6034234c3aa9cea7a858cce61`
+failed C++ formatting (Actions `40946137220`). Corrected exact source
+`8182737ef1b47ae802bc571a566441280e26ec4d` **passed** Actions
+`40946233196`, including C++ formatting, native C++/Python tests,
+simulated REST/WebSocket, headless LVGL, React and pinned ESP-IDF v6.1
+compilation. This is host/simulator evidence, not actual LittleFS
+power-loss or measured ESP32 performance. TODO remains **114/145
+numbered tasks complete (78.62%)**, 31 open. Keep T06-14/T06-16/T10-05
+and all sensor/LCD, owner-network onboarding, OTA success/rollback,
+disposable reset and 24–72-hour soak acceptance gates open. No physical
+hardware, owner credentials or destructive operations were used.
+
 ## 2026-10-29 — Active history segment append integrity (software-only)
 
 HistoryStore now keeps the recovered/committed active-segment fingerprint
