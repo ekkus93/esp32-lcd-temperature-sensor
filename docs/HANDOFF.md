@@ -1,3 +1,15 @@
+## 2026-10-28 — Oversized event journal refusal (software-only)
+
+Event pagination and compaction now refuse a journal exceeding its configured
+maximum even when all records are individually CRC-valid. Native tests confirm
+no records are silently removed, recovery fails closed, and successful
+host-only repair/recovery restores valid append sequencing. Implementation
+`6e05d14b` passed exact-source Actions run `40806004585` (native C++/Python,
+simulated REST/WebSocket, headless LVGL, React, pinned ESP-IDF v6.1).
+T06-14 remains unchecked; physical LittleFS/power-loss, owner Wi-Fi,
+LCD/probes, OTA/rollback, reset and sustained-load gates remain open.
+No hardware or secrets were accessed. TODO remains 114/158 checked.
+
 ## 2026-10-28 — Storage writer recovery latch (software-only)
 
 A failed re-recovery no longer leaves HistoryStore/EventStore append-enabled

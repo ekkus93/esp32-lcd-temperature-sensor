@@ -1,3 +1,20 @@
+## 2026-10-28 — Oversized event-journal integrity guard (software-only)
+
+An externally oversized but CRC-valid event journal previously bypassed the
+maximum-byte check during API pagination and could be compacted by a reused
+writer, silently discarding records even though recovery rejects the file.
+EventStore::page now rejects oversized journals, and compact() refuses them
+without changing the file. Native storage regression constructs a three-record
+journal under a two-record capacity, confirms unavailable pages and failed
+append/compaction without data loss, and verifies recovery remains blocked
+until a deliberate host-only truncation restores the configured bound.
+After successful recovery, append and sequence continuity work normally.
+Exact-commit `6e05d14b9a881c4fa3e0fb128bf76cec84ebc293` passed Actions
+run `40806004585`: native C++/Python, simulated REST/WebSocket, headless LVGL,
+React and pinned ESP-IDF v6.1 firmware build. T06-14 remains open for actual
+LittleFS, real retention, reboot and power-loss acceptance. No owner hardware,
+Wi-Fi/admin credentials, flashing, OTA or factory reset were accessed.
+
 ## 2026-10-28 — Fail-closed reused storage recovery and compaction (software-only)
 
 A reused HistoryStore or EventStore could retain write permission from an
