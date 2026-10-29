@@ -1,3 +1,18 @@
+## 2026-10-29 — CRC-valid last-record API pagination guard verified
+
+EventStore::page now verifies that the final durable event matches the
+last recovered/appended event both before and after reading the journal.
+Native regression changes the final event kind with a valid recomputed CRC
+and unchanged file size, checks that both short and full pages refuse
+availability, then restores the original bytes and verifies pagination.
+Source commit `a29c18bd` passed exact-SHA Actions run `40895270734`
+(native C++/Python, simulated REST/WebSocket, headless LVGL, React and
+pinned ESP-IDF v6.1 firmware compilation). This does not detect arbitrary
+earlier CRC-valid mutations and is not physical LittleFS verification.
+TODO remains 114/145 numbered tasks complete; T06-14/T06-16 and all
+sensor/LCD, owner Wi-Fi, OTA, disposable reset and long-soak gates remain
+open. No devices, credentials, flashing or destructive actions were used.
+
 ## 2026-10-29 — Same-size journal mutation guard verified
 
 EventStore now compares the durable final record with its recovered/appended

@@ -10,7 +10,7 @@ both short and full pages fail closed, restores the original record, and
 checks normal pagination resumes. This does not detect arbitrary mutations
 of earlier records with valid CRCs; those remain subject to CRC/sequence
 validation. Host-only testing is not evidence of physical LittleFS,
-power-loss, owner-network, OTA or device acceptance. Exact-SHA CI pending.
+power-loss, owner-network, OTA or device acceptance. Exact-source commit `a29c18bd1c1338844d15ac29452c32de85a0ae4c` passed GitHub Actions run `40895270734`, including native C++/Python, simulated REST/WebSocket, headless LVGL, React, formatting and pinned ESP-IDF v6.1 compilation.
 
 T06-14/T06-16 remain open, as do physical sensor/LCD, owner-network,
 OTA/rollback, disposable reset and sustained-load acceptance. No hardware,
@@ -1398,21 +1398,3 @@ keeps trusted running time; cold boot remains unsynchronized until an SNTP callb
 Six core host suites, headless LVGL rendering, 24 frontend tests and IDF builds
 pass. Isolated ESP32 simulation tested malformed/duplicate fields, unknown
 timezone/invalid server, stale revisions, NVS commit, clock reconfiguration and
-preference persistence across restart. See
-
-[device preference checks](validation/device-preferences-results.txt).
-No claim of network association, real NTP/DST LCD output or physical display
-integration is made. Normal image was restored; the full protected API/radio scan suite passed again, including a real snapshot with zero probes and simulated=false.
-
-## Wi-Fi failure progress and browser checks
-
-The browser polls explicit testing/succeeded/failed/storage-error outcomes.
-Overlapping candidates return 409. Saved credentials change in RAM only after
-a successful NVS commit; failure retains the prior record. On the real board,
-a randomly named nonexistent SSID timed out with setup still active and station
-configuration still blank. This tests failure, not successful owner-network
-association, saved-network rollback or NTP. The full API suite and sampling
-cadence checks passed afterwards.
-
-Browser Settings passed 360/1280 pixel overflow checks in both themes. Native
-Tab/Enter navigation showed focus and worked. Computed contrast checks found
