@@ -279,8 +279,7 @@ bool EventStore::recover() {
     // A file that grew while being read is not the validated snapshot.
     if (input.peek() != std::char_traits<char>::eof() || input.bad())
         return false;
-    const uint64_t original_fingerprint =
-        extend_fingerprint(fingerprint, tail.data(), remaining);
+    const uint64_t original_fingerprint = extend_fingerprint(fingerprint, tail.data(), remaining);
 #ifndef ESP_PLATFORM
     struct stat recovered {};
     if (lstat(path_.c_str(), &recovered) != 0 || !S_ISREG(recovered.st_mode) ||
