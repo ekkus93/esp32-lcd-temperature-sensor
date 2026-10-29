@@ -3,7 +3,7 @@
 HistoryStore::visit now binds host exports to the original device/inode;
 a valid ordinary replacement directory is rejected during callbacks.
 Regression covers legitimate two-segment recovery after restoration.
-ESP-IDF LittleFS retains directory type checks. Exact-SHA CI pending;
+ESP-IDF LittleFS retains directory type checks. Exact-source `c1fdf7bc` passed Actions run `40858791895`;
 physical LittleFS, Wi-Fi, LCD/sensor, OTA, reset and soak gates remain open.
 No owner devices or credentials were accessed.
 
