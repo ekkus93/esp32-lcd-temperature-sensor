@@ -108,5 +108,56 @@ int main() {
         CHECK(page.available && page.events.size() == 3 && page.next_after == 3);
         std::filesystem::remove_all(directory);
     }
-    std::cout << "PASS: event append rejects CRC-valid post-fsync edits and recovers\n";
+    // A CRC-valid, same-size edit of the compaction temporary image during
+    // fsync must not replace the original, fully validated journal.
+    char compact_directory[] = "/tmp/monitor-event-compact-fsync-XXXXXX";
+    CHECK(mkdtemp(compact_directory));
+    const auto compact_path = std::filesystem::path(compact_directory) / "events.bin";
+    JournalEvent first{};
+    first.boot_id = 9;
+    first.uptime_ms = 1000;
+    first.kind = EventKind::reboot;
+    JournalEvent second = first;
+    second.uptime_ms = 2000;
+    second.kind = EventKind::wifi_state;
+    JournalEvent third = first;
+    third.uptime_ms = 3000;
+    third.kind = EventKind::clock_sync;
+    EventStore compact_store(compact_path.string(), 2 * event_record_bytes);
+    CHECK(compact_store.recover());
+    CHECK(compact_store.append(first));
+    CHECK(compact_store.append(second));
+    const auto read_image = [&]() {
+        std::ifstream input(compact_path, std::ios::binary);
+        CHECK(input.good());
+        return std::vector<uint8_t>(std::istreambuf_iterator<char>(input),
+                                    std::istreambuf_iterator<char>());
+    };
+    const auto before = read_image();
+    CHECK(before.size() == 2 * event_record_bytes);
+    second.sequence = 2;
+    second.kind = EventKind::storage_error;
+    tamper_bytes = encode_event(second);
+    CHECK(tamper_bytes.size() == event_record_bytes);
+    tamper_path = compact_path.string() + ".tmp";
+    tamper_offset = 0;
+    tamper_succeeded = false;
+    tamper_next_sync = true;
+    CHECK(!compact_store.append(third));
+    CHECK(!tamper_next_sync && tamper_succeeded);
+    CHECK(read_image() == before);
+    CHECK(!std::filesystem::exists(tamper_path));
+    CHECK(!compact_store.page(0, 50).available);
+    CHECK(!compact_store.append(third));
+    CHECK(compact_store.recover());
+    auto page = compact_store.page(0, 50);
+    CHECK(page.available && page.events.size() == 2 && page.next_after == 2);
+    CHECK(page.events[1].kind == EventKind::wifi_state);
+    CHECK(compact_store.append(third));
+    page = compact_store.page(0, 50);
+    CHECK(page.available && page.events.size() == 2 && page.oldest_available == 2);
+    CHECK(page.next_after == 3 && page.events[0].kind == EventKind::wifi_state);
+    std::filesystem::remove_all(compact_directory);
+
+    std::cout << "PASS: event append and compaction reject CRC-valid post-fsync edits\n";
 }

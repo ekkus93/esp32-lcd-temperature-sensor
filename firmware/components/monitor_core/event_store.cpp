@@ -362,7 +362,13 @@ bool EventStore::compact() {
         ok = false;
     if (std::fclose(output) != 0)
         ok = false;
-    if (!ok || !expected_journal_size(path_, expected_bytes_) ||
+    // The temporary file can change during the flush/fsync interval. Do
+    // not replace the only valid journal with an unverified compacted image.
+    if (!ok || !safe_journal_path(temporary) ||
+        !expected_journal_size(temporary, keep * event_record_bytes) ||
+        !expected_journal_fingerprint(temporary, keep * event_record_bytes,
+                                      compacted_fingerprint) ||
+        !expected_journal_size(path_, expected_bytes_) ||
         !expected_journal_fingerprint(path_, expected_bytes_, journal_fingerprint_) ||
         std::rename(temporary.c_str(), path_.c_str()) != 0) {
         std::remove(temporary.c_str());
