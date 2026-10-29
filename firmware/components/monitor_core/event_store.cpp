@@ -51,6 +51,19 @@ bool same_journal_file(const std::string &path, uint64_t device, uint64_t inode)
            static_cast<uint64_t>(info.st_ino) == inode;
 }
 #endif
+// Detect in-place journal truncation/growth even when the path and inode are
+// unchanged. In particular, duplicate suppression must not report success
+// after another writer has removed the durable last event.
+bool expected_journal_size(const std::string &path, size_t expected) {
+    struct stat info {};
+#ifdef ESP_PLATFORM
+    const int status = stat(path.c_str(), &info);
+#else
+    const int status = lstat(path.c_str(), &info);
+#endif
+    return status == 0 && S_ISREG(info.st_mode) && info.st_size >= 0 &&
+           static_cast<uint64_t>(info.st_size) == expected;
+}
 bool valid_event(const JournalEvent &event) {
     return event.uptime_ms >= 0 &&
            static_cast<unsigned>(event.kind) <= static_cast<unsigned>(EventKind::storage_error) &&
@@ -130,6 +143,7 @@ bool EventStore::recover() {
     // Any failed recovery invalidates the writer, including an already-open
     // instance. Never append to a journal whose integrity was not verified.
     append_ready_ = false;
+    expected_bytes_ = 0;
 #ifndef ESP_PLATFORM
     journal_dev_ = 0;
     journal_ino_ = 0;
@@ -166,6 +180,7 @@ bool EventStore::recover() {
 #endif
         last_sequence_ = 0;
         last_event_.reset();
+        expected_bytes_ = 0;
         append_ready_ = true;
         return true;
     }
@@ -219,6 +234,7 @@ bool EventStore::recover() {
 #endif
     last_sequence_ = previous_sequence;
     last_event_ = recovered_last_event;
+    expected_bytes_ = tail_start;
     append_ready_ = true;
     return true;
 }
@@ -280,6 +296,7 @@ bool EventStore::compact() {
     journal_dev_ = static_cast<uint64_t>(compacted.st_dev);
     journal_ino_ = static_cast<uint64_t>(compacted.st_ino);
 #endif
+    expected_bytes_ = keep * event_record_bytes;
     return true;
 }
 
@@ -296,6 +313,10 @@ bool EventStore::append(const JournalEvent &input) {
         return false;
     }
 #endif
+    if (!expected_journal_size(path_, expected_bytes_)) {
+        append_ready_ = false;
+        return false;
+    }
     if (last_event_ && input.boot_id == last_event_->boot_id &&
         input.uptime_ms >= last_event_->uptime_ms &&
         input.uptime_ms - last_event_->uptime_ms < 1000 && input.kind == last_event_->kind &&
@@ -358,6 +379,11 @@ bool EventStore::append(const JournalEvent &input) {
         return false;
     }
 #endif
+    if (!expected_journal_size(path_, expected_bytes_ + event_record_bytes)) {
+        append_ready_ = false;
+        return false;
+    }
+    expected_bytes_ += event_record_bytes;
     last_sequence_ = event.sequence;
     last_event_ = event;
     return true;
@@ -365,7 +391,8 @@ bool EventStore::append(const JournalEvent &input) {
 
 JournalPage EventStore::page(uint64_t after, size_t limit) const {
     JournalPage page{};
-    if (!limit || limit > 50 || !safe_journal_path(path_) || bytes() > max_bytes_)
+    if (!limit || limit > 50 || !safe_journal_path(path_) ||
+        !expected_journal_size(path_, expected_bytes_) || bytes() > max_bytes_)
         return page;
 #ifndef ESP_PLATFORM
     if (!same_journal_file(path_, journal_dev_, journal_ino_))

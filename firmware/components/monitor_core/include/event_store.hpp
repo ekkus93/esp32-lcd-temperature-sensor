@@ -44,6 +44,8 @@ class EventStore {
     std::optional<JournalEvent> last_event_;
     // No writes before first successful recovery or after a failed append/recovery.
     bool append_ready_ = false;
+    // Exact durable byte count at the last successful recovery/append/compaction.
+    size_t expected_bytes_ = 0;
 #ifndef ESP_PLATFORM
     // The journal path must still identify the file validated by recover().
     uint64_t journal_dev_ = 0;
