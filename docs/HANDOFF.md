@@ -4,7 +4,9 @@ HistoryStore now refuses a same-name ordinary active-segment replacement after
 recovery and checks the opened append descriptor. The corrected regression
 passed source `7582e64b`, Actions `40864207105`, including pinned ESP-IDF
 v6.1, host C++/Python, simulated API/WebSocket, headless LVGL and React.
-EventStore file-identity hardening is now pending its own exact-SHA CI.
+EventStore file-identity hardening also passed exact-source `d5bb8f32`,
+Actions `40865064578`, with native C++/Python, simulated REST/WebSocket,
+headless LVGL, React and pinned ESP-IDF v6.1 compilation.
 All physical/owner-network, OTA, reset and LittleFS power-loss gates remain open.
 
 ## 2026-10-29 — Native history append directory identity (software-only)

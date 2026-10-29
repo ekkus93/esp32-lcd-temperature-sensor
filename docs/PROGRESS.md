@@ -1,3 +1,12 @@
+## 2026-10-29 — README capability and safety reconciliation (documentation-only)
+
+Updated the repository overview to match implemented React/LVGL/firmware
+capabilities and to distinguish software verification from physical panel,
+DS18B20, owner Wi-Fi, OTA, LittleFS power-loss and factory-reset acceptance.
+GPIO15 backlight remains a documented electrical hold point. No physical
+checks or hardware actions were performed. T11-01 remains open until the
+measured final board/LCD pinout and behavior can be reconciled.
+
 ## 2026-10-29 — Bind native event-journal operations to recovered file identity (software-only)
 
 Native EventStore now records the journal device/inode on successful recovery,
@@ -8,9 +17,10 @@ journal. A native regression substitutes a valid copy at the same path,
 checks that API reads and writes refuse it without changing bytes, then
 restores the original, recovers and appends with correct sequence continuity.
 ESP-IDF LittleFS retains path/type checks because its VFS does not expose
-reliable inode identity. Exact-commit native/React/LVGL/ESP-IDF v6.1 CI is
-pending; no physical flash, power interruption, owner Wi-Fi, LCD/probes, OTA,
-factory reset or soak test was performed. T06-14/T06-16 remain unchecked.
+reliable inode identity. Exact-source `d5bb8f32` passed GitHub Actions run `40865064578` with
+native C++/Python storage regressions, simulated REST/WebSocket, headless LVGL,
+React and pinned ESP-IDF v6.1 firmware compilation. No physical flash, power
+interruption, owner Wi-Fi, LCD/probes, OTA, factory reset or soak test occurred. T06-14/T06-16 remain unchecked.
 
 ## 2026-10-29 — Bind native history append to recovered active segment identity (software-only)
 
