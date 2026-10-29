@@ -103,6 +103,9 @@ EventStore::EventStore(std::string path, size_t max_bytes)
     : path_(std::move(path)), max_bytes_(max_bytes) {}
 
 bool EventStore::recover() {
+    // Any failed recovery invalidates the writer, including an already-open
+    // instance. Never append to a journal whose integrity was not verified.
+    append_ready_ = false;
     if (max_bytes_ < 2 * event_record_bytes)
         return false;
     std::ifstream input(path_, std::ios::binary);
@@ -197,8 +200,12 @@ bool EventStore::append(const JournalEvent &input) {
         input.state == last_event_->state && input.utc_seconds == last_event_->utc_seconds &&
         input.detail == last_event_->detail)
         return true;
-    if (bytes() + event_record_bytes > max_bytes_ && !compact())
+    if (bytes() + event_record_bytes > max_bytes_ && !compact()) {
+        // Compaction can fail because the existing journal is corrupt. Require
+        // a fresh successful recovery even if the file is repaired later.
+        append_ready_ = false;
         return false;
+    }
     JournalEvent event = input;
     event.sequence = last_sequence_ + 1;
     auto encoded = encode_event(event);

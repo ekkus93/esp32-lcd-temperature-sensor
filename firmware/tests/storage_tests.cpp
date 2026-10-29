@@ -196,6 +196,10 @@ int main() {
         std::fstream repair(last, std::ios::binary | std::ios::out | std::ios::in);
         repair.put('T');
     }
+    // Even after manual repair, a failed recovery must leave this reused
+    // writer disabled until it revalidates the entire history directory.
+    CHECK(!store.append(bucket));
+    CHECK(store.recover());
     // Damage a completed segment: fail without rewriting it or erasing unrelated history.
     auto old = std::filesystem::path(directory) / "00000002.tmh";
     {
@@ -446,6 +450,7 @@ int main() {
         repair.seekp(static_cast<std::streamoff>(event_record_bytes));
         repair.put('T');
     }
+    CHECK(!reused.append(later)); // Corruption was repaired, not revalidated.
     CHECK(reused.recover());
     later.uptime_ms += 1000;
     CHECK(reused.append(later));
@@ -518,6 +523,19 @@ int main() {
     auto next_sequence_event = event;
     next_sequence_event.uptime_ms += 10000;
     CHECK(!gapped.append(next_sequence_event)); // Compact refuses reordered records.
+    {
+        std::fstream repair(sequence_path, std::ios::binary | std::ios::in | std::ios::out);
+        auto restored = event;
+        restored.sequence = 3;
+        const auto encoded = encode_event(restored);
+        repair.seekp(event_record_bytes);
+        repair.write(reinterpret_cast<const char *>(encoded.data()), encoded.size());
+        CHECK(repair.good());
+    }
+    CHECK(!gapped.append(next_sequence_event)); // Failed compaction latches writer.
+    CHECK(gapped.recover());
+    CHECK(gapped.append(next_sequence_event));
+    CHECK(gapped.page(0, 50).events.back().sequence == 4);
     // Even a one-event API page must fail closed when a later record is
     // CRC-valid but out of sequence, or when the final append is torn.
     const std::string late_path = std::string(event_directory) + "/late.bin";

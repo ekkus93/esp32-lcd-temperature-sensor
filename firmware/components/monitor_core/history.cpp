@@ -161,6 +161,9 @@ std::vector<unsigned> HistoryStore::segments() const {
     return values;
 }
 bool HistoryStore::recover() {
+    // A failed recheck must revoke append permission on reused instances.
+    // In-memory segment selection is not trustworthy until recovery succeeds.
+    append_ready_ = false;
     if (mkdir(directory_.c_str(), 0700) != 0) {
         struct stat info {};
         if (stat(directory_.c_str(), &info) != 0 || !S_ISDIR(info.st_mode))
