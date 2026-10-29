@@ -5,8 +5,10 @@ CRC-valid repeated or descending sequence IDs, consistent with recovery's
 existing monotonicity check. Native regression writes two-record journals
 with recalculated valid CRCs, verifies pagination fails closed even at the
 one-item page boundary, confirms compaction refuses tampered records, and
-accepts legitimate retention gaps. Exact-commit CI verdict is pending for
-this change. This checkpoint also restores the entire historical PROGRESS.md
+accepts legitimate retention gaps. Intermediate CI `515d2058` (run `40793164565`) failed C++ formatting;
+corrected exact-SHA `5133c2d61f66302de5a0b879414b7c108f18f4c3` passed
+Actions run `40793255641` (native C++/Python, simulated API/WebSocket,
+headless LVGL, React and pinned ESP-IDF v6.1). This checkpoint also restores the entire historical PROGRESS.md
 record from the verified parent after a bounded-read write accidentally
 omitted its older lines; historical entries are preserved verbatim below.
 No physical LittleFS, device, credentials, OTA, reset or power loss was used.
