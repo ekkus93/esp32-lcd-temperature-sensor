@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <iterator>
 #include <unistd.h>
@@ -144,12 +145,10 @@ bool EventStore::recover() {
         // append. Unknown magic, version, or record length may indicate
         // corruption or a newer firmware schema: preserve it for diagnosis.
         // The first eight bytes encode TME1, version 1, and record size 60.
-        const std::array<uint8_t, 8> expected_header{
-            'T', 'M', 'E', '1', 1, 0, static_cast<uint8_t>(event_record_bytes & 0xff),
-            static_cast<uint8_t>(event_record_bytes >> 8)};
-        if (!std::equal(bytes.begin() + tail_start,
-                        bytes.begin() + tail_start + std::min(remaining, expected_header.size()),
-                        expected_header.begin()))
+        static_assert(event_record_bytes == 60);
+        const uint8_t expected_header[] = {'T', 'M', 'E', '1', 1, 0, 60, 0};
+        if (std::memcmp(bytes.data() + tail_start, expected_header,
+                        std::min(remaining, sizeof(expected_header))) != 0)
             return false;
         if (truncate(path_.c_str(), static_cast<off_t>(tail_start)) != 0)
             return false;
