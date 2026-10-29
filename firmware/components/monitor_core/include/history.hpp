@@ -24,6 +24,8 @@ class HistoryStore {
     bool append_ready_ = false;
     // Detect deletion of the active segment after a successful recovery/write.
     bool active_segment_exists_ = false;
+    // Recovered/committed byte count of the active segment (including rollover).
+    std::size_t active_size_ = 0;
 #ifndef ESP_PLATFORM
     // Directory identity observed at the most recent successful recovery.
     uint64_t directory_dev_ = 0;

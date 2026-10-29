@@ -77,6 +77,18 @@ bool safe_segment_path(const std::string &path, bool allow_missing) {
         return S_ISREG(info.st_mode);
     return allow_missing && errno == ENOENT;
 }
+// An existing segment can be truncated or extended without changing its
+// pathname or inode. Refuse to append until the recovered byte count matches.
+bool segment_has_size(const std::string &path, std::size_t expected) {
+    struct stat info {};
+#ifdef ESP_PLATFORM
+    const int status = stat(path.c_str(), &info);
+#else
+    const int status = lstat(path.c_str(), &info);
+#endif
+    return status == 0 && S_ISREG(info.st_mode) && info.st_size >= 0 &&
+           static_cast<uint64_t>(info.st_size) == expected;
+}
 // Read one bounded record. Truncated/corrupt records stop scanning at their offset.
 std::optional<Bucket> next(std::istream &in) {
     std::vector<uint8_t> bytes(8);
@@ -208,6 +220,7 @@ bool HistoryStore::recover() {
     // A failed recheck must revoke append permission on reused instances.
     // In-memory segment selection is not trustworthy until recovery succeeds.
     append_ready_ = false;
+    active_size_ = 0;
     if (mkdir(directory_.c_str(), 0700) != 0) {
         struct stat info {};
         if (stat(directory_.c_str(), &info) != 0 || !S_ISDIR(info.st_mode))
@@ -315,6 +328,17 @@ bool HistoryStore::recover() {
         active_ino_ = 0;
     }
 #endif
+    if (active_segment_exists_) {
+        struct stat active_metadata {};
+#ifdef ESP_PLATFORM
+        const int status = stat(path(active_).c_str(), &active_metadata);
+#else
+        const int status = lstat(path(active_).c_str(), &active_metadata);
+#endif
+        if (status != 0 || !S_ISREG(active_metadata.st_mode) || active_metadata.st_size < 0)
+            return false;
+        active_size_ = static_cast<std::size_t>(active_metadata.st_size);
+    }
     append_ready_ = true;
     return true;
 }
@@ -374,6 +398,10 @@ bool HistoryStore::append(const Bucket &bucket) {
         }
     }
 #endif
+    if (active_segment_exists_ && !segment_has_size(path(active_), active_size_)) {
+        append_ready_ = false;
+        return false;
+    }
     bool create_new = !active_segment_exists_;
     if (file_size(path(active_)) + data.size() > segment_bytes_) {
         if (active_ >= 99999999)
@@ -448,6 +476,12 @@ bool HistoryStore::append(const Bucket &bucket) {
     active_dev_ = static_cast<uint64_t>(opened.st_dev);
     active_ino_ = static_cast<uint64_t>(opened.st_ino);
 #endif
+    const auto written_size = (create_new ? 0 : active_size_) + data.size();
+    if (!segment_has_size(path(active_), written_size)) {
+        append_ready_ = false;
+        return false;
+    }
+    active_size_ = written_size;
     active_segment_exists_ = true;
     // Retention may briefly exceed its configured logical budget by one
     // record. Evict only after fsync succeeds, and fail closed if eviction

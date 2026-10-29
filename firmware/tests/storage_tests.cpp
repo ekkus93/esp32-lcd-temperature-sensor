@@ -313,6 +313,37 @@ int main() {
     CHECK(restored_segment_rows == 2);
     std::filesystem::remove_all(guarded_directory);
 
+    // Same-inode in-place truncation or external growth must not silently
+    // erase samples or permit appending to an unvalidated active segment.
+    char size_directory[] = "/tmp/monitor-segment-size-XXXXXX";
+    CHECK(mkdtemp(size_directory));
+    HistoryStore size_guard(size_directory, 8 * data.size(), 4 * data.size());
+    CHECK(size_guard.recover());
+    CHECK(size_guard.append(bucket));
+    const auto size_path = std::filesystem::path(size_directory) / "00000000.tmh";
+    CHECK(std::filesystem::file_size(size_path) == data.size());
+    std::filesystem::resize_file(size_path, 0);
+    CHECK(!size_guard.append(bucket));
+    CHECK(!size_guard.append(bucket)); // A size mismatch latches the writer.
+    CHECK(size_guard.recover());
+    CHECK(size_guard.append(bucket));
+    {
+        std::ofstream out(size_path, std::ios::binary | std::ios::app);
+        out.write(reinterpret_cast<const char *>(data.data()), data.size());
+        CHECK(out.good());
+    }
+    CHECK(!size_guard.append(bucket));
+    CHECK(!size_guard.append(bucket));
+    CHECK(size_guard.recover());
+    CHECK(size_guard.append(bucket));
+    unsigned size_rows = 0;
+    CHECK(size_guard.visit([&](const Bucket &) {
+        ++size_rows;
+        return true;
+    }));
+    CHECK(size_rows == 3);
+    std::filesystem::remove_all(size_directory);
+
     // Rollover must never follow a pre-created next-segment symlink, and
     // deletion of the active segment after recovery must not be masked.
     char rollover_directory[] = "/tmp/monitor-rollover-path-XXXXXX";
