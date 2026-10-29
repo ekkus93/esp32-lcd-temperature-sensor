@@ -1,5 +1,6 @@
 #include "history.hpp"
 #include <algorithm>
+#include <array>
 #include <cerrno>
 #include <cmath>
 #include <cstdio>
@@ -103,6 +104,39 @@ bool same_history_segment(const std::string &path, const struct stat &expected) 
     (void)expected;
     return true;
 #endif
+}
+// An export callback can edit an earlier record in place while preserving
+// its inode, size, and per-record CRC. Compare the complete segment before
+// and after traversal to avoid reporting a mixed-time export as successful.
+// This is accidental-change detection, not cryptographic authentication.
+bool segment_fingerprint(const std::string &path, std::size_t expected_bytes, uint64_t &result) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input)
+        return false;
+    std::array<char, 4096> buffer{};
+    uint64_t fingerprint = 14695981039346656037ull;
+    for (std::size_t remaining = expected_bytes; remaining;) {
+        const auto count = std::min(remaining, buffer.size());
+        input.read(buffer.data(), static_cast<std::streamsize>(count));
+        if (input.gcount() != static_cast<std::streamsize>(count) || input.bad())
+            return false;
+        for (std::size_t index = 0; index < count; ++index) {
+            fingerprint ^= static_cast<unsigned char>(buffer[index]);
+            fingerprint *= 1099511628211ull;
+        }
+        remaining -= count;
+    }
+    if (input.peek() != std::char_traits<char>::eof() || input.bad())
+        return false;
+    result = fingerprint;
+    return true;
+}
+bool unchanged_segment_contents(const std::string &path, std::size_t size,
+                                uint64_t expected_fingerprint) {
+    uint64_t actual_fingerprint = 0;
+    return segment_has_size(path, size) &&
+           segment_fingerprint(path, size, actual_fingerprint) &&
+           actual_fingerprint == expected_fingerprint && segment_has_size(path, size);
 }
 // Read one bounded record. Truncated/corrupt records stop scanning at their offset.
 std::optional<Bucket> next(std::istream &in) {
@@ -544,7 +578,13 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
 #else
         const int segment_status = lstat(path(number).c_str(), &initial_segment);
 #endif
-        if (segment_status != 0 || !S_ISREG(initial_segment.st_mode))
+        if (segment_status != 0 || !S_ISREG(initial_segment.st_mode) ||
+            initial_segment.st_size < 0)
+            return false;
+        const auto initial_size = static_cast<std::size_t>(initial_segment.st_size);
+        uint64_t initial_fingerprint = 0;
+        if (!segment_fingerprint(path(number), initial_size, initial_fingerprint) ||
+            !segment_has_size(path(number), initial_size))
             return false;
         std::ifstream input(path(number), std::ios::binary);
         if (!input)
@@ -554,7 +594,8 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
             good = static_cast<std::size_t>(input.tellg());
             if (!visitor(*bucket))
                 return same_history_directory(directory_, initial_directory) &&
-                       same_history_segment(path(number), initial_segment);
+                       same_history_segment(path(number), initial_segment) &&
+                       unchanged_segment_contents(path(number), initial_size, initial_fingerprint);
             if (!same_history_directory(directory_, initial_directory) ||
                 !same_history_segment(path(number), initial_segment))
                 return false;
@@ -562,7 +603,8 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
         // A callback may replace the parent directory or the active file even
         // on the final record. Never report a successful mixed-file export.
         if (!same_history_directory(directory_, initial_directory) ||
-            !same_history_segment(path(number), initial_segment))
+            !same_history_segment(path(number), initial_segment) ||
+            !unchanged_segment_contents(path(number), initial_size, initial_fingerprint))
             return false;
         if (input.bad() || good != file_size(path(number)))
             return false;

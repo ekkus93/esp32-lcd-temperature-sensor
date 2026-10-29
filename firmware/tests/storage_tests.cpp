@@ -523,6 +523,54 @@ int main() {
     CHECK(segment_restored_rows == 2);
     std::filesystem::remove_all(segment_visit_directory);
 
+    // A callback can rewrite an earlier record with a valid recalculated
+    // CRC while keeping the same pathname, inode, and byte count. A CSV
+    // export must not succeed with a mixture of old and new history data.
+    char mutation_directory[] = "/tmp/monitor-visit-mutation-XXXXXX";
+    CHECK(mkdtemp(mutation_directory));
+    HistoryStore mutation_guard(mutation_directory, 8 * data.size(), 3 * data.size());
+    CHECK(mutation_guard.recover());
+    auto original_bucket = bucket;
+    original_bucket.start_uptime_ms = 0;
+    CHECK(mutation_guard.append(original_bucket));
+    auto following_bucket = original_bucket;
+    following_bucket.start_uptime_ms = 300000;
+    CHECK(mutation_guard.append(following_bucket));
+    const auto mutation_path = std::filesystem::path(mutation_directory) / "00000000.tmh";
+    auto altered_bucket = original_bucket;
+    altered_bucket.start_uptime_ms = 1234;
+    const auto original_record = encode_bucket(original_bucket);
+    const auto altered_record = encode_bucket(altered_bucket);
+    CHECK(!original_record.empty() && altered_record.size() == original_record.size());
+    unsigned mutation_rows = 0;
+    CHECK(!mutation_guard.visit([&](const Bucket &) {
+        if (++mutation_rows == 1) {
+            std::fstream out(mutation_path, std::ios::binary | std::ios::in | std::ios::out);
+            CHECK(out.good());
+            out.write(reinterpret_cast<const char *>(altered_record.data()),
+                      altered_record.size());
+            out.flush();
+            CHECK(out.good());
+        }
+        return true;
+    }));
+    CHECK(mutation_rows == 2);
+    {
+        std::fstream repair(mutation_path, std::ios::binary | std::ios::in | std::ios::out);
+        CHECK(repair.good());
+        repair.write(reinterpret_cast<const char *>(original_record.data()),
+                     original_record.size());
+        repair.flush();
+        CHECK(repair.good());
+    }
+    unsigned mutation_restored = 0;
+    CHECK(mutation_guard.visit([&](const Bucket &) {
+        ++mutation_restored;
+        return true;
+    }));
+    CHECK(mutation_restored == 2);
+    std::filesystem::remove_all(mutation_directory);
+
     // Retention must not erase older, valid segments before a new record is
     // durable. Force a write failure precisely when rollover would evict the
     // oldest segment; all four original records must remain readable.
