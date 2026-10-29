@@ -1,3 +1,12 @@
+## 2026-10-29 — Native history export directory identity (software-only)
+
+HistoryStore::visit now binds host exports to the original device/inode;
+a valid ordinary replacement directory is rejected during callbacks.
+Regression covers legitimate two-segment recovery after restoration.
+ESP-IDF LittleFS retains directory type checks. Exact-SHA CI pending;
+physical LittleFS, Wi-Fi, LCD/sensor, OTA, reset and soak gates remain open.
+No owner devices or credentials were accessed.
+
 ## 2026-10-29 — History directory substitution guard verified
 
 HistoryStore now refuses missing or symlink-substituted history directories

@@ -383,6 +383,46 @@ int main() {
     CHECK(restored_rows == 2);
     std::filesystem::remove_all(visit_directory);
 
+    // A second ordinary directory with valid records must not be allowed
+    // to splice a history export across different directories.
+    char regular_visit_directory[] = "/tmp/monitor-visit-regular-XXXXXX";
+    CHECK(mkdtemp(regular_visit_directory));
+    HistoryStore regular_visit_guard(regular_visit_directory, 4 * data.size(), data.size());
+    CHECK(regular_visit_guard.recover());
+    bucket.start_uptime_ms = 0;
+    CHECK(regular_visit_guard.append(bucket));
+    bucket.start_uptime_ms = 300000;
+    CHECK(regular_visit_guard.append(bucket));
+    const auto regular_saved =
+        std::filesystem::path(std::string(regular_visit_directory) + "-saved");
+    unsigned substituted_rows = 0;
+    CHECK(!regular_visit_guard.visit([&](const Bucket &) {
+        ++substituted_rows;
+        if (substituted_rows == 1) {
+            std::filesystem::rename(regular_visit_directory, regular_saved);
+            CHECK(std::filesystem::create_directory(regular_visit_directory));
+            for (unsigned i = 0; i < 2; ++i) {
+                const auto filename = i ? "00000001.tmh" : "00000000.tmh";
+                CHECK(std::filesystem::copy_file(regular_saved / filename,
+                                                 std::filesystem::path(regular_visit_directory) /
+                                                     filename));
+            }
+        }
+        return true;
+    }));
+    CHECK(substituted_rows == 1);
+    CHECK(std::filesystem::file_size(regular_saved / "00000000.tmh") == data.size());
+    CHECK(std::filesystem::file_size(regular_saved / "00000001.tmh") == data.size());
+    std::filesystem::remove_all(regular_visit_directory);
+    std::filesystem::rename(regular_saved, regular_visit_directory);
+    unsigned regular_restored = 0;
+    CHECK(regular_visit_guard.visit([&](const Bucket &) {
+        ++regular_restored;
+        return true;
+    }));
+    CHECK(regular_restored == 2);
+    std::filesystem::remove_all(regular_visit_directory);
+
     // Retention must not erase older, valid segments before a new record is
     // durable. Force a write failure precisely when rollover would evict the
     // oldest segment; all four original records must remain readable.

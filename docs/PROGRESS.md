@@ -1,3 +1,18 @@
+## 2026-10-29 — Refuse regular-directory substitution during history export (software-only)
+
+HistoryStore::visit previously refused a symlink replacement but could accept
+a different ordinary directory installed during an export callback. Native
+host exports now capture the original directory's device/inode and recheck
+identity before every segment, after callback completion, and on success.
+ESP-IDF LittleFS has no reliable inode identity and retains type validation.
+
+A native C++ regression installs a different ordinary directory with valid
+same-size records while the first segment's callback executes; a mixed
+history export must fail after exactly one record, and restoring the original
+directory permits a complete two-record read. No owner hardware, secrets,
+Wi-Fi, flash, OTA, factory reset or power interruption were used.
+T06-14/T06-16 and all physical acceptance remain unchecked. Exact-SHA CI pending.
+
 ## 2026-10-29 — Refuse missing or substituted history directories (software-only)
 
 HistoryStore now rejects missing/non-directory and host symlinked history

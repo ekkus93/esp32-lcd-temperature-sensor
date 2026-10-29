@@ -48,6 +48,21 @@ bool safe_history_directory(const std::string &path) {
 #endif
     return status == 0 && S_ISDIR(info.st_mode);
 }
+// A callback can rename the history directory and install a different,
+// ordinary directory at the same path. Host exports bind to the original
+// device/inode identity. ESP-IDF LittleFS has no reliable inode identity.
+bool same_history_directory(const std::string &path, const struct stat &expected) {
+    if (!safe_history_directory(path))
+        return false;
+#ifndef ESP_PLATFORM
+    struct stat current {};
+    return lstat(path.c_str(), &current) == 0 && current.st_dev == expected.st_dev &&
+           current.st_ino == expected.st_ino;
+#else
+    (void)expected;
+    return true;
+#endif
+}
 // A path that was a regular segment during recovery may have been replaced
 // before a later read/write. Do not follow host symlinks or treat a directory
 // as a valid segment. ESP-IDF LittleFS has no symlink support or lstat().
@@ -394,6 +409,9 @@ bool HistoryStore::append(const Bucket &bucket) {
 bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) const {
     if (!safe_history_directory(directory_))
         return false;
+    struct stat initial_directory {};
+    if (stat(directory_.c_str(), &initial_directory) != 0)
+        return false;
     auto *dir = opendir(directory_.c_str());
     if (!dir)
         return false;
@@ -401,7 +419,8 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
     for (auto number : segments()) {
         // The directory can be replaced while a visitor processes a prior
         // segment. Recheck before following the next segment pathname.
-        if (!safe_history_directory(directory_) || !safe_segment_path(path(number), false))
+        if (!same_history_directory(directory_, initial_directory) ||
+            !safe_segment_path(path(number), false))
             return false;
         std::ifstream input(path(number), std::ios::binary);
         if (!input)
@@ -410,15 +429,15 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
         while (auto bucket = next(input)) {
             good = static_cast<std::size_t>(input.tellg());
             if (!visitor(*bucket))
-                return true;
+                return same_history_directory(directory_, initial_directory);
         }
         // A callback may replace the parent directory even on the final
         // segment. Never report a successful export after that substitution.
-        if (!safe_history_directory(directory_))
+        if (!same_history_directory(directory_, initial_directory))
             return false;
         if (input.bad() || good != file_size(path(number)))
             return false;
     }
-    return true;
+    return same_history_directory(directory_, initial_directory);
 }
 } // namespace monitor
