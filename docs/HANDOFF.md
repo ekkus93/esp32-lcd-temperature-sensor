@@ -1,3 +1,11 @@
+## 2026-10-28 — ESP-IDF event-store VFS compatibility correction
+
+The previous event-journal path-safety commit `3a3323f5` failed pinned
+ESP-IDF v6.1 linking due to unavailable `lstat` (Actions `40823488328`).
+Use ESP-IDF VFS `stat` on device, retaining host `lstat` for symlink
+regressions. The corrected exact-head CI is pending; all physical/owner
+acceptance remains open. No hardware or credentials were accessed.
+
 ## 2026-10-28 — Safe event-journal file recovery (software-only)
 
 Recovered journals are no longer at risk of being truncated when a pre-existing

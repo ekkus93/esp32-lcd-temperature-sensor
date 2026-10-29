@@ -116,7 +116,14 @@ bool EventStore::recover() {
     // fopen("wb") here would destroy a writeable but unreadable journal.
     // Refuse symlinks/directories and only create a genuinely missing file.
     struct stat metadata {};
-    if (lstat(path_.c_str(), &metadata) != 0) {
+    // ESP-IDF's VFS does not export lstat(). Its LittleFS implementation
+    // does not support symlinks; on POSIX hosts use lstat() to reject links.
+#ifdef ESP_PLATFORM
+    const int status = stat(path_.c_str(), &metadata);
+#else
+    const int status = lstat(path_.c_str(), &metadata);
+#endif
+    if (status != 0) {
         if (errno != ENOENT)
             return false;
         const int fd = open(path_.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0600);

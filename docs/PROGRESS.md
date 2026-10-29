@@ -1,3 +1,15 @@
+## 2026-10-28 — Restore ESP-IDF v6.1 link compatibility (software-only)
+
+The preceding path-safety change (commit `3a3323f5`) passed the host portion
+of GitHub Actions but failed the pinned ESP-IDF v6.1 link step: the Xtensa
+runtime does not export `lstat` (run `40823488328`, undefined reference).
+The recovery path now uses `stat` under `ESP_PLATFORM`, retaining `lstat`
+for native host regression of symlink refusal. ESP-IDF LittleFS does not
+support symbolic links; regular-file checks and exclusive creation still
+apply. This is a compatibility correction, not physical LittleFS or power-loss
+acceptance. Exact-head CI is pending for the correction. T06-14/T06-16 and
+all hardware/owner gates remain unchecked; no credentials or hardware used.
+
 ## 2026-10-28 — Refuse unsafe event-journal paths during recovery (software-only)
 
 EventStore recovery now distinguishes a genuinely missing journal from a failed
