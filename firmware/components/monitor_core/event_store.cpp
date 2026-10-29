@@ -64,6 +64,27 @@ bool expected_journal_size(const std::string &path, size_t expected) {
     return status == 0 && S_ISREG(info.st_mode) && info.st_size >= 0 &&
            static_cast<uint64_t>(info.st_size) == expected;
 }
+// Verify the durable final record before duplicate suppression or another
+// append. File size and inode alone cannot detect same-length corruption.
+bool expected_last_record(const std::string &path, size_t expected_bytes,
+                          const std::optional<JournalEvent> &last_event) {
+    if (expected_bytes == 0)
+        return !last_event;
+    if (!last_event || expected_bytes < event_record_bytes ||
+        expected_bytes % event_record_bytes != 0)
+        return false;
+    const auto expected = encode_event(*last_event);
+    if (expected.size() != event_record_bytes)
+        return false;
+    std::ifstream input(path, std::ios::binary);
+    if (!input ||
+        !input.seekg(static_cast<std::streamoff>(expected_bytes - event_record_bytes)))
+        return false;
+    std::array<uint8_t, event_record_bytes> actual{};
+    input.read(reinterpret_cast<char *>(actual.data()), actual.size());
+    return input.gcount() == static_cast<std::streamsize>(actual.size()) &&
+           std::equal(actual.begin(), actual.end(), expected.begin());
+}
 bool valid_event(const JournalEvent &event) {
     return event.uptime_ms >= 0 &&
            static_cast<unsigned>(event.kind) <= static_cast<unsigned>(EventKind::storage_error) &&
@@ -313,7 +334,10 @@ bool EventStore::append(const JournalEvent &input) {
         return false;
     }
 #endif
-    if (!expected_journal_size(path_, expected_bytes_)) {
+    if (!expected_journal_size(path_, expected_bytes_) ||
+        !expected_last_record(path_, expected_bytes_, last_event_)) {
+        // A same-size mutation of the final durable record must not be
+        // mistaken for a valid duplicate or extended with a new sequence.
         append_ready_ = false;
         return false;
     }

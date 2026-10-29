@@ -962,6 +962,63 @@ int main() {
     CHECK(restored_size_page.available && restored_size_page.events.size() == 3 &&
           restored_size_page.events.back().sequence == 3);
 
+    // Same-size, same-inode corruption must not bypass duplicate suppression.
+    const std::string altered_last_path = std::string(event_directory) + "/altered-last.bin";
+    EventStore altered_last(altered_last_path, 4 * event_record_bytes);
+    CHECK(altered_last.recover());
+    CHECK(altered_last.append(event));
+    auto first_durable = event;
+    first_durable.sequence = 1;
+    const auto first_bytes = encode_event(first_durable);
+    CHECK(first_bytes.size() == event_record_bytes);
+    {
+        std::fstream damaged(altered_last_path, std::ios::binary | std::ios::in | std::ios::out);
+        CHECK(damaged.good());
+        damaged.seekp(12);
+        damaged.put(static_cast<char>(first_bytes[12] ^ 1));
+        CHECK(damaged.good());
+    }
+    CHECK(!altered_last.append(event)); // Must not acknowledge a stale duplicate.
+    CHECK(!altered_last.page(0, 50).available);
+    CHECK(!altered_last.append(next_event)); // Failed verification latches writes.
+    CHECK(std::filesystem::file_size(altered_last_path) == event_record_bytes);
+    {
+        std::fstream repaired(altered_last_path, std::ios::binary | std::ios::in | std::ios::out);
+        CHECK(repaired.good());
+        repaired.seekp(12);
+        repaired.put(static_cast<char>(first_bytes[12]));
+        CHECK(repaired.good());
+    }
+    CHECK(altered_last.recover());
+    CHECK(altered_last.append(next_event));
+    auto second_durable = next_event;
+    second_durable.sequence = 2;
+    const auto second_bytes = encode_event(second_durable);
+    CHECK(second_bytes.size() == event_record_bytes);
+    {
+        std::fstream damaged(altered_last_path, std::ios::binary | std::ios::in | std::ios::out);
+        CHECK(damaged.good());
+        damaged.seekp(static_cast<std::streamoff>(event_record_bytes + 48));
+        damaged.put(static_cast<char>(second_bytes[48] ^ 1));
+        CHECK(damaged.good());
+    }
+    auto third_event = next_event;
+    third_event.uptime_ms += 2000;
+    CHECK(!altered_last.append(third_event)); // Distinct writes also fail closed.
+    CHECK(!altered_last.page(0, 50).available);
+    {
+        std::fstream repaired(altered_last_path, std::ios::binary | std::ios::in | std::ios::out);
+        CHECK(repaired.good());
+        repaired.seekp(static_cast<std::streamoff>(event_record_bytes + 48));
+        repaired.put(static_cast<char>(second_bytes[48]));
+        CHECK(repaired.good());
+    }
+    CHECK(altered_last.recover());
+    CHECK(altered_last.append(third_event));
+    const auto repaired_page = altered_last.page(0, 50);
+    CHECK(repaired_page.available && repaired_page.events.size() == 3 &&
+          repaired_page.events.back().sequence == 3);
+
     // A valid-CRC journal that exceeds its configured capacity is not a
     // recoverable retention rollover. Reject reads and refuse compaction,
     // preserving all bytes for diagnosis rather than silently deleting them.

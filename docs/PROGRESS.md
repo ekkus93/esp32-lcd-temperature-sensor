@@ -1,3 +1,20 @@
+## 2026-10-29 — Reject same-size final event-record corruption before append (software-only)
+
+EventStore append now verifies that the durable last 60-byte record still
+matches the recovered/appended event before duplicate suppression, compaction,
+or a new write. This closes a same-inode/same-size mutation gap in which a
+duplicate could previously be acknowledged without validating its durable
+record, or a new event could be appended after a corrupted final record.
+Native regression mutates the sequence and event kind in place, checks both
+duplicate and distinct append refusal, quarantined API reads, and restored
+sequence continuity after repair and fresh recovery. This checks only the
+final record, not arbitrary earlier same-size corruption; API pagination
+continues to scan all records. Exact-commit CI pending.
+
+T06-14/T06-16 remain open for physical LittleFS/power interruption and
+reboot. No ESP32, LCD, probes, owner Wi-Fi, OTA, factory reset, or flashing
+was used; no credentials were accessed.
+
 ## 2026-10-29 — Fail closed on unverified event journal API pages (software-only)
 
 `EventStore::page()` now requires a successful recovery and quarantines reads after
