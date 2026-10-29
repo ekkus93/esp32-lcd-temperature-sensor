@@ -1065,8 +1065,8 @@ int main() {
     const std::string exhausted_path = std::string(event_directory) + "/exhausted.bin";
     {
         std::ofstream out(exhausted_path, std::ios::binary);
-        for (const auto sequence : {std::numeric_limits<uint64_t>::max() - 1,
-                                    std::numeric_limits<uint64_t>::max()}) {
+        const auto maximum_sequence = std::numeric_limits<uint64_t>::max();
+        for (const auto sequence : {maximum_sequence - 1, maximum_sequence}) {
             auto serialized = event;
             serialized.sequence = sequence;
             const auto encoded = encode_event(serialized);
