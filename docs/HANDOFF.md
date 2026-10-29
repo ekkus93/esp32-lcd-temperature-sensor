@@ -1,3 +1,12 @@
+## 2026-10-29 — Event journal path substitution and compaction guard
+
+The journal now refuses symlink/non-regular path substitutions after
+recovery for writes and API pages. Compaction exclusively creates .tmp
+rather than truncating a pre-existing path. Native tests cover target
+preservation, writer latch and sequence continuity after recovery.
+Exact-head CI outcome must be reconciled. Physical LittleFS/power-loss,
+owner network, sensors/LCD, OTA and reset gates remain open.
+
 ## 2026-10-29 — History segment path hardening verified in exact-head CI
 
 HistoryStore now refuses symlink/non-regular segment paths before recovery,

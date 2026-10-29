@@ -1,3 +1,21 @@
+## 2026-10-29 — Event journal substitution and compaction temp safety (software-only)
+
+EventStore now rechecks that the journal is a regular, non-symlink path
+before appending or exposing API pages, including after a previously
+successful recovery. Compaction no longer opens its .tmp path with
+truncating "wb": it uses exclusive creation and refuses a pre-existing
+temporary path (including a symlink or interrupted-compaction artifact).
+A failed compaction leaves the current journal intact and latches the
+writer until successful recovery. Host storage regressions check
+post-recovery path substitution, target byte preservation, refusal of a
+symlinked .tmp, and subsequent recovery/sequence continuity.
+
+Exact-head CI must be verified before claiming acceptance. This does not
+establish physical LittleFS power interruption, OTA/rollback, owner Wi-Fi,
+five probes/LCD, factory reset, or sustained-load acceptance; T06-14,
+T06-16 and all hardware/owner gates remain unchecked. No secrets,
+flashing, hardware or destructive reset were used.
+
 ## 2026-10-29 — History segment path and read-failure integrity (software-only)
 
 HistoryStore now refuses symbolic-link and non-regular segment paths on

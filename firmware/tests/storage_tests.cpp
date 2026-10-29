@@ -396,6 +396,61 @@ int main() {
     CHECK(std::filesystem::remove(linked_path));
     CHECK(std::filesystem::remove(linked_target));
 
+    // Replacing a validated journal with a symlink after recovery must not
+    // redirect append writes or expose the substituted target via the API.
+    const std::string swapped_path = std::string(event_directory) + "/swapped.bin";
+    const std::string swapped_saved = swapped_path + ".saved";
+    EventStore swapped(swapped_path, 4 * event_record_bytes);
+    CHECK(swapped.recover());
+    CHECK(swapped.append(event));
+    std::filesystem::rename(swapped_path, swapped_saved);
+    CHECK(symlink(swapped_saved.c_str(), swapped_path.c_str()) == 0);
+    auto swapped_next = event;
+    swapped_next.uptime_ms += 2000;
+    CHECK(!swapped.append(swapped_next));
+    CHECK(!swapped.page(0, 1).available);
+    CHECK(std::filesystem::file_size(swapped_saved) == event_record_bytes);
+    CHECK(std::filesystem::remove(swapped_path));
+    std::filesystem::rename(swapped_saved, swapped_path);
+    CHECK(!swapped.append(swapped_next)); // Failed write requires revalidation.
+    CHECK(swapped.recover());
+    CHECK(swapped.append(swapped_next));
+    CHECK(swapped.page(0, 50).events.size() == 2);
+
+    // Compaction must not truncate a pre-existing temporary path. A symlink
+    // to an unrelated file is preserved, and the journal stays recoverable.
+    const std::string compact_path = std::string(event_directory) + "/compact.bin";
+    const std::string compact_temp = compact_path + ".tmp";
+    const std::string compact_target = compact_path + ".preserved";
+    EventStore compact_journal(compact_path, 2 * event_record_bytes);
+    CHECK(compact_journal.recover());
+    CHECK(compact_journal.append(event));
+    auto compact_second = event;
+    compact_second.uptime_ms += 2000;
+    CHECK(compact_journal.append(compact_second));
+    {
+        std::ofstream out(compact_target, std::ios::binary);
+        out << "preserve-this-file";
+        CHECK(out.good());
+    }
+    CHECK(symlink(compact_target.c_str(), compact_temp.c_str()) == 0);
+    auto compact_third = compact_second;
+    compact_third.uptime_ms += 2000;
+    CHECK(!compact_journal.append(compact_third));
+    CHECK(std::filesystem::file_size(compact_path) == 2 * event_record_bytes);
+    {
+        std::ifstream in(compact_target, std::ios::binary);
+        std::string preserved((std::istreambuf_iterator<char>(in)), {});
+        CHECK(preserved == "preserve-this-file");
+    }
+    CHECK(std::filesystem::remove(compact_temp));
+    CHECK(!compact_journal.append(compact_third)); // Failure latches writer.
+    CHECK(compact_journal.recover());
+    CHECK(compact_journal.append(compact_third));
+    const auto compact_page = compact_journal.page(0, 50);
+    CHECK(compact_page.available && compact_page.events.size() == 2);
+    CHECK(compact_page.events[0].sequence == 2 && compact_page.events[1].sequence == 3);
+
     EventStore journal(event_path, 4 * event_record_bytes);
     CHECK(!journal.append(event)); // No implicit sequence reset on construction.
     CHECK(journal.bytes() == 0);

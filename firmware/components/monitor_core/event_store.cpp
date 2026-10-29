@@ -32,6 +32,17 @@ uint64_t get(const std::vector<uint8_t> &bytes, size_t offset, unsigned width) {
         value |= uint64_t(bytes[offset + i]) << (i * 8);
     return value;
 }
+// An existing journal may have been replaced after recovery. On POSIX
+// reject symlinks without following them; ESP-IDF LittleFS has no lstat().
+bool safe_journal_path(const std::string &path) {
+    struct stat info {};
+#ifdef ESP_PLATFORM
+    const int status = stat(path.c_str(), &info);
+#else
+    const int status = lstat(path.c_str(), &info);
+#endif
+    return status == 0 && S_ISREG(info.st_mode);
+}
 bool valid_event(const JournalEvent &event) {
     return event.uptime_ms >= 0 &&
            static_cast<unsigned>(event.kind) <= static_cast<unsigned>(EventKind::storage_error) &&
@@ -185,6 +196,8 @@ bool EventStore::recover() {
 }
 
 bool EventStore::compact() {
+    if (!safe_journal_path(path_))
+        return false;
     // Recovery rejects oversized journals. Never silently compact one into
     // apparently valid data or advance sequences from stale in-memory state.
     if (bytes() > max_bytes_)
@@ -194,9 +207,18 @@ bool EventStore::compact() {
         return false;
     const size_t keep = std::max<size_t>(1, events.size() / 2);
     const std::string temporary = path_ + ".tmp";
-    FILE *output = std::fopen(temporary.c_str(), "wb");
-    if (!output)
+    // Never truncate an existing .tmp path, including a symlink or a
+    // preserved interrupted-compaction artifact. A failed compaction
+    // leaves the current journal untouched and disables future appends.
+    const int fd = open(temporary.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0600);
+    if (fd < 0)
         return false;
+    FILE *output = fdopen(fd, "wb");
+    if (!output) {
+        close(fd);
+        std::remove(temporary.c_str());
+        return false;
+    }
     bool ok = true;
     for (auto it = events.end() - keep; it != events.end(); ++it) {
         auto bytes = encode_event(*it);
@@ -220,6 +242,10 @@ bool EventStore::compact() {
 bool EventStore::append(const JournalEvent &input) {
     if (!append_ready_ || !valid_event(input))
         return false;
+    if (!safe_journal_path(path_)) {
+        append_ready_ = false;
+        return false;
+    }
     if (last_event_ && input.boot_id == last_event_->boot_id &&
         input.uptime_ms >= last_event_->uptime_ms &&
         input.uptime_ms - last_event_->uptime_ms < 1000 && input.kind == last_event_->kind &&
@@ -257,7 +283,7 @@ bool EventStore::append(const JournalEvent &input) {
 
 JournalPage EventStore::page(uint64_t after, size_t limit) const {
     JournalPage page{};
-    if (!limit || limit > 50 || bytes() > max_bytes_)
+    if (!limit || limit > 50 || !safe_journal_path(path_) || bytes() > max_bytes_)
         return page;
     std::ifstream input(path_, std::ios::binary);
     if (!input)
