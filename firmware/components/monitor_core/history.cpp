@@ -37,6 +37,17 @@ std::size_t file_size(const std::string &path) {
     struct stat info {};
     return stat(path.c_str(), &info) == 0 ? info.st_size : 0;
 }
+// Refuse a host symlink substituted for the history directory itself.
+// ESP-IDF LittleFS has no symlinks or lstat().
+bool safe_history_directory(const std::string &path) {
+    struct stat info {};
+#ifdef ESP_PLATFORM
+    const int status = stat(path.c_str(), &info);
+#else
+    const int status = lstat(path.c_str(), &info);
+#endif
+    return status == 0 && S_ISDIR(info.st_mode);
+}
 // A path that was a regular segment during recovery may have been replaced
 // before a later read/write. Do not follow host symlinks or treat a directory
 // as a valid segment. ESP-IDF LittleFS has no symlink support or lstat().
@@ -162,6 +173,8 @@ std::string HistoryStore::path(unsigned number) const {
 }
 std::vector<unsigned> HistoryStore::segments() const {
     std::vector<unsigned> values;
+    if (!safe_history_directory(directory_))
+        return values;
     auto *dir = opendir(directory_.c_str());
     if (!dir)
         return values;
@@ -185,6 +198,10 @@ bool HistoryStore::recover() {
         if (stat(directory_.c_str(), &info) != 0 || !S_ISDIR(info.st_mode))
             return false;
     }
+    // A symlinked or missing history directory must not be treated as an
+    // empty, writable store.
+    if (!safe_history_directory(directory_))
+        return false;
     // A failed directory enumeration is not an empty history.
     auto *dir = opendir(directory_.c_str());
     if (!dir)
@@ -275,6 +292,10 @@ std::size_t HistoryStore::bytes() const {
 bool HistoryStore::append(const Bucket &bucket) {
     if (!append_ready_)
         return false;
+    if (!safe_history_directory(directory_)) {
+        append_ready_ = false;
+        return false;
+    }
     auto data = encode_bucket(bucket);
     if (data.empty() || segment_bytes_ < data.size() || max_bytes_ < 2 * segment_bytes_)
         return false;
@@ -371,6 +392,12 @@ bool HistoryStore::append(const Bucket &bucket) {
     return true;
 }
 bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) const {
+    if (!safe_history_directory(directory_))
+        return false;
+    auto *dir = opendir(directory_.c_str());
+    if (!dir)
+        return false;
+    closedir(dir);
     for (auto number : segments()) {
         if (!safe_segment_path(path(number), false))
             return false;

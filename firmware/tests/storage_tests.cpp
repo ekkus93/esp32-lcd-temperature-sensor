@@ -327,6 +327,28 @@ int main() {
     CHECK(!std::filesystem::exists(current_rollover));
     std::filesystem::remove_all(rollover_directory);
 
+    // The history directory itself may be replaced after recovery. A host
+    // symlink to the original directory must not redirect appends/exports.
+    char directory_guard_path[] = "/tmp/monitor-directory-XXXXXX";
+    CHECK(mkdtemp(directory_guard_path));
+    HistoryStore directory_guard(directory_guard_path, 4 * data.size(), 2 * data.size());
+    CHECK(directory_guard.recover());
+    CHECK(directory_guard.append(bucket));
+    const auto moved_directory = std::filesystem::path(std::string(directory_guard_path) + "-saved");
+    std::filesystem::rename(directory_guard_path, moved_directory);
+    CHECK(symlink(moved_directory.c_str(), directory_guard_path) == 0);
+    CHECK(!directory_guard.append(bucket));
+    CHECK(!directory_guard.visit([](const Bucket &) { return true; }));
+    CHECK(!directory_guard.recover());
+    CHECK(std::filesystem::file_size(moved_directory / "00000000.tmh") == data.size());
+    CHECK(std::filesystem::remove(directory_guard_path));
+    std::filesystem::rename(moved_directory, directory_guard_path);
+    CHECK(directory_guard.recover());
+    CHECK(directory_guard.append(bucket));
+    std::filesystem::remove_all(directory_guard_path);
+    CHECK(!directory_guard.visit([](const Bucket &) { return true; }));
+    CHECK(!directory_guard.append(bucket));
+
     // Retention must not erase older, valid segments before a new record is
     // durable. Force a write failure precisely when rollover would evict the
     // oldest segment; all four original records must remain readable.
