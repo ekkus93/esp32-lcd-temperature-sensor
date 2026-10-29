@@ -1,3 +1,20 @@
+## 2026-10-28 — Require recovery before first storage append (software-only)
+
+HistoryStore and EventStore previously initialized their append-ready latches
+to true. A caller that constructed a new writer but forgot recover() could
+append to existing persistent data using the default segment/sequence state,
+potentially duplicating event sequence IDs or bypassing history rotation.
+Both writers now start fail-closed and require successful recovery before any
+append. Native regression checks a fresh writer against empty and populated
+history/event files, confirming rejected appends preserve on-disk byte counts;
+the existing recovery, rollover, deduplication and simulated power-cut suites
+still pass. Exact-source `b65849791166169cd78756604b776fe2cb7c0146`
+passed GitHub Actions run `40811896227` (native C++/Python, simulated REST/
+WebSocket, headless LVGL, React, pinned ESP-IDF v6.1). This is software-only
+storage safety; physical LittleFS/power-loss, owner Wi-Fi, sensor/LCD, OTA,
+factory reset and combined-load acceptance remain open. No hardware, secrets
+or destructive operations were used.
+
 ## 2026-10-28 — Preserve malformed partial history headers (software-only)
 
 HistoryStore recovery previously truncated arbitrary short active-segment tails,

@@ -1,3 +1,16 @@
+## 2026-10-28 — Storage writers require explicit successful recovery
+
+HistoryStore and EventStore now initialize append permission to false, so
+a new instance cannot write using stale/default segment or event-sequence
+state before recovery. Native tests cover empty and populated stores without
+mutation and normal writes after recovery. Exact-source commit `b6584979`
+passed Actions run `40811896227` (native/Python, simulated REST/WebSocket,
+headless LVGL, React, pinned ESP-IDF v6.1). Earlier malformed partial event
+and history header fixes also passed exact-SHA CI `40810808184` and
+`40811329826`. No physical LittleFS/power-loss, reboot, Wi-Fi, LCD/probes,
+OTA, factory reset or sustained-load acceptance was performed. TODO remains
+114/158 checked; T06-14/T06-16 and owner/hardware gates stay open.
+
 ## 2026-10-28 — Conservative partial storage header recovery (software-only)
 
 EventStore now preserves malformed 1–8-byte TME1 header prefixes rather than
