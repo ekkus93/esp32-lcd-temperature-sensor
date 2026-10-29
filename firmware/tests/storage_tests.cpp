@@ -597,11 +597,10 @@ int main() {
         CHECK(early_guard.recover());
         CHECK(early_guard.append(first_bucket));
         CHECK(early_guard.append(second_bucket));
-        const auto corrupted_path =
-            std::filesystem::path(early_directory) /
-            (rollover ? "00000001.tmh" : "00000000.tmh");
-        const auto corrupt_offset = rollover ? std::streamoff(0)
-                                             : std::streamoff(first_record.size());
+        const auto corrupt_name = rollover ? "00000001.tmh" : "00000000.tmh";
+        const auto corrupted_path = std::filesystem::path(early_directory) / corrupt_name;
+        const std::streamoff corrupt_offset =
+            rollover ? 0 : static_cast<std::streamoff>(first_record.size());
         {
             std::fstream damage(corrupted_path, std::ios::binary | std::ios::in | std::ios::out);
             CHECK(damage.good());
