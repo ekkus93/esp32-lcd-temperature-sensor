@@ -134,8 +134,7 @@ bool segment_fingerprint(const std::string &path, std::size_t expected_bytes, ui
 bool unchanged_segment_contents(const std::string &path, std::size_t size,
                                 uint64_t expected_fingerprint) {
     uint64_t actual_fingerprint = 0;
-    return segment_has_size(path, size) &&
-           segment_fingerprint(path, size, actual_fingerprint) &&
+    return segment_has_size(path, size) && segment_fingerprint(path, size, actual_fingerprint) &&
            actual_fingerprint == expected_fingerprint && segment_has_size(path, size);
 }
 // Read one bounded record. Truncated/corrupt records stop scanning at their offset.
@@ -578,8 +577,7 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
 #else
         const int segment_status = lstat(path(number).c_str(), &initial_segment);
 #endif
-        if (segment_status != 0 || !S_ISREG(initial_segment.st_mode) ||
-            initial_segment.st_size < 0)
+        if (segment_status != 0 || !S_ISREG(initial_segment.st_mode) || initial_segment.st_size < 0)
             return false;
         const auto initial_size = static_cast<std::size_t>(initial_segment.st_size);
         uint64_t initial_fingerprint = 0;

@@ -547,8 +547,7 @@ int main() {
         if (++mutation_rows == 1) {
             std::fstream out(mutation_path, std::ios::binary | std::ios::in | std::ios::out);
             CHECK(out.good());
-            out.write(reinterpret_cast<const char *>(altered_record.data()),
-                      altered_record.size());
+            out.write(reinterpret_cast<const char *>(altered_record.data()), altered_record.size());
             out.flush();
             CHECK(out.good());
         }
