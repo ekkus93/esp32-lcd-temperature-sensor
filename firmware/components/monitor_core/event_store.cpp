@@ -40,11 +40,13 @@ std::vector<JournalEvent> read_all(const std::string &path) {
     if (!input)
         return {};
     std::vector<JournalEvent> events;
+    uint64_t previous_sequence = 0;
     std::array<uint8_t, event_record_bytes> buffer{};
     while (input.read(reinterpret_cast<char *>(buffer.data()), buffer.size())) {
         auto event = decode_event({buffer.begin(), buffer.end()});
-        if (!event)
+        if (!event || event->sequence <= previous_sequence)
             return {};
+        previous_sequence = event->sequence;
         events.push_back(*event);
     }
     if (input.gcount() != 0 && input.gcount() != static_cast<std::streamsize>(buffer.size()))
@@ -227,11 +229,13 @@ JournalPage EventStore::page(uint64_t after, size_t limit) const {
     if (!input)
         return page;
     page.available = true;
+    uint64_t previous_sequence = 0;
     std::array<uint8_t, event_record_bytes> buffer{};
     while (input.read(reinterpret_cast<char *>(buffer.data()), buffer.size())) {
         auto event = decode_event({buffer.begin(), buffer.end()});
-        if (!event)
+        if (!event || event->sequence <= previous_sequence)
             return {};
+        previous_sequence = event->sequence;
         if (!page.oldest_available)
             page.oldest_available = event->sequence;
         if (event->sequence <= after)

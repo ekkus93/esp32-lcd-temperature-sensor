@@ -472,6 +472,53 @@ int main() {
     const auto retry_page = retry_events.page(0, 50);
     CHECK(retry_page.available && retry_page.events.size() == 2);
     CHECK(retry_page.events[0].sequence == 1 && retry_page.events[1].sequence == 2);
+
+    // CRC-valid but non-monotonic sequences must not be served to API
+    // clients or compacted: recovery already rejects these journals.
+    const std::string sequence_path = std::string(event_directory) + "/sequence.bin";
+    for (const auto &pair : {std::array<uint64_t, 2>{2, 1},
+                             std::array<uint64_t, 2>{1, 1}}) {
+        std::ofstream out(sequence_path, std::ios::binary | std::ios::trunc);
+        for (const auto sequence : pair) {
+            auto serialized = event;
+            serialized.sequence = sequence;
+            const auto encoded = encode_event(serialized);
+            CHECK(encoded.size() == event_record_bytes);
+            out.write(reinterpret_cast<const char *>(encoded.data()), encoded.size());
+        }
+        out.close();
+        CHECK(out.good());
+        EventStore unordered(sequence_path, 2 * event_record_bytes);
+        CHECK(!unordered.recover());
+        CHECK(!unordered.page(0, 50).available);
+        CHECK(!unordered.page(0, 1).available);
+    }
+    {
+        std::ofstream out(sequence_path, std::ios::binary | std::ios::trunc);
+        for (const auto sequence : {uint64_t(1), uint64_t(3)}) {
+            auto serialized = event;
+            serialized.sequence = sequence;
+            const auto encoded = encode_event(serialized);
+            out.write(reinterpret_cast<const char *>(encoded.data()), encoded.size());
+        }
+        out.close();
+        CHECK(out.good());
+    }
+    EventStore gapped(sequence_path, 2 * event_record_bytes);
+    CHECK(gapped.recover()); // Compaction may legitimately leave sequence gaps.
+    CHECK(gapped.page(0, 50).events.size() == 2);
+    {
+        std::fstream tamper(sequence_path, std::ios::binary | std::ios::in | std::ios::out);
+        auto serialized = event;
+        serialized.sequence = 1;
+        const auto encoded = encode_event(serialized);
+        tamper.seekp(event_record_bytes);
+        tamper.write(reinterpret_cast<const char *>(encoded.data()), encoded.size());
+        CHECK(tamper.good());
+    }
+    auto next_sequence_event = event;
+    next_sequence_event.uptime_ms += 10000;
+    CHECK(!gapped.append(next_sequence_event)); // Compact refuses reordered records.
     std::filesystem::remove_all(event_directory);
     char cadence_directory[] = "/tmp/monitor-cadence-XXXXXX";
     CHECK(mkdtemp(cadence_directory));
