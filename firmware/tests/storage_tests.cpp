@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <sys/resource.h>
 #include <thread>
 #include <unistd.h>
@@ -1058,6 +1059,37 @@ int main() {
     CHECK(!sparse_journal.page(0, 1).available);
     CHECK(std::filesystem::file_size(sparse_path) == sparse_bytes);
     CHECK(std::filesystem::remove(sparse_path));
+
+    // A journal with the maximum possible durable sequence must not compact
+    // away retained events before discovering that the next ID would wrap.
+    const std::string exhausted_path = std::string(event_directory) + "/exhausted.bin";
+    {
+        std::ofstream out(exhausted_path, std::ios::binary);
+        for (const auto sequence : {std::numeric_limits<uint64_t>::max() - 1,
+                                    std::numeric_limits<uint64_t>::max()}) {
+            auto serialized = event;
+            serialized.sequence = sequence;
+            const auto encoded = encode_event(serialized);
+            CHECK(encoded.size() == event_record_bytes);
+            out.write(reinterpret_cast<const char *>(encoded.data()), encoded.size());
+        }
+        CHECK(out.good());
+    }
+    EventStore exhausted(exhausted_path, 2 * event_record_bytes);
+    CHECK(exhausted.recover());
+    const auto before_exhaustion = exhausted.page(0, 50);
+    CHECK(before_exhaustion.available && before_exhaustion.events.size() == 2 &&
+          before_exhaustion.events.back().sequence == std::numeric_limits<uint64_t>::max());
+    auto exhausted_next = event;
+    exhausted_next.uptime_ms += 2000;
+    CHECK(!exhausted.append(exhausted_next));
+    CHECK(!std::filesystem::exists(exhausted_path + ".tmp"));
+    CHECK(std::filesystem::file_size(exhausted_path) == 2 * event_record_bytes);
+    const auto after_exhaustion = exhausted.page(0, 50);
+    CHECK(after_exhaustion.available && after_exhaustion.events.size() == 2 &&
+          after_exhaustion.events[0].sequence == std::numeric_limits<uint64_t>::max() - 1 &&
+          after_exhaustion.events[1].sequence == std::numeric_limits<uint64_t>::max());
+    CHECK(!exhausted.append(exhausted_next));
 
     // A valid-CRC journal that exceeds its configured capacity is not a
     // recoverable retention rollover. Reject reads and refuse compaction,

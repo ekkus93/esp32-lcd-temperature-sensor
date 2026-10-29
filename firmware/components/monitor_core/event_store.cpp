@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <fstream>
 #include <iterator>
+#include <limits>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -414,6 +415,10 @@ bool EventStore::append(const JournalEvent &input) {
         append_ready_ = false;
         return false;
     }
+    // Sequence IDs are durable API cursors. Never wrap UINT64_MAX to zero,
+    // especially after compaction has already discarded older events.
+    if (last_sequence_ == std::numeric_limits<uint64_t>::max())
+        return false;
     JournalEvent event = input;
     event.sequence = last_sequence_ + 1;
     auto encoded = encode_event(event);
