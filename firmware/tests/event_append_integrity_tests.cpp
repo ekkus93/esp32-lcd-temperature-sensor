@@ -12,7 +12,7 @@ using namespace monitor;
 #define CHECK(expr)                                                                                \
     do {                                                                                           \
         if (!(expr)) {                                                                             \
-            std::cerr << __LINE__ << ": " #expr << '\\n';                                         \
+            std::cerr << __LINE__ << ": " #expr << '\n';                                         \
             std::exit(1);                                                                          \
         }                                                                                          \
     } while (false)
@@ -88,8 +88,8 @@ int main() {
         CHECK(!journal.append(third));
 
         {
-            std::fstream repaired(journal_path, std::ios::binary | std::ios::in |
-                                                    std::ios::out);
+            const auto read_write = std::ios::binary | std::ios::in | std::ios::out;
+            std::fstream repaired(journal_path, read_write);
             CHECK(repaired.good());
             repaired.seekp(static_cast<std::streamoff>(tamper_offset));
             repaired.write(reinterpret_cast<const char *>(original.data()),
