@@ -5,10 +5,12 @@
 #include "history_mount_policy.hpp"
 #include <algorithm>
 #include <array>
+#include <csignal>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <sys/resource.h>
 #include <thread>
 #include <unistd.h>
 using namespace monitor;
@@ -20,6 +22,20 @@ using namespace monitor;
         }                                                                                          \
     } while (false)
 int main() {
+    // Inject a deterministic buffered-write/flush failure on a regular file.
+    // Symlinked /dev/full paths are now intentionally rejected by HistoryStore.
+    const auto with_file_limit = [](rlim_t bytes, const std::function<void()> &action) {
+        struct rlimit original {};
+        CHECK(getrlimit(RLIMIT_FSIZE, &original) == 0);
+        struct rlimit constrained = original;
+        constrained.rlim_cur = bytes;
+        auto previous = std::signal(SIGXFSZ, SIG_IGN);
+        CHECK(previous != SIG_ERR);
+        CHECK(setrlimit(RLIMIT_FSIZE, &constrained) == 0);
+        action();
+        CHECK(setrlimit(RLIMIT_FSIZE, &original) == 0);
+        CHECK(std::signal(SIGXFSZ, previous) != SIG_ERR);
+    };
     std::array<uint8_t, 4096> erased{};
     erased.fill(0xff);
     CHECK(history_partition_erased(erased.data(), erased.size()));
@@ -278,14 +294,13 @@ int main() {
     CHECK(guarded.visit([](const Bucket &) { return true; }));
     std::filesystem::remove_all(guarded_directory);
 
-    // Linux /dev/full deterministically injects ENOSPC at the append boundary.
+    // A zero-byte RLIMIT_FSIZE causes a real buffered-write/flush failure
+    // without redirecting the history path through a prohibited symlink.
     char full_directory[] = "/tmp/monitor-full-XXXXXX";
     CHECK(mkdtemp(full_directory));
-    const auto full_path = std::filesystem::path(full_directory) / "00000000.tmh";
-    CHECK(symlink("/dev/full", full_path.c_str()) == 0);
     HistoryStore no_space(full_directory, 1024, 512);
     CHECK(no_space.recover());
-    CHECK(!no_space.append(bucket));
+    with_file_limit(0, [&] { CHECK(!no_space.append(bucket)); });
     CHECK(no_space.bytes() == 0);
     std::filesystem::remove_all(full_directory);
 
@@ -298,13 +313,10 @@ int main() {
     CHECK(retry_store.recover());
     CHECK(retry_store.append(bucket));
     const auto retry_path = std::filesystem::path(retry_directory) / "00000000.tmh";
-    const auto retry_saved = std::filesystem::path(retry_directory) / "saved.tmh";
-    std::filesystem::rename(retry_path, retry_saved);
-    CHECK(symlink("/dev/full", retry_path.c_str()) == 0);
+    const auto retry_bytes = std::filesystem::file_size(retry_path);
     bucket.start_uptime_ms += 300000;
-    CHECK(!retry_store.append(bucket));
-    CHECK(std::filesystem::remove(retry_path));
-    std::filesystem::rename(retry_saved, retry_path);
+    with_file_limit(retry_bytes, [&] { CHECK(!retry_store.append(bucket)); });
+    CHECK(std::filesystem::file_size(retry_path) == retry_bytes);
     CHECK(!retry_store.append(bucket)); // Fail closed until successful recover().
     CHECK(retry_store.recover());
     CHECK(retry_store.append(bucket));
