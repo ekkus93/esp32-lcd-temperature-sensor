@@ -1,3 +1,19 @@
+## 2026-10-28 — Conservative partial storage header recovery (software-only)
+
+EventStore now preserves malformed 1–8-byte TME1 header prefixes rather than
+truncating them as interrupted writes; corrected source `89e9c101` passed
+exact-commit CI run `40810808184` after a formatting-only initial failure.
+HistoryStore now likewise preserves malformed short TMH1/TMH2 headers and
+impossible record lengths; source `0510da53` passed exact-commit CI run
+`40811329826`. Native tests prove byte preservation and retain exhaustive
+valid interrupted-append recovery; both CI runs include simulated REST/
+WebSocket, headless LVGL, React and pinned ESP-IDF v6.1. This is host-only
+recovery hardening, not evidence of physical LittleFS power-loss, reboot,
+owner-network, probes/LCD, OTA/rollback, factory reset or sustained load.
+T06-14/T06-16 and other hardware acceptance remain unchecked. Canonical
+TODO remains 114/158 checked (72.15%). No owner devices or credentials
+were accessed.
+
 ## 2026-10-28 — Oversized event journal refusal (software-only)
 
 Event pagination and compaction now refuse a journal exceeding its configured

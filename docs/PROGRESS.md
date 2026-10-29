@@ -1,3 +1,34 @@
+## 2026-10-28 — Preserve malformed partial history headers (software-only)
+
+HistoryStore recovery previously truncated arbitrary short active-segment tails,
+including invalid magic, unknown versions and impossible length fields, as if
+they were interrupted TMH1/TMH2 appends. It now recognizes the partial
+TMH1/TMH2 header progressively and preserves invalid bytes rather than
+silently discarding diagnostic evidence. Host regression injects malformed
+1–8-byte prefixes and checks byte-for-byte preservation. Existing one/five-
+probe interrupted-record tests continue to pass for every byte boundary,
+including rollover. Exact-source commit
+`0510da535cc4f5c5fd12167e954e72c2b9ead146` passed GitHub Actions run
+`40811329826`: native C++/Python, simulated REST/WebSocket, headless LVGL,
+React and pinned ESP-IDF v6.1 compilation. This is host-only simulation,
+not physical LittleFS/power-loss or reboot acceptance. T06-14/T06-16 stay
+unchecked. No owner devices, credentials, flashing, OTA or reset were used.
+
+## 2026-10-28 — Preserve malformed partial event headers (software-only)
+
+EventStore recovery previously truncated short arbitrary journal tails as
+interrupted writes, even when the magic, version or declared record length
+did not match the current TME1 schema. Recovery now permits truncation only
+for a valid prefix of the eight-byte current-format header and preserves
+unknown/corrupt prefixes for diagnosis. Native regression exercises all
+eight invalid header prefix lengths, byte-for-byte preservation, the 60
+valid interrupted-append cuts and future-version fragments. Initial source
+`551bbe5d` failed C++ formatting (run `40810743113`); corrected exact
+commit `89e9c101993b04ace9c25e8123e16711a14e1b8f` passed Actions run
+`40810808184` (native C++/Python, simulated REST/WebSocket, headless LVGL,
+React and pinned ESP-IDF v6.1). T06-14/T06-16 and real LittleFS power-loss
+acceptance remain open; no hardware or owner secrets were accessed.
+
 ## 2026-10-28 — Oversized event-journal integrity guard (software-only)
 
 An externally oversized but CRC-valid event journal previously bypassed the
