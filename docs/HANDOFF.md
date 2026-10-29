@@ -1,3 +1,18 @@
+## 2026-10-29 — History segment path hardening verified in exact-head CI
+
+HistoryStore now refuses symlink/non-regular segment paths before recovery,
+export, and append, and fails closed on directory/read errors. Native
+regression preserves external segment bytes, refuses dangling links/directories,
+and uses regular-file RLIMIT_FSIZE write/flush failure injection without
+bypassing the new path checks. Initial `b6c89553` failed formatting
+(Actions `40834070502`); `93c1f4d0` passed formatting and ESP-IDF build
+but exposed the obsolete /dev/full history symlink test (Actions
+`40834400874`). Corrected source `cf6e9c8c` **passed** exact-SHA Actions
+`40835122250`, including native C++/Python, simulated API/WebSocket,
+headless LVGL, React and pinned ESP-IDF v6.1. Physical LittleFS
+power interruption, sensor/LCD, owner Wi-Fi, OTA, factory reset and
+sustained-load acceptance remain open. No secrets or devices accessed.
+
 ## 2026-10-29 — History segment path and read-failure integrity (software-only)
 
 HistoryStore now refuses symbolic-link and non-regular segment paths on
