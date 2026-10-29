@@ -7,7 +7,7 @@ repair, and preserves malformed or newer-format tails. A 32 MiB sparse
 oversize regression was added. Initial `1bc9a171` failed formatting-only
 Actions `40910018910`; `854a2caca` passed host/formatting but failed
 ESP-IDF compilation on a stale variable (Actions `40910434198`);
-corrected-source CI pending. Hardware LittleFS
+corrected exact-source `3c65f8d20699e1a009ec3a2a67ff67633b27d06a` **passed** Actions `40911260280` (native C++/Python, simulated REST/WebSocket, headless LVGL, React, formatting and pinned ESP-IDF v6.1 compilation). Hardware LittleFS
 power-loss/reboot and all sensor/LCD, owner-network, OTA/rollback, disposable
 reset and soak acceptance remain open. Numbered TODO: 114/145 complete.
 

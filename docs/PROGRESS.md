@@ -10,7 +10,7 @@ journal; the existing torn-tail, CRC, compaction and pagination tests remain
 in the verification suite. Initial exact-head `1bc9a171` failed formatting-only Actions `40910018910`;
 `854a2caca` passed formatting and host tests but failed pinned ESP-IDF
 compilation on a stale variable name (Actions `40910434198`);
-corrected-source CI pending. No physical LittleFS
+corrected exact-source `3c65f8d20699e1a009ec3a2a67ff67633b27d06a` **passed** Actions `40911260280` (native C++/Python, simulated REST/WebSocket, headless LVGL, React, formatting and pinned ESP-IDF v6.1 compilation). No physical LittleFS
 power-loss, reboot, sensor/LCD, owner-network, OTA, reset or soak acceptance
 is claimed. T06-14/T06-16 remain open; numbered TODO stays 114/145.
 
