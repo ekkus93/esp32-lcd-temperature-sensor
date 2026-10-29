@@ -1,3 +1,18 @@
+## 2026-10-29 — History export same-inode mutation guard
+
+The host-tested history exporter now detects a CRC-valid in-place rewrite
+of an earlier segment record during a visitor callback, even when segment
+size and inode do not change. A bounded FNV-1a before/after segment check
+rejects the mixed-time export; regression repairs the record and confirms
+normal two-row export. Corrected source `1ea6773c` passed exact-SHA
+GitHub Actions `40928698651` (native C++/Python, simulated REST/WebSocket,
+headless LVGL, React, pinned ESP-IDF v6.1). Earlier CI failures were
+reconciled (formatting and a C++ fixture-name collision). Fingerprinting
+adds read I/O; T06-14/T06-16 and T10-05 remain open for physical LittleFS
+durability, device concurrent exports and measured load. All sensor/LCD,
+owner-network, OTA/rollback, disposable reset and soak gates remain open.
+Numbered TODO remains 114/145 complete; no owner device or secrets touched.
+
 ## 2026-10-29 — Event journal 64-bit cursor exhaustion guard
 
 The software-only event journal now refuses a distinct append after durable

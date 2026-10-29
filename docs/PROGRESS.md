@@ -1,3 +1,31 @@
+## 2026-10-29 — Reject CRC-valid in-place history changes during export (software-only)
+
+HistoryStore::visit previously verified segment path/inode, size and each
+record's CRC, but a callback could rewrite an earlier record in place with a
+valid recomputed CRC and unchanged inode/length. The export could then report
+success despite having visited a mixed-time snapshot. Each segment is now
+fingerprinted with a bounded streaming FNV-1a pass before traversal and
+rechecked after traversal, including early visitor termination. Native
+regression rewrites the first of two records in place during the first
+callback, confirms the export refuses success, restores the original bytes,
+and confirms two-record export success. The fingerprint detects accidental
+changes, not malicious forgery; the additional segment reads require device
+performance/heap/watchdog measurement under T10-05.
+
+Initial source `3aa914e0` failed clang-format (Actions 40927808243);
+formatted `011b6a1e` failed native compilation on a duplicate fixture variable
+(Actions 40927955597); `9513e6f0` failed formatting on the renamed assertion
+(Actions 40928607784). Corrected exact source
+`1ea6773c47c2dcb9ff874cd071c0b19f93c5651b` **passed** GitHub Actions
+`40928698651`: native C++/Python host tests, simulated REST/WebSocket,
+headless LVGL, React checks, formatting and pinned ESP-IDF v6.1 compilation.
+Numbered TODO remains **114/145 (78.62%)** with 31 open. T06-14/T06-16
+still require actual LittleFS exhaustion, concurrent device export,
+reboot/power-loss verification. Physical sensors/LCD, owner-network Wi-Fi,
+OTA success/rollback, disposable reset and sustained-load acceptance also
+remain open. No hardware, credentials, flashing or destructive operations
+were used.
+
 ## 2026-10-29 — Preserve journal on exhausted 64-bit event sequence (software-only)
 
 The durable journal uses monotonically increasing 64-bit API cursors. An
