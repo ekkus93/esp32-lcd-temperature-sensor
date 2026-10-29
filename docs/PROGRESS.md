@@ -1,3 +1,35 @@
+## 2026-10-29 — Reconcile storage CI and protect history export file identity (software-only)
+
+The concurrent storage fixture introduced two local variables named `size_guard`
+(one HistoryStore, one EventStore), causing exact-head `90037ce6` to fail
+native compilation (Actions `40873611562`). Renaming the event fixture in
+`b53bb113` restored passing exact-SHA CI (run `40874634016`).
+
+HistoryStore::visit now records each history segment's POSIX device/inode
+before export and rechecks it after every callback, on early callback stop
+and after each segment. A valid ordinary file copied to the same pathname
+with identical byte length cannot silently replace the segment while an
+export is in progress. The regression replaces the segment after its first
+record, expects export refusal, restores the original and confirms both
+records can then be exported. ESP-IDF LittleFS has no reliable inode
+identity; its path/type checks remain, and this host-only check is not a
+claim of physical flash integrity.
+
+Initial `9b67d130` failed clang-format (Actions `40875626820`).
+Formatted `8d252196` failed native `storage_recovery` because the test
+configured less than twice its segment size (Actions `40876024040`).
+Corrected `a0b22cbaa7256175c53a9f059418680d975fe9c4` **passed** exact-SHA
+GitHub Actions `40876690573`, including all native CTests, Python checks,
+simulated REST/WebSocket, headless LVGL, React and pinned ESP-IDF v6.1 build.
+
+The numbered TODO remains **114/145 complete (31 open)**. T06-14/T06-16
+stay unchecked for physical LittleFS/power interruption, device concurrency
+and reboot acceptance. Physical sensor/LCD/electrical checks, owner-network
+provisioning, OTA success/rollback, destructive factory reset on disposable
+hardware, sustained heap/Wi-Fi soak and release gates remain open. No owner
+device, Wi-Fi/admin credentials, flashing, OTA, reset or power interruption
+was used in this cycle.
+
 ## 2026-10-29 — Detect same-inode event journal size changes (software-only)
 
 EventStore now records the durable journal byte count after recovery, append

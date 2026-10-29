@@ -1,3 +1,14 @@
+## 2026-10-29 — Exact-SHA CI restored; segment export identity guarded
+
+The storage test naming collision at `90037ce6` was fixed in `b53bb113`
+(Actions `40874634016` passed). Native history exports now reject same-name
+ordinary segment replacement during a callback and preserve the original
+data. After formatting and test-capacity corrections, `a0b22cba` passed
+Actions `40876690573` (host C++/Python, REST/WebSocket simulation, headless
+LVGL, React and ESP-IDF v6.1). T06-14/T06-16 and all physical/owner-network,
+OTA, reset and long-soak gates remain open. See PROGRESS.md for the failed
+CI runs and exact fixes; TODO remains 114/145 numbered tasks complete.
+
 ## 2026-10-29 — Journal same-inode truncation/growth guard passed CI
 
 EventStore rejects same-inode journal size changes before duplicate suppression,
