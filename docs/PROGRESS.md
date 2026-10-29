@@ -1,3 +1,28 @@
+## 2026-10-29 — Full-stream event journal fingerprint integrity (software-only)
+
+EventStore previously checked the durable final record, per-record CRCs and
+monotonic sequence ordering, but a CRC-valid same-size edit to an earlier
+record could still pass pagination and be carried into compaction. The store
+now maintains an incremental FNV-1a 64-bit fingerprint across the entire
+recovered journal, verifies it before append/compaction, and checks it during
+the complete API pagination scan. Recovery and compaction rebuild the
+fingerprint; successful appends extend it. Native C++ regression changes
+the first of three events while preserving the inode, size, sequence order,
+last record and valid recomputed CRC, verifies both short/full pages and
+append reject it, and verifies restored data after repair, recovery and
+compaction. This is accidental-corruption detection, not cryptographic
+authentication; full-stream verification increases append read I/O and
+requires device-load timing under T10-05.
+
+Implementation `6d7c4954` failed formatting-only Actions 40900779253;
+corrected exact SHA `dc50bf1731e40a29e8fcd975a976567fbb2ae618`
+**passed** Actions 40901012137: native C++/Python, simulated REST/WebSocket,
+headless LVGL, React, formatting and pinned ESP-IDF v6.1 compilation.
+Numbered checklist remains 114/145 complete (31 open). T06-14/T06-16
+and physical sensor/LCD, owner Wi-Fi, OTA success/rollback, disposable
+reset, LittleFS power interruption and sustained-load gates remain open.
+No hardware, owner credentials, flashing, OTA, reset or power loss was used.
+
 ## 2026-10-29 — Reject CRC-valid final journal mutation in API pagination (software-only)
 
 EventStore::page() now compares the durable final record with the last

@@ -1,3 +1,19 @@
+## 2026-10-29 — Earlier CRC-valid journal mutation guarded
+
+The event journal now fingerprints the entire durable record stream rather
+than trusting only the last record, file identity and individual CRCs.
+Host regression mutates an earlier record with a valid recomputed CRC,
+requires API pagination and append to fail closed, and proves recovery and
+compaction after restoring the original bytes. Exact source
+`dc50bf1731e40a29e8fcd975a976567fbb2ae618` passed GitHub Actions
+40901012137 (native C++/Python, simulated REST/WebSocket, headless LVGL,
+React and pinned ESP-IDF v6.1). A formatting-only failure at `6d7c4954`
+was corrected. FNV-1a is noncryptographic and the extra flash reads on
+append still require real-device timing under T10-05. TODO remains
+114/145 numbered tasks complete; physical LittleFS, five-probe/LCD,
+owner-network, OTA/rollback, reset and soak acceptance remain open.
+No hardware, credentials or destructive actions were involved.
+
 ## 2026-10-29 — CRC-valid last-record API pagination guard verified
 
 EventStore::page now verifies that the final durable event matches the
