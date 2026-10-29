@@ -1,3 +1,20 @@
+## 2026-10-29 — Fail closed on missing history segments and exclusive rollover paths (software-only)
+
+HistoryStore now refuses to silently recreate an active segment deleted after
+successful recovery. New rollover segments use exclusive creation instead of
+opening with append mode, preventing pre-created paths or host symlinks from
+redirecting writes. Opened file descriptors are verified as regular files;
+host append also uses O_NOFOLLOW when available. Native regression covers
+pre-created rollover symlinks, unchanged external target, recovery/writer latch,
+successful normal rollover, and active-segment deletion.
+
+Exact-source commit `484eb00ebb6e27c39780c4bb9948baed3d434569`
+passed GitHub Actions run `40847935409` (C++ formatting, native C++/Python,
+simulated REST/WebSocket, headless LVGL, React and pinned ESP-IDF v6.1 build).
+T06-14/T06-16 remain open for actual LittleFS exhaustion, power interruption,
+reboot and durability verification. No device, owner Wi-Fi, OTA or reset was used.
+TODO remains 114/158 checked; 44 items remain open.
+
 ## 2026-10-29 — Preserve history during failed rollover writes (software-only)
 
 HistoryStore previously deleted old segments to satisfy the retention limit

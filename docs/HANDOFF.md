@@ -1,3 +1,15 @@
+## 2026-10-29 — Exclusive history rollover creation and missing-active guard
+
+HistoryStore now rejects deleted active segments after recovery and exclusively
+creates new rollover segments. Descriptor validation and host O_NOFOLLOW guard
+against path substitutions. Native tests cover a symlinked next segment,
+preservation of its target, recovery/continuity, and missing-active refusal.
+Exact-source `484eb00e` passed Actions run `40847935409`, including
+native C++/Python, simulated REST/WebSocket, headless LVGL, React and
+ESP-IDF v6.1. This is software-only evidence; 114/158 TODO items are checked,
+44 remain open, with physical LittleFS, sensor/LCD, owner network, OTA,
+factory reset and soak acceptance still pending.
+
 ## 2026-10-29 — History retention no longer evicts before durable append
 
 HistoryStore now persists the replacement record before deleting older
