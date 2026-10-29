@@ -12,7 +12,7 @@ using namespace monitor;
 #define CHECK(expr)                                                                                \
     do {                                                                                           \
         if (!(expr)) {                                                                             \
-            std::cerr << __LINE__ << ": " #expr << '\n';                                         \
+            std::cerr << __LINE__ << ": " #expr << '\n';                                           \
             std::exit(1);                                                                          \
         }                                                                                          \
     } while (false)
