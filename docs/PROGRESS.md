@@ -1,3 +1,16 @@
+## 2026-10-29 — Bounded streaming event journal recovery (software-only)
+
+EventStore::recover() no longer materializes an arbitrarily large journal in
+RAM before checking its configured capacity. Recovery preflights the file size,
+streams and CRC-validates fixed 60-byte records, checks monotonic sequences,
+detects concurrent growth, verifies the original image (including a valid
+interrupted-header tail) before any truncation, and revalidates the resulting
+durable prefix. A native regression uses a preserved 32 MiB sparse oversized
+journal; the existing torn-tail, CRC, compaction and pagination tests remain
+in the verification suite. Exact-head CI pending. No physical LittleFS
+power-loss, reboot, sensor/LCD, owner-network, OTA, reset or soak acceptance
+is claimed. T06-14/T06-16 remain open; numbered TODO stays 114/145.
+
 ## 2026-10-29 — Full-stream event journal fingerprint integrity (software-only)
 
 EventStore previously checked the durable final record, per-record CRCs and

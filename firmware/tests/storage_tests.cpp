@@ -1044,6 +1044,21 @@ int main() {
     CHECK(repaired_page.available && repaired_page.events.size() == 3 &&
           repaired_page.events.back().sequence == 3);
 
+    // An oversized sparse journal must fail recovery before allocating or
+    // reading its contents. Keep all bytes intact for offline diagnosis.
+    const std::string sparse_path = std::string(event_directory) + "/sparse-oversized.bin";
+    {
+        std::ofstream sparse(sparse_path, std::ios::binary);
+        CHECK(sparse.good());
+    }
+    constexpr uintmax_t sparse_bytes = 32u * 1024u * 1024u;
+    std::filesystem::resize_file(sparse_path, sparse_bytes);
+    EventStore sparse_journal(sparse_path, 4 * event_record_bytes);
+    CHECK(!sparse_journal.recover());
+    CHECK(!sparse_journal.page(0, 1).available);
+    CHECK(std::filesystem::file_size(sparse_path) == sparse_bytes);
+    CHECK(std::filesystem::remove(sparse_path));
+
     // A valid-CRC journal that exceeds its configured capacity is not a
     // recoverable retention rollover. Reject reads and refuse compaction,
     // preserving all bytes for diagnosis rather than silently deleting them.

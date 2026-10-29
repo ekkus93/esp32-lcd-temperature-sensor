@@ -1,3 +1,13 @@
+## 2026-10-29 — Bounded journal recovery follow-up
+
+EventStore recovery now validates 60-byte records incrementally instead of
+allocating the entire on-flash journal. It rejects oversized journals before
+reading, checks concurrent growth and original-image integrity before tail
+repair, and preserves malformed or newer-format tails. A 32 MiB sparse
+oversize regression was added; exact-head CI pending. Hardware LittleFS
+power-loss/reboot and all sensor/LCD, owner-network, OTA/rollback, disposable
+reset and soak acceptance remain open. Numbered TODO: 114/145 complete.
+
 ## 2026-10-29 — Earlier CRC-valid journal mutation guarded
 
 The event journal now fingerprints the entire durable record stream rather

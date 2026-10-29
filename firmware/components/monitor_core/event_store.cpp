@@ -237,55 +237,73 @@ bool EventStore::recover() {
     }
     if (!S_ISREG(metadata.st_mode))
         return false;
+    // The journal is bounded by a small flash partition, but even a corrupt
+    // oversized file must not allocate its entire contents in device RAM.
+    // Stream and validate fixed-size records before modifying a torn tail.
+    if (metadata.st_size < 0 || static_cast<uint64_t>(metadata.st_size) > max_bytes_)
+        return false;
+    const size_t file_bytes = static_cast<size_t>(metadata.st_size);
+    const size_t complete_bytes = file_bytes / event_record_bytes * event_record_bytes;
     std::ifstream input(path_, std::ios::binary);
     if (!input)
         return false;
-    std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(input)), {});
-    // A read error is not an interrupted append. Never truncate data that
-    // was only partially retrieved because the filesystem failed.
-    if (input.bad() || bytes.size() > max_bytes_)
-        return false;
-    const size_t complete = bytes.size() / event_record_bytes;
     uint64_t previous_sequence = 0;
+    uint64_t fingerprint = fingerprint_basis;
     std::optional<JournalEvent> recovered_last_event;
-    for (size_t offset = 0; offset < complete * event_record_bytes; offset += event_record_bytes) {
-        std::vector<uint8_t> record(bytes.begin() + offset,
-                                    bytes.begin() + offset + event_record_bytes);
-        auto event = decode_event(record);
+    std::array<uint8_t, event_record_bytes> record{};
+    for (size_t offset = 0; offset < complete_bytes; offset += event_record_bytes) {
+        input.read(reinterpret_cast<char *>(record.data()), record.size());
+        if (input.gcount() != static_cast<std::streamsize>(record.size()) || input.bad())
+            return false;
+        auto event = decode_event({record.begin(), record.end()});
         if (!event || event->sequence <= previous_sequence)
             return false;
         previous_sequence = event->sequence;
         recovered_last_event = *event;
+        fingerprint = extend_fingerprint(fingerprint, record.data(), record.size());
     }
-    // Never modify a damaged journal merely because its final write was
-    // interrupted: validate every complete record before trimming the tail.
-    const size_t tail_start = complete * event_record_bytes;
-    if (bytes.size() != tail_start) {
-        const size_t remaining = bytes.size() - tail_start;
+    const size_t remaining = file_bytes - complete_bytes;
+    std::array<uint8_t, event_record_bytes> tail{};
+    if (remaining) {
+        input.read(reinterpret_cast<char *>(tail.data()), remaining);
+        if (input.gcount() != static_cast<std::streamsize>(remaining) || input.bad())
+            return false;
         // Only a prefix of the current record header is an interrupted
-        // append. Unknown magic, version, or record length may indicate
-        // corruption or a newer firmware schema: preserve it for diagnosis.
-        // The first eight bytes encode TME1, version 1, and record size 60.
+        // append. Unknown format/version/length is preserved for diagnosis.
         static_assert(event_record_bytes == 60);
         const uint8_t expected_header[] = {'T', 'M', 'E', '1', 1, 0, 60, 0};
-        if (std::memcmp(bytes.data() + tail_start, expected_header,
+        if (std::memcmp(tail.data(), expected_header,
                         std::min(remaining, sizeof(expected_header))) != 0)
             return false;
-        if (truncate(path_.c_str(), static_cast<off_t>(tail_start)) != 0)
-            return false;
     }
+    // A file that grew while being read is not the validated snapshot.
+    if (input.peek() != std::char_traits<char>::eof() || input.bad())
+        return false;
+    const uint64_t original_fingerprint =
+        extend_fingerprint(fingerprint, tail.data(), remaining);
 #ifndef ESP_PLATFORM
-    // Refuse a regular-file substitution while recovery was reading data.
     struct stat recovered {};
+    if (lstat(path_.c_str(), &recovered) != 0 || !S_ISREG(recovered.st_mode) ||
+        recovered.st_dev != metadata.st_dev || recovered.st_ino != metadata.st_ino)
+        return false;
+#endif
+    // Recheck the full pre-recovery image (including the torn tail) before
+    // truncation. A read error or concurrent replacement must not destroy it.
+    if (!expected_journal_size(path_, file_bytes) ||
+        !expected_journal_fingerprint(path_, file_bytes, original_fingerprint))
+        return false;
+    if (remaining && truncate(path_.c_str(), static_cast<off_t>(complete_bytes)) != 0)
+        return false;
+#ifndef ESP_PLATFORM
+    // Bind subsequent appends to the exact regular file we recovered.
     if (lstat(path_.c_str(), &recovered) != 0 || !S_ISREG(recovered.st_mode) ||
         recovered.st_dev != metadata.st_dev || recovered.st_ino != metadata.st_ino)
         return false;
     journal_dev_ = static_cast<uint64_t>(recovered.st_dev);
     journal_ino_ = static_cast<uint64_t>(recovered.st_ino);
 #endif
-    const uint64_t fingerprint = extend_fingerprint(fingerprint_basis, bytes.data(), tail_start);
-    if (!expected_journal_size(path_, tail_start) ||
-        !expected_journal_fingerprint(path_, tail_start, fingerprint))
+    if (!expected_journal_size(path_, complete_bytes) ||
+        !expected_journal_fingerprint(path_, complete_bytes, fingerprint))
         return false;
     last_sequence_ = previous_sequence;
     last_event_ = recovered_last_event;
