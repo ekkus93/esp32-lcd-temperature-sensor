@@ -391,7 +391,9 @@ bool EventStore::append(const JournalEvent &input) {
 
 JournalPage EventStore::page(uint64_t after, size_t limit) const {
     JournalPage page{};
-    if (!limit || limit > 50 || !safe_journal_path(path_) ||
+    // A journal is not API-readable until recovery has validated it. A failed
+    // append/recovery also quarantines reads until another successful recovery.
+    if (!append_ready_ || !limit || limit > 50 || !safe_journal_path(path_) ||
         !expected_journal_size(path_, expected_bytes_) || bytes() > max_bytes_)
         return page;
 #ifndef ESP_PLATFORM

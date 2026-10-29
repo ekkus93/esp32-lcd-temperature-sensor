@@ -881,7 +881,9 @@ int main() {
     // restores sequence continuity before allowing another append.
     const std::string retry_event_path = std::string(event_directory) + "/retry.bin";
     EventStore retry_events(retry_event_path, 4 * event_record_bytes);
+    CHECK(!retry_events.page(0, 50).available); // Unvalidated journal is not API-healthy.
     CHECK(retry_events.recover());
+    CHECK(retry_events.page(0, 50).available);
     CHECK(retry_events.append(event));
     const auto retry_event_saved = retry_event_path + ".saved";
     std::filesystem::rename(retry_event_path, retry_event_saved);
@@ -892,7 +894,11 @@ int main() {
     CHECK(std::filesystem::remove(retry_event_path));
     std::filesystem::rename(retry_event_saved, retry_event_path);
     CHECK(!retry_events.append(next_event));
+    // The original valid bytes and inode are restored, but the failed writer
+    // must not expose them as verified until explicit recovery succeeds.
+    CHECK(!retry_events.page(0, 50).available);
     CHECK(retry_events.recover());
+    CHECK(retry_events.page(0, 50).available);
     CHECK(retry_events.append(next_event));
     const auto retry_page = retry_events.page(0, 50);
     CHECK(retry_page.available && retry_page.events.size() == 2);
