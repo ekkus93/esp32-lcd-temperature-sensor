@@ -1,3 +1,17 @@
+## 2026-10-29 — Bind native event-journal operations to recovered file identity (software-only)
+
+Native EventStore now records the journal device/inode on successful recovery,
+refuses a substituted ordinary file before appending, compaction and API
+pagination, verifies the opened append descriptor, and checks identity after
+writing. Successful compaction rebinds the identity to the newly renamed
+journal. A native regression substitutes a valid copy at the same path,
+checks that API reads and writes refuse it without changing bytes, then
+restores the original, recovers and appends with correct sequence continuity.
+ESP-IDF LittleFS retains path/type checks because its VFS does not expose
+reliable inode identity. Exact-commit native/React/LVGL/ESP-IDF v6.1 CI is
+pending; no physical flash, power interruption, owner Wi-Fi, LCD/probes, OTA,
+factory reset or soak test was performed. T06-14/T06-16 remain unchecked.
+
 ## 2026-10-29 — Bind native history append to recovered active segment identity (software-only)
 
 Native HistoryStore now retains the active segment device/inode after successful
@@ -13,8 +27,10 @@ exact-commit GitHub Actions verification. Initial `964e7ba4` failed
 formatting-only CI run `40863633750`; the source expression was simplified. Corrected source `da434a48`
 passed formatting and ESP-IDF v6.1 compilation but storage_recovery failed
 because the new test expected three rows after restoring a one-row baseline;
-the correct post-append count is two. Exact-SHA CI for the corrected assertion
-is required before claiming success. T06-14/T06-16, physical probes/LCD, owner-network onboarding, OTA,
+the correct post-append count is two. Corrected exact-SHA `7582e64b` passed GitHub Actions run `40864207105`
+(native C++/Python, simulated REST/WebSocket, headless LVGL, React and pinned
+ESP-IDF v6.1). This verifies host-only active-segment substitution refusal,
+not physical LittleFS or power-loss acceptance. T06-14/T06-16, physical probes/LCD, owner-network onboarding, OTA,
 reset, sustained load and power-loss acceptance remain unchecked. No hardware,
 credentials or destructive operations were used.
 

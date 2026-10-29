@@ -833,6 +833,27 @@ int main() {
     CHECK(retry_page.available && retry_page.events.size() == 2);
     CHECK(retry_page.events[0].sequence == 1 && retry_page.events[1].sequence == 2);
 
+    // An ordinary replacement journal with valid bytes is not the recovered
+    // file. Reject append and API pagination, preserve the substitute, and
+    // permit writes only after the original is restored and revalidated.
+    const std::string replaced_event_path = std::string(event_directory) + "/replaced.bin";
+    EventStore replaced_events(replaced_event_path, 4 * event_record_bytes);
+    CHECK(replaced_events.recover());
+    CHECK(replaced_events.append(event));
+    const auto saved_event_path = replaced_event_path + ".saved";
+    std::filesystem::rename(replaced_event_path, saved_event_path);
+    CHECK(std::filesystem::copy_file(saved_event_path, replaced_event_path));
+    const auto replacement_event_bytes = std::filesystem::file_size(replaced_event_path);
+    CHECK(!replaced_events.page(0, 50).available);
+    CHECK(!replaced_events.append(next_event));
+    CHECK(std::filesystem::file_size(replaced_event_path) == replacement_event_bytes);
+    CHECK(!replaced_events.append(next_event));
+    CHECK(std::filesystem::remove(replaced_event_path));
+    std::filesystem::rename(saved_event_path, replaced_event_path);
+    CHECK(replaced_events.recover());
+    CHECK(replaced_events.append(next_event));
+    CHECK(replaced_events.page(0, 50).events.size() == 2);
+
     // A valid-CRC journal that exceeds its configured capacity is not a
     // recoverable retention rollover. Reject reads and refuse compaction,
     // preserving all bytes for diagnosis rather than silently deleting them.

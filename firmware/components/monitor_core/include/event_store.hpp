@@ -44,5 +44,10 @@ class EventStore {
     std::optional<JournalEvent> last_event_;
     // No writes before first successful recovery or after a failed append/recovery.
     bool append_ready_ = false;
+#ifndef ESP_PLATFORM
+    // The journal path must still identify the file validated by recover().
+    uint64_t journal_dev_ = 0;
+    uint64_t journal_ino_ = 0;
+#endif
 };
 } // namespace monitor

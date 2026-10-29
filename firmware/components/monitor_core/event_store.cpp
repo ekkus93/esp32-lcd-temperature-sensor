@@ -43,6 +43,14 @@ bool safe_journal_path(const std::string &path) {
 #endif
     return status == 0 && S_ISREG(info.st_mode);
 }
+#ifndef ESP_PLATFORM
+bool same_journal_file(const std::string &path, uint64_t device, uint64_t inode) {
+    struct stat info {};
+    return lstat(path.c_str(), &info) == 0 && S_ISREG(info.st_mode) &&
+           static_cast<uint64_t>(info.st_dev) == device &&
+           static_cast<uint64_t>(info.st_ino) == inode;
+}
+#endif
 bool valid_event(const JournalEvent &event) {
     return event.uptime_ms >= 0 &&
            static_cast<unsigned>(event.kind) <= static_cast<unsigned>(EventKind::storage_error) &&
@@ -122,6 +130,10 @@ bool EventStore::recover() {
     // Any failed recovery invalidates the writer, including an already-open
     // instance. Never append to a journal whose integrity was not verified.
     append_ready_ = false;
+#ifndef ESP_PLATFORM
+    journal_dev_ = 0;
+    journal_ino_ = 0;
+#endif
     if (max_bytes_ < 2 * event_record_bytes)
         return false;
     // A failed read is not proof that the journal is absent. In particular,
@@ -145,6 +157,13 @@ bool EventStore::recover() {
         const bool closed = close(fd) == 0;
         if (!synced || !closed)
             return false;
+#ifndef ESP_PLATFORM
+        struct stat created {};
+        if (lstat(path_.c_str(), &created) != 0 || !S_ISREG(created.st_mode))
+            return false;
+        journal_dev_ = static_cast<uint64_t>(created.st_dev);
+        journal_ino_ = static_cast<uint64_t>(created.st_ino);
+#endif
         last_sequence_ = 0;
         last_event_.reset();
         append_ready_ = true;
@@ -189,6 +208,15 @@ bool EventStore::recover() {
         if (truncate(path_.c_str(), static_cast<off_t>(tail_start)) != 0)
             return false;
     }
+#ifndef ESP_PLATFORM
+    // Refuse a regular-file substitution while recovery was reading data.
+    struct stat recovered {};
+    if (lstat(path_.c_str(), &recovered) != 0 || !S_ISREG(recovered.st_mode) ||
+        recovered.st_dev != metadata.st_dev || recovered.st_ino != metadata.st_ino)
+        return false;
+    journal_dev_ = static_cast<uint64_t>(recovered.st_dev);
+    journal_ino_ = static_cast<uint64_t>(recovered.st_ino);
+#endif
     last_sequence_ = previous_sequence;
     last_event_ = recovered_last_event;
     append_ready_ = true;
@@ -198,6 +226,10 @@ bool EventStore::recover() {
 bool EventStore::compact() {
     if (!safe_journal_path(path_))
         return false;
+#ifndef ESP_PLATFORM
+    if (!same_journal_file(path_, journal_dev_, journal_ino_))
+        return false;
+#endif
     // Recovery rejects oversized journals. Never silently compact one into
     // apparently valid data or advance sequences from stale in-memory state.
     if (bytes() > max_bytes_)
@@ -205,6 +237,10 @@ bool EventStore::compact() {
     auto events = read_all(path_);
     if (events.empty())
         return false;
+#ifndef ESP_PLATFORM
+    if (!same_journal_file(path_, journal_dev_, journal_ino_))
+        return false;
+#endif
     const size_t keep = std::max<size_t>(1, events.size() / 2);
     const std::string temporary = path_ + ".tmp";
     // Never truncate an existing .tmp path, including a symlink or a
@@ -236,6 +272,14 @@ bool EventStore::compact() {
         std::remove(temporary.c_str());
         return false;
     }
+#ifndef ESP_PLATFORM
+    // Compaction atomically replaces the inode: bind subsequent appends to it.
+    struct stat compacted {};
+    if (lstat(path_.c_str(), &compacted) != 0 || !S_ISREG(compacted.st_mode))
+        return false;
+    journal_dev_ = static_cast<uint64_t>(compacted.st_dev);
+    journal_ino_ = static_cast<uint64_t>(compacted.st_ino);
+#endif
     return true;
 }
 
@@ -246,6 +290,12 @@ bool EventStore::append(const JournalEvent &input) {
         append_ready_ = false;
         return false;
     }
+#ifndef ESP_PLATFORM
+    if (!same_journal_file(path_, journal_dev_, journal_ino_)) {
+        append_ready_ = false;
+        return false;
+    }
+#endif
     if (last_event_ && input.boot_id == last_event_->boot_id &&
         input.uptime_ms >= last_event_->uptime_ms &&
         input.uptime_ms - last_event_->uptime_ms < 1000 && input.kind == last_event_->kind &&
@@ -264,9 +314,35 @@ bool EventStore::append(const JournalEvent &input) {
     auto encoded = encode_event(event);
     if (encoded.empty())
         return false;
-    FILE *output = std::fopen(path_.c_str(), "ab");
-    if (!output)
+    int flags = O_WRONLY | O_APPEND;
+#if !defined(ESP_PLATFORM) && defined(O_NOFOLLOW)
+    flags |= O_NOFOLLOW;
+#endif
+    const int fd = open(path_.c_str(), flags);
+    if (fd < 0) {
+        append_ready_ = false;
         return false;
+    }
+    struct stat opened {};
+    if (fstat(fd, &opened) != 0 || !S_ISREG(opened.st_mode)) {
+        close(fd);
+        append_ready_ = false;
+        return false;
+    }
+#ifndef ESP_PLATFORM
+    if (static_cast<uint64_t>(opened.st_dev) != journal_dev_ ||
+        static_cast<uint64_t>(opened.st_ino) != journal_ino_) {
+        close(fd);
+        append_ready_ = false;
+        return false;
+    }
+#endif
+    FILE *output = fdopen(fd, "ab");
+    if (!output) {
+        close(fd);
+        append_ready_ = false;
+        return false;
+    }
     bool ok = std::fwrite(encoded.data(), 1, encoded.size(), output) == encoded.size();
     if (std::fflush(output) != 0 || fsync(fileno(output)) != 0)
         ok = false;
@@ -276,6 +352,12 @@ bool EventStore::append(const JournalEvent &input) {
         append_ready_ = false;
         return false;
     }
+#ifndef ESP_PLATFORM
+    if (!same_journal_file(path_, journal_dev_, journal_ino_)) {
+        append_ready_ = false;
+        return false;
+    }
+#endif
     last_sequence_ = event.sequence;
     last_event_ = event;
     return true;
@@ -285,6 +367,10 @@ JournalPage EventStore::page(uint64_t after, size_t limit) const {
     JournalPage page{};
     if (!limit || limit > 50 || !safe_journal_path(path_) || bytes() > max_bytes_)
         return page;
+#ifndef ESP_PLATFORM
+    if (!same_journal_file(path_, journal_dev_, journal_ino_))
+        return page;
+#endif
     std::ifstream input(path_, std::ios::binary);
     if (!input)
         return page;
@@ -314,6 +400,10 @@ JournalPage EventStore::page(uint64_t after, size_t limit) const {
         return {};
     if (page.events.empty())
         page.next_after = after;
+#ifndef ESP_PLATFORM
+    if (!same_journal_file(path_, journal_dev_, journal_ino_))
+        return {};
+#endif
     return page;
 }
 
