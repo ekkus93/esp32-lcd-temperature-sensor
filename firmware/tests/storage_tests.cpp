@@ -492,15 +492,13 @@ int main() {
     // must not splice data from an unvalidated file into a CSV export.
     char segment_visit_directory[] = "/tmp/monitor-visit-segment-XXXXXX";
     CHECK(mkdtemp(segment_visit_directory));
-    HistoryStore segment_visit_guard(segment_visit_directory, 4 * data.size(),
-                                     3 * data.size());
+    HistoryStore segment_visit_guard(segment_visit_directory, 4 * data.size(), 3 * data.size());
     CHECK(segment_visit_guard.recover());
     bucket.start_uptime_ms = 0;
     CHECK(segment_visit_guard.append(bucket));
     bucket.start_uptime_ms = 300000;
     CHECK(segment_visit_guard.append(bucket));
-    const auto segment_visit_path =
-        std::filesystem::path(segment_visit_directory) / "00000000.tmh";
+    const auto segment_visit_path = std::filesystem::path(segment_visit_directory) / "00000000.tmh";
     const auto segment_visit_saved =
         std::filesystem::path(segment_visit_directory) / "original.bin";
     unsigned segment_visit_rows = 0;
