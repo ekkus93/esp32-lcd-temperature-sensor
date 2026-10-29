@@ -409,16 +409,16 @@ bool EventStore::append(const JournalEvent &input) {
         input.state == last_event_->state && input.utc_seconds == last_event_->utc_seconds &&
         input.detail == last_event_->detail)
         return true;
+    // Sequence IDs are durable API cursors. Never wrap UINT64_MAX to zero,
+    // especially after compaction has already discarded older events.
+    if (last_sequence_ == std::numeric_limits<uint64_t>::max())
+        return false;
     if (bytes() + event_record_bytes > max_bytes_ && !compact()) {
         // Compaction can fail because the existing journal is corrupt. Require
         // a fresh successful recovery even if the file is repaired later.
         append_ready_ = false;
         return false;
     }
-    // Sequence IDs are durable API cursors. Never wrap UINT64_MAX to zero,
-    // especially after compaction has already discarded older events.
-    if (last_sequence_ == std::numeric_limits<uint64_t>::max())
-        return false;
     JournalEvent event = input;
     event.sequence = last_sequence_ + 1;
     auto encoded = encode_event(event);
