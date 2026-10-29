@@ -20,6 +20,8 @@ class HistoryStore {
     std::size_t max_bytes_;
     std::size_t segment_bytes_;
     unsigned active_ = 0;
+    // A failed append may leave a partial segment; require recovery before retry.
+    bool append_ready_ = true;
     std::vector<unsigned> segments() const;
     std::string path(unsigned number) const;
 };

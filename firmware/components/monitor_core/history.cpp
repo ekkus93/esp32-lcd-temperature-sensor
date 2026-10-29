@@ -235,6 +235,7 @@ bool HistoryStore::recover() {
                 return false;
         }
     }
+    append_ready_ = true;
     return true;
 }
 std::size_t HistoryStore::bytes() const {
@@ -244,6 +245,8 @@ std::size_t HistoryStore::bytes() const {
     return total;
 }
 bool HistoryStore::append(const Bucket &bucket) {
+    if (!append_ready_)
+        return false;
     auto data = encode_bucket(bucket);
     if (data.empty() || segment_bytes_ < data.size() || max_bytes_ < 2 * segment_bytes_)
         return false;
@@ -276,6 +279,8 @@ bool HistoryStore::append(const Bucket &bucket) {
         ok = false;
     if (std::fclose(output) != 0)
         ok = false;
+    if (!ok)
+        append_ready_ = false;
     return ok;
 }
 bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) const {

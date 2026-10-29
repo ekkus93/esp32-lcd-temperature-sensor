@@ -112,6 +112,7 @@ bool EventStore::recover() {
             return false;
         last_sequence_ = 0;
         last_event_.reset();
+        append_ready_ = true;
         return true;
     }
     std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(input)), {});
@@ -151,6 +152,7 @@ bool EventStore::recover() {
     }
     last_sequence_ = previous_sequence;
     last_event_ = recovered_last_event;
+    append_ready_ = true;
     return true;
 }
 
@@ -184,7 +186,7 @@ bool EventStore::compact() {
 }
 
 bool EventStore::append(const JournalEvent &input) {
-    if (!valid_event(input))
+    if (!append_ready_ || !valid_event(input))
         return false;
     if (last_event_ && input.boot_id == last_event_->boot_id &&
         input.uptime_ms >= last_event_->uptime_ms &&
@@ -208,8 +210,10 @@ bool EventStore::append(const JournalEvent &input) {
         ok = false;
     if (std::fclose(output) != 0)
         ok = false;
-    if (!ok)
+    if (!ok) {
+        append_ready_ = false;
         return false;
+    }
     last_sequence_ = event.sequence;
     last_event_ = event;
     return true;

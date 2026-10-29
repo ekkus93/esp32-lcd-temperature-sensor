@@ -246,6 +246,33 @@ int main() {
     CHECK(no_space.bytes() == 0);
     std::filesystem::remove_all(full_directory);
 
+    // An ENOSPC/flush failure may leave an incomplete record. Even if the
+    // underlying path becomes writable again, a writer must not append to
+    // potentially torn data until recovery has inspected the segment.
+    char retry_directory[] = "/tmp/monitor-retry-XXXXXX";
+    CHECK(mkdtemp(retry_directory));
+    HistoryStore retry_store(retry_directory, 1024, 512);
+    CHECK(retry_store.recover());
+    CHECK(retry_store.append(bucket));
+    const auto retry_path = std::filesystem::path(retry_directory) / "00000000.tmh";
+    const auto retry_saved = std::filesystem::path(retry_directory) / "saved.tmh";
+    std::filesystem::rename(retry_path, retry_saved);
+    CHECK(symlink("/dev/full", retry_path.c_str()) == 0);
+    bucket.start_uptime_ms += 300000;
+    CHECK(!retry_store.append(bucket));
+    CHECK(std::filesystem::remove(retry_path));
+    std::filesystem::rename(retry_saved, retry_path);
+    CHECK(!retry_store.append(bucket)); // Fail closed until successful recover().
+    CHECK(retry_store.recover());
+    CHECK(retry_store.append(bucket));
+    unsigned retry_rows = 0;
+    CHECK(retry_store.visit([&](const Bucket &) {
+        ++retry_rows;
+        return true;
+    }));
+    CHECK(retry_rows == 2);
+    std::filesystem::remove_all(retry_directory);
+
     char event_directory[] = "/tmp/monitor-events-XXXXXX";
     CHECK(mkdtemp(event_directory));
     const std::string event_path = std::string(event_directory) + "/events.bin";
@@ -423,6 +450,28 @@ int main() {
     later.uptime_ms += 1000;
     CHECK(reused.append(later));
     CHECK(reused.page(0, 50).events.back().sequence == 3);
+
+    // A failed event append must not be retried against a possibly torn
+    // journal, even if the filesystem becomes writable again. Recovery
+    // restores sequence continuity before allowing another append.
+    const std::string retry_event_path = std::string(event_directory) + "/retry.bin";
+    EventStore retry_events(retry_event_path, 4 * event_record_bytes);
+    CHECK(retry_events.recover());
+    CHECK(retry_events.append(event));
+    const auto retry_event_saved = retry_event_path + ".saved";
+    std::filesystem::rename(retry_event_path, retry_event_saved);
+    CHECK(symlink("/dev/full", retry_event_path.c_str()) == 0);
+    auto next_event = event;
+    next_event.uptime_ms += 2000;
+    CHECK(!retry_events.append(next_event));
+    CHECK(std::filesystem::remove(retry_event_path));
+    std::filesystem::rename(retry_event_saved, retry_event_path);
+    CHECK(!retry_events.append(next_event));
+    CHECK(retry_events.recover());
+    CHECK(retry_events.append(next_event));
+    const auto retry_page = retry_events.page(0, 50);
+    CHECK(retry_page.available && retry_page.events.size() == 2);
+    CHECK(retry_page.events[0].sequence == 1 && retry_page.events[1].sequence == 2);
     std::filesystem::remove_all(event_directory);
     char cadence_directory[] = "/tmp/monitor-cadence-XXXXXX";
     CHECK(mkdtemp(cadence_directory));
