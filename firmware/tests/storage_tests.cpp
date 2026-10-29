@@ -541,7 +541,8 @@ int main() {
     altered_bucket.start_uptime_ms = 1234;
     const auto original_history_record = encode_bucket(original_bucket);
     const auto altered_record = encode_bucket(altered_bucket);
-    CHECK(!original_history_record.empty() && altered_record.size() == original_history_record.size());
+    CHECK(!original_history_record.empty() &&
+          altered_record.size() == original_history_record.size());
     unsigned mutation_rows = 0;
     CHECK(!mutation_guard.visit([&](const Bucket &) {
         if (++mutation_rows == 1) {
