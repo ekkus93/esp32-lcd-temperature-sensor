@@ -89,6 +89,21 @@ bool segment_has_size(const std::string &path, std::size_t expected) {
     return status == 0 && S_ISREG(info.st_mode) && info.st_size >= 0 &&
            static_cast<uint64_t>(info.st_size) == expected;
 }
+// A callback may replace a valid same-name segment without changing the
+// parent directory or byte count. On POSIX, retain the original file identity
+// for the duration of each export; LittleFS lacks stable inode identifiers.
+bool same_history_segment(const std::string &path, const struct stat &expected) {
+    if (!safe_segment_path(path, false))
+        return false;
+#ifndef ESP_PLATFORM
+    struct stat current {};
+    return lstat(path.c_str(), &current) == 0 && current.st_dev == expected.st_dev &&
+           current.st_ino == expected.st_ino;
+#else
+    (void)expected;
+    return true;
+#endif
+}
 // Read one bounded record. Truncated/corrupt records stop scanning at their offset.
 std::optional<Bucket> next(std::istream &in) {
     std::vector<uint8_t> bytes(8);
@@ -523,6 +538,14 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
         if (!same_history_directory(directory_, initial_directory) ||
             !safe_segment_path(path(number), false))
             return false;
+        struct stat initial_segment {};
+#ifdef ESP_PLATFORM
+        const int segment_status = stat(path(number).c_str(), &initial_segment);
+#else
+        const int segment_status = lstat(path(number).c_str(), &initial_segment);
+#endif
+        if (segment_status != 0 || !S_ISREG(initial_segment.st_mode))
+            return false;
         std::ifstream input(path(number), std::ios::binary);
         if (!input)
             return false;
@@ -530,11 +553,16 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
         while (auto bucket = next(input)) {
             good = static_cast<std::size_t>(input.tellg());
             if (!visitor(*bucket))
-                return same_history_directory(directory_, initial_directory);
+                return same_history_directory(directory_, initial_directory) &&
+                       same_history_segment(path(number), initial_segment);
+            if (!same_history_directory(directory_, initial_directory) ||
+                !same_history_segment(path(number), initial_segment))
+                return false;
         }
-        // A callback may replace the parent directory even on the final
-        // segment. Never report a successful export after that substitution.
-        if (!same_history_directory(directory_, initial_directory))
+        // A callback may replace the parent directory or the active file even
+        // on the final record. Never report a successful mixed-file export.
+        if (!same_history_directory(directory_, initial_directory) ||
+            !same_history_segment(path(number), initial_segment))
             return false;
         if (input.bad() || good != file_size(path(number)))
             return false;
