@@ -1,3 +1,19 @@
+## 2026-10-29 — Verify event compaction temporary image (software-only)
+
+EventStore::compact now verifies the temporary journal's type, exact size
+and complete expected FNV-1a fingerprint after fsync and before rename.
+Native fsync fault injection mutates a compacted record to another
+CRC-valid, same-size image; compaction refuses to replace the original,
+cleans the temp file and requires recovery before subsequent writes.
+Regression verifies byte-for-byte preservation and sequence-continuous
+successful retry. Source `27f141c84860044faf361f2e6a6f6c32e2277adf`
+**passed exact-SHA CI** Actions `40971837074` (C++ formatting,
+native C++/Python, simulated REST/WebSocket, headless LVGL, React and
+pinned ESP-IDF v6.1). No hardware, credentials or destructive actions.
+TODO remains **114/145 complete** (31 open). Physical LittleFS power
+interruption, sensor/LCD and Wi-Fi qualification, OTA rollback, isolated
+factory reset and sustained load/latency acceptance remain outstanding.
+
 ## 2026-10-29 — Post-fsync event-journal integrity (software-only)
 
 The event journal now rechecks the expected complete record stream and

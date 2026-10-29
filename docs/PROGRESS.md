@@ -1,3 +1,33 @@
+## 2026-10-29 — Validate compacted event-journal image before rename (software-only)
+
+EventStore::compact previously fsynced a new temporary journal and verified
+the original journal before rename, but did not validate the actual temporary
+bytes. A same-size, CRC-valid in-place modification during temporary-file
+fsync could replace the only good durable journal with an altered image.
+The writer now checks the temporary path is a regular file, its exact size,
+and its complete expected FNV-1a fingerprint **before** atomic rename.
+A mismatch fails compaction, removes the temporary file, preserves the
+original journal, and latches appends closed until successful recovery.
+
+Extended the existing native Linux `--wrap=fsync` regression to modify
+the compacted temporary record after fsync with a valid recalculated CRC
+and unchanged size. The test verifies refusal, byte-for-byte preservation
+of the original two-record journal, cleanup of the temporary path, read
+quarantine, successful explicit recovery, and normal subsequent compaction
+with monotonic sequence IDs. Exact implementation commit
+`27f141c84860044faf361f2e6a6f6c32e2277adf` **passed** GitHub
+Actions run `40971837074`: C++ formatting, native C++/Python,
+simulated REST/WebSocket, headless LVGL, React checks, and pinned
+ESP-IDF v6.1 firmware compilation. FNV-1a detects accidental changes
+rather than malicious forgery; on-device LittleFS latency and actual
+power-loss durability remain unverified.
+
+Numbered TODO remains **114/145 complete (78.62%)**, 31 open.
+T06-14/T06-16/T10-05 and physical sensors/LCD, owner-network
+onboarding, successful OTA/rollback, disposable-device reset and
+24–72-hour soak acceptance stay unchecked. No hardware, credentials,
+flashing, OTA or destructive operations were used.
+
 ## 2026-10-29 — Verify event-journal image after fsync (software-only)
 
 EventStore::append previously validated the full recovered journal before
