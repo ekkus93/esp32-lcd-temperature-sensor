@@ -12,7 +12,7 @@ Native storage regression fills four records across two segments, injects
 RLIMIT_FSIZE=0 at the fifth record/rollover, checks that all four older
 records and the oldest timestamp remain available, then recovers, appends,
 and confirms bounded retention and valid chronological ordering.
-Exact-head CI is pending; no passing test claim is made yet. This is
+Exact-source commit `23928ed85d3a0f89da929448a41ede60c2d25d2b` passed GitHub Actions run `40840129656` (native C++/Python, simulated API/WebSocket, headless LVGL, React, formatting and pinned ESP-IDF v6.1 firmware build). This is
 host-only evidence, not physical LittleFS-full, power-loss or reboot
 acceptance. T06-14/T06-16 and all hardware/owner-network/OTA/reset/soak
 gates remain unchecked. No devices or secrets were accessed.

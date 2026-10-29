@@ -3,7 +3,7 @@
 HistoryStore now persists the replacement record before deleting older
 segments; post-write eviction failure latches the writer until recovery.
 Native RLIMIT_FSIZE rollover regression covers preservation of four older
-records and recovery/retention on the next append. Exact-head CI pending.
+records and recovery/retention on the next append. Exact-source commit `23928ed85d3a0f89da929448a41ede60c2d25d2b` passed GitHub Actions run `40840129656` (native C++/Python, simulated API/WebSocket, headless LVGL, React, formatting and pinned ESP-IDF v6.1 firmware build).
 Physical LittleFS, probes/LCD, owner Wi-Fi, OTA/rollback, reset and soak
 acceptance remain open. No hardware or credentials accessed.
 
