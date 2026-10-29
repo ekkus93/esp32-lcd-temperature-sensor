@@ -188,30 +188,25 @@ bool HistoryStore::recover() {
             input.seekg(static_cast<std::streamoff>(good));
             std::array<char, 8> header{};
             input.read(header.data(), header.size());
-            // Even four or five bytes can identify a future TMH schema.
-            // Do not truncate a partial header that older firmware cannot
-            // safely interpret during rollback. A matching TMH1/TMH2 prefix
-            // still recovers as an interrupted append.
+            // Only a prefix of a recognized TMH1/TMH2 header can be
+            // truncated as an interrupted append. Preserve unknown magic,
+            // future schema versions and impossible record lengths, including
+            // prefixes shorter than a complete eight-byte header.
             const auto header_bytes = input.gcount();
-            if (header_bytes >= 4 && std::memcmp(header.data(), "TMH", 3) == 0) {
-                if (header[3] != '1' && header[3] != '2')
-                    return false;
-                if (header_bytes >= 5 && header[4] != (header[3] == '1' ? 1 : 2))
-                    return false;
-                if (header_bytes >= 6 && header[5] != 0)
-                    return false;
-            }
-            // A complete but CRC-damaged final record is not an interrupted
-            // append. Fail without deleting its bytes; only a recognizable
-            // incomplete tail may be truncated safely. This also preserves
-            // unknown/invalid record headers long enough to diagnose them.
             const auto remaining = file_size(path(number)) - good;
-            if (remaining >= 40) {
-                const bool v1 = std::memcmp(header.data(), "TMH1", 4) == 0;
-                const bool v2 = std::memcmp(header.data(), "TMH2", 4) == 0;
-                if (input.gcount() != 8 || header[5] != 0 ||
-                    !((v1 && header[4] == 1) || (v2 && header[4] == 2)))
-                    return false;
+            if (!header_bytes ||
+                std::memcmp(header.data(), "TMH", std::min<std::streamsize>(3, header_bytes)) != 0)
+                return false;
+            if (header_bytes >= 4 && header[3] != '1' && header[3] != '2')
+                return false;
+            if (header_bytes >= 5 && header[4] != (header[3] == '1' ? 1 : 2))
+                return false;
+            if (header_bytes >= 6 && header[5] != 0)
+                return false;
+            // A complete but CRC-damaged final record is not an interrupted
+            // append. A partial record must declare a valid size greater than
+            // its currently persisted bytes.
+            if (header_bytes == 8) {
                 const size_t low = static_cast<uint8_t>(header[6]);
                 const size_t high = static_cast<uint8_t>(header[7]);
                 const size_t declared = low | (high << 8);

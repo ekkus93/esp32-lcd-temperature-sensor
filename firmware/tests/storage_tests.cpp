@@ -174,7 +174,8 @@ int main() {
     auto last = std::filesystem::path(directory) / "00000003.tmh";
     {
         std::ofstream corrupt(last, std::ios::binary | std::ios::app);
-        corrupt << "partial write";
+        // Simulate a real interrupted TMH2 append, not arbitrary junk.
+        corrupt.write(reinterpret_cast<const char *>(data.data()), 7);
     }
     CHECK(!store.visit([](const Bucket &) { return true; }));
     CHECK(store.recover());

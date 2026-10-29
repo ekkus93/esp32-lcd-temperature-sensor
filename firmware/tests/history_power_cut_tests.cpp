@@ -147,6 +147,37 @@ int main() {
         CHECK(std::equal(unknown.begin(), unknown.end(),
                          persisted.begin() + static_cast<std::ptrdiff_t>(valid_prefix.size())));
     }
+    // Invalid short headers are not recognizable interrupted TMH writes.
+    // Preserve their bytes instead of silently discarding corruption.
+    for (size_t prefix = 1; prefix <= 8; ++prefix) {
+        std::filesystem::remove_all(path);
+        HistoryStore before(path.string(), 8192, 4096);
+        CHECK(before.recover() && before.append(committed));
+        auto damaged = valid_prefix;
+        if (prefix == 7)
+            damaged[0] = 'X'; // A partial length byte alone is ambiguous.
+        else if (prefix == 8) {
+            damaged[6] = 0;
+            damaged[7] = 0; // An impossible complete record length.
+        } else
+            damaged[prefix - 1] ^= 0x80;
+        {
+            std::ofstream output(active_file, std::ios::binary | std::ios::app);
+            CHECK(output.good());
+            output.write(reinterpret_cast<const char *>(damaged.data()), prefix);
+            CHECK(output.good());
+        }
+        const auto expected_size = valid_prefix.size() + prefix;
+        HistoryStore restarted(path.string(), 8192, 4096);
+        CHECK(!restarted.recover());
+        CHECK(std::filesystem::file_size(active_file) == expected_size);
+        std::ifstream preserved(active_file, std::ios::binary);
+        const std::vector<uint8_t> actual((std::istreambuf_iterator<char>(preserved)),
+                                          std::istreambuf_iterator<char>());
+        CHECK(std::equal(valid_prefix.begin(), valid_prefix.end(), actual.begin()));
+        CHECK(std::equal(damaged.begin(), damaged.begin() + prefix,
+                         actual.begin() + valid_prefix.size()));
+    }
     std::filesystem::remove_all(root);
     std::cout << "PASS: one/five-probe TMH2 interrupted prefixes and complete-record "
                  "corruption preservation\n";
