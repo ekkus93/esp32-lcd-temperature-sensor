@@ -294,6 +294,46 @@ int main() {
     CHECK(guarded.visit([](const Bucket &) { return true; }));
     std::filesystem::remove_all(guarded_directory);
 
+    // Retention must not erase older, valid segments before a new record is
+    // durable. Force a write failure precisely when rollover would evict the
+    // oldest segment; all four original records must remain readable.
+    char eviction_directory[] = "/tmp/monitor-eviction-XXXXXX";
+    CHECK(mkdtemp(eviction_directory));
+    HistoryStore eviction_store(eviction_directory, 4 * data.size(), 2 * data.size());
+    CHECK(eviction_store.recover());
+    for (unsigned i = 0; i < 4; ++i) {
+        bucket.start_uptime_ms = i * 300000;
+        CHECK(eviction_store.append(bucket));
+    }
+    const auto oldest_segment = std::filesystem::path(eviction_directory) / "00000000.tmh";
+    CHECK(std::filesystem::file_size(oldest_segment) == 2 * data.size());
+    bucket.start_uptime_ms = 4 * 300000;
+    with_file_limit(0, [&] { CHECK(!eviction_store.append(bucket)); });
+    CHECK(std::filesystem::file_size(oldest_segment) == 2 * data.size());
+    unsigned retained_count = 0;
+    int64_t retained_first = -1;
+    CHECK(eviction_store.visit([&](const Bucket &record) {
+        if (retained_first < 0)
+            retained_first = record.start_uptime_ms;
+        ++retained_count;
+        return true;
+    }));
+    CHECK(retained_count == 4 && retained_first == 0);
+    CHECK(!eviction_store.append(bucket)); // A failed write latches the writer.
+    CHECK(eviction_store.recover());
+    CHECK(eviction_store.append(bucket));
+    CHECK(eviction_store.bytes() <= 4 * data.size());
+    retained_count = 0;
+    retained_first = -1;
+    CHECK(eviction_store.visit([&](const Bucket &record) {
+        if (retained_first < 0)
+            retained_first = record.start_uptime_ms;
+        ++retained_count;
+        return true;
+    }));
+    CHECK(retained_count == 3 && retained_first == 2 * 300000);
+    std::filesystem::remove_all(eviction_directory);
+
     // A zero-byte RLIMIT_FSIZE causes a real buffered-write/flush failure
     // without redirecting the history path through a prohibited symlink.
     char full_directory[] = "/tmp/monitor-full-XXXXXX";

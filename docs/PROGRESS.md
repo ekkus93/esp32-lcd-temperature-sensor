@@ -1,3 +1,22 @@
+## 2026-10-29 — Preserve history during failed rollover writes (software-only)
+
+HistoryStore previously deleted old segments to satisfy the retention limit
+*before* writing the replacement record. An ENOSPC, flush or fsync failure
+could therefore erase valid historical data without persisting the new
+sample. HistoryStore now writes and fsyncs the new record first, then
+enforces its logical byte cap by evicting older segments. If post-write
+eviction fails, the writer latches closed until recovery. The transient
+logical overage is bounded by one encoded history record.
+
+Native storage regression fills four records across two segments, injects
+RLIMIT_FSIZE=0 at the fifth record/rollover, checks that all four older
+records and the oldest timestamp remain available, then recovers, appends,
+and confirms bounded retention and valid chronological ordering.
+Exact-head CI is pending; no passing test claim is made yet. This is
+host-only evidence, not physical LittleFS-full, power-loss or reboot
+acceptance. T06-14/T06-16 and all hardware/owner-network/OTA/reset/soak
+gates remain unchecked. No devices or secrets were accessed.
+
 ## 2026-10-29 — Event journal substitution and compaction temp safety (software-only)
 
 EventStore now rechecks that the journal is a regular, non-symlink path

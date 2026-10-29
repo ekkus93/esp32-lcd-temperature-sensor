@@ -1,3 +1,12 @@
+## 2026-10-29 — History retention no longer evicts before durable append
+
+HistoryStore now persists the replacement record before deleting older
+segments; post-write eviction failure latches the writer until recovery.
+Native RLIMIT_FSIZE rollover regression covers preservation of four older
+records and recovery/retention on the next append. Exact-head CI pending.
+Physical LittleFS, probes/LCD, owner Wi-Fi, OTA/rollback, reset and soak
+acceptance remain open. No hardware or credentials accessed.
+
 ## 2026-10-29 — Event journal path substitution and compaction guard
 
 The journal now refuses symlink/non-regular path substitutions after

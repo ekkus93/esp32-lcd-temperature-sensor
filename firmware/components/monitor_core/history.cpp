@@ -293,20 +293,11 @@ bool HistoryStore::append(const Bucket &bucket) {
             return false;
         ++active_;
     }
+    // Do not evict retained history until the replacement record is safely
+    // persisted. A failed append (ENOSPC, flush, fsync) must not erase the
+    // oldest good segment just to make room for data that never landed.
     auto files = segments();
     std::size_t total = bytes();
-    for (auto number : files) {
-        if (total + data.size() <= max_bytes_)
-            break;
-        if (number == active_)
-            return false;
-        auto size = file_size(path(number));
-        if (std::remove(path(number).c_str()) != 0)
-            return false;
-        total -= size;
-    }
-    if (total + data.size() > max_bytes_)
-        return false;
     FILE *output = std::fopen(path(active_).c_str(), "ab");
     if (!output)
         return false;
@@ -317,9 +308,33 @@ bool HistoryStore::append(const Bucket &bucket) {
         ok = false;
     if (std::fclose(output) != 0)
         ok = false;
-    if (!ok)
+    if (!ok) {
         append_ready_ = false;
-    return ok;
+        return false;
+    }
+    // Retention may briefly exceed its configured logical budget by one
+    // record. Evict only after fsync succeeds, and fail closed if eviction
+    // cannot complete. A subsequent recovery can reconcile the segments.
+    total += data.size();
+    for (auto number : files) {
+        if (total <= max_bytes_)
+            break;
+        if (number == active_ || !safe_segment_path(path(number), false)) {
+            append_ready_ = false;
+            return false;
+        }
+        const auto size = file_size(path(number));
+        if (std::remove(path(number).c_str()) != 0) {
+            append_ready_ = false;
+            return false;
+        }
+        total -= size;
+    }
+    if (total > max_bytes_) {
+        append_ready_ = false;
+        return false;
+    }
+    return true;
 }
 bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) const {
     for (auto number : segments()) {
