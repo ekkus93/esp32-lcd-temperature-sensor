@@ -1216,7 +1216,8 @@ int main() {
     {
         std::fstream restore(early_path, std::ios::binary | std::ios::in | std::ios::out);
         CHECK(restore.good());
-        restore.write(reinterpret_cast<const char *>(original_record.data()), original_record.size());
+        restore.write(reinterpret_cast<const char *>(original_record.data()),
+                      original_record.size());
         CHECK(restore.good());
     }
     CHECK(!early_events.append(early_event)); // Failed append stays quarantined.

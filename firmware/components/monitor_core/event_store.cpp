@@ -307,7 +307,8 @@ bool EventStore::compact() {
     if (bytes() > max_bytes_)
         return false;
     auto events = read_all(path_);
-    if (events.empty() || !expected_journal_fingerprint(path_, expected_bytes_, journal_fingerprint_))
+    if (events.empty() ||
+        !expected_journal_fingerprint(path_, expected_bytes_, journal_fingerprint_))
         return false;
 #ifndef ESP_PLATFORM
     if (!same_journal_file(path_, journal_dev_, journal_ino_))
@@ -336,7 +337,8 @@ bool EventStore::compact() {
             ok = false;
             break;
         }
-        compacted_fingerprint = extend_fingerprint(compacted_fingerprint, bytes.data(), bytes.size());
+        compacted_fingerprint =
+            extend_fingerprint(compacted_fingerprint, bytes.data(), bytes.size());
     }
     if (std::fflush(output) != 0 || fsync(fileno(output)) != 0)
         ok = false;
@@ -498,8 +500,7 @@ JournalPage EventStore::page(uint64_t after, size_t limit) const {
         return {};
     // Reject an in-place change that occurred while the page was scanned.
     // A valid CRC alone cannot prove the final event is the recovered one.
-    if (fingerprint != journal_fingerprint_ ||
-        !expected_journal_size(path_, expected_bytes_) ||
+    if (fingerprint != journal_fingerprint_ || !expected_journal_size(path_, expected_bytes_) ||
         !expected_last_record(path_, expected_bytes_, last_event_))
         return {};
     if (page.events.empty())
