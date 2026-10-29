@@ -5,7 +5,9 @@ allocating the entire on-flash journal. It rejects oversized journals before
 reading, checks concurrent growth and original-image integrity before tail
 repair, and preserves malformed or newer-format tails. A 32 MiB sparse
 oversize regression was added. Initial `1bc9a171` failed formatting-only
-Actions `40910018910`; corrected-source CI pending. Hardware LittleFS
+Actions `40910018910`; `854a2caca` passed host/formatting but failed
+ESP-IDF compilation on a stale variable (Actions `40910434198`);
+corrected-source CI pending. Hardware LittleFS
 power-loss/reboot and all sensor/LCD, owner-network, OTA/rollback, disposable
 reset and soak acceptance remain open. Numbered TODO: 114/145 complete.
 

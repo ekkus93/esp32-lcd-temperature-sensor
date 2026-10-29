@@ -8,6 +8,8 @@ interrupted-header tail) before any truncation, and revalidates the resulting
 durable prefix. A native regression uses a preserved 32 MiB sparse oversized
 journal; the existing torn-tail, CRC, compaction and pagination tests remain
 in the verification suite. Initial exact-head `1bc9a171` failed formatting-only Actions `40910018910`;
+`854a2caca` passed formatting and host tests but failed pinned ESP-IDF
+compilation on a stale variable name (Actions `40910434198`);
 corrected-source CI pending. No physical LittleFS
 power-loss, reboot, sensor/LCD, owner-network, OTA, reset or soak acceptance
 is claimed. T06-14/T06-16 remain open; numbered TODO stays 114/145.

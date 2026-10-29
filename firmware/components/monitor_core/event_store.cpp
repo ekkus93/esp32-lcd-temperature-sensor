@@ -306,7 +306,7 @@ bool EventStore::recover() {
         return false;
     last_sequence_ = previous_sequence;
     last_event_ = recovered_last_event;
-    expected_bytes_ = tail_start;
+    expected_bytes_ = complete_bytes;
     journal_fingerprint_ = fingerprint;
     append_ready_ = true;
     return true;
