@@ -64,6 +64,32 @@ bool expected_journal_size(const std::string &path, size_t expected) {
     return status == 0 && S_ISREG(info.st_mode) && info.st_size >= 0 &&
            static_cast<uint64_t>(info.st_size) == expected;
 }
+// Detect same-size, CRC-valid edits to earlier durable records. This FNV-1a
+// fingerprint detects accidental changes; it is not cryptographic authentication.
+constexpr uint64_t fingerprint_basis = 14695981039346656037ull;
+uint64_t extend_fingerprint(uint64_t fingerprint, const uint8_t *bytes, size_t length) {
+    for (size_t i = 0; i < length; ++i) {
+        fingerprint ^= bytes[i];
+        fingerprint *= 1099511628211ull;
+    }
+    return fingerprint;
+}
+bool expected_journal_fingerprint(const std::string &path, size_t length, uint64_t expected) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input)
+        return false;
+    std::array<uint8_t, 4096> buffer{};
+    uint64_t fingerprint = fingerprint_basis;
+    while (length) {
+        const size_t count = std::min(length, buffer.size());
+        input.read(reinterpret_cast<char *>(buffer.data()), count);
+        if (input.gcount() != static_cast<std::streamsize>(count))
+            return false;
+        fingerprint = extend_fingerprint(fingerprint, buffer.data(), count);
+        length -= count;
+    }
+    return !input.bad() && fingerprint == expected;
+}
 // Verify the durable final record before duplicate suppression or another
 // append. File size and inode alone cannot detect same-length corruption.
 bool expected_last_record(const std::string &path, size_t expected_bytes,
@@ -167,6 +193,7 @@ bool EventStore::recover() {
     // instance. Never append to a journal whose integrity was not verified.
     append_ready_ = false;
     expected_bytes_ = 0;
+    journal_fingerprint_ = fingerprint_basis;
 #ifndef ESP_PLATFORM
     journal_dev_ = 0;
     journal_ino_ = 0;
@@ -204,6 +231,7 @@ bool EventStore::recover() {
         last_sequence_ = 0;
         last_event_.reset();
         expected_bytes_ = 0;
+        journal_fingerprint_ = fingerprint_basis;
         append_ready_ = true;
         return true;
     }
@@ -255,9 +283,14 @@ bool EventStore::recover() {
     journal_dev_ = static_cast<uint64_t>(recovered.st_dev);
     journal_ino_ = static_cast<uint64_t>(recovered.st_ino);
 #endif
+    const uint64_t fingerprint = extend_fingerprint(fingerprint_basis, bytes.data(), tail_start);
+    if (!expected_journal_size(path_, tail_start) ||
+        !expected_journal_fingerprint(path_, tail_start, fingerprint))
+        return false;
     last_sequence_ = previous_sequence;
     last_event_ = recovered_last_event;
     expected_bytes_ = tail_start;
+    journal_fingerprint_ = fingerprint;
     append_ready_ = true;
     return true;
 }
@@ -274,7 +307,7 @@ bool EventStore::compact() {
     if (bytes() > max_bytes_)
         return false;
     auto events = read_all(path_);
-    if (events.empty())
+    if (events.empty() || !expected_journal_fingerprint(path_, expected_bytes_, journal_fingerprint_))
         return false;
 #ifndef ESP_PLATFORM
     if (!same_journal_file(path_, journal_dev_, journal_ino_))
@@ -295,6 +328,7 @@ bool EventStore::compact() {
         return false;
     }
     bool ok = true;
+    uint64_t compacted_fingerprint = fingerprint_basis;
     for (auto it = events.end() - keep; it != events.end(); ++it) {
         auto bytes = encode_event(*it);
         if (bytes.size() != event_record_bytes ||
@@ -302,12 +336,15 @@ bool EventStore::compact() {
             ok = false;
             break;
         }
+        compacted_fingerprint = extend_fingerprint(compacted_fingerprint, bytes.data(), bytes.size());
     }
     if (std::fflush(output) != 0 || fsync(fileno(output)) != 0)
         ok = false;
     if (std::fclose(output) != 0)
         ok = false;
-    if (!ok || std::rename(temporary.c_str(), path_.c_str()) != 0) {
+    if (!ok || !expected_journal_size(path_, expected_bytes_) ||
+        !expected_journal_fingerprint(path_, expected_bytes_, journal_fingerprint_) ||
+        std::rename(temporary.c_str(), path_.c_str()) != 0) {
         std::remove(temporary.c_str());
         return false;
     }
@@ -320,6 +357,7 @@ bool EventStore::compact() {
     journal_ino_ = static_cast<uint64_t>(compacted.st_ino);
 #endif
     expected_bytes_ = keep * event_record_bytes;
+    journal_fingerprint_ = compacted_fingerprint;
     return true;
 }
 
@@ -337,7 +375,8 @@ bool EventStore::append(const JournalEvent &input) {
     }
 #endif
     if (!expected_journal_size(path_, expected_bytes_) ||
-        !expected_last_record(path_, expected_bytes_, last_event_)) {
+        !expected_last_record(path_, expected_bytes_, last_event_) ||
+        !expected_journal_fingerprint(path_, expected_bytes_, journal_fingerprint_)) {
         // A same-size mutation of the final durable record must not be
         // mistaken for a valid duplicate or extended with a new sequence.
         append_ready_ = false;
@@ -410,6 +449,7 @@ bool EventStore::append(const JournalEvent &input) {
         return false;
     }
     expected_bytes_ += event_record_bytes;
+    journal_fingerprint_ = extend_fingerprint(journal_fingerprint_, encoded.data(), encoded.size());
     last_sequence_ = event.sequence;
     last_event_ = event;
     return true;
@@ -432,8 +472,10 @@ JournalPage EventStore::page(uint64_t after, size_t limit) const {
         return page;
     page.available = true;
     uint64_t previous_sequence = 0;
+    uint64_t fingerprint = fingerprint_basis;
     std::array<uint8_t, event_record_bytes> buffer{};
     while (input.read(reinterpret_cast<char *>(buffer.data()), buffer.size())) {
+        fingerprint = extend_fingerprint(fingerprint, buffer.data(), buffer.size());
         auto event = decode_event({buffer.begin(), buffer.end()});
         if (!event || event->sequence <= previous_sequence)
             return {};
@@ -456,7 +498,8 @@ JournalPage EventStore::page(uint64_t after, size_t limit) const {
         return {};
     // Reject an in-place change that occurred while the page was scanned.
     // A valid CRC alone cannot prove the final event is the recovered one.
-    if (!expected_journal_size(path_, expected_bytes_) ||
+    if (fingerprint != journal_fingerprint_ ||
+        !expected_journal_size(path_, expected_bytes_) ||
         !expected_last_record(path_, expected_bytes_, last_event_))
         return {};
     if (page.events.empty())

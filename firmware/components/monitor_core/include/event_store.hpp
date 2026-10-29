@@ -46,6 +46,8 @@ class EventStore {
     bool append_ready_ = false;
     // Exact durable byte count at the last successful recovery/append/compaction.
     size_t expected_bytes_ = 0;
+    // Incremental fingerprint of the durable record stream.
+    uint64_t journal_fingerprint_ = 14695981039346656037ull;
 #ifndef ESP_PLATFORM
     // The journal path must still identify the file validated by recover().
     uint64_t journal_dev_ = 0;

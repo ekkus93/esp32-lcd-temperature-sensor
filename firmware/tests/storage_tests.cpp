@@ -1179,6 +1179,54 @@ int main() {
         CHECK(out.good());
     }
     CHECK(!late_journal.page(0, 1).available);
+    // A CRC-valid edit to an earlier record must not be exposed even when
+    // the last record, file identity, size, and sequence order remain intact.
+    const std::string early_path = std::string(event_directory) + "/early-mutation.bin";
+    EventStore early_events(early_path, 3 * event_record_bytes);
+    CHECK(early_events.recover());
+    auto early_event = event;
+    early_event.kind = EventKind::sensor_state;
+    early_event.uptime_ms = 1000;
+    CHECK(early_events.append(early_event));
+    early_event.uptime_ms = 3000;
+    CHECK(early_events.append(early_event));
+    early_event.uptime_ms = 5000;
+    CHECK(early_events.append(early_event));
+    CHECK(early_events.page(0, 1).available);
+    auto original_first = early_event;
+    original_first.sequence = 1;
+    original_first.uptime_ms = 1000;
+    auto modified_first = original_first;
+    modified_first.kind = EventKind::wifi_state;
+    const auto original_record = encode_event(original_first);
+    const auto modified_record = encode_event(modified_first);
+    CHECK(original_record.size() == event_record_bytes &&
+          modified_record.size() == event_record_bytes && original_record != modified_record);
+    {
+        std::fstream edit(early_path, std::ios::binary | std::ios::in | std::ios::out);
+        CHECK(edit.good());
+        edit.write(reinterpret_cast<const char *>(modified_record.data()), modified_record.size());
+        CHECK(edit.good());
+    }
+    CHECK(!early_events.page(0, 1).available);
+    CHECK(!early_events.page(0, 50).available);
+    early_event.uptime_ms = 7000;
+    CHECK(!early_events.append(early_event)); // No compaction of altered history.
+    CHECK(std::filesystem::file_size(early_path) == 3 * event_record_bytes);
+    {
+        std::fstream restore(early_path, std::ios::binary | std::ios::in | std::ios::out);
+        CHECK(restore.good());
+        restore.write(reinterpret_cast<const char *>(original_record.data()), original_record.size());
+        CHECK(restore.good());
+    }
+    CHECK(!early_events.append(early_event)); // Failed append stays quarantined.
+    CHECK(early_events.recover());
+    CHECK(early_events.page(0, 50).events.size() == 3);
+    CHECK(early_events.append(early_event)); // Compaction refreshes fingerprint.
+    const auto after_early_compact = early_events.page(0, 50);
+    CHECK(after_early_compact.available && after_early_compact.events.size() == 2 &&
+          after_early_compact.events[0].sequence == 3 &&
+          after_early_compact.events[1].sequence == 4);
     std::filesystem::remove_all(event_directory);
     char cadence_directory[] = "/tmp/monitor-cadence-XXXXXX";
     CHECK(mkdtemp(cadence_directory));
