@@ -610,6 +610,10 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
         }
         return true;
     };
+    // A visitor returning false stops delivery, not validation. A short
+    // paginated query must not report success if later retained records are
+    // malformed, even when the requested page is already full.
+    bool deliver = true;
     for (auto number : segments()) {
         // The directory can be replaced while a visitor processes a prior
         // segment. Recheck before following the next segment pathname.
@@ -641,8 +645,8 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
         std::size_t good = 0;
         while (auto bucket = next(input)) {
             good = static_cast<std::size_t>(input.tellg());
-            if (!visitor(*bucket))
-                return same_history_segment(path(number), initial_segment) && unchanged_visited();
+            if (deliver && !visitor(*bucket))
+                deliver = false;
             if (!same_history_directory(directory_, initial_directory) ||
                 !same_history_segment(path(number), initial_segment))
                 return false;

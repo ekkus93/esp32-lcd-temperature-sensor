@@ -579,6 +579,61 @@ int main() {
     CHECK(segment_restored_rows == 2);
     std::filesystem::remove_all(segment_visit_directory);
 
+    // A visitor can stop after filling a short page, but later records
+    // still need CRC/length validation. Otherwise a corrupt second record
+    // (in the same or a later segment) appears as a successful first page.
+    for (bool rollover : {false, true}) {
+        char early_directory[] = "/tmp/monitor-early-corruption-XXXXXX";
+        CHECK(mkdtemp(early_directory));
+        auto first_bucket = bucket;
+        first_bucket.start_uptime_ms = 0;
+        auto second_bucket = first_bucket;
+        second_bucket.start_uptime_ms = 300000;
+        const auto first_record = encode_bucket(first_bucket);
+        const auto second_record = encode_bucket(second_bucket);
+        CHECK(first_record.size() == second_record.size());
+        HistoryStore early_guard(early_directory, 8 * first_record.size(),
+                                 rollover ? first_record.size() : 3 * first_record.size());
+        CHECK(early_guard.recover());
+        CHECK(early_guard.append(first_bucket));
+        CHECK(early_guard.append(second_bucket));
+        const auto corrupted_path =
+            std::filesystem::path(early_directory) /
+            (rollover ? "00000001.tmh" : "00000000.tmh");
+        const auto corrupt_offset = rollover ? std::streamoff(0)
+                                             : std::streamoff(first_record.size());
+        {
+            std::fstream damage(corrupted_path, std::ios::binary | std::ios::in | std::ios::out);
+            CHECK(damage.good());
+            damage.seekp(corrupt_offset);
+            damage.put('X');
+            damage.flush();
+            CHECK(damage.good());
+        }
+        unsigned delivered = 0;
+        CHECK(!early_guard.visit([&](const Bucket &) {
+            ++delivered;
+            return false;
+        }));
+        CHECK(delivered == 1);
+        {
+            std::fstream repair(corrupted_path, std::ios::binary | std::ios::in | std::ios::out);
+            CHECK(repair.good());
+            repair.seekp(corrupt_offset);
+            repair.write(reinterpret_cast<const char *>(second_record.data()),
+                         second_record.size());
+            repair.flush();
+            CHECK(repair.good());
+        }
+        delivered = 0;
+        CHECK(early_guard.visit([&](const Bucket &) {
+            ++delivered;
+            return false;
+        }));
+        CHECK(delivered == 1);
+        std::filesystem::remove_all(early_directory);
+    }
+
     // A callback can rewrite an earlier record with a valid recalculated
     // CRC while keeping the same pathname, inode, and byte count. A CSV
     // export must not succeed with a mixture of old and new history data.
