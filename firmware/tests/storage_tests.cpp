@@ -332,6 +332,27 @@ int main() {
     CHECK(!directory_journal.recover());
     CHECK(std::filesystem::is_directory(event_directory));
     CHECK(std::filesystem::remove(dangling_path));
+    // A link to an existing journal must not bypass the native path guard,
+    // nor may recovery rewrite or truncate the original target.
+    const std::string linked_target = std::string(event_directory) + "/existing.bin";
+    const std::string linked_path = std::string(event_directory) + "/linked.bin";
+    {
+        std::ofstream original(linked_target, std::ios::binary);
+        original.write(reinterpret_cast<const char *>(event_bytes.data()), event_bytes.size());
+        CHECK(original.good());
+    }
+    CHECK(symlink(linked_target.c_str(), linked_path.c_str()) == 0);
+    EventStore linked_journal(linked_path, 4 * event_record_bytes);
+    CHECK(!linked_journal.recover());
+    CHECK(std::filesystem::is_symlink(linked_path));
+    CHECK(std::filesystem::file_size(linked_target) == event_bytes.size());
+    {
+        std::ifstream original(linked_target, std::ios::binary);
+        std::vector<uint8_t> preserved((std::istreambuf_iterator<char>(original)), {});
+        CHECK(preserved == event_bytes);
+    }
+    CHECK(std::filesystem::remove(linked_path));
+    CHECK(std::filesystem::remove(linked_target));
 
     EventStore journal(event_path, 4 * event_record_bytes);
     CHECK(!journal.append(event)); // No implicit sequence reset on construction.

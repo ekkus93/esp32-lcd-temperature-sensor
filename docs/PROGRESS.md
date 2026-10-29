@@ -1,3 +1,20 @@
+## 2026-10-28 — Event-journal read-error integrity and existing-link regression (software-only)
+
+After exact-source commit `2ceca9d0a51f13347b2f5189228ea86c56ef95ae`
+passed the full pinned ESP-IDF v6.1, native C++/Python, simulated
+REST/WebSocket, headless LVGL and React workflow (Actions `40827973869`),
+hardened the journal's recovery, compaction-reader and API pagination
+paths to fail closed on actual stream I/O errors rather than interpreting a
+short read as a valid EOF or interrupted write. Native regression also checks
+that a symlink to an existing valid journal is rejected and that the target's
+contents remain byte-for-byte unchanged; the earlier dangling-link,
+directory and normal first-create tests remain in place.
+
+The new code has not yet been qualified by its own exact-head CI. No physical
+LittleFS power-cut, ESP32-S3, five-probe/LCD, owner Wi-Fi, OTA rollback,
+factory-reset or combined-load acceptance is claimed. T06-14/T06-16 and all
+hardware/owner prerequisites remain unchecked. No secrets or devices accessed.
+
 ## 2026-10-28 — Restore ESP-IDF v6.1 link compatibility (software-only)
 
 The preceding path-safety change (commit `3a3323f5`) passed the host portion

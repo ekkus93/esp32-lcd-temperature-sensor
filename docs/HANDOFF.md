@@ -1,3 +1,12 @@
+## 2026-10-28 — Journal I/O failure handling and link preservation
+
+Previous platform-conditional recovery fix `2ceca9d0` passed full exact-head
+CI run `40827973869`. The next source change fails closed on journal
+read errors during recovery, compaction and pagination, with a host regression
+ensuring an existing symlink target is preserved. New exact-head CI pending.
+Hardware/owner acceptance unchanged; no devices, credentials, flashing or
+destructive actions used.
+
 ## 2026-10-28 — ESP-IDF event-store VFS compatibility correction
 
 The previous event-journal path-safety commit `3a3323f5` failed pinned

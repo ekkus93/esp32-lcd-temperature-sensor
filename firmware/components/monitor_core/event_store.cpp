@@ -53,7 +53,8 @@ std::vector<JournalEvent> read_all(const std::string &path) {
         previous_sequence = event->sequence;
         events.push_back(*event);
     }
-    if (input.gcount() != 0 && input.gcount() != static_cast<std::streamsize>(buffer.size()))
+    if (input.bad() ||
+        (input.gcount() != 0 && input.gcount() != static_cast<std::streamsize>(buffer.size())))
         return {};
     return events;
 }
@@ -144,7 +145,9 @@ bool EventStore::recover() {
     if (!input)
         return false;
     std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(input)), {});
-    if (bytes.size() > max_bytes_)
+    // A read error is not an interrupted append. Never truncate data that
+    // was only partially retrieved because the filesystem failed.
+    if (input.bad() || bytes.size() > max_bytes_)
         return false;
     const size_t complete = bytes.size() / event_record_bytes;
     uint64_t previous_sequence = 0;
@@ -280,7 +283,8 @@ JournalPage EventStore::page(uint64_t after, size_t limit) const {
         page.events.push_back(*event);
         page.next_after = event->sequence;
     }
-    if (input.gcount() != 0 && input.gcount() != static_cast<std::streamsize>(buffer.size()))
+    if (input.bad() ||
+        (input.gcount() != 0 && input.gcount() != static_cast<std::streamsize>(buffer.size())))
         return {};
     if (page.events.empty())
         page.next_after = after;
