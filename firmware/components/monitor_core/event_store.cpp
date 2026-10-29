@@ -140,18 +140,17 @@ bool EventStore::recover() {
     const size_t tail_start = complete * event_record_bytes;
     if (bytes.size() != tail_start) {
         const size_t remaining = bytes.size() - tail_start;
-        // Preserve even a four- or five-byte prefix of a newer TME format.
-        // Waiting for all six header bytes used to discard such evidence as
-        // an interrupted write from the current firmware.
-        if (remaining >= 4 && bytes[tail_start] == 'T' && bytes[tail_start + 1] == 'M' &&
-            bytes[tail_start + 2] == 'E') {
-            if (bytes[tail_start + 3] != '1')
-                return false;
-            if (remaining >= 5 && bytes[tail_start + 4] != 1)
-                return false;
-            if (remaining >= 6 && bytes[tail_start + 5] != 0)
-                return false;
-        }
+        // Only a prefix of the current record header is an interrupted
+        // append. Unknown magic, version, or record length may indicate
+        // corruption or a newer firmware schema: preserve it for diagnosis.
+        // The first eight bytes encode TME1, version 1, and record size 60.
+        const std::array<uint8_t, 8> expected_header{
+            'T', 'M', 'E', '1', 1, 0, static_cast<uint8_t>(event_record_bytes & 0xff),
+            static_cast<uint8_t>(event_record_bytes >> 8)};
+        if (!std::equal(bytes.begin() + tail_start,
+                        bytes.begin() + tail_start + std::min(remaining, expected_header.size()),
+                        expected_header.begin()))
+            return false;
         if (truncate(path_.c_str(), static_cast<off_t>(tail_start)) != 0)
             return false;
     }

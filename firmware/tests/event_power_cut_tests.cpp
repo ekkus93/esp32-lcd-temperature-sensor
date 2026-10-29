@@ -93,6 +93,31 @@ int main() {
         }
     }
 
+    // An invalid prefix is not proof of a torn TME1 append. Refuse to
+    // truncate it even when the damaged header is shorter than a record.
+    // Test every header byte (magic, version, and length) independently.
+    for (size_t prefix = 1; prefix <= 8; ++prefix) {
+        auto damaged = interrupted;
+        damaged[prefix - 1] ^= 0x80;
+        {
+            std::ofstream output(path, std::ios::binary | std::ios::trunc);
+            CHECK(output.good());
+            output.write(reinterpret_cast<const char *>(committed.data()), committed.size());
+            output.write(reinterpret_cast<const char *>(damaged.data()), prefix);
+            CHECK(output.good());
+        }
+        const auto expected_size = committed.size() + prefix;
+        EventStore recovered(path.string());
+        CHECK(!recovered.recover());
+        CHECK(std::filesystem::file_size(path) == expected_size);
+        std::ifstream preserved(path, std::ios::binary);
+        const std::vector<uint8_t> actual((std::istreambuf_iterator<char>(preserved)),
+                                          std::istreambuf_iterator<char>());
+        CHECK(std::equal(committed.begin(), committed.end(), actual.begin()));
+        CHECK(std::equal(damaged.begin(), damaged.begin() + prefix,
+                         actual.begin() + committed.size()));
+    }
+
     std::filesystem::remove_all(root);
     std::cout << "PASS: event journal interrupted append prefixes and future headers preserved\n";
 }

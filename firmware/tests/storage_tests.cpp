@@ -374,7 +374,8 @@ int main() {
           after_reboot.events.front().sequence > newest_sequence);
     {
         std::ofstream tail(event_path, std::ios::binary | std::ios::app);
-        tail.write("partial", 7);
+        // A genuine torn append starts with the current TME1 header.
+        tail.write(reinterpret_cast<const char *>(event_bytes.data()), 7);
     }
     const auto valid_bytes = reopened.bytes() - 7;
     // A corrupted committed event plus a partial final append must not
