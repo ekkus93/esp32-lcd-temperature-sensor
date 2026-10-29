@@ -270,6 +270,7 @@ bool HistoryStore::recover() {
     append_ready_ = false;
     active_size_ = 0;
     active_fingerprint_ = 14695981039346656037ull;
+    sealed_segments_.clear();
     if (mkdir(directory_.c_str(), 0700) != 0) {
         struct stat info {};
         if (stat(directory_.c_str(), &info) != 0 || !S_ISDIR(info.st_mode))
@@ -286,6 +287,7 @@ bool HistoryStore::recover() {
     closedir(dir);
     auto files = segments();
     active_ = files.empty() ? 0 : files.back();
+    std::vector<SegmentSeal> recovered_seals;
     for (auto number : files) {
         if (!safe_segment_path(path(number), false))
             return false;
@@ -355,6 +357,31 @@ bool HistoryStore::recover() {
             if (truncate(path(number).c_str(), good) != 0)
                 return false;
         }
+        // Seal completed segments as well as the active one. A later append
+        // must never evict an older segment changed since this recovery.
+        struct stat metadata {};
+#ifdef ESP_PLATFORM
+        const int status = stat(path(number).c_str(), &metadata);
+#else
+        const int status = lstat(path(number).c_str(), &metadata);
+#endif
+        if (status != 0 || !S_ISREG(metadata.st_mode) || metadata.st_size < 0)
+            return false;
+        const auto size = static_cast<std::size_t>(metadata.st_size);
+        uint64_t fingerprint = 0;
+        if (!segment_fingerprint(path(number), size, fingerprint) ||
+            !segment_has_size(path(number), size))
+            return false;
+        SegmentSeal seal{number, size, fingerprint};
+#ifndef ESP_PLATFORM
+        seal.device = static_cast<uint64_t>(metadata.st_dev);
+        seal.inode = static_cast<uint64_t>(metadata.st_ino);
+        struct stat after {};
+        if (lstat(path(number).c_str(), &after) != 0 || after.st_dev != metadata.st_dev ||
+            after.st_ino != metadata.st_ino)
+            return false;
+#endif
+        recovered_seals.push_back(seal);
     }
     active_segment_exists_ = !files.empty();
 #ifndef ESP_PLATFORM
@@ -391,6 +418,7 @@ bool HistoryStore::recover() {
             !segment_has_size(path(active_), active_size_))
             return false;
     }
+    sealed_segments_ = std::move(recovered_seals);
     append_ready_ = true;
     return true;
 }
@@ -427,11 +455,27 @@ bool HistoryStore::append(const Bucket &bucket) {
         append_ready_ = false;
         return false;
     }
-    for (auto number : files) {
-        if (!safe_segment_path(path(number), false)) {
+    if (files.size() != sealed_segments_.size()) {
+        append_ready_ = false;
+        return false;
+    }
+    std::size_t total = 0;
+    for (std::size_t i = 0; i < files.size(); ++i) {
+        const auto &seal = sealed_segments_[i];
+        if (files[i] != seal.number || !segment_has_size(path(seal.number), seal.size)) {
             append_ready_ = false;
             return false;
         }
+#ifndef ESP_PLATFORM
+        struct stat current {};
+        if (lstat(path(seal.number).c_str(), &current) != 0 ||
+            static_cast<uint64_t>(current.st_dev) != seal.device ||
+            static_cast<uint64_t>(current.st_ino) != seal.inode) {
+            append_ready_ = false;
+            return false;
+        }
+#endif
+        total += seal.size;
     }
     if (!safe_segment_path(path(active_), !active_segment_exists_)) {
         append_ready_ = false;
@@ -470,10 +514,28 @@ bool HistoryStore::append(const Bucket &bucket) {
         append_ready_ = false;
         return false;
     }
+    // Before writing, verify the content of every segment that would be
+    // evicted. This catches same-size, CRC-valid edits to completed history
+    // without rereading all retained segments on every five-minute append.
+    // Never discard the original evidence to make room for a new record.
+    std::size_t projected_total = total + data.size();
+    for (const auto &seal : sealed_segments_) {
+        if (projected_total <= max_bytes_)
+            break;
+        if (seal.number == active_ ||
+            !unchanged_segment_contents(path(seal.number), seal.size, seal.fingerprint)) {
+            append_ready_ = false;
+            return false;
+        }
+        projected_total -= seal.size;
+    }
+    if (projected_total > max_bytes_) {
+        append_ready_ = false;
+        return false;
+    }
     // Do not evict retained history until the replacement record is safely
     // persisted. A failed append (ENOSPC, flush, fsync) must not erase the
     // oldest good segment just to make room for data that never landed.
-    std::size_t total = bytes();
     int flags = O_WRONLY | (create_new ? (O_CREAT | O_EXCL) : O_APPEND);
 #if !defined(ESP_PLATFORM) && defined(O_NOFOLLOW)
     flags |= O_NOFOLLOW;
@@ -546,6 +608,17 @@ bool HistoryStore::append(const Bucket &bucket) {
     active_size_ = written_size;
     active_fingerprint_ = written_fingerprint;
     active_segment_exists_ = true;
+    if (create_new) {
+        SegmentSeal seal{active_, written_size, written_fingerprint};
+#ifndef ESP_PLATFORM
+        seal.device = static_cast<uint64_t>(opened.st_dev);
+        seal.inode = static_cast<uint64_t>(opened.st_ino);
+#endif
+        sealed_segments_.push_back(seal);
+    } else {
+        sealed_segments_.back().size = written_size;
+        sealed_segments_.back().fingerprint = written_fingerprint;
+    }
     // Retention may briefly exceed its configured logical budget by one
     // record. Evict only after fsync succeeds, and fail closed if eviction
     // cannot complete. A subsequent recovery can reconcile the segments.
@@ -553,16 +626,31 @@ bool HistoryStore::append(const Bucket &bucket) {
     for (auto number : files) {
         if (total <= max_bytes_)
             break;
-        if (number == active_ || !safe_segment_path(path(number), false)) {
+        if (sealed_segments_.empty() || sealed_segments_.front().number != number ||
+            number == active_) {
             append_ready_ = false;
             return false;
         }
-        const auto size = file_size(path(number));
+        const auto &seal = sealed_segments_.front();
+        if (!unchanged_segment_contents(path(number), seal.size, seal.fingerprint)) {
+            append_ready_ = false;
+            return false;
+        }
+#ifndef ESP_PLATFORM
+        struct stat current {};
+        if (lstat(path(number).c_str(), &current) != 0 ||
+            static_cast<uint64_t>(current.st_dev) != seal.device ||
+            static_cast<uint64_t>(current.st_ino) != seal.inode) {
+            append_ready_ = false;
+            return false;
+        }
+#endif
         if (std::remove(path(number).c_str()) != 0) {
             append_ready_ = false;
             return false;
         }
-        total -= size;
+        total -= seal.size;
+        sealed_segments_.erase(sealed_segments_.begin());
     }
     if (total > max_bytes_) {
         append_ready_ = false;

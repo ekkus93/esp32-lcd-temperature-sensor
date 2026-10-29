@@ -28,6 +28,18 @@ class HistoryStore {
     std::size_t active_size_ = 0;
     // Fingerprint of the recovered/committed active bytes. Accidental-change guard.
     uint64_t active_fingerprint_ = 0;
+    // Seal each retained segment at recovery/append. Only eviction candidates
+    // need an expensive content recheck on the regular five-minute write path.
+    struct SegmentSeal {
+        unsigned number;
+        std::size_t size;
+        uint64_t fingerprint;
+#ifndef ESP_PLATFORM
+        uint64_t device = 0;
+        uint64_t inode = 0;
+#endif
+    };
+    std::vector<SegmentSeal> sealed_segments_;
 #ifndef ESP_PLATFORM
     // Directory identity observed at the most recent successful recovery.
     uint64_t directory_dev_ = 0;

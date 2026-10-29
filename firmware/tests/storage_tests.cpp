@@ -761,6 +761,57 @@ int main() {
     CHECK(retained_count == 3 && retained_first == 2 * 300000);
     std::filesystem::remove_all(eviction_directory);
 
+    // A completed (non-active) segment can be modified in place with a
+    // different, CRC-valid record and the same size/inode. Before retention
+    // would evict it, preserve the original bytes and refuse the append.
+    char eviction_seal_directory[] = "/tmp/monitor-eviction-seal-XXXXXX";
+    CHECK(mkdtemp(eviction_seal_directory));
+    HistoryStore eviction_seal(eviction_seal_directory, 4 * data.size(), data.size());
+    CHECK(eviction_seal.recover());
+    auto first_seal_bucket = bucket;
+    first_seal_bucket.start_uptime_ms = 0;
+    for (unsigned i = 0; i < 4; ++i) {
+        bucket.start_uptime_ms = i * 300000;
+        CHECK(eviction_seal.append(bucket));
+    }
+    const auto seal_oldest = std::filesystem::path(eviction_seal_directory) / "00000000.tmh";
+    const auto seal_next = std::filesystem::path(eviction_seal_directory) / "00000004.tmh";
+    auto edited_seal_bucket = first_seal_bucket;
+    edited_seal_bucket.start_uptime_ms = 6000000;
+    const auto edited_seal = encode_bucket(edited_seal_bucket);
+    const auto original_seal = encode_bucket(first_seal_bucket);
+    CHECK(edited_seal.size() == original_seal.size());
+    {
+        std::fstream changed(seal_oldest, std::ios::binary | std::ios::in | std::ios::out);
+        CHECK(changed.good());
+        changed.write(reinterpret_cast<const char *>(edited_seal.data()), edited_seal.size());
+        changed.flush();
+        CHECK(changed.good());
+    }
+    bucket.start_uptime_ms = 4 * 300000;
+    CHECK(!eviction_seal.append(bucket));
+    CHECK(!std::filesystem::exists(seal_next));
+    CHECK(std::filesystem::file_size(seal_oldest) == original_seal.size());
+    CHECK(!eviction_seal.append(bucket));
+    {
+        std::fstream restored(seal_oldest, std::ios::binary | std::ios::in | std::ios::out);
+        CHECK(restored.good());
+        restored.write(reinterpret_cast<const char *>(original_seal.data()), original_seal.size());
+        restored.flush();
+        CHECK(restored.good());
+    }
+    CHECK(!eviction_seal.append(bucket)); // Repaired data still requires recovery.
+    CHECK(eviction_seal.recover());
+    CHECK(eviction_seal.append(bucket));
+    CHECK(!std::filesystem::exists(seal_oldest));
+    unsigned sealed_rows = 0;
+    CHECK(eviction_seal.visit([&](const Bucket &) {
+        ++sealed_rows;
+        return true;
+    }));
+    CHECK(sealed_rows == 4);
+    std::filesystem::remove_all(eviction_seal_directory);
+
     // A zero-byte RLIMIT_FSIZE causes a real buffered-write/flush failure
     // without redirecting the history path through a prohibited symlink.
     char full_directory[] = "/tmp/monitor-full-XXXXXX";
