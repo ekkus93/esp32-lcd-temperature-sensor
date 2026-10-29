@@ -9,8 +9,9 @@ and the writer remains latched, then restores the original, recovers and
 appends successfully. This extends the existing directory identity and symlink
 safeguards; ESP-IDF LittleFS retains path/type checks because its VFS has no
 reliable inode identity. The regression and pinned ESP-IDF v6.1 build require
-exact-commit GitHub Actions verification; do not claim CI success before it
-finishes. T06-14/T06-16, physical probes/LCD, owner-network onboarding, OTA,
+exact-commit GitHub Actions verification. Initial `964e7ba4` failed
+formatting-only CI run `40863633750`; the source expression was simplified
+and requires new exact-SHA verification before claiming a pass. T06-14/T06-16, physical probes/LCD, owner-network onboarding, OTA,
 reset, sustained load and power-loss acceptance remain unchecked. No hardware,
 credentials or destructive operations were used.
 

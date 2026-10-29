@@ -409,9 +409,12 @@ bool HistoryStore::append(const Bucket &bucket) {
 #ifndef ESP_PLATFORM
     // Revalidate the opened descriptor: path checks alone leave a rename
     // window between lstat() and open().
-    if (!create_new &&
-        (static_cast<uint64_t>(opened.st_dev) != active_dev_ ||
-         static_cast<uint64_t>(opened.st_ino) != active_ino_)) {
+    if (!create_new && static_cast<uint64_t>(opened.st_dev) != active_dev_) {
+        close(fd);
+        append_ready_ = false;
+        return false;
+    }
+    if (!create_new && static_cast<uint64_t>(opened.st_ino) != active_ino_) {
         close(fd);
         append_ready_ = false;
         return false;
