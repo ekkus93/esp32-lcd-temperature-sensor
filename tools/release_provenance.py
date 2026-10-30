@@ -124,22 +124,22 @@ def verify_partition_binary(path, csv_layout):
     padding_seen = False
     for start in range(0, len(data), PARTITION_ENTRY.size):
         record = data[start:start + PARTITION_ENTRY.size]
-        if record == b"\\xff" * PARTITION_ENTRY.size:
+        if record == b"\xff" * PARTITION_ENTRY.size:
             padding_seen = True
             continue
         if padding_seen or md5_seen:
             raise ValueError("non-padding bytes after partition checksum")
-        if record[:2] == b"\\xeb\\xeb":
-            if (record[2:16] != b"\\xff" * 14 or
+        if record[:2] == b"\xeb\xeb":
+            if (record[2:16] != b"\xff" * 14 or
                     record[16:] != hashlib.md5(data[:start]).digest()):
                 raise ValueError("invalid partition binary MD5 checksum")
             md5_seen = True
             continue
-        if record[:2] != b"\\xaa\\x50":
+        if record[:2] != b"\xaa\x50":
             raise ValueError("invalid partition binary entry magic")
         _, kind, subtype, offset, size, label, flags = PARTITION_ENTRY.unpack(record)
-        raw_name, separator, padding = label.partition(b"\\x00")
-        if (not raw_name or (separator and padding.strip(b"\\x00")) or flags):
+        raw_name, separator, padding = label.partition(b"\x00")
+        if (not raw_name or (separator and padding.strip(b"\x00")) or flags):
             raise ValueError("invalid partition binary label or flags")
         try:
             name = raw_name.decode("ascii")

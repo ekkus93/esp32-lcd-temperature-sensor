@@ -199,11 +199,11 @@ class ReleaseProvenanceTests(unittest.TestCase):
             ]
         binary = b"".join(
             struct.pack("<HBBII16sI", 0x50AA, kind, subtype, offset, size,
-                        name.encode("ascii").ljust(16, b"\\x00"), 0)
+                        name.encode("ascii").ljust(16, b"\x00"), 0)
             for name, kind, subtype, offset, size in entries
         )
-        binary += b"\\xeb\\xeb" + b"\\xff" * 14 + hashlib.md5(binary).digest()
-        binary += b"\\xff" * (0xC00 - len(binary))
+        binary += b"\xeb\xeb" + b"\xff" * 14 + hashlib.md5(binary).digest()
+        binary += b"\xff" * (0xC00 - len(binary))
         (self.build / "partition_table/partition-table.bin").write_bytes(binary)
 
     def test_rejects_stale_binary_partition_map_with_valid_md5(self):
@@ -237,7 +237,7 @@ class ReleaseProvenanceTests(unittest.TestCase):
         path.write_bytes(valid[:-32])
         # Removing a padding entry leaves a valid table; removing the MD5
         # record itself must instead be rejected.
-        path.write_bytes(valid[:6 * 32] + b"\\xff" * (0xC00 - 6 * 32))
+        path.write_bytes(valid[:6 * 32] + b"\xff" * (0xC00 - 6 * 32))
         with self.assertRaisesRegex(ValueError, "missing MD5"):
             provenance.collect(self.root, SHA)
         path.write_bytes(valid[:7 * 32] + b"X" + valid[7 * 32 + 1:])
