@@ -17,6 +17,7 @@ PARTITION_TABLE_END = 0x9000
 EXPECTED_IMAGES = {
     "bootloader/bootloader.bin": 0x0,
     "partition_table/partition-table.bin": 0x8000,
+    "ota_data_initial.bin": 0xF000,
     "temperature_monitor.bin": 0x20000,
 }
 
@@ -150,6 +151,13 @@ def collect(root, commit):
         if image["offset"] + image["size"] > FLASH_BYTES:
             raise ValueError("flash image exceeds physical flash size")
         if image["path"] == "temperature_monitor.bin":
+            continue
+        # ESP-IDF legitimately flashes the initial OTA selector *inside*
+        # otadata. It must start at that partition's exact offset and fit.
+        if image["path"] == "ota_data_initial.bin":
+            ota = layout["otadata"]
+            if image["offset"] != ota["offset"] or image["size"] > ota["size"]:
+                raise ValueError("OTA metadata image outside otadata partition")
             continue
         if any(
             image["offset"] < part["offset"] + part["size"] and

@@ -25,6 +25,7 @@ class ReleaseProvenanceTests(unittest.TestCase):
         (self.build / "bootloader/bootloader.bin").write_bytes(b"BOOT")
         (self.build / "partition_table/partition-table.bin").write_bytes(b"PART")
         (self.build / "temperature_monitor.bin").write_bytes(b"APP-IMAGE")
+        (self.build / "ota_data_initial.bin").write_bytes(b"OTA")
         (self.dist / "assets/main.js").write_bytes(b"console.log('ok')")
         (self.dist / "index.html").write_bytes(b"<html></html>")
         (self.root / "firmware/partitions.csv").write_text(
@@ -48,6 +49,7 @@ class ReleaseProvenanceTests(unittest.TestCase):
         self.flash_files = {
             "0x0": "bootloader/bootloader.bin",
             "0x8000": "partition_table/partition-table.bin",
+            "0xf000": "ota_data_initial.bin",
             "0x20000": "temperature_monitor.bin",
         }
         self.save_flash_args()
@@ -69,7 +71,7 @@ class ReleaseProvenanceTests(unittest.TestCase):
         self.assertEqual(first["qualification"], "CI_BUILD_ONLY_NOT_RELEASE_APPROVED")
         self.assertEqual(first["source_commit"], SHA)
         self.assertEqual(first["ota_headroom_bytes"], 0x400000 - len(b"APP-IMAGE"))
-        self.assertEqual(len(first["flash_images"]), 3)
+        self.assertEqual(len(first["flash_images"]), 4)
         self.assertEqual(len(first["web_assets"]), 2)
         for line in sums.decode().splitlines():
             sha, name = line.split("  ", 1)
@@ -155,6 +157,17 @@ class ReleaseProvenanceTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, error):
                     provenance.collect(self.root, SHA)
         partitions.write_text(original, encoding="utf-8")
+
+    def test_rejects_misplaced_or_oversize_ota_metadata(self):
+        self.flash_files["0xf100"] = self.flash_files.pop("0xf000")
+        self.save_flash_args()
+        with self.assertRaisesRegex(ValueError, "offset"):
+            provenance.collect(self.root, SHA)
+        self.flash_files["0xf000"] = self.flash_files.pop("0xf100")
+        self.save_flash_args()
+        (self.build / "ota_data_initial.bin").write_bytes(b"X" * 0x2001)
+        with self.assertRaisesRegex(ValueError, "OTA metadata"):
+            provenance.collect(self.root, SHA)
 
     def test_rejects_flash_images_in_data_partitions_or_beyond_flash(self):
         extra = self.build / "extra.bin"
