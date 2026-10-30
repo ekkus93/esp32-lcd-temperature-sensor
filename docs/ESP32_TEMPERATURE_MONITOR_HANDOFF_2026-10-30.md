@@ -44,9 +44,12 @@ authenticated OTA returned the board to `ota_0`, also valid, with admin access
 and saved Wi-Fi intact. A reset before the next candidate's health gate caused
 bootloader rollback to `ota_0`; admin/Wi-Fi and the prior event-journal boundary
 remained intact. T10-01 and T10-03 and A→B→A/early-reset rollback are verified.
-Failed-service rollback, LCD status and populated temperature-history
-comparison remain open. See
-[OTA validation](validation/device-ota-results.txt).
+An injected false startup-health predicate kept a temporary candidate image in
+`pending_verify`; authenticated reboot rolled it back to valid `ota_0` while
+admin login, Wi-Fi and healthy logging remained. This did not disable a real
+service. Component-failure behavior, LCD status and populated temperature-
+history comparison remain open. See [OTA validation](validation/device-ota-results.txt)
+and [health-gate validation](validation/device-ota-health-gate-results.txt).
 
 ## Remaining acceptance
 

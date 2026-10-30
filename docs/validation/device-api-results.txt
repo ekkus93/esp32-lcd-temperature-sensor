@@ -116,3 +116,27 @@ reader did not include intervening serial health records in its cadence check;
 `websocket_slow()` now captures those records, and the rerun passed. No Wi-Fi
 client, credentials, LCD, or probes were used; this USB loopback does not prove
 radio onboarding or peripheral operation.
+
+## Bare-board rerun — 2026-10-30
+
+`python3 tools/device_smoke.py --port /dev/ttyACM0 --seconds 20` passed on the
+normal image: ESP-IDF v6.1, 16 MiB flash, 8 MiB PSRAM, healthy LittleFS/event
+journal, READY, zero sensors, disabled 1-Wire/backlight, five-second health
+cadence, positive heap, and no panic. USB serial open reset the board; no flash
+or peripheral wiring was performed.
+
+`python3 tools/device_api_test.py --port /dev/ttyACM0 --slow-client
+--slow-client-seconds 120` passed the four-client limit, fifth-client
+rejection, and 120-second tiny-window stalled-WebSocket checks. The firmware
+closed the stalled client; all 120 authenticated HTTP status checks succeeded
+with a 257 ms maximum, while health logs kept five-second cadence. That run
+then hit the accumulated-alert response truncation described below; the
+slow-client assertions themselves passed. The board reported no fabricated
+sensor readings. No LCD/probes were connected.
+
+`python3 tools/device_api_test.py --port /dev/ttyACM0` then passed the complete
+authenticated API suite and safe restart to READY. It read the durable reboot
+event through 12 bounded alert pages. The initial attempt exposed a test limit:
+fetching 50 accumulated events exceeded the USB bridge's 8 KiB response buffer
+and truncated JSON. The test now follows 10-event cursor pages, checks forward
+progress and caps traversal at 100 pages; it passed against the device.

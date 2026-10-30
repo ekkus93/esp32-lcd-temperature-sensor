@@ -16,8 +16,12 @@ router-offline behavior remain open. Authenticated OTA booted `ota_1`, passed th
 health gate, preserved admin login, and served its embedded UI and API. A
 second update returned the board to valid `ota_0`, with saved Wi-Fi and admin
 access intact; details are in [OTA results](validation/device-ota-results.txt).
-Pre-confirmation rollback passed; failed-service rollback and populated
-historical-data comparison remain open. Current total is
+Pre-confirmation rollback passed. A temporary test image with an injected
+failed startup-health predicate stayed pending and rolled back to valid
+`ota_0` after authenticated reboot; admin, station Wi-Fi and healthy logging
+remained intact. Real component-failure behavior, LCD update visibility and a
+populated historical-data comparison remain open. See
+[health-gate results](validation/device-ota-health-gate-results.txt). Current total is
 **123/145 numbered tasks complete**; 22 remain open. See the
 [2026-10-30 handoff](ESP32_TEMPERATURE_MONITOR_HANDOFF_2026-10-30.md) and
 [device results](validation/device-api-results.txt). No LCD or probes were

@@ -1,0 +1,24 @@
+Connected-board negative OTA health-gate check — 2026-10-30
+
+Purpose: exercise the production pending-verify path when a required startup
+health predicate fails, without connecting the LCD or temperature probes.
+
+For this test only, `firmware/main/main.cpp` was temporarily changed to set
+`sampling_initialized=false` in the `OtaBootHealth` record. Pinned ESP-IDF v6.1
+built the image successfully: 2,001,536 bytes (`0x1e8a80`), SHA-256
+`ee7623ceaef14c75d194a4a003f1db20410f45bd4de84391a0784e7f0a9d37cd`.
+The source was restored to the normal production version before upload.
+
+The image was accepted by authenticated local HTTP OTA (202) and booted in
+`ota_1`. Authenticated status after startup reported `pending_verify`; it did
+not become valid despite the HTTP, Wi-Fi, authentication and logging services
+being available. An authenticated reboot triggered ESP-IDF bootloader rollback.
+After restart, authenticated status reported `ota_0` / `valid`; Wi-Fi was
+connected, logging was healthy, `simulated=false`, and zero sensors were
+reported. The active application source remains the normal version.
+
+This confirms the device remains pending when one required readiness predicate
+is false and the bootloader restores the previous valid slot on restart. It is
+a deliberate predicate fault injection, not a real component startup failure;
+physical LCD OTA-state visibility is still unverified. No probes or LCD were
+connected, and no history partition erase or factory reset was performed.

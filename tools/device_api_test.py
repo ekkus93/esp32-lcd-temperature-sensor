@@ -299,14 +299,30 @@ try:
           'history rejects a point count above its bound')
     check(call('/api/v1/history?'+('x'*300),headers=authorized)['status']==400,
           'history rejects an oversized query string')
-    alerts_response = call('/api/v1/alerts?limit=50',headers=authorized)
-    alerts = json.loads(alerts_response['body'])
-    check(alerts_response['status']==200 and alerts['event_log_healthy'] is True
-          and any(event['kind']=='reboot' for event in alerts['events'])
-          and alerts['has_more'] is False and alerts['oldest_available'] is not None,
+    alert_events=[]
+    alert_cursor=0
+    oldest_available=None
+    pages=0
+    while True:
+        alerts_response = call('/api/v1/alerts?after='+str(alert_cursor)+'&limit=10',
+                               headers=authorized)
+        alerts = json.loads(alerts_response['body'])
+        check(alerts_response['status']==200 and alerts['event_log_healthy'] is True,
+              'authenticated durable event journal page %d is healthy' % (pages+1))
+        if oldest_available is None:
+            oldest_available=alerts['oldest_available']
+        alert_events.extend(alerts['events'])
+        pages+=1
+        check(pages<=100, 'durable event journal pagination stays bounded')
+        next_cursor=alerts['next_after']
+        if not alerts['has_more']:
+            break
+        check(next_cursor>alert_cursor, 'durable event journal cursor advances')
+        alert_cursor=next_cursor
+    check(any(event['kind']=='reboot' and event['boot_id']==snapshot['boot_id']
+              for event in alert_events) and oldest_available is not None,
           'authenticated durable event journal includes this boot')
-    first_alert_page = alerts
-    next_alerts = json.loads(call('/api/v1/alerts?after='+str(first_alert_page['next_after'])+
+    next_alerts = json.loads(call('/api/v1/alerts?after='+str(alerts['next_after'])+
                                   '&limit=10',headers=authorized)['body'])
     check(next_alerts['events']==[] and next_alerts['has_more'] is False,
           'durable event journal cursor reaches the current end')

@@ -15,6 +15,24 @@ passed. Failed-service rollback, LCD status, and populated temperature-history
 comparison remain open.
 Full evidence and image hash: [OTA validation](validation/device-ota-results.txt).
 
+With the normal source restored, a temporary test image that forced the
+`sampling_initialized` readiness predicate false was uploaded over authenticated
+local HTTP. It booted into `ota_1` and stayed `pending_verify`; authenticated
+reboot caused rollback to valid `ota_0`. Administrator login, station Wi-Fi
+and healthy logging remained available after rollback. This confirms the device
+rejects an image when a required health predicate remains false; it does not
+simulate an actual component failure or verify LCD status. See
+[OTA health-gate validation](validation/device-ota-health-gate-results.txt).
+
+The bare-board API rerun passed the 120-second stalled-WebSocket test, all 120
+concurrent HTTP checks (257 ms maximum), and five-second health logging. The
+complete API suite then passed with 12 bounded event-journal pages. The test
+now paginates because the USB bridge limits responses to 8 KiB; the earlier
+50-event request had been truncated after accumulated test events. `./tools/verify.sh`
+passed on rerun after one transient simulator `socket hang up`; it covered
+19/19 host CTests, 14 Python tests, simulator, headless display, 56 frontend
+tests, formatting, lint, typecheck and production build.
+
 The owner subsequently held BOOT for five seconds. Authenticated station status
 showed provisioning open, saved credentials and station association; after
 15 seconds, uptime advanced and storage remained healthy. This confirms runtime
