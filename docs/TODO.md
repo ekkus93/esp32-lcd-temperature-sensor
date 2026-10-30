@@ -3,7 +3,7 @@
 **Status:** In progress — see [PROGRESS.md](PROGRESS.md) for evidence and deferred gates  
 **Date:** 2026-10-28
 **Companion:** [`SPEC.md`](SPEC.md) (system specification)  
-**Dated project status handoff:** [`ESP32_TEMPERATURE_MONITOR_HANDOFF_2026-10-28.md`](ESP32_TEMPERATURE_MONITOR_HANDOFF_2026-10-28.md)  
+**Latest dated project handoff:** [`ESP32_TEMPERATURE_MONITOR_HANDOFF_2026-10-29.md`](ESP32_TEMPERATURE_MONITOR_HANDOFF_2026-10-29.md) (prior [2026-10-28 handoff](ESP32_TEMPERATURE_MONITOR_HANDOFF_2026-10-28.md))  
 **UI/wiring:** [`docs/LCD_UI_DESIGN_SPEC.md`](LCD_UI_DESIGN_SPEC.md), [`docs/WEB_UI_DESIGN_SPEC.md`](WEB_UI_DESIGN_SPEC.md), [`docs/ESP32_S3_TEMPERATURE_MONITOR_WIRING.md`](ESP32_S3_TEMPERATURE_MONITOR_WIRING.md)
 
 ## Working agreement
