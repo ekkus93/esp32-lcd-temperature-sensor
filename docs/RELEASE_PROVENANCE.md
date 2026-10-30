@@ -16,11 +16,17 @@ contains the ESP-IDF bootloader, partition table, application image and
 `firmware/build/provenance/manifest.json` plus `SHA256SUMS.txt`.
 
 The generator verifies the exact source SHA syntax; required bootloader,
-partition-table and application flash offsets; no flash-image overlap;
+partition-table, OTA-selector and application flash offsets; no flash-image overlap;
+the complete 16 MiB partition map (required entries, types, alignment,
+non-overlap and flash bounds), with the bounded ESP-IDF initial OTA selector
+image allowed only at the `otadata` partition start;
 both 4 MiB OTA slots and application headroom; firmware, web and lockfile
 version agreement; nonempty regular files without symlink/traversal paths;
 and SHA-256 of all flash images, web assets and pinned inputs. The manifest
-records ESP-IDF commit `fff9895c82d744c7237be8847347bdd1b07c6643`
+also records `flash_size_bytes` and `partition_layout` for independent review.
+The full-layout and OTA-selector checks passed exact-SHA Actions
+`40985438288` at source `d89b505c0eb5b47e4e193fb097ff368ee92367ed`.
+It records ESP-IDF commit `fff9895c82d744c7237be8847347bdd1b07c6643`
 and explicitly declares
 `"qualification": "CI_BUILD_ONLY_NOT_RELEASE_APPROVED"`.
 A SHA-256 digest proves file consistency with the manifest; it is **not**

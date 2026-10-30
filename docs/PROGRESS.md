@@ -1,3 +1,37 @@
+## 2026-10-29 — Full 16 MiB flash layout and OTA selector release-provenance checks (software-only)
+
+Expanded `tools/release_provenance.py` to validate **every** ESP-IDF
+partition rather than just the two OTA slots: mandatory NVS/otadata/PHY,
+two OTA application slots and history; unique names and expected types;
+app/data alignment; strictly positive extents; non-overlap; and bounds
+within the 16 MiB ESP32-S3-N16R8 flash. All flasher images must fit
+physical flash and must not overlap other partitions. The one intentional
+exception is ESP-IDF's `ota_data_initial.bin` at the exact `otadata`
+offset, with its size bounded by that partition. The manifest now
+records `flash_size_bytes` and the validated `partition_layout`.
+
+Updated the synthetic fixture to match the real four-image flasher map
+and added two tests covering malformed/duplicate/misaligned/overlapping/
+out-of-flash partitions, unauthorized extra images and invalid OTA
+metadata placement/size (eight provenance tests total). The first
+`170b4a66` workflow was cancelled by a newer push. `42635006`
+passed firmware compilation, 19 native CTests, Python provenance
+regressions, simulated REST/WebSocket, headless LVGL and React checks,
+but failed the final provenance stage because it rejected ESP-IDF's
+legitimate initial OTA selector image. Corrected exact source
+`d89b505c0eb5b47e4e193fb097ff368ee92367ed` **passed**
+GitHub Actions `40985438288`, including the pinned ESP-IDF v6.1
+build, full host/display/web verification, provenance generation and
+artifact upload. No owner hardware or secrets were used.
+
+Numbered TODO remains **114/145 complete (31 open)**. T11-08 is
+still only partially prepared: generated CI firmware is explicitly
+`CI_BUILD_ONLY_NOT_RELEASE_APPROVED`. Board/USB and LCD electrical
+checks, five-probe 1-Wire reliability, owner Wi-Fi/phone onboarding,
+actual LittleFS power-loss, successful OTA/rollback, isolated destructive
+reset, on-device memory/latency and 24–72h soak, plus final release
+notes/signoff, remain unverified.
+
 ## 2026-10-29 — CI-only build provenance and OTA image safety gate (software-only)
 
 Added `tools/release_provenance.py` to generate a deterministic, source-SHA-bound

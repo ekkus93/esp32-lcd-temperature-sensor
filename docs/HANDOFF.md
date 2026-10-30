@@ -1,3 +1,21 @@
+## 2026-10-29 — Complete flash-map provenance gate
+
+Release packaging now checks the entire 16 MiB partition map,
+all flash-image extents, and the exact bounded ESP-IDF
+`ota_data_initial.bin` image within `otadata`. The manifest records
+full partition extents. Eight synthetic provenance tests now cover
+bad partition/image layouts. The intermediate `42635006` workflow
+passed build and host checks but failed the new provenance stage until
+the legitimate OTA initialization image was explicitly permitted.
+Corrected exact source `d89b505c0eb5b47e4e193fb097ff368ee92367ed`
+**passed** Actions `40985438288` (native/React/LVGL/API simulation,
+pinned ESP-IDF v6.1 and provenance upload). T11-08 remains open and
+CI artifacts remain **not release approved**. Numbered TODO:
+**114/145 complete**, 31 open. Physical sensors/LCD, owner-network,
+LittleFS power interruption, successful OTA/rollback, isolated reset,
+on-device load and sustained soak remain blocked without real hardware.
+No credentials, flashing or destructive actions were used.
+
 ## 2026-10-29 — CI-only release provenance preparation
 
 New offline `tools/release_provenance.py` generates source-SHA-bound
