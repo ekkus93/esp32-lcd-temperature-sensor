@@ -34,7 +34,7 @@
 ## Phase 2 — Hardware board support and sensor bus
 
 ### Board and LCD electrical checkpoints
-- [ ] **T02-01 [HW]** Confirm ESP32-S3-N16R8 flash/PSRAM/board variant, physical USB-C functions, BOOT/RESET routing and silkscreen GPIO orientation from actual board.
+- [ ] **T02-01 [HW]** Confirm ESP32-S3-N16R8 flash/PSRAM/board variant, physical USB-C functions, BOOT/RESET routing and silkscreen GPIO orientation from actual board. The connected module reports 16 MiB flash/8 MiB PSRAM and enumerates native USB Serial/JTAG (`303a:1001`, `/dev/ttyACM0`). Only this connector is verified; physical variant markings, the second USB-C function, button routing and pin-orientation photograph are still required.
 - [ ] **T02-02 [HW]** Measure/read LCD header signal order, supply rating, backlight `BL/BLK` voltage, polarity and drive/current requirements; document results and **only then** wire GPIO15 or suitable driver.
 - [ ] **T02-03 [HW]** Confirm LCD controller variant, 240×320 addressing/offsets, actual visible size, rotation, RGB/BGR order, and 3.3V regulator current budget.
 - [x] **T02-04** Add a single authoritative board pin/config header: `DQ=4`, LCD `SCLK=12`, `MOSI=11`, `CS=10`, `DC=9`, `RST=14`, conditional `BL=15`, `BOOT=0`.
@@ -113,7 +113,7 @@ Additional host-only diagnostic-evidence checks reject ambiguous UART lines (dup
 - [ ] **T05-10** Show hold-progress feedback on LCD; enter SoftAP when threshold reached while temperature sampling/logging continue. BOOT hold progress now flows atomically to the LCD view, and the host renderer checks progress feedback; the five-second physical hold, AP transition, and continued acquisition/logging still need device verification.
 - [ ] **T05-11** Preserve prior Wi-Fi settings during re-provisioning until candidate network verification succeeds; do not factory-reset on ordinary BOOT hold. Candidate success remains the only station NVS write path; the versioned credential codec preserves legacy records and rejects corruption without erasing existing data. Real previous-network preservation and BOOT recovery still require device/owner-network acceptance.
 - [x] **T05-12** Test GPIO0 FSM on host with bounce, restart, held-at-boot and long hold cases.
-- [ ] **T05-13 [HW]** Verify runtime 5-second BOOT behavior **and** standard USB auto-flash/manual BOOT+RESET ROM download mode on photographed dual-USB-C board.
+- [ ] **T05-13 [HW]** Verify runtime 5-second BOOT behavior **and** standard USB auto-flash/manual BOOT+RESET ROM download mode on photographed dual-USB-C board. Earlier user-assisted BOOT+RESET did enter ROM download mode and allowed app flashing; a normal RESET returned to firmware. The current connection also confirms native USB Serial/JTAG. The five-second runtime recovery and second connector/physical board photo remain unverified.
 
 ### Time service
 - [x] **T05-14** Integrate SNTP/NTP (configurable server), sync quality metadata, time zone and DST handling. Versioned device settings configure a validated NTP hostname and timezone; the clock service marks synchronization only from the SNTP callback, publishes transition events, and formats local time with POSIX DST rules. Host tests cover settings validation and supported-zone winter/summer conversion. Actual network synchronization remains a device check under T05-18.
