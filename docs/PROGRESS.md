@@ -1,3 +1,31 @@
+## 2026-10-29 — Verify the flashed partition table against source CSV (software-only)
+
+The CI release-provenance generator previously checked every partition in
+`firmware/partitions.csv` but only hashed the generated binary. A stale
+`partition_table/partition-table.bin` could therefore disagree with the
+validated CSV while still producing a self-consistent manifest. The
+generator now decodes ESP-IDF 32-byte partition records, checks their
+MD5 marker and digest, padding, labels and flags, and requires the
+complete binary type/subtype/offset/size map to match the CSV exactly.
+
+Two synthetic Python regression methods cover a stale binary with
+recomputed valid MD5, CSV drift with unchanged binary, bad/missing MD5,
+non-padding bytes and unexpected flags. The corrected exact source
+`656fdc0f2c887326b5f468eddd022410e761572f` **passed**
+GitHub Actions run `40990485662`: formatting, native C++/Python,
+simulated REST/WebSocket, headless LVGL, React, pinned ESP-IDF v6.1
+firmware build and CI-only provenance generation/artifact upload.
+The initial `673fffd8` source had an escaped-byte literal error;
+`656fdc0f` corrected it before the successful run. This is artifact
+integrity validation, not on-device flash/OTA success. T11-08 stays open.
+
+Numbered TODO remains **114/145 complete, 31 open**. Physical
+board/pins/backlight, five DS18B20 probes, real LCD/LVGL, owner-network
+provisioning, LittleFS power interruption, actual OTA/rollback,
+disposable-device factory reset and 24–72h load/soak evidence are still
+required. No device, Wi-Fi/admin secret or destructive operation was
+used.
+
 ## 2026-10-29 — Full 16 MiB flash layout and OTA selector release-provenance checks (software-only)
 
 Expanded `tools/release_provenance.py` to validate **every** ESP-IDF

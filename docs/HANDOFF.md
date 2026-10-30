@@ -1,3 +1,21 @@
+## 2026-10-29 — Binary partition-table provenance gate
+
+The release-provenance checker now verifies the *flashed* ESP-IDF
+partition-table binary, including its MD5 record and all partition
+type/subtype/offset/size entries, against the pinned CSV layout.
+Synthetic regressions cover valid-checksum stale binaries and malformed
+MD5, padding and flags. Corrected exact source `656fdc0f` passed
+Actions `40990485662` with full native, simulator, LVGL, React,
+ESP-IDF v6.1 and artifact-provenance checks. Initial `673fffd8`
+escaped-byte typo was corrected before qualification.
+
+**114/145 numbered tasks complete (31 open).** T11-08 remains open:
+CI artifacts are development-only, not release-qualified. Board/LCD/
+probes, real Wi-Fi onboarding, LittleFS power-loss, successful OTA/
+rollback, isolated factory reset and sustained on-device performance
+remain owner/hardware prerequisites. No physical device or credentials
+were accessed.
+
 ## 2026-10-29 — Complete flash-map provenance gate
 
 Release packaging now checks the entire 16 MiB partition map,
