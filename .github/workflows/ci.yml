@@ -109,3 +109,24 @@ jobs:
             web/dist/
           if-no-files-found: error
           retention-days: 14
+
+      - name: Download uploaded firmware artifact for verification
+        uses: actions/download-artifact@v4
+        with:
+          name: esp32-s3-firmware-${{ github.sha }}
+          path: ${{ runner.temp }}/firmware-artifact-verify
+
+      - name: Verify downloaded firmware artifact checksums and source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/firmware-artifact-verify"
+          sha256sum -c firmware/build/provenance/SHA256SUMS.txt
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          manifest = json.loads(Path("firmware/build/provenance/manifest.json").read_text(encoding="utf-8"))
+          assert manifest["source_commit"] == os.environ["GITHUB_SHA"]
+          assert manifest["qualification"] == "CI_BUILD_ONLY_NOT_RELEASE_APPROVED"
+          PY

@@ -113,6 +113,13 @@ class ReleaseProvenanceTests(unittest.TestCase):
         )
         self.assertEqual(len(manifest["flash_images"]), 4)
         self.assertIn("firmware/build/ota_data_initial.bin", uploaded)
+        # The workflow must verify the *downloaded* archive, not just its
+        # local pre-upload files or a declaration of upload paths.
+        self.assertIn("uses: actions/download-artifact@v4", workflow)
+        self.assertIn(
+            "sha256sum -c firmware/build/provenance/SHA256SUMS.txt", workflow
+        )
+        self.assertIn('manifest["source_commit"] == os.environ["GITHUB_SHA"]', workflow)
 
     def test_rejects_missing_and_wrong_flash_mapping(self):
         self.flash_files.pop("0x8000")
