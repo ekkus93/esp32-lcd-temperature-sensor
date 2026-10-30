@@ -9,6 +9,7 @@ import csv
 import hashlib
 import json
 import re
+import struct
 from pathlib import Path
 
 PINNED_IDF = "fff9895c82d744c7237be8847347bdd1b07c6643"
@@ -99,6 +100,68 @@ def slots_from_csv(path):
         raise ValueError("invalid or overlapping OTA slots")
     return slots, partitions
 
+
+# ESP-IDF's 32-byte partition entries, including the MD5 record. Comparing
+# only partitions.csv is insufficient: the device flashes partition-table.bin.
+PARTITION_ENTRY = struct.Struct("<HBBII16sI")
+PARTITION_SUBTYPES = {
+    ("data", "nvs"): 0x02,
+    ("data", "ota"): 0x00,
+    ("data", "phy"): 0x01,
+    ("data", "spiffs"): 0x82,
+    ("app", "ota_0"): 0x10,
+    ("app", "ota_1"): 0x11,
+}
+
+
+def verify_partition_binary(path, csv_layout):
+    """Require the actual flashed partition table to match every CSV entry."""
+    data = path.read_bytes()
+    if not data or len(data) > 0x1000 or len(data) % PARTITION_ENTRY.size:
+        raise ValueError("invalid partition binary length")
+    entries = {}
+    md5_seen = False
+    padding_seen = False
+    for start in range(0, len(data), PARTITION_ENTRY.size):
+        record = data[start:start + PARTITION_ENTRY.size]
+        if record == b"\\xff" * PARTITION_ENTRY.size:
+            padding_seen = True
+            continue
+        if padding_seen or md5_seen:
+            raise ValueError("non-padding bytes after partition checksum")
+        if record[:2] == b"\\xeb\\xeb":
+            if (record[2:16] != b"\\xff" * 14 or
+                    record[16:] != hashlib.md5(data[:start]).digest()):
+                raise ValueError("invalid partition binary MD5 checksum")
+            md5_seen = True
+            continue
+        if record[:2] != b"\\xaa\\x50":
+            raise ValueError("invalid partition binary entry magic")
+        _, kind, subtype, offset, size, label, flags = PARTITION_ENTRY.unpack(record)
+        raw_name, separator, padding = label.partition(b"\\x00")
+        if (not raw_name or (separator and padding.strip(b"\\x00")) or flags):
+            raise ValueError("invalid partition binary label or flags")
+        try:
+            name = raw_name.decode("ascii")
+        except UnicodeDecodeError as exc:
+            raise ValueError("invalid partition binary label") from exc
+        if name in entries:
+            raise ValueError("duplicate binary partition")
+        entries[name] = (kind, subtype, offset, size)
+    if not md5_seen:
+        raise ValueError("partition binary missing MD5 checksum")
+    if entries.keys() != csv_layout.keys():
+        raise ValueError("binary partition names disagree with CSV")
+    for name, part in csv_layout.items():
+        kind = {"app": 0x00, "data": 0x01}[part["type"]]
+        subtype = PARTITION_SUBTYPES.get((part["type"], part["subtype"]))
+        if subtype is None:
+            raise ValueError("unsupported CSV partition subtype")
+        expected = (kind, subtype, part["offset"], part["size"])
+        if entries[name] != expected:
+            raise ValueError(f"binary partition {name} disagrees with CSV")
+
+
 def collect(root, commit):
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise ValueError("source commit must be an exact lowercase SHA-1")
@@ -142,6 +205,8 @@ def collect(root, commit):
         if previous["offset"] + previous["size"] > current["offset"]:
             raise ValueError("overlapping flash images")
     slots, layout = slots_from_csv(partitions)
+    verify_partition_binary(regular_under(build, "partition_table/partition-table.bin"),
+                            layout)
     if slots["ota_0"]["offset"] != EXPECTED_IMAGES["temperature_monitor.bin"]:
         raise ValueError("application flash offset disagrees with ota_0")
     app = next(image for image in images if image["path"] == "temperature_monitor.bin")
