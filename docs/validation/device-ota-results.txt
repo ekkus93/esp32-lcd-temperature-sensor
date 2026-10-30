@@ -22,6 +22,10 @@ Device acceptance
     five-second health cadence, no fabricated sensor data, and no panic.
 
 The host could not reconnect directly to the station HTTP address after the
-device restarted, so post-update API and asset checks used the firmware's USB
-loopback bridge. This demonstrates successful slot update and bundled UI/API
-pairing; it does not test rollback, slot A→B→A, or behavior with peripherals.
+first device restart, so post-update API and asset checks used the firmware's
+USB loopback bridge. The current station address was later refreshed over USB,
+and the host performed a second authenticated OTA from `ota_1` back to `ota_0`.
+The board returned with `ota_state=valid`; admin login, saved Wi-Fi credentials,
+and zero-sensor status were preserved. Thus slot A→B→A succeeded. Forced
+rollback, history equality across both updates, and behavior with peripherals
+remain untested.

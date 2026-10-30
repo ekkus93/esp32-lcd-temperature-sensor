@@ -39,8 +39,10 @@ authenticated station HTTP. The board rebooted from `ota_1`, reconnected with
 saved settings, passed startup health validation, and preserved administrator
 access. Authenticated status and the bundled HTML/hashed JavaScript both
 returned HTTP 200 through the USB bridge. A 35-second smoke passed with healthy
-history, zero sensors, five-second health cadence, and no panic. This closes
-T10-01 and T10-03; forced rollback and A→B→A remain open. See
+history, zero sensors, five-second health cadence, and no panic. A second
+authenticated OTA returned the board to `ota_0`, also valid, with admin access
+and saved Wi-Fi intact. This closes T10-01 and T10-03 and verifies A→B→A; forced
+rollback and historical-data equality remain open. See
 [OTA validation](validation/device-ota-results.txt).
 
 ## Remaining acceptance
@@ -54,7 +56,7 @@ tasks and immediate prerequisites are:
 | T04-01/02/03/14 | Electrically verified attached LCD for color/rotation/offset, backlight, DMA/heap/refresh and readability/soak acceptance. |
 | T05-10/13/18 | Phone/client for captive onboarding and offline recovery; physical BOOT/RESET interaction. Station DHCP/NTP, NVS save/reboot and prior-network preservation passed on the owner-selected open network. |
 | T06-14/15/16 | Populated device history for retention/wear/export measurements and a controlled power interruption. |
-| T10-02/05/08/09/10 | Forced OTA rollback and A→B→A; combined traffic/flash/peripheral stress, USB/BOOT recovery and 24–72-hour soak. |
+| T10-02/05/08/09/10 | Forced OTA rollback and historical-data comparison; combined traffic/flash/peripheral stress, USB/BOOT recovery and 24–72-hour soak. |
 | T11-01/08 | Reconcile measured hardware behavior, complete release qualification and owner signoff before distributing a release. |
 
 Optional non-v1 features remain a separate list at the bottom of [TODO.md](TODO.md)

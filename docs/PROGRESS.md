@@ -7,7 +7,10 @@ from `ota_1`, reconnected using saved settings, passed the startup health gate
 status and the embedded HTML root/hashed JavaScript asset returned HTTP 200
 through the USB bridge. A 35-second post-update smoke passed with healthy
 history, zero sensors, five-second health cadence, and no panic. T10-01 and
-T10-03 are complete. See [OTA validation](validation/device-ota-results.txt).
+T10-03 are complete. A second authenticated OTA returned the board to
+`ota_0`, also valid, with admin access and saved Wi-Fi intact. A→B→A passed;
+forced rollback and before/after history equality remain open. See
+[OTA validation](validation/device-ota-results.txt).
 
 During a live 60-second poll after the monitor was ready, the provisioning AP
 stayed closed. The five-second BOOT behavior remains unverified; the live status

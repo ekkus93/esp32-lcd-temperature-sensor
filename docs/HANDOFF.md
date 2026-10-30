@@ -7,13 +7,15 @@ The dedicated 120-second stalled-WebSocket test observed firmware cutoff while
 kept five-second cadence. The first run uncovered a test-harness omission in
 serial health capture, which is fixed and verified in the passing rerun.
 Station association/candidate preservation (T05-01/04/05/11), T07-10, T10-01,
-and T10-03 are complete. A successful authenticated OTA booted `ota_1`, passed
-the startup health gate, preserved admin login, and served its embedded UI and
-API; details are in [OTA results](validation/device-ota-results.txt). Current
-total is **123/145 numbered tasks complete**; 22 remain open. See the
+and T10-03 are complete. Authenticated OTA booted `ota_1`, passed the startup
+health gate, preserved admin login, and served its embedded UI and API. A
+second update returned the board to valid `ota_0`, with saved Wi-Fi and admin
+access intact; details are in [OTA results](validation/device-ota-results.txt).
+Forced rollback and historical-data comparison remain open. Current total is
+**123/145 numbered tasks complete**; 22 remain open. See the
 [2026-10-30 handoff](ESP32_TEMPERATURE_MONITOR_HANDOFF_2026-10-30.md) and
 [device results](validation/device-api-results.txt). No LCD or probes were
-connected; rollback and long soak remain open.
+connected; long soak remains open.
 
 ## 2026-10-29 — ESP32-S3 storage recovery and reset acceptance
 
