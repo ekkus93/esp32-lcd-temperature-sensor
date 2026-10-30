@@ -27,5 +27,25 @@ USB loopback bridge. The current station address was later refreshed over USB,
 and the host performed a second authenticated OTA from `ota_1` back to `ota_0`.
 The board returned with `ota_state=valid`; admin login, saved Wi-Fi credentials,
 and zero-sensor status were preserved. Thus slot A→B→A succeeded. Forced
-rollback, history equality across both updates, and behavior with peripherals
-remain untested.
+early-reset rollback test is recorded below; populated temperature-history
+comparison and behavior with peripherals remain untested.
+
+Rollback exercise — 2026-10-30
+  - Before staging, the device reported valid `ota_0`, connected station with
+    saved credentials, and a healthy event journal. The oldest-event boundary
+    and pagination cursor were saved privately for comparison.
+  - The same image was uploaded to `ota_1`. About 2.3 seconds after HTTP 202,
+    before two healthy acquisition cycles, `python -m esptool --chip esp32s3
+    --port /dev/ttyACM0 --before default-reset --after hard-reset chip-id`
+    reset the device. The boot log then loaded offset 0x20000 (`ota_0`),
+    demonstrating rollback from the still-pending image.
+  - The 15-second smoke passed with healthy history/event storage, READY,
+    zero sensors, five-second health cadence and no panic. Authenticated API
+    status reported valid `ota_0`; admin access and saved Wi-Fi reconnected.
+    The event journal remained healthy with its prior oldest-event boundary
+    and cursor intact.
+
+This verifies bootloader rollback before image confirmation and preserves NVS
+settings and the event-journal boundary. The aggregate history partition had no
+sensor samples to compare, so preservation of populated temperature history
+remains unverified. The LCD remained disconnected.

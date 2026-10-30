@@ -11,7 +11,8 @@ and T10-03 are complete. Authenticated OTA booted `ota_1`, passed the startup
 health gate, preserved admin login, and served its embedded UI and API. A
 second update returned the board to valid `ota_0`, with saved Wi-Fi and admin
 access intact; details are in [OTA results](validation/device-ota-results.txt).
-Forced rollback and historical-data comparison remain open. Current total is
+Pre-confirmation rollback passed; failed-service rollback and populated
+historical-data comparison remain open. Current total is
 **123/145 numbered tasks complete**; 22 remain open. See the
 [2026-10-30 handoff](ESP32_TEMPERATURE_MONITOR_HANDOFF_2026-10-30.md) and
 [device results](validation/device-api-results.txt). No LCD or probes were

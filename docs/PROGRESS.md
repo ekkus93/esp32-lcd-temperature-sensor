@@ -8,8 +8,11 @@ status and the embedded HTML root/hashed JavaScript asset returned HTTP 200
 through the USB bridge. A 35-second post-update smoke passed with healthy
 history, zero sensors, five-second health cadence, and no panic. T10-01 and
 T10-03 are complete. A second authenticated OTA returned the board to
-`ota_0`, also valid, with admin access and saved Wi-Fi intact. A→B→A passed;
-forced rollback and before/after history equality remain open. See
+`ota_0`, also valid, with admin access and saved Wi-Fi intact. A pre-confirmation
+reset of the next pending image triggered bootloader rollback to `ota_0`; the
+prior event-journal boundary remained intact. T10-01 and T10-03 are complete and
+A→B→A/early-reset rollback passed. Failed-service rollback, LCD status, and
+populated temperature-history comparison remain open. See
 [OTA validation](validation/device-ota-results.txt).
 
 During a live 60-second poll after the monitor was ready, the provisioning AP
