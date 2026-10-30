@@ -20,6 +20,14 @@ partition-table, OTA-selector and application flash offsets; no flash-image over
 the complete 16 MiB partition map (required entries, types, alignment,
 non-overlap and flash bounds), with the bounded ESP-IDF initial OTA selector
 image allowed only at the `otadata` partition start;
+The generator also decodes the *actual flashed* ESP-IDF partition-table
+binary, validates its MD5 marker/digest and padding, and compares every
+partition's type/subtype, offset and size against the source CSV. It rejects
+stale binary/CSV mismatches even if the binary has a recalculated valid MD5,
+as well as invalid flags and duplicate labels. Corrected exact-source
+`656fdc0f2c887326b5f468eddd022410e761572f` passed Actions
+`40990485662` (native, web, headless display, pinned ESP-IDF v6.1 and
+provenance artifact generation).
 both 4 MiB OTA slots and application headroom; firmware, web and lockfile
 version agreement; nonempty regular files without symlink/traversal paths;
 and SHA-256 of all flash images, web assets and pinned inputs. The manifest
