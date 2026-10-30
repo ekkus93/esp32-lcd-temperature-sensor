@@ -1,4 +1,7 @@
 #include "history.hpp"
+#ifdef ESP_PLATFORM
+#include "esp_log.h"
+#endif
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -265,6 +268,14 @@ std::vector<unsigned> HistoryStore::segments() const {
     return values;
 }
 bool HistoryStore::recover() {
+    auto recovery_failure = [](int line) {
+#ifdef ESP_PLATFORM
+        ESP_LOGE("history_store", "recover rejected at line %d errno=%d", line, errno);
+#else
+        (void)line;
+#endif
+        return false;
+    };
     // A failed recheck must revoke append permission on reused instances.
     // In-memory segment selection is not trustworthy until recovery succeeds.
     append_ready_ = false;
@@ -274,37 +285,37 @@ bool HistoryStore::recover() {
     if (mkdir(directory_.c_str(), 0700) != 0) {
         struct stat info {};
         if (stat(directory_.c_str(), &info) != 0 || !S_ISDIR(info.st_mode))
-            return false;
+            return recovery_failure(__LINE__);
     }
     // A symlinked or missing history directory must not be treated as an
     // empty, writable store.
     if (!safe_history_directory(directory_))
-        return false;
+        return recovery_failure(__LINE__);
     // A failed directory enumeration is not an empty history.
     auto *dir = opendir(directory_.c_str());
     if (!dir)
-        return false;
+        return recovery_failure(__LINE__);
     closedir(dir);
     auto files = segments();
     active_ = files.empty() ? 0 : files.back();
     std::vector<SegmentSeal> recovered_seals;
     for (auto number : files) {
         if (!safe_segment_path(path(number), false))
-            return false;
+            return recovery_failure(__LINE__);
         if (file_size(path(number)) > segment_bytes_ + max_history_record_bytes)
-            return false;
+            return recovery_failure(__LINE__);
         std::ifstream input(path(number), std::ios::binary);
         if (!input)
-            return false;
+            return recovery_failure(__LINE__);
         std::size_t good = 0;
         while (auto bucket = next(input))
             good = static_cast<std::size_t>(input.tellg());
         if (input.bad())
-            return false;
+            return recovery_failure(__LINE__);
         if (good != file_size(path(number))) {
             // Only the active tail may be repaired. Never alter completed segments.
             if (number != active_)
-                return false;
+                return recovery_failure(__LINE__);
             input.clear();
             input.seekg(static_cast<std::streamoff>(good));
             std::array<char, 8> header{};
@@ -315,17 +326,17 @@ bool HistoryStore::recover() {
             // prefixes shorter than a complete eight-byte header.
             const auto header_bytes = input.gcount();
             if (input.bad())
-                return false;
+                return recovery_failure(__LINE__);
             const auto remaining = file_size(path(number)) - good;
             if (!header_bytes ||
                 std::memcmp(header.data(), "TMH", std::min<std::streamsize>(3, header_bytes)) != 0)
-                return false;
+                return recovery_failure(__LINE__);
             if (header_bytes >= 4 && header[3] != '1' && header[3] != '2')
-                return false;
+                return recovery_failure(__LINE__);
             if (header_bytes >= 5 && header[4] != (header[3] == '1' ? 1 : 2))
-                return false;
+                return recovery_failure(__LINE__);
             if (header_bytes >= 6 && header[5] != 0)
-                return false;
+                return recovery_failure(__LINE__);
             // A complete but CRC-damaged final record is not an interrupted
             // append. A partial record must declare a valid size greater than
             // its currently persisted bytes.
@@ -334,14 +345,14 @@ bool HistoryStore::recover() {
                 const size_t high = static_cast<uint8_t>(header[7]);
                 const size_t declared = low | (high << 8);
                 if (declared < 40 || declared > max_history_record_bytes || remaining >= declared)
-                    return false;
+                    return recovery_failure(__LINE__);
             }
             // Refuse to truncate an interior corrupt record if later valid data exists.
             input.clear();
             input.seekg(static_cast<std::streamoff>(good + 1));
             std::vector<uint8_t> tail((std::istreambuf_iterator<char>(input)), {});
             if (input.bad())
-                return false;
+                return recovery_failure(__LINE__);
             for (std::size_t offset = 0; offset + 40 <= tail.size(); ++offset) {
                 if (std::memcmp(tail.data() + offset, "TMH", 3) != 0)
                     continue;
@@ -351,11 +362,11 @@ bool HistoryStore::recover() {
                     std::vector<uint8_t> candidate(tail.begin() + offset,
                                                    tail.begin() + offset + length);
                     if (decode_bucket(candidate))
-                        return false;
+                        return recovery_failure(__LINE__);
                 }
             }
             if (truncate(path(number).c_str(), good) != 0)
-                return false;
+                return recovery_failure(__LINE__);
         }
         // Seal completed segments as well as the active one. A later append
         // must never evict an older segment changed since this recovery.
@@ -366,12 +377,12 @@ bool HistoryStore::recover() {
         const int status = lstat(path(number).c_str(), &metadata);
 #endif
         if (status != 0 || !S_ISREG(metadata.st_mode) || metadata.st_size < 0)
-            return false;
+            return recovery_failure(__LINE__);
         const auto size = static_cast<std::size_t>(metadata.st_size);
         uint64_t fingerprint = 0;
         if (!segment_fingerprint(path(number), size, fingerprint) ||
             !segment_has_size(path(number), size))
-            return false;
+            return recovery_failure(__LINE__);
         SegmentSeal seal{number, size, fingerprint};
 #ifndef ESP_PLATFORM
         seal.device = static_cast<uint64_t>(metadata.st_dev);
@@ -379,7 +390,7 @@ bool HistoryStore::recover() {
         struct stat after {};
         if (lstat(path(number).c_str(), &after) != 0 || after.st_dev != metadata.st_dev ||
             after.st_ino != metadata.st_ino)
-            return false;
+            return recovery_failure(__LINE__);
 #endif
         recovered_seals.push_back(seal);
     }
@@ -389,14 +400,14 @@ bool HistoryStore::recover() {
     struct stat recovered_directory {};
     if (lstat(directory_.c_str(), &recovered_directory) != 0 ||
         !same_history_directory(directory_, recovered_directory))
-        return false;
+        return recovery_failure(__LINE__);
     directory_dev_ = static_cast<uint64_t>(recovered_directory.st_dev);
     directory_ino_ = static_cast<uint64_t>(recovered_directory.st_ino);
     if (active_segment_exists_) {
         struct stat recovered_active {};
         if (lstat(path(active_).c_str(), &recovered_active) != 0 ||
             !S_ISREG(recovered_active.st_mode))
-            return false;
+            return recovery_failure(__LINE__);
         active_dev_ = static_cast<uint64_t>(recovered_active.st_dev);
         active_ino_ = static_cast<uint64_t>(recovered_active.st_ino);
     } else {
@@ -412,11 +423,11 @@ bool HistoryStore::recover() {
         const int status = lstat(path(active_).c_str(), &active_metadata);
 #endif
         if (status != 0 || !S_ISREG(active_metadata.st_mode) || active_metadata.st_size < 0)
-            return false;
+            return recovery_failure(__LINE__);
         active_size_ = static_cast<std::size_t>(active_metadata.st_size);
         if (!segment_fingerprint(path(active_), active_size_, active_fingerprint_) ||
             !segment_has_size(path(active_), active_size_))
-            return false;
+            return recovery_failure(__LINE__);
     }
     sealed_segments_ = std::move(recovered_seals);
     append_ready_ = true;

@@ -34,12 +34,12 @@ handoff, **not a release approval or evidence of physical acceptance**.
 
 | TODO scope | Complete | Open | Total | Completion |
 | --- | ---: | ---: | ---: | ---: |
-| Numbered implementation/working-agreement tasks (T00–T11) | **114** | **31** | **145** | **78.62%** |
+| Numbered implementation/working-agreement tasks (T00–T11) | **115** | **30** | **145** | **79.31%** |
 | Seven definition-of-done acceptance criteria | 0 | 7 | 7 | 0% |
 | Optional, explicitly non-v1 backlog | 0 | 6 | 6 | 0% |
-| **All literal TODO checkboxes** | **114** | **44** | **158** | **72.15%** |
+| **All literal TODO checkboxes** | **115** | **43** | **158** | **72.78%** |
 
-The 31 open numbered tasks are largely hardware/device acceptance, **not 31
+The 30 open numbered tasks are largely hardware/device acceptance, **not 30
 unimplemented software features**. Most have substantial host/CI-level
 implementation and tests. Do not check off a task requiring device evidence
 based on a simulator, bare-board test without attached peripherals, or a
@@ -54,13 +54,12 @@ successful firmware compile. The optional backlog is not part of v1 gating.
 | T05: Wi-Fi/BOOT (7) | T05-01, T05-04, T05-05, T05-10, T05-11, T05-13, T05-18 | Test real phone AP onboarding, saved-network DHCP/NTP, candidate failure and previous-network retention, physical five-second BOOT recovery and USB download mode. |
 | T06: persistent history (3) | T06-14, T06-15, T06-16 | Measure actual retention/bytes and concurrent export, test flash-full/metadata/reboot, and controlled physical LittleFS power interruption/recovery. |
 | T07: HTTP/WebSockets (1) | T07-10 | Finish actual ESP32 slow-client/backpressure, session/disconnect/reconnect and concurrent-device-socket acceptance beyond host/POSIX simulations. |
-| T09: protected system actions (1) | T09-15 | Qualify guarded restart and two factory-reset modes **only on an isolated disposable target** for destructive cases. |
 | T10: OTA and stability (7) | T10-01, T10-02, T10-03, T10-05, T10-08, T10-09, T10-10 | Verify successful OTA A→B→A, web asset/API consistency, forced rollback, combined 5-probe/LCD/Wi-Fi/socket/flash load, 24–72h soak and BOOT offline recovery. |
 | T11: final docs/release (3) | T11-01, T11-08, T11-09 | Reconcile measured wiring/behavior against docs, issue final exact-SHA checksummed release and approved notes after all blockers, then reconcile final completion. |
 
-**No open numbered tasks in T00, T01, T03 or T08.** The seven
+**No open numbered tasks in T00, T01, T03, T08 or T09.** The seven
 definition-of-done criteria and six optional backlog checkboxes are separate
-from these 31 numbered tasks.
+from these 30 numbered tasks.
 
 ## What exists and what is already verified in software
 
@@ -125,10 +124,10 @@ as a substitute for measured results.
    across actual probes and time, export during writes and reboot, observe
    LittleFS faults. Perform physical power interruption only on a prepared
    expendable device with a safe backup and explicit owner participation.
-6. **Isolated destructive and OTA acceptance:** Use recoverable/disposable
-   hardware for OTA A→B→A, rollback/failure, partition/history
-   preservation and both factory-reset modes. Never reset or flash owner
-   devices as part of an unattended loop.
+6. **OTA acceptance:** Use recoverable/disposable hardware for OTA A→B→A,
+   rollback/failure and partition/history preservation. The authorized ESP32-S3
+   test board passed both factory-reset modes; never reset or flash owner
+   devices without explicit authorization.
 7. **Long soak and release:** Record 24–72h heap/PSRAM/watchdog/clock,
    sampling gaps, network/socket/flash behavior and reset causes with
    five real sensors and LCD. Resolve the open acceptance gates, reconcile
@@ -170,7 +169,9 @@ that it is blocked on device access; report that explicitly.
    or sustained-load results. Never read/print/commit secrets, flash owner
    hardware or operate destructive reset.
 
-**Resume point:** The code and software tests are prepared; the principal
-remaining path is hands-on acceptance. Baseline `8ea8ee0408a04189df76ab677953e5584d301ba6` passed
+**Resume point:** The ESP32-S3 passed guarded restart, both factory-reset
+modes, candidate-failure and concurrent WebSocket API checks. The principal
+remaining path is peripherals, owner-network, storage fault/power-loss,
+slow-client, OTA/rollback and sustained-load acceptance. Baseline `8ea8ee0408a04189df76ab677953e5584d301ba6` passed
 CI 40995561355; **check the new handoff commit's own CI** and report its
 actual SHA and result separately.

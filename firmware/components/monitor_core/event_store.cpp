@@ -1,4 +1,7 @@
 #include "event_store.hpp"
+#ifdef ESP_PLATFORM
+#include "esp_log.h"
+#endif
 #include <algorithm>
 #include <array>
 #include <cerrno>
@@ -190,6 +193,14 @@ EventStore::EventStore(std::string path, size_t max_bytes)
     : path_(std::move(path)), max_bytes_(max_bytes) {}
 
 bool EventStore::recover() {
+    auto recovery_failure = [](int line) {
+#ifdef ESP_PLATFORM
+        ESP_LOGE("event_store", "recover rejected at line %d errno=%d", line, errno);
+#else
+        (void)line;
+#endif
+        return false;
+    };
     // Any failed recovery invalidates the writer, including an already-open
     // instance. Never append to a journal whose integrity was not verified.
     append_ready_ = false;
@@ -200,7 +211,7 @@ bool EventStore::recover() {
     journal_ino_ = 0;
 #endif
     if (max_bytes_ < 2 * event_record_bytes)
-        return false;
+        return recovery_failure(__LINE__);
     // A failed read is not proof that the journal is absent. In particular,
     // fopen("wb") here would destroy a writeable but unreadable journal.
     // Refuse symlinks/directories and only create a genuinely missing file.
@@ -214,18 +225,18 @@ bool EventStore::recover() {
 #endif
     if (status != 0) {
         if (errno != ENOENT)
-            return false;
+            return recovery_failure(__LINE__);
         const int fd = open(path_.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0600);
         if (fd < 0)
-            return false;
+            return recovery_failure(__LINE__);
         const bool synced = fsync(fd) == 0;
         const bool closed = close(fd) == 0;
         if (!synced || !closed)
-            return false;
+            return recovery_failure(__LINE__);
 #ifndef ESP_PLATFORM
         struct stat created {};
         if (lstat(path_.c_str(), &created) != 0 || !S_ISREG(created.st_mode))
-            return false;
+            return recovery_failure(__LINE__);
         journal_dev_ = static_cast<uint64_t>(created.st_dev);
         journal_ino_ = static_cast<uint64_t>(created.st_ino);
 #endif
@@ -237,17 +248,17 @@ bool EventStore::recover() {
         return true;
     }
     if (!S_ISREG(metadata.st_mode))
-        return false;
+        return recovery_failure(__LINE__);
     // The journal is bounded by a small flash partition, but even a corrupt
     // oversized file must not allocate its entire contents in device RAM.
     // Stream and validate fixed-size records before modifying a torn tail.
     if (metadata.st_size < 0 || static_cast<uint64_t>(metadata.st_size) > max_bytes_)
-        return false;
+        return recovery_failure(__LINE__);
     const size_t file_bytes = static_cast<size_t>(metadata.st_size);
     const size_t complete_bytes = file_bytes / event_record_bytes * event_record_bytes;
     std::ifstream input(path_, std::ios::binary);
     if (!input)
-        return false;
+        return recovery_failure(__LINE__);
     uint64_t previous_sequence = 0;
     uint64_t fingerprint = fingerprint_basis;
     std::optional<JournalEvent> recovered_last_event;
@@ -255,10 +266,10 @@ bool EventStore::recover() {
     for (size_t offset = 0; offset < complete_bytes; offset += event_record_bytes) {
         input.read(reinterpret_cast<char *>(record.data()), record.size());
         if (input.gcount() != static_cast<std::streamsize>(record.size()) || input.bad())
-            return false;
+            return recovery_failure(__LINE__);
         auto event = decode_event({record.begin(), record.end()});
         if (!event || event->sequence <= previous_sequence)
-            return false;
+            return recovery_failure(__LINE__);
         previous_sequence = event->sequence;
         recovered_last_event = *event;
         fingerprint = extend_fingerprint(fingerprint, record.data(), record.size());
@@ -268,43 +279,43 @@ bool EventStore::recover() {
     if (remaining) {
         input.read(reinterpret_cast<char *>(tail.data()), remaining);
         if (input.gcount() != static_cast<std::streamsize>(remaining) || input.bad())
-            return false;
+            return recovery_failure(__LINE__);
         // Only a prefix of the current record header is an interrupted
         // append. Unknown format/version/length is preserved for diagnosis.
         static_assert(event_record_bytes == 60);
         const uint8_t expected_header[] = {'T', 'M', 'E', '1', 1, 0, 60, 0};
         if (std::memcmp(tail.data(), expected_header,
                         std::min(remaining, sizeof(expected_header))) != 0)
-            return false;
+            return recovery_failure(__LINE__);
     }
     // A file that grew while being read is not the validated snapshot.
     if (input.peek() != std::char_traits<char>::eof() || input.bad())
-        return false;
+        return recovery_failure(__LINE__);
     const uint64_t original_fingerprint = extend_fingerprint(fingerprint, tail.data(), remaining);
 #ifndef ESP_PLATFORM
     struct stat recovered {};
     if (lstat(path_.c_str(), &recovered) != 0 || !S_ISREG(recovered.st_mode) ||
         recovered.st_dev != metadata.st_dev || recovered.st_ino != metadata.st_ino)
-        return false;
+        return recovery_failure(__LINE__);
 #endif
     // Recheck the full pre-recovery image (including the torn tail) before
     // truncation. A read error or concurrent replacement must not destroy it.
     if (!expected_journal_size(path_, file_bytes) ||
         !expected_journal_fingerprint(path_, file_bytes, original_fingerprint))
-        return false;
+        return recovery_failure(__LINE__);
     if (remaining && truncate(path_.c_str(), static_cast<off_t>(complete_bytes)) != 0)
-        return false;
+        return recovery_failure(__LINE__);
 #ifndef ESP_PLATFORM
     // Bind subsequent appends to the exact regular file we recovered.
     if (lstat(path_.c_str(), &recovered) != 0 || !S_ISREG(recovered.st_mode) ||
         recovered.st_dev != metadata.st_dev || recovered.st_ino != metadata.st_ino)
-        return false;
+        return recovery_failure(__LINE__);
     journal_dev_ = static_cast<uint64_t>(recovered.st_dev);
     journal_ino_ = static_cast<uint64_t>(recovered.st_ino);
 #endif
     if (!expected_journal_size(path_, complete_bytes) ||
         !expected_journal_fingerprint(path_, complete_bytes, fingerprint))
-        return false;
+        return recovery_failure(__LINE__);
     last_sequence_ = previous_sequence;
     last_event_ = recovered_last_event;
     expected_bytes_ = complete_bytes;

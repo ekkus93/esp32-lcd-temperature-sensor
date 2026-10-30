@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 30260)
-Total output lines: 1843
-
 ## 2026-10-29 — T11-08 release notes draft (no release approval)
 
 The canonical T11-08 requests release notes and known issues following
@@ -936,7 +933,21 @@ HistoryStore recovery previously checked unknown TMH format/version headers
 only after six bytes were present. An interrupted four- or five-byte TMH3
 header (or TMH2 with an incompatible fifth version byte) was therefore
 truncated as an ordinary incomplete TMH2 write. Recovery now checks the known
-magic at four bytes, sch…260 tokens truncated…
+magic at four bytes, schema version at five, and the upper version byte at
+six, refusing recovery without modifying the journal when a future format
+is identified. Existing genuine TMH1/TMH2 interrupted-write recovery is
+preserved. Native `history_power_cut_recovery` tests add short unknown
+headers appended after a valid persisted bucket and assert byte-for-byte
+preservation; existing tests exhaustively cover all partial TMH2 byte
+boundaries for one and five probes, including segment rollover. Initial implementation `ea71e085` failed C++ formatting (CI run
+40772106565); corrected commit `5c35b6be5f2b360c5e46be6dead10bd24f792977`
+passed exact-commit CI run 40772204709, including native C++ storage/
+power-cut tests, Python diagnostics, simulated REST/WebSocket, headless LVGL,
+React checks and pinned ESP-IDF v6.1 firmware compilation.
+This is **host/POSIX simulation only**; physical LittleFS interruption,
+OTA rollback, and hardware acceptance remain open (T06-14/16, T10-09).
+No devices, credentials, OTA, flashing, reset or other hardware were used.
+
 ## 2026-10-28 — late Wi-Fi scan completion releases scan ownership (software-only)
 
 A scan-done event arriving at or after the ten-second scan deadline could
@@ -1830,3 +1841,14 @@ The ESP32-S3 appeared as `/dev/ttyACM0` (`303a:1001`, Espressif USB JTAG/serial)
 The authenticated USB-loopback API test confirmed static gzip assets, anonymous and forged-host rejection, authenticated status, invalid-OTA rejection before flash access, a real radio scan, authenticated live snapshots at 5,000 ms cadence, forbidden WebSocket data-frame closure, four-client admission with the fifth rejected (503), HTTP status under four-client load, and history query bounds. It then failed the durable reboot-event assertion. A separate authenticated read-only query reported the event journal unavailable with no events. A subsequent reboot/smoke log reported `mount=ESP_OK healthy=0`, `event_log_healthy=0`, and `Event journal write failed`; the smoke still passed its health/no-fabricated-sensors/no-panic checks. The cause is not established. No history formatting, factory reset, Wi-Fi credential submission, OTA, or peripheral wiring was performed.
 
 Preserve the existing history partition. Diagnose the LittleFS/history/event failure before further persistence or destructive acceptance tests. T06-14/T06-16 remain open; T07-10 remains open because device TCP slow-client cutoff was not established. LCD, physical probes, owner-network onboarding, OTA/rollback, destructive reset, and long soak acceptance remain untested.
+
+
+## 2026-10-29 — ESP32-S3 history recovery and protected reset acceptance
+
+The connected ESP32-S3 was authorized for destructive qualification. The prior history partition (`0x820000`, 4 MiB) was erased with `esptool erase-region`; the app, bootloader, partition table, OTA metadata and NVS were preserved during that operation. This intentionally destroyed the prior history. A private pre-erase readback mounted with `littlefs-python`; the five 60-byte event records passed CRC and increasing-sequence checks, and the production host `EventStore::recover()` accepted the extracted journal. The earlier device-only recovery failure therefore remains unexplained.
+
+Added guarded, ESP-only recovery diagnostics that log source line and `errno` if `HistoryStore::recover()` or `EventStore::recover()` rejects storage. The ESP-IDF v6.1 build passed (application image `0x1e8aa0`, 52% OTA-slot headroom) and `idf.py app-flash` wrote only the app partition. Thereafter multiple bare-board smoke/API runs reported healthy history/event stores and passed. No diagnostic rejection line was observed after app-only reflash; do not infer a root cause. The board boots `READY`, zero sensors, 1-Wire disabled, backlight disabled, and approximately 5-second health cadence; no LCD/probes were attached.
+
+The authenticated device API suite passed after the fresh history recovery and again after both reset modes: gzip assets, enrollment/login and cooldown, anonymous/forged-host/CSRF rejection, invalid OTA image rejection before flash access, real radio scan, authenticated WebSocket cadence and forbidden-frame close, four-client cap/fifth-client 503, healthy HTTP under four sockets, bounded history queries, durable reboot event, and safe reboot. With `erase_history:false`, factory reset cleared NVS but retained the prior 11 events through setup retrieval and test-admin re-enrollment (16 events after subsequent testing). With `erase_history:true`, reset cleared the prior 17-event journal and returned with healthy fresh storage; after re-enrollment the new journal had five events starting at sequence 1. The test administrator remains marked test-managed in the private mode-0600 `.build/device-admin.json`; setup credentials remain private in `.build/device-setup.json`.
+
+A guarded candidate-failure run used a random nonexistent SSID while station credentials were blank: the candidate was accepted, overlap rejected with 409, association failed, and SoftAP setup stayed available without saved credentials. This does not test owner-network retention, successful DHCP/NTP, or phone onboarding. T09-15 is complete. T05-04 remains open for preserving an existing network; T06-14/T06-16 remain open for rollover, wear, export concurrency, full-media/corruption, power interruption and long-run durability; T07-10 remains open for actual slow-client cutoff and disconnect/reconnect recovery. LCD, probes, phone onboarding, OTA/rollback, combined load and soak remain untested.

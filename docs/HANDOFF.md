@@ -1,3 +1,25 @@
+## 2026-10-29 — ESP32-S3 storage recovery and reset acceptance
+
+The connected board has a user-managed test authorization for destructive
+validation. The prior 4 MiB history partition at `0x820000` was erased after
+LittleFS/event recovery errors; previous history was destroyed. A private
+readback mounted offline, and its five event records passed CRC/sequence checks
+and host `EventStore` recovery. The prior on-device failure has not been
+reproduced after app-only reflash with recovery line/errno diagnostics; its root
+cause remains unknown. Repeated authenticated API and reboot suites now pass.
+
+Both factory-reset modes and guarded reboot passed on-device. NVS reset with
+history preserved retained 11 old events through re-enrollment; history erase
+removed a 17-event journal and produced a healthy new journal at sequence 1.
+A guarded blank-state Wi-Fi candidate failure preserved setup availability and
+blank station credentials. T09-15 is complete. T06-14/T06-16 remain open for
+wear, corruption, full-media, power-loss, export and long-duration acceptance;
+T05-04 still needs previous-network preservation/DHCP; T07-10 still needs
+firmware slow-client and reconnect acceptance. LCD, probes, phone onboarding,
+OTA/rollback, and combined load/soak remain untested. The device is left running
+normal firmware with the newly enrolled private test administrator; no LCD or
+probes are connected.
+
 ## 2026-10-29 — T11-08 draft release notes prepared
 
 [RELEASE_NOTES_DRAFT.md](RELEASE_NOTES_DRAFT.md) documents the
