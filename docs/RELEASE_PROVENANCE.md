@@ -32,6 +32,12 @@ both 4 MiB OTA slots and application headroom; firmware, web and lockfile
 version agreement; nonempty regular files without symlink/traversal paths;
 and SHA-256 of all flash images, web assets and pinned inputs. The manifest
 also records `flash_size_bytes` and `partition_layout` for independent review.
+The flash plan is additionally restricted to the four pinned image names;
+extra images in otherwise unused flash gaps are rejected. CSV partition
+flags must be empty, and rows must have exactly six fields, preventing
+unreviewed encrypted/read-only settings from being silently ignored.
+These checks passed exact-SHA Actions `40991655488` at source
+`9f269a6811f5c9e6780107c35d6ba6ab5198af59`.
 The full-layout and OTA-selector checks passed exact-SHA Actions
 `40985438288` at source `d89b505c0eb5b47e4e193fb097ff368ee92367ed`.
 It records ESP-IDF commit `fff9895c82d744c7237be8847347bdd1b07c6643`

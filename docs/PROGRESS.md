@@ -1,3 +1,27 @@
+## 2026-10-29 — Reject extra flash images and unexpected partition flags (software-only)
+
+After binary partition-table cross-checking, the release provenance gate
+still allowed additional flash images in unused address gaps, and the CSV
+reader ignored unexpected flags or extra columns. The packaging validator
+now permits **only** the four pinned flash images (bootloader, partition
+table, OTA selector and application) and requires exactly six CSV columns
+with empty flags, consistent with the validated unencrypted layout.
+
+Two additional synthetic Python regression methods cover a fifth image
+in the otherwise unallocated flash gap and CSV flags/extra-column drift
+(twelve provenance test methods total). Exact source
+`9f269a6811f5c9e6780107c35d6ba6ab5198af59` **passed** GitHub
+Actions `40991655488`: native C++/Python, simulated REST/WebSocket,
+headless LVGL, React, pinned ESP-IDF v6.1 firmware compilation, and
+CI-only artifact provenance generation/upload. This is not on-device
+flash, OTA, partition persistence, or release qualification.
+
+**114/145 numbered tasks complete (31 open).** T11-08 stays open;
+board/LCD/probes, owner-network onboarding, real LittleFS power loss,
+OTA slot transitions/rollback, disposable-device factory reset,
+24–72h soak and final release notes/signoff remain prerequisites.
+No hardware, credentials or destructive operations were used.
+
 ## 2026-10-29 — Verify the flashed partition table against source CSV (software-only)
 
 The CI release-provenance generator previously checked every partition in
