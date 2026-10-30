@@ -1,3 +1,29 @@
+# 2026-10-30 — Bare-board and WebSocket backpressure acceptance
+
+The current normal ESP-IDF v6.1 image passed a 20-second bare-board smoke at
+`/dev/ttyACM0`: 16 MiB flash, 8 MiB PSRAM, healthy LittleFS/event journal,
+READY, zero sensors, disabled 1-Wire/backlight, five-second health cadence,
+and no panic. The complete authenticated USB-loopback API suite passed.
+
+T07-10's remaining device gap is closed. A 120-second tiny-window stalled
+WebSocket was cut off by firmware backpressure handling. All 120 authenticated
+HTTP status checks completed, with maximum latency 255 ms; health logs remained
+on five-second cadence. Four simultaneous sockets receive valid snapshots and
+the fifth is rejected with 503. The slow-client harness now retains health
+records consumed during the bridge operation, so cadence validation includes
+the full interval. See `validation/device-api-results.txt` and
+`validation/device-smoke-2026-10-30.txt`. The first 30-second probe was too
+short to trigger cutoff; no cutoff claim is based on that run.
+
+The post-fix full `source /home/phil/esp/esp-idf-v6.1/export.sh &&
+./tools/verify.sh --firmware` passed: 19/19 host CTests, 14 Python tests,
+simulator/WebSocket checks, headless LVGL, 56 web tests, formatting, lint,
+typecheck, production build, SDK pin verification and ESP-IDF v6.1 compile.
+Firmware image is `0x1e8aa0` bytes with 52% of the smallest OTA slot free.
+
+The board remains normal firmware, with no LCD or probes attached. This does
+not verify RF onboarding, storage power interruption, OTA, or sustained load.
+
 ## 2026-10-29 — T11-08 release notes draft (no release approval)
 
 The canonical T11-08 requests release notes and known issues following

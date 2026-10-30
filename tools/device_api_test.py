@@ -119,6 +119,7 @@ def websocket_slow(headers, duration_seconds=30):
     deadline = time.monotonic()+duration_seconds+90
     while time.monotonic()<deadline and b'WS_SLOW_BRIDGE_END' not in data:
         data.extend(port.read(2048))
+    health_traffic.extend(data)
     data = data.replace(b'\r', b'')
     start = data.find(b'WS_SLOW_BRIDGE_BEGIN\n')
     finish = data.find(b'WS_SLOW_BRIDGE_END', start)

@@ -1,3 +1,16 @@
+## 2026-10-30 — Current connected-board checkpoint
+
+The ESP32-S3 is visible at `/dev/ttyACM0`. A normal-image smoke and the complete
+authenticated USB-loopback API suite passed with the LCD and probes absent.
+The dedicated 120-second stalled-WebSocket test observed firmware cutoff while
+120/120 authenticated HTTP checks succeeded (255 ms maximum); the health stream
+kept five-second cadence. The first run uncovered a test-harness omission in
+serial health capture, which is fixed and verified in the passing rerun.
+T07-10 is now complete. Current total is **117/145 numbered tasks complete**;
+28 tasks remain open. See the [2026-10-30 handoff](ESP32_TEMPERATURE_MONITOR_HANDOFF_2026-10-30.md)
+and [device results](validation/device-api-results.txt). No LCD, probes, owner
+Wi-Fi credentials, successful OTA, or long soak were used.
+
 ## 2026-10-29 — ESP32-S3 storage recovery and reset acceptance
 
 The connected board has a user-managed test authorization for destructive

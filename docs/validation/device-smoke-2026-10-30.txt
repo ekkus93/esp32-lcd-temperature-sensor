@@ -1,0 +1,15 @@
+2026-10-30 — Normal firmware bare-board smoke
+
+Command: `python tools/device_smoke.py --port /dev/ttyACM0 --seconds 20`
+Environment: pinned ESP-IDF v6.1, ESP32-S3 USB JTAG/serial. Opening the native
+USB serial console reset the board. No flash operation or peripheral wiring
+was performed.
+
+PASS: boot identifies ESP-IDF v6.1, 16 MiB flash, and 8 MiB PSRAM. LittleFS
+history and event journal mount healthy; firmware reaches READY with zero
+sensors and disabled 1-Wire bus/backlight; free heap remains positive; four
+health samples remain on the expected five-second cadence; no panic or
+fabricated sensor reading appears.
+
+This does not validate the panel, probes, Wi-Fi association, storage power-loss
+behavior, OTA, or long-duration stability.

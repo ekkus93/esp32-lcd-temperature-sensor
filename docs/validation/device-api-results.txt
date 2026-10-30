@@ -90,3 +90,29 @@ malformed request rejection, safe-restart-to-READY, session invalidation, and
 factory-reset rejection checks. No successful reset was sent. The host simulator
 continues to pass slow-client cutoff coverage; firmware slow-client behavior is
 not yet tested.
+
+## Connected-board verification — 2026-10-30
+
+On the ESP32-S3 at `/dev/ttyACM0`, the 20-second normal-image smoke passed:
+ESP-IDF v6.1, 16 MiB flash, 8 MiB PSRAM, healthy LittleFS/event journal,
+READY, zero sensors, disabled 1-Wire/backlight, five-second health cadence,
+and no panic. No LCD or probes were connected.
+
+`python tools/device_api_test.py --port /dev/ttyACM0` passed the full
+authenticated API suite, including embedded assets, auth/CSRF/Host protections,
+invalid OTA rejection before boot selection, real radio scan, WebSocket
+heartbeat and read-only frame close, four-client acceptance/fifth-client 503,
+HTTP responsiveness, history bounds, durable reboot event, and safe restart
+to READY.
+
+`python tools/device_api_test.py --port /dev/ttyACM0 --slow-client
+--slow-client-seconds 120` also passed. The tiny-window stalled WebSocket was
+closed by server backpressure handling. All 120 concurrent authenticated status
+requests succeeded; maximum response time was 255 ms. The health stream stayed
+at five-second intervals through the test. The complete suite finished with
+authentication cooldown and safe restart back to READY. A first 30-second run
+did not reach the send cutoff. The first 120-second run found that the bridge
+reader did not include intervening serial health records in its cadence check;
+`websocket_slow()` now captures those records, and the rerun passed. No Wi-Fi
+client, credentials, LCD, or probes were used; this USB loopback does not prove
+radio onboarding or peripheral operation.
