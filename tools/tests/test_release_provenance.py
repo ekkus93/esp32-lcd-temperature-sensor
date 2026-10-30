@@ -29,8 +29,12 @@ class ReleaseProvenanceTests(unittest.TestCase):
         (self.dist / "index.html").write_bytes(b"<html></html>")
         (self.root / "firmware/partitions.csv").write_text(
             "# Name, Type, SubType, Offset, Size, Flags\n"
+            "nvs,data,nvs,0x9000,0x6000,\n"
+            "otadata,data,ota,0xf000,0x2000,\n"
+            "phy_init,data,phy,0x11000,0x1000,\n"
             "ota_0,app,ota_0,0x20000,0x400000,\n"
-            "ota_1,app,ota_1,0x420000,0x400000,\n", encoding="utf-8"
+            "ota_1,app,ota_1,0x420000,0x400000,\n"
+            "history,data,spiffs,0x820000,0x400000,\n", encoding="utf-8"
         )
         (self.root / "firmware/CMakeLists.txt").write_text(
             "project(temperature_monitor VERSION 0.1.0)\n", encoding="utf-8"
@@ -98,9 +102,11 @@ class ReleaseProvenanceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exceeds"):
             provenance.collect(self.root, SHA)
         (self.build / "temperature_monitor.bin").write_bytes(b"A")
-        (self.root / "firmware/partitions.csv").write_text(
-            "ota_0,app,ota_0,0x20000,0x400000,\n"
-            "ota_1,app,ota_1,0x30000,0x400000,\n", encoding="utf-8"
+        partitions = self.root / "firmware/partitions.csv"
+        partitions.write_text(
+            partitions.read_text(encoding="utf-8").replace(
+                "ota_1,app,ota_1,0x420000", "ota_1,app,ota_1,0x30000"
+            ), encoding="utf-8"
         )
         with self.assertRaisesRegex(ValueError, "overlapping"):
             provenance.collect(self.root, SHA)
@@ -124,6 +130,43 @@ class ReleaseProvenanceTests(unittest.TestCase):
         self.flash_files["0x1000"] = "temperature_monitor.bin"
         self.save_flash_args()
         with self.assertRaisesRegex(ValueError, "duplicate"):
+            provenance.collect(self.root, SHA)
+
+    def test_rejects_corrupt_full_partition_layout(self):
+        partitions = self.root / "firmware/partitions.csv"
+        original = partitions.read_text(encoding="utf-8")
+        cases = (
+            ("history,data,spiffs,0x820000,0x400000",
+             "history,data,spiffs,0xE00000,0x400000", "outside flash"),
+            ("history,data,spiffs,0x820000,0x400000",
+             "history,data,spiffs,0x420000,0x400000", "overlapping"),
+            ("nvs,data,nvs,0x9000", "nvs,data,nvs,0x9001", "misaligned"),
+            ("history,data,spiffs,0x820000,0x400000,\\n", "",
+             "missing or invalid"),
+            ("history,data,spiffs,0x820000,0x400000,\\n",
+             "history,data,spiffs,0x820000,0x400000,\\n"
+             "history,data,spiffs,0x820000,0x400000,\\n", "duplicate"),
+        )
+        for old, replacement, error in cases:
+            with self.subTest(error=error, replacement=replacement):
+                self.assertIn(old, original)
+                partitions.write_text(original.replace(old, replacement),
+                                      encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, error):
+                    provenance.collect(self.root, SHA)
+        partitions.write_text(original, encoding="utf-8")
+
+    def test_rejects_flash_images_in_data_partitions_or_beyond_flash(self):
+        extra = self.build / "extra.bin"
+        extra.write_bytes(b"X" * 4096)
+        self.flash_files["0x9000"] = "extra.bin"
+        self.save_flash_args()
+        with self.assertRaisesRegex(ValueError, "overlaps partition"):
+            provenance.collect(self.root, SHA)
+        self.flash_files.pop("0x9000")
+        self.flash_files["0x1000000"] = "extra.bin"
+        self.save_flash_args()
+        with self.assertRaisesRegex(ValueError, "physical flash"):
             provenance.collect(self.root, SHA)
 
 

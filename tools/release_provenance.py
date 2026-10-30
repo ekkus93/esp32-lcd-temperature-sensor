@@ -12,6 +12,8 @@ import re
 from pathlib import Path
 
 PINNED_IDF = "fff9895c82d744c7237be8847347bdd1b07c6643"
+FLASH_BYTES = 16 * 1024 * 1024
+PARTITION_TABLE_END = 0x9000
 EXPECTED_IMAGES = {
     "bootloader/bootloader.bin": 0x0,
     "partition_table/partition-table.bin": 0x8000,
@@ -43,27 +45,58 @@ def regular_under(root, relative):
 
 
 def slots_from_csv(path):
-    slots = {}
+    """Validate the entire 16 MiB flash layout, not only the two OTA rows."""
+    partitions = {}
     with path.open(newline="", encoding="utf-8") as source:
         for row in csv.reader(source):
             if not row or row[0].strip().startswith("#"):
                 continue
             if len(row) < 5:
                 raise ValueError("malformed partition row")
-            name, kind, subtype, offset, size = (field.strip() for field in row[:5])
-            if name in ("ota_0", "ota_1"):
-                if name in slots or kind != "app" or subtype != name:
-                    raise ValueError("invalid OTA slot definition")
-                slots[name] = {"offset": int(offset, 0), "size": int(size, 0)}
-    if set(slots) != {"ota_0", "ota_1"}:
-        raise ValueError("both OTA slots are required")
+            name, kind, subtype, offset_text, size_text = (
+                field.strip() for field in row[:5]
+            )
+            if not name or name in partitions or kind not in ("app", "data"):
+                raise ValueError("duplicate or invalid partition definition")
+            try:
+                offset, size = int(offset_text, 0), int(size_text, 0)
+            except ValueError as exc:
+                raise ValueError("invalid partition offset or size") from exc
+            alignment = 0x10000 if kind == "app" else 0x1000
+            if (offset < PARTITION_TABLE_END or size <= 0 or
+                    offset % alignment or size % alignment or
+                    offset + size > FLASH_BYTES):
+                raise ValueError("partition outside flash or misaligned")
+            partitions[name] = {
+                "type": kind, "subtype": subtype, "offset": offset, "size": size
+            }
+    required = {
+        "nvs": ("data", "nvs"),
+        "otadata": ("data", "ota"),
+        "phy_init": ("data", "phy"),
+        "ota_0": ("app", "ota_0"),
+        "ota_1": ("app", "ota_1"),
+        "history": ("data", "spiffs"),
+    }
+    for name, expected in required.items():
+        if name not in partitions or (
+            partitions[name]["type"], partitions[name]["subtype"]
+        ) != expected:
+            raise ValueError("missing or invalid required partition")
+    ordered = sorted(partitions.values(), key=lambda entry: entry["offset"])
+    for previous, current in zip(ordered, ordered[1:]):
+        if previous["offset"] + previous["size"] > current["offset"]:
+            raise ValueError("overlapping flash partitions")
+    slots = {
+        name: {"offset": partitions[name]["offset"],
+               "size": partitions[name]["size"]}
+        for name in ("ota_0", "ota_1")
+    }
     first, second = slots["ota_0"], slots["ota_1"]
-    if first["size"] <= 0 or first["size"] != second["size"] or (
-        first["offset"] + first["size"] > second["offset"]
-    ):
+    if (first["size"] != second["size"] or
+            first["offset"] + first["size"] > second["offset"]):
         raise ValueError("invalid or overlapping OTA slots")
-    return slots
-
+    return slots, partitions
 
 def collect(root, commit):
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
@@ -107,19 +140,30 @@ def collect(root, commit):
     for previous, current in zip(images, images[1:]):
         if previous["offset"] + previous["size"] > current["offset"]:
             raise ValueError("overlapping flash images")
-    slots = slots_from_csv(partitions)
+    slots, layout = slots_from_csv(partitions)
     if slots["ota_0"]["offset"] != EXPECTED_IMAGES["temperature_monitor.bin"]:
         raise ValueError("application flash offset disagrees with ota_0")
     app = next(image for image in images if image["path"] == "temperature_monitor.bin")
     if app["size"] > slots["ota_0"]["size"]:
         raise ValueError("application exceeds an OTA slot")
     for image in images:
-        if image["path"] != "temperature_monitor.bin" and any(
-            image["offset"] < slot["offset"] + slot["size"] and
-            image["offset"] + image["size"] > slot["offset"]
-            for slot in slots.values()
+        if image["offset"] + image["size"] > FLASH_BYTES:
+            raise ValueError("flash image exceeds physical flash size")
+        if image["path"] == "temperature_monitor.bin":
+            continue
+        if any(
+            image["offset"] < part["offset"] + part["size"] and
+            image["offset"] + image["size"] > part["offset"]
+            for part in layout.values()
         ):
-            raise ValueError("other flash image overlaps an OTA slot")
+            raise ValueError("non-application flash image overlaps partition")
+        if (image["offset"] < PARTITION_TABLE_END and
+                image["offset"] + image["size"] > 0x8000 and
+                image["path"] != "partition_table/partition-table.bin"):
+            raise ValueError("flash image overlaps partition table")
+        if (image["path"] == "partition_table/partition-table.bin" and
+                image["offset"] + image["size"] > PARTITION_TABLE_END):
+            raise ValueError("partition table image exceeds reserved space")
     if not dist.is_dir() or dist.is_symlink():
         raise ValueError("missing or symlinked web dist directory")
     assets = []
@@ -163,6 +207,8 @@ def collect(root, commit):
         "firmware_version": firmware_version,
         "web_version": web_version,
         "ota_slots": slots,
+        "flash_size_bytes": FLASH_BYTES,
+        "partition_layout": layout,
         "application_bytes": app["size"],
         "ota_headroom_bytes": slots["ota_0"]["size"] - app["size"],
         "flash_images": images,
