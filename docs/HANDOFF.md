@@ -1,3 +1,25 @@
+## 2026-10-29 — CI-only release provenance preparation
+
+New offline `tools/release_provenance.py` generates source-SHA-bound
+`manifest.json` and `SHA256SUMS.txt` from actual ESP-IDF flasher arguments,
+OTA slot layout, firmware binaries, web/dist, and locked package inputs.
+The checks reject unsafe paths, missing images, overlapping flash ranges,
+oversized applications, and firmware/web version drift. Six synthetic
+regressions are included in `tools/verify.sh`. Source
+`10c9e480318c8dc66713aa6be6109352fcbc023c` **passed** exact-SHA
+Actions `40978033002`, including the new provenance generation/upload
+stage. Artifact `esp32-s3-firmware-10c9e480318c8dc66713aa6be6109352fcbc023c`
+(ID `12943841915`) was uploaded; the reported expiration is 2026-11-02 UTC.
+The manifest says `CI_BUILD_ONLY_NOT_RELEASE_APPROVED`. See
+[RELEASE_PROVENANCE.md](RELEASE_PROVENANCE.md).
+
+Checklist remains **114/145 complete (31 open)**. T11-08 stays open:
+this is development packaging, not a release or hardware acceptance.
+Outstanding prerequisites are board/LCD/DS18B20 electrical tests,
+owner-network onboarding, LittleFS power-loss recovery, OTA success and
+forced rollback, isolated destructive reset, and sustained on-device
+performance/heap/watchdog testing. No hardware or secrets were used.
+
 ## 2026-10-29 — Verify event compaction temporary image (software-only)
 
 EventStore::compact now verifies the temporary journal's type, exact size

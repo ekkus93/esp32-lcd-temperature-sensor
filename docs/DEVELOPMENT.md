@@ -115,6 +115,22 @@ After flashing, release both buttons and tap RESET if the board remains in
 ROM download mode. Native USB exposes `/dev/ttyACM0`; the other USB port's
 role and manual BOOT long-press behavior still need verification.
 
+## CI-only firmware and web build provenance
+
+After a pinned `idf.py build` and `npm --prefix web run build`, generate
+reproducible development checksums and a source-bound manifest:
+
+```sh
+python3 tools/release_provenance.py --commit <exact-40-character-source-SHA>
+sha256sum -c firmware/build/provenance/SHA256SUMS.txt
+```
+
+The Actions verifier runs this automatically and uploads the flash images,
+React assets, locked inputs, manifest and checksums as an exact-SHA artifact.
+These are **not release-qualified** binaries. See
+[RELEASE_PROVENANCE.md](RELEASE_PROVENANCE.md); do not flash owner devices
+or claim hardware acceptance from CI alone.
+
 ## Contribution checks
 
 C/C++ uses clang-format 18 with four-space indentation. TypeScript uses

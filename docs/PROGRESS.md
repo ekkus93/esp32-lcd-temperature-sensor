@@ -1,3 +1,37 @@
+## 2026-10-29 — CI-only build provenance and OTA image safety gate (software-only)
+
+Added `tools/release_provenance.py` to generate a deterministic, source-SHA-bound
+`firmware/build/provenance/manifest.json` and `SHA256SUMS.txt` for every
+passing GitHub Actions firmware build. It validates the actual ESP-IDF
+`flasher_args.json` map, required bootloader/partition/app offsets, binary
+non-overlap, both equal-sized OTA slots, application fit/headroom, matching
+firmware/web/npm-lock versions, safe regular paths (no traversal/symlinks),
+and SHA-256 for each flash image and built React asset. The manifest embeds
+the pinned ESP-IDF revision and is **explicitly marked**
+`CI_BUILD_ONLY_NOT_RELEASE_APPROVED`. The CI artifact now includes the
+flashable development images, web assets, source lockfile/partition inputs,
+manifest and checksum list. A new six-case synthetic Python test suite
+exercises deterministic output and refusal of unsafe/missing/oversized or
+version-drifted inputs; `tools/verify.sh` runs it before the SDK build.
+
+Exact source commit `10c9e480318c8dc66713aa6be6109352fcbc023c`
+**passed** Actions run `40978033002`: C++ formatting, native C++/Python
+(including six provenance tests), simulated REST/WebSocket, headless LVGL,
+React lint/tests/build, pinned ESP-IDF v6.1 compilation, provenance
+generation and successful artifact upload. The uploaded artifact was
+`esp32-s3-firmware-10c9e480318c8dc66713aa6be6109352fcbc023c`
+(artifact ID `12943841915`); its reported expiration was
+2026-11-02 UTC. See [RELEASE_PROVENANCE.md](RELEASE_PROVENANCE.md) for
+verification and safety restrictions.
+
+Numbered TODO remains **114/145 complete (31 open)**. T11-08 is partially
+prepared but cannot be checked until release-blocking hardware gates,
+signed-off known issues/release notes and final qualification are complete.
+Sensor/LCD, owner Wi-Fi/phone onboarding, real LittleFS interruption,
+successful OTA/rollback, destructive reset on an isolated device, and
+sustained on-board heap/Wi-Fi/flash testing remain unverified. No ESP32,
+owner credentials, flashing, power cut, or destructive reset was used.
+
 ## 2026-10-29 — Validate compacted event-journal image before rename (software-only)
 
 EventStore::compact previously fsynced a new temporary journal and verified
