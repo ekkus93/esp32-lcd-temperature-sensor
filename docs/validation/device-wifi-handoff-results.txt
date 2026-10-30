@@ -31,3 +31,22 @@ malformed/oversized request checks and safe restart to READY. No LCD or probes
 were connected. This proves first-boot failure recovery; retaining a previously
 working owner network and successful handoff still need private owner Wi-Fi
 credentials.
+
+## Successful handoff and saved-network preservation — 2026-10-30
+
+The owner authorized use of an open Wi-Fi network. Starting from blank station
+credentials, `tools/device_setup.py` submitted a candidate using a private
+mode-0600 local file. No password was needed or recorded. Authenticated status
+then reported station connected, saved credentials, assigned DHCP address,
+provisioning AP closed, and synchronized NTP. Opening the USB console caused a
+normal reset; after reboot the station reconnected using saved NVS credentials.
+
+To verify failed re-provisioning, the authenticated API submitted a generated
+nonexistent SSID while the previously saved station network was connected. The
+candidate returned 202, an overlapping request returned 409, then association
+timed out. The final status reported the prior station connected again with
+saved credentials and DHCP, while the setup AP remained available. No SSID,
+password, or address was included in the test output. No phone, LCD, or probes
+were used. An authenticated alert-journal read afterward returned healthy storage with six
+Wi-Fi state events. This closes T05-01/04/05/11; phone onboarding and deliberate
+offline recovery remain open under T05-18.

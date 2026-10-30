@@ -36,22 +36,22 @@ the smallest OTA slot free.
 
 ## Remaining acceptance
 
-The numbered backlog stands at **117 complete, 28 open of 145**. Remaining
+The numbered backlog stands at **121 complete, 24 open of 145**. Remaining
 tasks and immediate prerequisites are:
 
 | IDs | Needed to finish |
 | --- | --- |
 | T02-01/02/03/14/15 | Board photos and electrical inspection; verify LCD/backlight and the one-wire pull-up before panel/probe wiring; then test 1–5 probes. |
 | T04-01/02/03/14 | Electrically verified attached LCD for color/rotation/offset, backlight, DMA/heap/refresh and readability/soak acceptance. |
-| T05-01/04/05/10/11/13/18 | Owner network credentials in a private local file and a phone/client for DHCP/NTP/onboarding; physical BOOT/RESET interaction. |
+| T05-10/13/18 | Phone/client for captive onboarding and offline recovery; physical BOOT/RESET interaction. Station DHCP/NTP, NVS save/reboot and prior-network preservation passed on the owner-selected open network. |
 | T06-14/15/16 | Populated device history for retention/wear/export measurements and a controlled power interruption. |
 | T10-01/02/03/05/08/09/10 | Device OTA transport and rollback acceptance; combined traffic/flash/peripheral stress, USB/BOOT recovery and 24–72-hour soak. |
 | T11-01/08 | Reconcile measured hardware behavior, complete release qualification and owner signoff before distributing a release. |
 
 Optional non-v1 features remain a separate list at the bottom of [TODO.md](TODO.md)
 and are not release blockers. T11-09 handoff/status reconciliation is complete.
-No owner network credentials were supplied. Do not connect the LCD/backlight or
-probes before the electrical prerequisites recorded under T02 are satisfied.
+No owner network password was needed for the open test network. Do not connect
+the LCD/backlight or probes before the electrical prerequisites recorded under T02 are satisfied.
 
 The history partition was previously erased during authorized board recovery;
 old history is gone and the original journal failure cause remains unknown.

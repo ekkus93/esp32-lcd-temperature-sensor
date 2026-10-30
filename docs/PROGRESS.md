@@ -24,6 +24,17 @@ Firmware image is `0x1e8aa0` bytes with 52% of the smallest OTA slot free.
 The board remains normal firmware, with no LCD or probes attached. This does
 not verify RF onboarding, storage power interruption, OTA, or sustained load.
 
+## 2026-10-30 — Wi-Fi handoff and saved-network recovery
+
+Using the owner-authorized open network, blank-state setup saved
+credentials only after DHCP success, closed the provisioning AP, and reached
+NTP synchronization. After a USB-triggered normal reboot, the board reconnected
+from NVS. A subsequently submitted nonexistent candidate returned 202 (overlap
+409), timed out, and restored the prior station with saved credentials and
+DHCP while keeping the setup AP available. This closes T05-01/04/05/11. Testing
+used the USB API/setup bridge, not a phone. No password was needed or recorded;
+the SSID is not included in GitHub-visible test output.
+
 ## 2026-10-29 — T11-08 release notes draft (no release approval)
 
 The canonical T11-08 requests release notes and known issues following
