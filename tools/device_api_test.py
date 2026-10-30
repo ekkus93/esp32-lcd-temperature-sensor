@@ -47,6 +47,7 @@ while time.monotonic() < ready_deadline:
     if b'monitor: READY' in ready_data:
         break
 health_traffic = bytearray()
+slow_health_traffic = bytearray()
 def call(path, method='GET', body=None, headers=None, binary=False, headers_only=False):
     request = {'path':path, 'method':method, 'headers':headers or {},'binary':binary,'headers_only':headers_only}
     if body is not None:
@@ -120,6 +121,7 @@ def websocket_slow(headers, duration_seconds=30):
     while time.monotonic()<deadline and b'WS_SLOW_BRIDGE_END' not in data:
         data.extend(port.read(2048))
     health_traffic.extend(data)
+    slow_health_traffic.extend(data)
     data = data.replace(b'\r', b'')
     start = data.find(b'WS_SLOW_BRIDGE_BEGIN\n')
     finish = data.find(b'WS_SLOW_BRIDGE_END', start)
@@ -270,6 +272,24 @@ try:
         check(stalled['http_successes']==slow_seconds and stalled['http_failures']==0 and
               stalled['max_http_ms'] < 5000,
               'authenticated HTTP status remains responsive during stalled-client recovery')
+        health_samples=[]
+        for line in slow_health_traffic.splitlines():
+            match=re.search(rb'HEALTH uptime_ms=([0-9]+).*?internal_free=([0-9]+) '
+                            rb'internal_min=([0-9]+) internal_largest=([0-9]+) '
+                            rb'psram_free=([0-9]+) psram_min=([0-9]+) '
+                            rb'main_stack_min=([0-9]+)',line)
+            if match:
+                health_samples.append([int(value) for value in match.groups()])
+        check(len(health_samples)>=slow_seconds//10,
+              'device memory/stack telemetry captured throughout stalled-client load')
+        names=['uptime_ms','internal_free','internal_min','internal_largest',
+               'psram_free','psram_min','main_stack_min']
+        minima={name:min(sample[index] for sample in health_samples)
+                for index,name in enumerate(names)}
+        load_report={'samples':len(health_samples),'minimums':minima,
+                     'slow_client_seconds':slow_seconds}
+        Path('.build/device-load-health.json').write_text(json.dumps(load_report,indent=2)+'\n')
+        print('Device load telemetry: %s' % json.dumps(load_report,sort_keys=True),flush=True)
     snapshot = json.loads(call('/api/v1/status',headers=authorized)['body'])
     Path('.build/device-snapshot.json').write_text(json.dumps(snapshot)+'\n')
     check(snapshot['sensors']==[] and snapshot['simulated'] is False,'real bare-board snapshot has no fabricated readings')

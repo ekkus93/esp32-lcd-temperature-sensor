@@ -129,14 +129,17 @@ or peripheral wiring was performed.
 --slow-client-seconds 120` passed the four-client limit, fifth-client
 rejection, and 120-second tiny-window stalled-WebSocket checks. The firmware
 closed the stalled client; all 120 authenticated HTTP status checks succeeded
-with a 257 ms maximum, while health logs kept five-second cadence. That run
-then hit the accumulated-alert response truncation described below; the
-slow-client assertions themselves passed. The board reported no fabricated
-sensor readings. No LCD/probes were connected.
+with a 255 ms maximum, while health logs kept five-second cadence. Thirty-one
+health samples during the load showed minimum sampled internal free heap of
+78,071 bytes, minimum largest internal block of 31,744 bytes, minimum PSRAM
+free of 8,346,508 bytes, and minimum main-task stack watermark of 2,828
+reported units. That run then hit the accumulated-alert response truncation
+described below; the slow-client assertions themselves passed. The board
+reported no fabricated sensor readings. No LCD/probes were connected.
 
 `python3 tools/device_api_test.py --port /dev/ttyACM0` then passed the complete
 authenticated API suite and safe restart to READY. It read the durable reboot
-event through 12 bounded alert pages. The initial attempt exposed a test limit:
+event through 14 bounded alert pages. The initial attempt exposed a test limit:
 fetching 50 accumulated events exceeded the USB bridge's 8 KiB response buffer
 and truncated JSON. The test now follows 10-event cursor pages, checks forward
 progress and caps traversal at 100 pages; it passed against the device.

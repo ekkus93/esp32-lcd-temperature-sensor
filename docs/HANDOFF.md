@@ -4,7 +4,11 @@ The ESP32-S3 is visible at `/dev/ttyACM0`. A normal-image smoke and the complete
 authenticated USB-loopback API suite passed with the LCD and probes absent.
 The dedicated 120-second stalled-WebSocket test observed firmware cutoff while
 120/120 authenticated HTTP checks succeeded (255 ms maximum); the health stream
-kept five-second cadence. The first run uncovered a test-harness omission in
+kept five-second cadence. Thirty-one samples captured 78,071-byte minimum
+sampled internal free heap, 31,744-byte largest internal block, 8,346,508-byte
+minimum PSRAM free, and 2,828-unit minimum main-task stack watermark. This was
+bare-board network/socket load without flash writes, sensors or a physical
+panel. The first run uncovered a test-harness omission in
 serial health capture, which is fixed and verified in the passing rerun.
 Station association/candidate preservation (T05-01/04/05/11), T07-10, T10-01,
 T05-03, and T10-03 are complete. Captive DNS, four OS-probe redirects and

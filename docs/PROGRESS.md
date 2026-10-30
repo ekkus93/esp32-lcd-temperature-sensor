@@ -25,8 +25,11 @@ simulate an actual component failure or verify LCD status. See
 [OTA health-gate validation](validation/device-ota-health-gate-results.txt).
 
 The bare-board API rerun passed the 120-second stalled-WebSocket test, all 120
-concurrent HTTP checks (257 ms maximum), and five-second health logging. The
-complete API suite then passed with 12 bounded event-journal pages. The test
+concurrent HTTP checks (255 ms maximum), and five-second health logging. Its
+31 health samples showed a 78,071-byte minimum sampled internal free heap,
+31,744-byte largest internal block, 8,346,508-byte minimum PSRAM free, and
+2,828-unit minimum main-task stack watermark. The complete API suite then
+passed with 14 bounded event-journal pages. The test
 now paginates because the USB bridge limits responses to 8 KiB; the earlier
 50-event request had been truncated after accumulated test events. `./tools/verify.sh`
 passed on rerun after one transient simulator `socket hang up`; it covered
