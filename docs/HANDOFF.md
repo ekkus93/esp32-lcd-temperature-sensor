@@ -6,9 +6,12 @@ The dedicated 120-second stalled-WebSocket test observed firmware cutoff while
 120/120 authenticated HTTP checks succeeded (255 ms maximum); the health stream
 kept five-second cadence. The first run uncovered a test-harness omission in
 serial health capture, which is fixed and verified in the passing rerun.
-Station association/candidate preservation (T05-01/04/05/11), T07-10, T10-01,
-and T10-03 are complete. Authenticated OTA booted `ota_1`, passed the startup
-health gate, preserved admin login, and served its embedded UI and API. A
+Station association/candidate preservation (T05-01/04/05/11), captive portal
+checks (T05-03), T07-10, T10-01, and T10-03 are complete. Captive DNS, four
+OS-probe redirects and protected-API rejection passed with the AP opened through
+authenticated API; the cleanup reboot restored the saved station. Authenticated
+OTA booted `ota_1`, passed the startup health gate, preserved admin login, and
+served its embedded UI and API. A
 second update returned the board to valid `ota_0`, with saved Wi-Fi and admin
 access intact; details are in [OTA results](validation/device-ota-results.txt).
 Pre-confirmation rollback passed; failed-service rollback and populated

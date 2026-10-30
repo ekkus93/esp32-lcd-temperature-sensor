@@ -59,7 +59,7 @@ non-release documentation until all physical and owner signoff gates close.
 | Area | Open TODO IDs | Required acceptance evidence |
 | --- | --- | --- |
 | Board, probes and panel | T02-01/02/03/14/15; T04-01/02/03/14 | Verify board/USB roles, LCD BL electrical characteristics, ST7789 orientation/color/readability/refresh, one 4.7 kΩ pull-up and 1–5 physical probes |
-| Wi-Fi and BOOT | T05-10/13/18 | Phone AP onboarding, deliberate offline recovery, physical five-second BOOT and photographed USB download interaction. Station DHCP/NTP and prior-credential preservation passed on the connected test board. |
+| Wi-Fi and BOOT | T05-10/13/18 | Phone AP onboarding, wrong-password/offline recovery, physical five-second BOOT and photographed USB download interaction. Station DHCP/NTP, prior-credential preservation and captive DNS/OS redirects passed on the connected test board. |
 | Storage and sockets | T06-14/15/16 | Actual five-minute retention, concurrent export, controlled LittleFS interruption/recovery. T07-10 passed connected-board backpressure and concurrency checks. |
 | System actions | — | T09-15 restart, both factory-reset modes and history-retention behavior passed on the user-designated test board. |
 | OTA and load | T10-02/05/08/09/10 | Failed-service rollback and LCD update-state visibility, populated history preservation, measured heap/watchdog behavior, 24–72-hour combined sensor/LCD/Wi-Fi/flash soak. T10-01 and T10-03 passed connected-board OTA, A→B→A and early-reset rollback. |

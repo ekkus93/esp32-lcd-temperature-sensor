@@ -57,7 +57,7 @@ tasks and immediate prerequisites are:
 | --- | --- |
 | T02-01/02/03/14/15 | Board photos and electrical inspection; verify LCD/backlight and the one-wire pull-up before panel/probe wiring; then test 1–5 probes. |
 | T04-01/02/03/14 | Electrically verified attached LCD for color/rotation/offset, backlight, DMA/heap/refresh and readability/soak acceptance. |
-| T05-10/13/18 | Phone/client for captive onboarding and offline recovery; physical BOOT/RESET interaction. Station DHCP/NTP, NVS save/reboot and prior-network preservation passed on the owner-selected open network. |
+| T05-10/13/18 | Phone/client for captive onboarding, wrong-password and offline recovery; physical BOOT/RESET interaction. Station DHCP/NTP, NVS save/reboot, prior-network preservation, and connected-board captive DNS/OS redirects passed. |
 | T06-14/15/16 | Populated device history for retention/wear/export measurements and a controlled power interruption. |
 | T10-02/05/08/09/10 | Failed-service rollback and LCD update status; populated history preservation; combined traffic/flash/peripheral stress and 24–72-hour soak. |
 | T11-01/08 | Reconcile measured hardware behavior, complete release qualification and owner signoff before distributing a release. |

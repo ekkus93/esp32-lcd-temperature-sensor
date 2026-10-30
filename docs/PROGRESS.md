@@ -19,6 +19,14 @@ During a live 60-second poll after the monitor was ready, the provisioning AP
 stayed closed. The five-second BOOT behavior remains unverified; the live status
 poll does not establish button timing or GPIO routing. The board photo remains pending. LCD and probes remain disconnected.
 
+The connected-board captive-portal test opened the provisioning AP through
+authenticated API in the same USB session, then verified four OS probe
+redirects, AP DNS A/AAAA behavior, direct `/setup`, and protected-API rejection.
+An authenticated cleanup reboot closed the AP; a follow-up check confirmed
+the saved station reconnected. Phone onboarding, wrong-password recovery and
+offline recovery remain open under T05-18. See
+[captive validation](validation/device-captive-results.txt).
+
 The numbered tracker is now **123 complete, 22 open of 145**.
 
 ## 2026-10-30 — Bare-board and WebSocket backpressure acceptance

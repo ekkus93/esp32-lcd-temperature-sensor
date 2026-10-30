@@ -1,10 +1,21 @@
-PASS: narrow OS captive probe redirects /generate_204
-PASS: narrow OS captive probe redirects /hotspot-detect.html
-PASS: narrow OS captive probe redirects /connecttest.txt
-PASS: narrow OS captive probe redirects /ncsi.txt
-PASS: captive Host exception never grants API access
-PASS: offline setup app served directly from device
-PASS: real UDP DNS A answer on AP interface with preserved transaction ID
-PASS: captive address has zero cache lifetime
-PASS: AAAA query has explicit no-data reply
-PASS: malformed compressed DNS query ignored without crashing
+Connected-board captive DNS and portal check — 2026-10-30
+
+Command: `python3 tools/device_captive_test.py --port /dev/ttyACM0`
+
+The test authenticated over the device's USB loopback bridge, opened the
+provisioning AP through the protected API, and kept the same USB session for
+all checks. Results:
+
+- Android/iOS-style probe paths redirected to `/setup` (4/4).
+- The captive Host exception did not grant access to protected API status.
+- The offline setup page was available directly.
+- Captive DNS returned the AP address with the transaction ID preserved and
+  zero cache lifetime; AAAA returned no data; malformed compressed DNS was
+  ignored without a crash.
+
+The test sent an authenticated reboot to close the temporary AP. The board
+returned on valid `ota_0`; a follow-up authenticated status check confirmed the
+saved station reconnected, provisioning AP was closed, the API was healthy, and
+sensor state remained empty. No phone was used, so phone captive-portal UX,
+wrong-password recovery, and offline recovery remain open under T05-18. No LCD
+or temperature probes were connected.
