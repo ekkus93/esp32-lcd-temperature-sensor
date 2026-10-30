@@ -1,0 +1,40 @@
+Connected ESP32-S3 isolated simulation qualification — 2026-10-30
+
+Purpose: exercise the ESP32 HTTP, sensor registry, settings, accelerated history,
+LittleFS, and memory/load paths without attaching physical probes or the LCD.
+
+Built with pinned ESP-IDF v6.1 and the existing isolated configuration
+(`CONFIG_MONITOR_SIMULATION=y`, physical `CONFIG_MONITOR_SENSOR_BUS` disabled).
+The temporary application image was 1,998,736 bytes, SHA-256
+`f505fceedc0fbd1bc5941de4a575c2657dce0df84681d93086eaf56e1275ccb6`. It was
+written only to the app slot at `0x20000`; bootloader, partition table, NVS,
+and history partition were not erased.
+
+On-device tests passed:
+
+- Five explicit fake providers, independent per-ROM calibration, labels,
+  enable/disable, alert transitions, and settings across restart.
+- Simulated LittleFS history query, downsampling, ROM filtering, unknown-boot
+  isolation, bounded query rejection, and authenticated CSV export.
+- Device preference validation, stale revision rejection, and persistence over
+  restart in the isolated simulation namespace.
+- Four authenticated WebSocket clients with the fifth rejected, followed by a
+  120-second stalled-client test. The device closed the stalled socket, all
+  120 concurrent authenticated HTTP checks succeeded (279 ms maximum), and
+  30 health samples were captured while five simulated probes and accelerated
+  history writes were active.
+
+Load telemetry minima across the 30 samples: internal free heap 54,631 bytes;
+largest internal block 31,744 bytes; cumulative internal minimum 20,384 bytes;
+PSRAM free 8,346,508 bytes; cumulative PSRAM minimum 8,327,868 bytes; main-task
+stack watermark 2,700 reported units. These measurements use simulated probes
+and an initialized LVGL task with no physical panel attached.
+
+The normal image was then restored by app-only flash at `0x20000` from
+`firmware/build/temperature_monitor.bin` (2,001,568 bytes, SHA-256
+`5b3e35634f799113b96ad550fc73cd1e52504b9ea0629f62fcbe97014b1cf261`). Final
+20-second smoke passed with `simulated=false`, zero sensors, healthy LittleFS,
+READY, Wi-Fi connected, and no panic. No LCD or physical probes were connected.
+
+This validates firmware/software behavior on the real MCU with fake providers;
+it is not physical probe, LCD, power-loss, long-soak, or release evidence.

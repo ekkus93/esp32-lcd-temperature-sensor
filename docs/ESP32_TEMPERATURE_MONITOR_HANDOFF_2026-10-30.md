@@ -61,8 +61,8 @@ tasks and immediate prerequisites are:
 | T02-01/02/03/14/15 | Board photos and electrical inspection; verify LCD/backlight and the one-wire pull-up before panel/probe wiring; then test 1–5 probes. |
 | T04-01/02/03/14 | Electrically verified attached LCD for color/rotation/offset, backlight, DMA/heap/refresh and readability/soak acceptance. |
 | T05-10/13/18 | Phone/client for captive onboarding, wrong-password and offline recovery; physical BOOT/RESET interaction. Station DHCP/NTP, NVS save/reboot, prior-network preservation, and connected-board captive DNS/OS redirects passed. |
-| T06-14/15/16 | Populated device history for retention/wear/export measurements and a controlled power interruption. |
-| T10-02/05/08/09/10 | Failed-service rollback and LCD update status; populated history preservation; combined traffic/flash/peripheral stress and 24–72-hour soak. |
+| T06-14/15/16 | Simulated LittleFS history/query/CSV and restart checks passed on the ESP32. Physical retention/wear, populated real-probe history, and controlled power interruption/recovery remain open. |
+| T10-02/05/08/09/10 | Injected health-predicate rollback passed; real component-failure behavior and LCD status remain open. Bare-board and five-fake-probe socket/HTTP load passed with telemetry; physical peripherals, actual temperature-history preservation, router-offline behavior, and 24–72-hour soak remain open. |
 | T11-01/08 | Reconcile measured hardware behavior, complete release qualification and owner signoff before distributing a release. |
 
 Optional non-v1 features remain a separate list at the bottom of [TODO.md](TODO.md)
@@ -72,6 +72,10 @@ the LCD/backlight or probes before the electrical prerequisites recorded under T
 
 The history partition was previously erased during authorized board recovery;
 old history is gone and the original journal failure cause remains unknown.
+The isolated simulation firmware passed five-fake-probe sensor/settings/history
+checks and a 120-second load with accelerated LittleFS writes. It was replaced
+with the normal image on `ota_0` and smoke-checked. See
+[simulation-device results](validation/device-simulation-results.txt).
 The current board has the test-managed administrator on it, stored privately
 under ignored `.build/`. Never copy its credentials to reports or Git.
 

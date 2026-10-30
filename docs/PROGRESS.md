@@ -1,5 +1,19 @@
 # 2026-10-30 — Connected-board acceptance updates
 
+The isolated simulation firmware was also flashed to the ESP32-S3 app partition
+with real 1-Wire disabled. Five fake providers exercised sensor mutation,
+alerts, settings and persistence over restart; simulated LittleFS history queries
+and CSV export passed. Four WebSockets were admitted and a fifth rejected; a
+120-second stalled-client load with five simulated probes and accelerated
+history writes retained 120/120 successful HTTP status checks (279 ms maximum)
+and five-second health logging. Thirty health samples recorded minimum sampled
+internal free heap of 54,631 bytes, largest internal block 31,744 bytes, PSRAM
+free of 8,346,508 bytes, and main-task stack watermark of 2,700 reported units.
+The normal application was restored to `ota_0` and passed a 20-second smoke
+with Wi-Fi connected, healthy storage, zero real sensors, and simulation off.
+This does not close physical-probe, LCD, power-loss, or long-soak acceptance.
+See [simulation-device results](validation/device-simulation-results.txt).
+
 Built the current firmware with the pinned ESP-IDF v6.1 SDK and uploaded it
 through authenticated station HTTP. The ESP32-S3 rebooted into `ota_1`,
 reconnected from NVS, passed startup health validation (`ota_state=valid`), and

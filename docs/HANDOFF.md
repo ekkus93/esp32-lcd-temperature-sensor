@@ -10,6 +10,14 @@ minimum PSRAM free, and 2,828-unit minimum main-task stack watermark. This was
 bare-board network/socket load without flash writes, sensors or a physical
 panel. The first run uncovered a test-harness omission in
 serial health capture, which is fixed and verified in the passing rerun.
+An isolated five-fake-probe firmware run also passed sensor/API/settings
+persistence, simulated history/CSV, and a 120-second stalled-client load with
+accelerated LittleFS writes. Thirty health samples recorded 54,631-byte minimum
+internal free heap, 31,744-byte largest internal block, 8,346,508-byte minimum
+PSRAM free, and 2,700-unit minimum main-task stack watermark. The normal image
+was restored and smoke-checked on `ota_0`. See
+[simulation-device results](validation/device-simulation-results.txt); physical
+probes and LCD remain disconnected.
 Station association/candidate preservation (T05-01/04/05/11), T07-10, T10-01,
 T05-03, and T10-03 are complete. Captive DNS, four OS-probe redirects and
 protected-API rejection passed with the AP opened through authenticated API;

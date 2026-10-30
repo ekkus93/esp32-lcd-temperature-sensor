@@ -23,6 +23,7 @@ parser.add_argument('--change-password', action='store_true', help='Rotate only 
 parser.add_argument('--candidate-failure', action='store_true', help='Test a nonexistent SSID only when no real station credentials are saved')
 parser.add_argument('--slow-client', action='store_true', help='Hold a tiny-window WebSocket client open while checking HTTP responsiveness')
 parser.add_argument('--slow-client-seconds', type=int, default=30, help='Duration for --slow-client (5..300 seconds)')
+parser.add_argument('--expect-simulation', action='store_true', help='Expect five explicit fake providers on an isolated simulation image')
 args = parser.parse_args()
 os.umask(0o077)
 setup = json.loads(Path(args.setup_file).read_text())
@@ -239,8 +240,12 @@ try:
     check(live['connected'] and live['upgraded'] and live['complete'] and len(live['frames']) == 3,
           'authenticated device WebSocket sends live frames')
     live_frames = [json.loads(frame) for frame in live['frames']]
+    expected_sensors = 5 if args.expect_simulation else 0
+    expected_simulated = bool(args.expect_simulation)
     check(all(frame.get('version') == 1 and frame.get('boot_id') and
-              frame.get('sensors') == [] and 'firmware' in frame and 'logging' in frame
+              len(frame.get('sensors', [])) == expected_sensors and
+              frame.get('simulated') is expected_simulated and
+              'firmware' in frame and 'logging' in frame
               for frame in live_frames), 'device WebSocket frames are complete bare-board snapshots')
     sequence_values = [frame.get('sequence') for frame in live_frames]
     # The connection snapshot is immediate, so its gap to the first periodic
@@ -249,7 +254,8 @@ try:
     heartbeat_delta_ms = live['received_ms'][2] - live['received_ms'][1]
     sequence_ok = all(next_frame['sequence'] >= frame['sequence']
                       for frame, next_frame in zip(live_frames, live_frames[1:]))
-    check(sequence_ok and 4000 <= heartbeat_delta_ms <= 6000,
+    cadence = (200 <= heartbeat_delta_ms <= 400) if args.expect_simulation else (4000 <= heartbeat_delta_ms <= 6000)
+    check(sequence_ok and cadence,
           'device WebSocket sequence/cadence (sequences=%r delta_ms=%s)'
           % (sequence_values, heartbeat_delta_ms))
     forbidden_frame = websocket_frames({**origin,'Cookie':cookie}, send_text='{}')
@@ -292,10 +298,14 @@ try:
         print('Device load telemetry: %s' % json.dumps(load_report,sort_keys=True),flush=True)
     snapshot = json.loads(call('/api/v1/status',headers=authorized)['body'])
     Path('.build/device-snapshot.json').write_text(json.dumps(snapshot)+'\n')
-    check(snapshot['sensors']==[] and snapshot['simulated'] is False,'real bare-board snapshot has no fabricated readings')
+    expected_sensors = 5 if args.expect_simulation else 0
+    check(len(snapshot['sensors'])==expected_sensors and
+          snapshot['simulated'] is bool(args.expect_simulation),
+          'snapshot matches the explicitly selected %s image' %
+          ('simulation' if args.expect_simulation else 'normal bare-board'))
     # Query a future boot-relative interval so this contract check remains
     # deterministic even when earlier device runs have persisted history.
-    history_from = snapshot['uptime_ms'] + 60000
+    history_from = snapshot['uptime_ms'] + (1728000000 if args.expect_simulation else 60000)
     history_path = ('/api/v1/history?from='+str(history_from)+'&to='+str(history_from+60000)+
                     '&boot_id='+snapshot['boot_id'])
     history_response = call(history_path,headers=authorized)
