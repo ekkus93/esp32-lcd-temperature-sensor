@@ -29,16 +29,17 @@ with DeviceClient(args.port) as device:
     authorized={'Origin':origin,'Cookie':login.get('cookie','').split(';',1)[0],
                 'X-CSRF-Token':json.loads(login['body'])['csrf']}
     wifi=json.loads(device.http('/api/v1/wifi/status',headers=authorized)['body'])
-    opened=not wifi['provisioning']
-    if opened:
-        check(device.http('/api/v1/wifi/provisioning','POST',{},authorized)['status']==202,
-              'setup AP opened through authenticated API')
-        for _ in range(20):
-            wifi=json.loads(device.http('/api/v1/wifi/status',headers=authorized)['body'])
-            if wifi['provisioning']:
-                break
-        check(wifi['provisioning'],'setup AP ready in the same USB session')
+    opened=False
     try:
+        if not wifi['provisioning']:
+            check(device.http('/api/v1/wifi/provisioning','POST',{},authorized)['status']==202,
+                  'setup AP opened through authenticated API')
+            opened=True
+            for _ in range(20):
+                wifi=json.loads(device.http('/api/v1/wifi/status',headers=authorized)['body'])
+                if wifi['provisioning']:
+                    break
+            check(wifi['provisioning'],'setup AP ready in the same USB session')
         for path in ['/generate_204','/hotspot-detect.html','/connecttest.txt','/ncsi.txt']:
             response=device.http(path,headers={'Host':'connectivitycheck.example.invalid'},headers_only=True)
             check(response['status']==302 and response.get('location')=='http://192.168.4.1/setup',
