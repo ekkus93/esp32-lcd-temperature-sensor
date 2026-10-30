@@ -1,3 +1,18 @@
+## 2026-10-29 — CI firmware artifact completeness
+
+Corrected missing `firmware/build/ota_data_initial.bin` in the Actions
+artifact upload list; the file was already required by the flasher plan
+and provenance checksums. A new Python regression checks that every
+manifest/checksummed input is represented in the workflow upload paths.
+Initial `9f8e5a84` failed due to a test newline escaping mistake;
+corrected exact source `b9e6b763` **passed** Actions `40993467640`
+(full host/display/web and pinned ESP-IDF v6.1, plus successful artifact
+upload ID `12950726328`). Downloaded ZIP contents were not independently
+inspected. Checklist remains **114/145**, 31 open. T11-08 is not
+release-approved; real board/sensor/LCD/Wi-Fi, LittleFS power-loss,
+OTA/rollback, isolated reset, load/soak and release signoff are pending.
+No owner hardware or secrets used.
+
 ## 2026-10-29 — Binary partition-table provenance gate
 
 The release-provenance checker now verifies the *flashed* ESP-IDF

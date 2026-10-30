@@ -1,3 +1,33 @@
+## 2026-10-29 — Include initial OTA selector in CI firmware artifact (software-only)
+
+The release provenance checker correctly listed and hashed
+`firmware/build/ota_data_initial.bin` in `flasher_args.json` and
+`SHA256SUMS.txt`, but the GitHub Actions upload configuration omitted the
+binary. A downloaded archive could therefore lack a required flash image
+and fail checksum verification despite the in-run provenance checks.
+
+The upload now explicitly includes `ota_data_initial.bin`. A Python
+contract regression compares every source/flash input in the synthetic
+provenance checksum list (plus manifest/checksums and recursive web
+assets) with the CI artifact upload path list, guarding against future
+omissions. Initial `9f8e5a84` failed due to an incorrectly escaped
+newline in the new test; corrected source
+`b9e6b763bfc1dce6c9063dcad7bf79b11cf8e9e9` **passed** exact-SHA
+GitHub Actions `40993467640`: native C++/Python, simulated REST/
+WebSocket, headless LVGL, React, pinned ESP-IDF v6.1 build and
+successful artifact upload. Uploaded artifact ID `12950726328`,
+`esp32-s3-firmware-b9e6b763bfc1dce6c9063dcad7bf79b11cf8e9e9`.
+The remote archive was not independently downloaded and extracted;
+success establishes upload and source-contract coverage, not release
+approval or on-device flash behavior.
+
+**Numbered TODO: 114/145 complete (31 open).** T11-08 remains unchecked.
+Still blocked on actual board/LCD/probe electrical and runtime tests,
+owner-network onboarding, physical LittleFS power interruption,
+OTA A/B/rollback, isolated disposable-device factory reset, sustained
+heap/latency/soak, and final release notes/signoff. No hardware,
+credentials, flashing or destructive operations were used.
+
 ## 2026-10-29 — Reject extra flash images and unexpected partition flags (software-only)
 
 After binary partition-table cross-checking, the release provenance gate

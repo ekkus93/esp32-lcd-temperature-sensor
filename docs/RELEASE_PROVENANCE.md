@@ -46,6 +46,15 @@ and explicitly declares
 A SHA-256 digest proves file consistency with the manifest; it is **not**
 a signature, hardware test, or independent publisher authenticity proof.
 
+The CI upload list now explicitly includes
+`firmware/build/ota_data_initial.bin`; previously the manifest and
+checksum file referenced it but the artifact omitted it. A Python
+regression compares the checksum inputs with the upload path list so a
+future missing flash image fails CI. Corrected exact source
+`b9e6b763bfc1dce6c9063dcad7bf79b11cf8e9e9` passed Actions
+`40993467640` with artifact upload ID `12950726328`. The archive was
+not independently downloaded/extracted as part of this check.
+
 To check a downloaded artifact, extract it with the original directory
 structure intact, then run from the extraction root:
 
