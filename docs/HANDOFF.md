@@ -1,3 +1,14 @@
+## 2026-10-29 — T11-08 draft release notes prepared
+
+[RELEASE_NOTES_DRAFT.md](RELEASE_NOTES_DRAFT.md) documents the
+implemented software and known limitations, but does not assert
+qualified release binaries, real LCD/probes, owner Wi-Fi, successful
+OTA or flash durability. Exact release SHA/CI/version/signoff remain
+unassigned. Hardware-only acceptance is still outstanding for board/LCD/backlight, five DS18B20 probes, owner Wi-Fi/phone/BOOT, controlled LittleFS interruption and measured retention, real WebSocket backpressure, successful OTA/rollback, disposable-device factory reset, and combined 24–72-hour heap/watchdog soak. T11-08/T11-09 remain
+unchecked; numbered TODO remains **114/145 complete, 31 open**.
+Baseline `5189e9b9` passed exact-SHA CI. Do not flash owner devices,
+read secrets, or run destructive acceptance.
+
 ## 2026-10-29 — CI firmware artifact completeness
 
 Corrected missing `firmware/build/ota_data_initial.bin` in the Actions

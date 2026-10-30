@@ -1,3 +1,24 @@
+## 2026-10-29 — T11-08 release notes draft (no release approval)
+
+The canonical T11-08 requests release notes and known issues following
+release-blocking verification. A dedicated draft did not exist, so
+[RELEASE_NOTES_DRAFT.md](RELEASE_NOTES_DRAFT.md) now records existing
+software features, evidence limits, physical acceptance blockers,
+known network/data/electrical limitations, and exact-SHA provenance
+and owner signoff placeholders. The draft does not claim physical
+testing, production approval or a final version.
+
+The refreshed baseline exact master `5189e9b9d254ee1795d189f8c98665560c51fa15`
+passed GitHub Actions (native C++/Python, simulated API/WebSocket,
+headless LVGL, React and pinned ESP-IDF v6.1 checks). This is a
+documentation-only improvement under T11-08; final exact-SHA CI for
+the documentation commit must be checked separately.
+
+Hardware-only acceptance is still outstanding for board/LCD/backlight, five DS18B20 probes, owner Wi-Fi/phone/BOOT, controlled LittleFS interruption and measured retention, real WebSocket backpressure, successful OTA/rollback, disposable-device factory reset, and combined 24–72-hour heap/watchdog soak.
+The numbered checklist stays **114/145 complete, 31 open**. No
+hardware, credentials, flashing, OTA, destructive reset or power cut
+was used.
+
 ## 2026-10-29 — Include initial OTA selector in CI firmware artifact (software-only)
 
 The release provenance checker correctly listed and hashed

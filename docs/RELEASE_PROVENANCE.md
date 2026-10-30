@@ -72,7 +72,8 @@ upload retention is guaranteed by the hosting policy.
 ## Release gate (still blocked)
 
 Do **not** rename this artifact a production release or claim OTA, power-loss,
-sensor, LCD, or Wi-Fi acceptance. Before completing
+sensor, LCD, or Wi-Fi acceptance. The preparatory [draft release notes](RELEASE_NOTES_DRAFT.md) are not an
+approved release. Before completing
 [T11-08](TODO.md), the owner must provide physical acceptance evidence for
 the board/pins/backlight, five probes and 1-Wire pull-up, live display and
 Wi-Fi provisioning, LittleFS power interruption, successful OTA slot
