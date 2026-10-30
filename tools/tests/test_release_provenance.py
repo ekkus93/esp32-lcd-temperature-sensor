@@ -141,11 +141,11 @@ class ReleaseProvenanceTests(unittest.TestCase):
             ("history,data,spiffs,0x820000,0x400000",
              "history,data,spiffs,0x420000,0x400000", "overlapping"),
             ("nvs,data,nvs,0x9000", "nvs,data,nvs,0x9001", "misaligned"),
-            ("history,data,spiffs,0x820000,0x400000,\\n", "",
+            ("history,data,spiffs,0x820000,0x400000,\n", "",
              "missing or invalid"),
-            ("history,data,spiffs,0x820000,0x400000,\\n",
-             "history,data,spiffs,0x820000,0x400000,\\n"
-             "history,data,spiffs,0x820000,0x400000,\\n", "duplicate"),
+            ("history,data,spiffs,0x820000,0x400000,\n",
+             "history,data,spiffs,0x820000,0x400000,\n"
+             "history,data,spiffs,0x820000,0x400000,\n", "duplicate"),
         )
         for old, replacement, error in cases:
             with self.subTest(error=error, replacement=replacement):
