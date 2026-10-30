@@ -84,6 +84,12 @@ jobs:
           source "$RUNNER_TEMP/esp-idf-v6.1/export.sh"
           ./tools/verify.sh --firmware
 
+      - name: Generate CI-only firmware and web provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/release_provenance.py --commit "${GITHUB_SHA}"
+
       - name: Upload firmware binary and build manifest
         if: success()
         uses: actions/upload-artifact@v4
@@ -94,5 +100,11 @@ jobs:
             firmware/build/bootloader/bootloader.bin
             firmware/build/partition_table/partition-table.bin
             firmware/build/flasher_args.json
+            firmware/build/provenance/manifest.json
+            firmware/build/provenance/SHA256SUMS.txt
+            firmware/partitions.csv
+            web/package.json
+            web/package-lock.json
+            web/dist/
           if-no-files-found: error
           retention-days: 14

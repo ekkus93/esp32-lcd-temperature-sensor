@@ -1,0 +1,131 @@
+"""Offline release-provenance regression; uses synthetic build artifacts only."""
+import importlib.util
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+SCRIPT = Path(__file__).resolve().parents[1] / "release_provenance.py"
+spec = importlib.util.spec_from_file_location("release_provenance", SCRIPT)
+provenance = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(provenance)
+SHA = "a" * 40
+
+
+class ReleaseProvenanceTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.build = self.root / "firmware/build"
+        self.dist = self.root / "web/dist"
+        (self.build / "bootloader").mkdir(parents=True)
+        (self.build / "partition_table").mkdir()
+        (self.dist / "assets").mkdir(parents=True)
+        (self.build / "bootloader/bootloader.bin").write_bytes(b"BOOT")
+        (self.build / "partition_table/partition-table.bin").write_bytes(b"PART")
+        (self.build / "temperature_monitor.bin").write_bytes(b"APP-IMAGE")
+        (self.dist / "assets/main.js").write_bytes(b"console.log('ok')")
+        (self.dist / "index.html").write_bytes(b"<html></html>")
+        (self.root / "firmware/partitions.csv").write_text(
+            "# Name, Type, SubType, Offset, Size, Flags\n"
+            "ota_0,app,ota_0,0x20000,0x400000,\n"
+            "ota_1,app,ota_1,0x420000,0x400000,\n", encoding="utf-8"
+        )
+        (self.root / "firmware/CMakeLists.txt").write_text(
+            "project(temperature_monitor VERSION 0.1.0)\n", encoding="utf-8"
+        )
+        (self.root / "web/package.json").write_text(
+            '{"version":"0.1.0"}', encoding="utf-8"
+        )
+        (self.root / "web/package-lock.json").write_text(
+            '{"version":"0.1.0"}', encoding="utf-8"
+        )
+        self.flash_files = {
+            "0x0": "bootloader/bootloader.bin",
+            "0x8000": "partition_table/partition-table.bin",
+            "0x20000": "temperature_monitor.bin",
+        }
+        self.save_flash_args()
+
+    def save_flash_args(self):
+        (self.build / "flasher_args.json").write_text(
+            json.dumps({"flash_files": self.flash_files}), encoding="utf-8"
+        )
+
+    def test_manifest_and_checksums_are_deterministic_and_not_release_approved(self):
+        output = self.build / "provenance"
+        first = provenance.write_provenance(self.root, SHA, output)
+        json_bytes = (output / "manifest.json").read_bytes()
+        sums = (output / "SHA256SUMS.txt").read_bytes()
+        second = provenance.write_provenance(self.root, SHA, output)
+        self.assertEqual(first, second)
+        self.assertEqual(json_bytes, (output / "manifest.json").read_bytes())
+        self.assertEqual(sums, (output / "SHA256SUMS.txt").read_bytes())
+        self.assertEqual(first["qualification"], "CI_BUILD_ONLY_NOT_RELEASE_APPROVED")
+        self.assertEqual(first["source_commit"], SHA)
+        self.assertEqual(first["ota_headroom_bytes"], 0x400000 - len(b"APP-IMAGE"))
+        self.assertEqual(len(first["flash_images"]), 3)
+        self.assertEqual(len(first["web_assets"]), 2)
+        for line in sums.decode().splitlines():
+            sha, name = line.split("  ", 1)
+            self.assertEqual(sha, provenance.digest(self.root / name))
+
+    def test_rejects_missing_and_wrong_flash_mapping(self):
+        self.flash_files.pop("0x8000")
+        self.save_flash_args()
+        with self.assertRaisesRegex(ValueError, "required"):
+            provenance.collect(self.root, SHA)
+        self.flash_files["0x8000"] = "partition_table/partition-table.bin"
+        self.flash_files["0x21000"] = self.flash_files.pop("0x20000")
+        self.save_flash_args()
+        with self.assertRaisesRegex(ValueError, "offset"):
+            provenance.collect(self.root, SHA)
+
+    def test_rejects_traversal_and_symlinks(self):
+        self.flash_files["0x8000"] = "../web/package.json"
+        self.save_flash_args()
+        with self.assertRaisesRegex(ValueError, "unsafe"):
+            provenance.collect(self.root, SHA)
+        self.flash_files["0x8000"] = "partition_table/partition-table.bin"
+        self.save_flash_args()
+        (self.dist / "assets/escape").symlink_to(self.root / "web/package.json")
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            provenance.collect(self.root, SHA)
+
+    def test_rejects_oversize_image_and_overlapping_slots(self):
+        (self.build / "temperature_monitor.bin").write_bytes(b"A" * (0x400000 + 1))
+        with self.assertRaisesRegex(ValueError, "exceeds"):
+            provenance.collect(self.root, SHA)
+        (self.build / "temperature_monitor.bin").write_bytes(b"A")
+        (self.root / "firmware/partitions.csv").write_text(
+            "ota_0,app,ota_0,0x20000,0x400000,\n"
+            "ota_1,app,ota_1,0x30000,0x400000,\n", encoding="utf-8"
+        )
+        with self.assertRaisesRegex(ValueError, "overlapping"):
+            provenance.collect(self.root, SHA)
+
+    def test_rejects_version_drift_and_bad_commit(self):
+        (self.root / "web/package.json").write_text(
+            '{"version":"0.2.0"}', encoding="utf-8"
+        )
+        with self.assertRaisesRegex(ValueError, "versions disagree"):
+            provenance.collect(self.root, SHA)
+        with self.assertRaisesRegex(ValueError, "exact lowercase"):
+            provenance.collect(self.root, "master")
+
+    def test_rejects_missing_web_assets_and_duplicate_flash_targets(self):
+        for item in self.dist.rglob("*"):
+            if item.is_file():
+                item.unlink()
+        with self.assertRaisesRegex(ValueError, "empty"):
+            provenance.collect(self.root, SHA)
+        (self.dist / "index.html").write_bytes(b"web")
+        self.flash_files["0x1000"] = "temperature_monitor.bin"
+        self.save_flash_args()
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            provenance.collect(self.root, SHA)
+
+
+if __name__ == "__main__":
+    unittest.main()

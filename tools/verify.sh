@@ -5,6 +5,7 @@ cmake -S firmware/tests -B .build/host -G Ninja
 cmake --build .build/host
 ctest --test-dir .build/host --output-on-failure
 python3 -m unittest discover -s tools/tests -p "test_sensor_hardware_report.py"
+python3 -m unittest discover -s tools/tests -p "test_release_provenance.py"
 npm --prefix web run test:simulator
 if [[ -d firmware/managed_components/lvgl__lvgl ]]; then
   cmake -S firmware/display_tests -B .build/display -G Ninja
