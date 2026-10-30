@@ -1,0 +1,27 @@
+Connected-board OTA acceptance — 2026-10-30
+
+Target: ESP32-S3 at /dev/ttyACM0; ESP-IDF v6.1; no LCD or temperature probes.
+
+Build
+  source /home/phil/esp/esp-idf-v6.1/export.sh && idf.py build
+  PASS: temperature_monitor.bin is 2,001,568 bytes (0x1e8aa0); 52% of the
+  smallest OTA slot remains free.
+  SHA-256: 5b3e35634f799113b96ad550fc73cd1e52504b9ea0629f62fcbe97014b1cf261
+
+Device acceptance
+  - Authenticated POST /api/v1/ota accepted the image with HTTP 202.
+  - Boot log loaded the application from offset 0x420000 (ota_1); the normal
+    image reached READY and retained 16 MiB flash / 8 MiB PSRAM configuration.
+  - Wi-Fi reconnected from saved NVS settings; administrator login remained
+    available. The authenticated API reported ota_state=valid and zero,
+    non-simulated sensors.
+  - After OTA, the embedded HTML root and the build's hashed JavaScript asset
+    each returned HTTP 200 with gzip encoding through the device USB bridge;
+    authenticated API status also returned HTTP 200 from the same image.
+  - A 35-second serial smoke passed: READY, healthy history/event journal,
+    five-second health cadence, no fabricated sensor data, and no panic.
+
+The host could not reconnect directly to the station HTTP address after the
+device restarted, so post-update API and asset checks used the firmware's USB
+loopback bridge. This demonstrates successful slot update and bundled UI/API
+pairing; it does not test rollback, slot A→B→A, or behavior with peripherals.

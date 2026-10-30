@@ -1,4 +1,21 @@
-# 2026-10-30 — Bare-board and WebSocket backpressure acceptance
+# 2026-10-30 — Connected-board acceptance updates
+
+A freshly built 2,001,568-byte firmware image was uploaded to the ESP32-S3 using
+an authenticated station HTTP session. The device accepted the image, booted
+from `ota_1`, reconnected using saved settings, passed the startup health gate
+(`ota_state=valid`), and retained administrator access. Authenticated API
+status and the embedded HTML root/hashed JavaScript asset returned HTTP 200
+through the USB bridge. A 35-second post-update smoke passed with healthy
+history, zero sensors, five-second health cadence, and no panic. T10-01 and
+T10-03 are complete. See [OTA validation](validation/device-ota-results.txt).
+
+During a live 60-second poll after the monitor was ready, the provisioning AP
+stayed closed. The five-second BOOT behavior remains unverified; the live status
+poll does not establish button timing or GPIO routing. The board photo remains pending. LCD and probes remain disconnected.
+
+The numbered tracker is now **123 complete, 22 open of 145**.
+
+## 2026-10-30 — Bare-board and WebSocket backpressure acceptance
 
 The current normal ESP-IDF v6.1 image passed a 20-second bare-board smoke at
 `/dev/ttyACM0`: 16 MiB flash, 8 MiB PSRAM, healthy LittleFS/event journal,
@@ -21,8 +38,8 @@ simulator/WebSocket checks, headless LVGL, 56 web tests, formatting, lint,
 typecheck, production build, SDK pin verification and ESP-IDF v6.1 compile.
 Firmware image is `0x1e8aa0` bytes with 52% of the smallest OTA slot free.
 
-The board remains normal firmware, with no LCD or probes attached. This does
-not verify RF onboarding, storage power interruption, OTA, or sustained load.
+The board remains on the normal firmware with no LCD or probes attached. This
+does not verify storage power interruption, OTA rollback, or sustained load.
 
 ## 2026-10-30 — Wi-Fi handoff and saved-network recovery
 

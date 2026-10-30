@@ -1,8 +1,8 @@
 # ESP32-S3 Temperature Monitor — Project Handoff (2026-10-30)
 
-**Status:** Software verification and device API checks pass; physical peripheral,
-network, OTA, durability and release gates remain open. This is not release
-approval.
+**Status:** Software verification and device API/OTA checks pass; physical
+peripheral, rollback, durability and release gates remain open. This is not
+release approval.
 
 ## Repository and build
 
@@ -34,9 +34,18 @@ display, 56 frontend tests, formatting/lint/typecheck/production build, and the
 pinned ESP-IDF v6.1 firmware build. The image is `0x1e8aa0` bytes with 52% of
 the smallest OTA slot free.
 
+On 2026-10-30, the current 2,001,568-byte firmware image was uploaded through
+authenticated station HTTP. The board rebooted from `ota_1`, reconnected with
+saved settings, passed startup health validation, and preserved administrator
+access. Authenticated status and the bundled HTML/hashed JavaScript both
+returned HTTP 200 through the USB bridge. A 35-second smoke passed with healthy
+history, zero sensors, five-second health cadence, and no panic. This closes
+T10-01 and T10-03; forced rollback and A→B→A remain open. See
+[OTA validation](validation/device-ota-results.txt).
+
 ## Remaining acceptance
 
-The numbered backlog stands at **121 complete, 24 open of 145**. Remaining
+The numbered backlog stands at **123 complete, 22 open of 145**. Remaining
 tasks and immediate prerequisites are:
 
 | IDs | Needed to finish |
@@ -45,7 +54,7 @@ tasks and immediate prerequisites are:
 | T04-01/02/03/14 | Electrically verified attached LCD for color/rotation/offset, backlight, DMA/heap/refresh and readability/soak acceptance. |
 | T05-10/13/18 | Phone/client for captive onboarding and offline recovery; physical BOOT/RESET interaction. Station DHCP/NTP, NVS save/reboot and prior-network preservation passed on the owner-selected open network. |
 | T06-14/15/16 | Populated device history for retention/wear/export measurements and a controlled power interruption. |
-| T10-01/02/03/05/08/09/10 | Device OTA transport and rollback acceptance; combined traffic/flash/peripheral stress, USB/BOOT recovery and 24–72-hour soak. |
+| T10-02/05/08/09/10 | Forced OTA rollback and A→B→A; combined traffic/flash/peripheral stress, USB/BOOT recovery and 24–72-hour soak. |
 | T11-01/08 | Reconcile measured hardware behavior, complete release qualification and owner signoff before distributing a release. |
 
 Optional non-v1 features remain a separate list at the bottom of [TODO.md](TODO.md)

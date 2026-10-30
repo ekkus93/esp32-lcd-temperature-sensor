@@ -52,7 +52,7 @@ bare-board evidence. Simulated tests do not close physical hardware gates.
 
 ## Known limitations and acceptance blockers
 
-Current TODO count: **121/145 numbered tasks complete**. This draft remains
+Current TODO count: **123/145 numbered tasks complete**. This draft remains
 non-release documentation until all physical and owner signoff gates close.
 
 
@@ -62,7 +62,7 @@ non-release documentation until all physical and owner signoff gates close.
 | Wi-Fi and BOOT | T05-10/13/18 | Phone AP onboarding, deliberate offline recovery, physical five-second BOOT and photographed USB download interaction. Station DHCP/NTP and prior-credential preservation passed on the connected test board. |
 | Storage and sockets | T06-14/15/16 | Actual five-minute retention, concurrent export, controlled LittleFS interruption/recovery. T07-10 passed connected-board backpressure and concurrency checks. |
 | System actions | — | T09-15 restart, both factory-reset modes and history-retention behavior passed on the user-designated test board. |
-| OTA and load | T10-01/02/03/05/08/09/10 | OTA A→B→A with matching web/API, rollback, measured heap/watchdog behavior, 24–72-hour combined sensor/LCD/Wi-Fi/flash soak |
+| OTA and load | T10-02/05/08/09/10 | Forced rollback and OTA A→B→A, measured heap/watchdog behavior, 24–72-hour combined sensor/LCD/Wi-Fi/flash soak. T10-01 and T10-03 passed the connected-board OTA and bundled UI/API checks. |
 | Final documentation/release | T11-01/08 | Measured wiring revisions, final checksummed release package, accepted limitations and owner approval. T11-09 handoff reconciliation is complete. |
 
 **Physical electrical hold:** Do not connect or drive GPIO15 to the LCD
