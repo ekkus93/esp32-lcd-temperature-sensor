@@ -1,0 +1,14 @@
+Connected-board BOOT long-press check — 2026-10-30
+
+The owner held the BOOT button for five seconds. Without opening USB or
+resetting the board, an authenticated station HTTP status check observed
+provisioning mode open, with saved credentials and station association intact.
+Fifteen seconds later, provisioning remained open, uptime had advanced by
+15,000 ms, and the logging store remained healthy. The API reported zero
+simulated sensors.
+
+This confirms the runtime long press opens the setup AP without rebooting the
+firmware. It does not verify LCD hold-progress feedback or temperature reads:
+the LCD and probes were disconnected. The router stayed available, so offline
+recovery is also untested. Physical button/pin orientation and the board photo
+remain part of T02-01/T05-13.

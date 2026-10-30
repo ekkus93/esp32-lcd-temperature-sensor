@@ -1,33 +1,38 @@
 # 2026-10-30 — Connected-board acceptance updates
 
-A freshly built 2,001,568-byte firmware image was uploaded to the ESP32-S3 using
-an authenticated station HTTP session. The device accepted the image, booted
-from `ota_1`, reconnected using saved settings, passed the startup health gate
-(`ota_state=valid`), and retained administrator access. Authenticated API
-status and the embedded HTML root/hashed JavaScript asset returned HTTP 200
-through the USB bridge. A 35-second post-update smoke passed with healthy
-history, zero sensors, five-second health cadence, and no panic. T10-01 and
-T10-03 are complete. A second authenticated OTA returned the board to
-`ota_0`, also valid, with admin access and saved Wi-Fi intact. A pre-confirmation
-reset of the next pending image triggered bootloader rollback to `ota_0`; the
-prior event-journal boundary remained intact. T10-01 and T10-03 are complete and
-A→B→A/early-reset rollback passed. Failed-service rollback, LCD status, and
-populated temperature-history comparison remain open. See
-[OTA validation](validation/device-ota-results.txt).
+Built the current firmware with the pinned ESP-IDF v6.1 SDK and uploaded it
+through authenticated station HTTP. The ESP32-S3 rebooted into `ota_1`,
+reconnected from NVS, passed startup health validation (`ota_state=valid`), and
+preserved administrator access. The authenticated API returned status from the
+new slot; the embedded HTML root and hashed JavaScript asset each returned
+HTTP 200 through the USB bridge. A 35-second post-update smoke confirmed READY,
+healthy history, five-second health cadence, zero sensors and no panic. A second
+authenticated OTA returned the board to `ota_0`, also valid, with admin access
+and saved Wi-Fi intact. A pre-confirmation reset of the next pending image
+triggered bootloader rollback to `ota_0`; the prior event-journal boundary
+remained intact. T10-01 and T10-03 are complete and A→B→A/early-reset rollback
+passed. Failed-service rollback, LCD status, and populated temperature-history
+comparison remain open.
+Full evidence and image hash: [OTA validation](validation/device-ota-results.txt).
 
-During a live 60-second poll after the monitor was ready, the provisioning AP
-stayed closed. The five-second BOOT behavior remains unverified; the live status
-poll does not establish button timing or GPIO routing. The board photo remains pending. LCD and probes remain disconnected.
+The owner subsequently held BOOT for five seconds. Authenticated station status
+showed provisioning open, saved credentials and station association; after
+15 seconds, uptime advanced and storage remained healthy. This confirms runtime
+AP activation without a reboot. The LCD and probes were disconnected, so LCD
+hold feedback and temperature reads remain unverified. Router-offline behavior
+and the board photo remain pending. See
+[BOOT validation](validation/device-boot-results.txt).
 
-The connected-board captive-portal test opened the provisioning AP through
-authenticated API in the same USB session, then verified four OS probe
+The connected-board captive-portal test now opens the provisioning AP through
+authenticated API in the same USB session, then verifies four OS probe
 redirects, AP DNS A/AAAA behavior, direct `/setup`, and protected-API rejection.
 An authenticated cleanup reboot closed the AP; a follow-up check confirmed
 the saved station reconnected. Phone onboarding, wrong-password recovery and
 offline recovery remain open under T05-18. See
 [captive validation](validation/device-captive-results.txt).
 
-The numbered tracker is now **123 complete, 22 open of 145**.
+The numbered tracker is now **123 complete, 22 open of 145**. Remaining
+hardware and release gates are summarized in the dated handoff below.
 
 ## 2026-10-30 — Bare-board and WebSocket backpressure acceptance
 
