@@ -53,8 +53,8 @@ def slots_from_csv(path):
         for row in csv.reader(source):
             if not row or row[0].strip().startswith("#"):
                 continue
-            if len(row) < 5:
-                raise ValueError("malformed partition row")
+            if len(row) != 6 or row[5].strip():
+                raise ValueError("invalid partition CSV flags or column count")
             name, kind, subtype, offset_text, size_text = (
                 field.strip() for field in row[:5]
             )
@@ -251,6 +251,10 @@ def collect(root, commit):
             raise ValueError("unexpected web asset type")
     if not assets:
         raise ValueError("web dist is empty")
+    # A flash manifest may not add arbitrary binaries to otherwise unused
+    # address gaps. The device flashing plan is intentionally four images.
+    if paths != set(EXPECTED_IMAGES):
+        raise ValueError("unexpected flash image in flasher_args")
     match = re.search(r"project\(temperature_monitor VERSION ([0-9]+\.[0-9]+\.[0-9]+)\)",
                       cmake.read_text(encoding="utf-8"))
     if not match:

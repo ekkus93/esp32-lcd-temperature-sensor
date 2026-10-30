@@ -251,5 +251,28 @@ class ReleaseProvenanceTests(unittest.TestCase):
             provenance.collect(self.root, SHA)
 
 
+    def test_rejects_extra_flash_image_in_unallocated_gap(self):
+        (self.build / "gap.bin").write_bytes(b"unexpected")
+        self.flash_files["0x13000"] = "gap.bin"
+        self.save_flash_args()
+        with self.assertRaisesRegex(ValueError, "unexpected flash image"):
+            provenance.collect(self.root, SHA)
+
+    def test_rejects_csv_flags_and_unexpected_columns(self):
+        partitions = self.root / "firmware/partitions.csv"
+        original = partitions.read_text(encoding="utf-8")
+        for replacement in (
+            "nvs,data,nvs,0x9000,0x6000,encrypted",
+            "nvs,data,nvs,0x9000,0x6000,,extra",
+        ):
+            with self.subTest(replacement=replacement):
+                partitions.write_text(original.replace(
+                    "nvs,data,nvs,0x9000,0x6000,", replacement),
+                    encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "flags or column count"):
+                    provenance.collect(self.root, SHA)
+        partitions.write_text(original, encoding="utf-8")
+
+
 if __name__ == "__main__":
     unittest.main()
