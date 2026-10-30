@@ -79,6 +79,41 @@ class ReleaseProvenanceTests(unittest.TestCase):
             sha, name = line.split("  ", 1)
             self.assertEqual(sha, provenance.digest(self.root / name))
 
+
+    def test_ci_artifact_upload_includes_all_checksums_and_ota_selector(self):
+        # The release manifest must not promise files omitted by the uploaded
+        # archive. In particular, flasher_args.json references the initial OTA
+        # selector; missing it makes a downloaded flash plan incomplete.
+        workflow = (SCRIPT.parent.parent / ".github/workflows/ci.yml").read_text(
+            encoding="utf-8"
+        )
+        upload_step = workflow.split(
+            "      - name: Upload firmware binary and build manifest\\n", 1
+        )
+        self.assertEqual(len(upload_step), 2)
+        path_block = upload_step[1].split("          path: |\\n", 1)
+        self.assertEqual(len(path_block), 2)
+        uploaded = set()
+        for line in path_block[1].splitlines():
+            if not line.startswith("            "):
+                break
+            uploaded.add(line.strip())
+        manifest, checksums = provenance.collect(self.root, SHA)
+        required = {name for name, _ in checksums}
+        required.update({
+            "firmware/build/provenance/manifest.json",
+            "firmware/build/provenance/SHA256SUMS.txt",
+        })
+        # A recursive web/dist/ entry intentionally covers every built asset.
+        required = {name for name in required if not name.startswith("web/dist/")}
+        required.add("web/dist/")
+        self.assertEqual(
+            required - uploaded, set(),
+            f"CI artifact omits required provenance inputs: {required - uploaded}",
+        )
+        self.assertEqual(len(manifest["flash_images"]), 4)
+        self.assertIn("firmware/build/ota_data_initial.bin", uploaded)
+
     def test_rejects_missing_and_wrong_flash_mapping(self):
         self.flash_files.pop("0x8000")
         self.save_flash_args()
