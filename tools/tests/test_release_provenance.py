@@ -88,10 +88,10 @@ class ReleaseProvenanceTests(unittest.TestCase):
             encoding="utf-8"
         )
         upload_step = workflow.split(
-            "      - name: Upload firmware binary and build manifest\\n", 1
+            "      - name: Upload firmware binary and build manifest\n", 1
         )
         self.assertEqual(len(upload_step), 2)
-        path_block = upload_step[1].split("          path: |\\n", 1)
+        path_block = upload_step[1].split("          path: |\n", 1)
         self.assertEqual(len(path_block), 2)
         uploaded = set()
         for line in path_block[1].splitlines():
