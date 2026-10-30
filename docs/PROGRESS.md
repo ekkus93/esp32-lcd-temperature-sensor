@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 30260)
+Total output lines: 1843
+
 ## 2026-10-29 — T11-08 release notes draft (no release approval)
 
 The canonical T11-08 requests release notes and known issues following
@@ -933,21 +936,7 @@ HistoryStore recovery previously checked unknown TMH format/version headers
 only after six bytes were present. An interrupted four- or five-byte TMH3
 header (or TMH2 with an incompatible fifth version byte) was therefore
 truncated as an ordinary incomplete TMH2 write. Recovery now checks the known
-magic at four bytes, schema version at five, and the upper version byte at
-six, refusing recovery without modifying the journal when a future format
-is identified. Existing genuine TMH1/TMH2 interrupted-write recovery is
-preserved. Native `history_power_cut_recovery` tests add short unknown
-headers appended after a valid persisted bucket and assert byte-for-byte
-preservation; existing tests exhaustively cover all partial TMH2 byte
-boundaries for one and five probes, including segment rollover. Initial implementation `ea71e085` failed C++ formatting (CI run
-40772106565); corrected commit `5c35b6be5f2b360c5e46be6dead10bd24f792977`
-passed exact-commit CI run 40772204709, including native C++ storage/
-power-cut tests, Python diagnostics, simulated REST/WebSocket, headless LVGL,
-React checks and pinned ESP-IDF v6.1 firmware compilation.
-This is **host/POSIX simulation only**; physical LittleFS interruption,
-OTA rollback, and hardware acceptance remain open (T06-14/16, T10-09).
-No devices, credentials, OTA, flashing, reset or other hardware were used.
-
+magic at four bytes, sch…260 tokens truncated…
 ## 2026-10-28 — late Wi-Fi scan completion releases scan ownership (software-only)
 
 A scan-done event arriving at or after the ten-second scan deadline could
@@ -1832,3 +1821,12 @@ keeps trusted running time; cold boot remains unsynchronized until an SNTP callb
 Six core host suites, headless LVGL rendering, 24 frontend tests and IDF builds
 pass. Isolated ESP32 simulation tested malformed/duplicate fields, unknown
 timezone/invalid server, stale revisions, NVS commit, clock reconfiguration and
+
+
+## 2026-10-29 — Connected ESP32-S3 retest and history journal failure
+
+The ESP32-S3 appeared as `/dev/ttyACM0` (`303a:1001`, Espressif USB JTAG/serial). A serial smoke capture using ESP-IDF v6.1 confirmed the target boots version 0.1.0, reports 16 MiB flash and 8 MiB PSRAM, reaches `READY`, reports zero sensors with the 1-Wire bus and backlight disabled, and maintains approximately five-second health cadence without panic. No LCD or probes were connected.
+
+The authenticated USB-loopback API test confirmed static gzip assets, anonymous and forged-host rejection, authenticated status, invalid-OTA rejection before flash access, a real radio scan, authenticated live snapshots at 5,000 ms cadence, forbidden WebSocket data-frame closure, four-client admission with the fifth rejected (503), HTTP status under four-client load, and history query bounds. It then failed the durable reboot-event assertion. A separate authenticated read-only query reported the event journal unavailable with no events. A subsequent reboot/smoke log reported `mount=ESP_OK healthy=0`, `event_log_healthy=0`, and `Event journal write failed`; the smoke still passed its health/no-fabricated-sensors/no-panic checks. The cause is not established. No history formatting, factory reset, Wi-Fi credential submission, OTA, or peripheral wiring was performed.
+
+Preserve the existing history partition. Diagnose the LittleFS/history/event failure before further persistence or destructive acceptance tests. T06-14/T06-16 remain open; T07-10 remains open because device TCP slow-client cutoff was not established. LCD, physical probes, owner-network onboarding, OTA/rollback, destructive reset, and long soak acceptance remain untested.
