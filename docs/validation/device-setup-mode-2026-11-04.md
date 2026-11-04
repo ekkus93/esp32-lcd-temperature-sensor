@@ -35,3 +35,17 @@ suffix on two lines because the full SSID is wider than its 128 px width, and
 alternates a Wi-Fi page and an owner-code page only when an owner code exists.
 Screenshots are in `docs/validation/lcd-simulation/`. The physical appearance of
 the new screens on the LCD and typing the key on a phone have not been checked.
+
+## Physical appearance of the new compact setup screen
+
+After a second BOOT hold of five seconds on the connected board (setup mode open,
+uptime, probe readings and logging continuing without a reset), the owner sent a
+photo of the real 128 × 160 ST7735 LCD. It shows the new layout complete and
+unclipped: "Wi-Fi setup", "1 Join this Wi-Fi", the SSID `TempMonitor-` and its
+six-digit suffix on two lines, "Password" with the 12-character key on one line,
+"2 Open in a browser" and `192.168.4.1`, and no page marker (the device is
+enrolled, so there is no owner code page). The photo has a strong blue cast, so
+the muted-heading and bright-value colours could not be judged from it. The
+photo is not stored in the repository because it shows a live setup password.
+Not confirmed: the on-screen hold-progress indicator during the hold, the
+owner-code page (no unenrolled device was available), and typing the key on a phone.
