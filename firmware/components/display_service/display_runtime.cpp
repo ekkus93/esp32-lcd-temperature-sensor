@@ -8,8 +8,10 @@
 #include "esp_lcd_st7735.h"
 #include "esp_log.h"
 #include <new>
-#if CONFIG_MONITOR_LCD_TEST_PATTERN
+#if CONFIG_MONITOR_LCD_TEST_PATTERN || CONFIG_MONITOR_LCD_FLUSH_DIAG
 #include "esp_timer.h"
+#endif
+#if CONFIG_MONITOR_LCD_TEST_PATTERN
 #include <tuple>
 #endif
 
@@ -26,7 +28,7 @@ constexpr int height = 320;
 constexpr int draw_height = 40;
 constexpr int spi_frequency_hz = 20000000;
 
-#if CONFIG_MONITOR_LCD_TEST_PATTERN
+#if CONFIG_MONITOR_LCD_TEST_PATTERN || CONFIG_MONITOR_LCD_FLUSH_DIAG
 int64_t flush_started_us = 0;
 void diagnostic_flush_event(lv_event_t *event) {
     if (lv_event_get_code(event) == LV_EVENT_FLUSH_START) {
@@ -37,7 +39,9 @@ void diagnostic_flush_event(lv_event_t *event) {
         flush_started_us = 0;
     }
 }
+#endif
 
+#if CONFIG_MONITOR_LCD_TEST_PATTERN
 lv_obj_t *diagnostic_pattern() {
     auto *root = lv_obj_create(nullptr);
     if (!root)
@@ -189,7 +193,7 @@ bool DisplayRuntime::initialize() {
         deinitialize();
         return false;
     }
-#if CONFIG_MONITOR_LCD_TEST_PATTERN
+#if CONFIG_MONITOR_LCD_TEST_PATTERN || CONFIG_MONITOR_LCD_FLUSH_DIAG
     lv_display_add_event_cb(display_, diagnostic_flush_event, LV_EVENT_ALL, nullptr);
 #endif
     view_.reset(new (std::nothrow) DisplayView());
