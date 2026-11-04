@@ -167,7 +167,10 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
             text(s->labels[i], row.label);
             text(s->values[i], row.value);
             text_color(s->values[i], color(row.state));
-            text(s->states[i], row.status);
+            // The Trends status text depends on chart data computed below; setting it here and
+            // overwriting it later flipped the label twice on every refresh.
+            if (s == &overview_)
+                text(s->states[i], row.status);
             text_color(s->states[i], color(row.state));
         }
         if (plots_changed || chart_roms_[i] != row.rom) {
@@ -201,10 +204,12 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
         lv_obj_set_hidden(trends_.charts[i], !selected || !show_chart);
         lv_obj_set_hidden(trends_.no_data[i], !selected || show_chart);
         text(trends_.no_data[i], row.state == State::disabled ? "OFF" : "NO DATA");
+        const char *trends_status = row.status.c_str();
         if (row.state == State::disabled)
-            text(trends_.states[i], "OFF");
+            trends_status = "OFF";
         else if (row.status.empty() && !chart_data_[i])
-            text(trends_.states[i], "NO DATA");
+            trends_status = "NO DATA";
+        text(trends_.states[i], trends_status);
     }
     cache_window_ = now / bucket_ms;
     cache_size_ = cache.size();

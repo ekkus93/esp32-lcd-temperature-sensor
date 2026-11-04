@@ -55,7 +55,7 @@ int main(int argc, char **argv) {
         auto *stable_event = lv_display_add_event_cb(
             display,
             [](lv_event_t *event) { ++*static_cast<unsigned *>(lv_event_get_user_data(event)); },
-            LV_EVENT_INVALIDATE_AREA, &invalidations);
+            LV_EVENT_REFR_REQUEST, &invalidations);
         view.render(registry, cache, options, status, 0);
         CHECK(invalidations == 0);
         lv_display_remove_event(display, lv_display_get_event_count(display) - 1);
@@ -279,14 +279,50 @@ int main(int argc, char **argv) {
                 [](lv_event_t *event) {
                     ++*static_cast<unsigned *>(lv_event_get_user_data(event));
                 },
-                LV_EVENT_INVALIDATE_AREA, &trend_invalidations);
+                LV_EVENT_REFR_REQUEST, &trend_invalidations);
             lv_refr_now(display);
             trend_invalidations = 0;
-            for (int64_t t = 3605100; t <= 3606000; t += 100)
+            for (int64_t t = 3605100; t <= 3606000; t += 100) {
                 view.render(registry, cache, options, status, t);
+                lv_tick_inc(100); // let the refresh timer run, as the board's 100 ms task does
+                lv_refr_now(display);
+            }
             CHECK(view.showing_trends());
             CHECK(trend_invalidations == 0);
             lv_display_remove_event(display, lv_display_get_event_count(display) - 1);
+        }
+        {
+            // A healthy probe with no trend history yet shows NO DATA. That text must be set once,
+            // not flipped between blank and NO DATA on every 100 ms refresh.
+            TrendCache no_history;
+            Registry healthy;
+            healthy.sample(fake_readings(1), 3606000);
+            CHECK(display_rows(healthy, true)[0].status.empty());
+            unsigned no_data_invalidations = 0;
+            lv_display_add_event_cb(
+                display,
+                [](lv_event_t *event) {
+                    ++*static_cast<unsigned *>(lv_event_get_user_data(event));
+                },
+                LV_EVENT_REFR_REQUEST, &no_data_invalidations);
+            view.render(healthy, no_history, options, status, 3606000);
+            lv_refr_now(display);
+            CHECK(view.showing_trends());
+            no_data_invalidations = 0;
+            lv_obj_invalidate(lv_screen_active()); // the counter must be able to see repaints
+            CHECK(no_data_invalidations > 0);
+            lv_tick_inc(100);
+            lv_refr_now(display);
+            no_data_invalidations = 0;
+            for (int64_t t = 3606100; t <= 3607000; t += 100) {
+                view.render(healthy, no_history, options, status, t);
+                lv_tick_inc(100);
+                lv_refr_now(display);
+            }
+            CHECK(view.showing_trends());
+            CHECK(no_data_invalidations == 0);
+            lv_display_remove_event(display, lv_display_get_event_count(display) - 1);
+            view.render(registry, cache, options, status, 3607100);
         }
         lv_obj_update_layout(lv_screen_active());
         auto *first_chart = lv_obj_get_child(lv_screen_active(), 6);

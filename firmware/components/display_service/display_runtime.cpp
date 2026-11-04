@@ -67,6 +67,50 @@ std::atomic<uint32_t> flush_diag_frame_max_us{0};
 std::atomic<uint32_t> flush_diag_frame_interval_max_us{0};
 int64_t flush_diag_logged_ms = 0;
 
+// Invalidated areas since the last log line, to find which widgets cause repaints. Events run
+// under the LVGL lock, and the log is written under the same lock.
+struct InvalidatedArea {
+    int16_t x1, y1, x2, y2;
+    uint32_t count;
+};
+constexpr size_t flush_diag_area_slots = 12;
+InvalidatedArea flush_diag_areas[flush_diag_area_slots]{};
+size_t flush_diag_area_used = 0;
+uint32_t flush_diag_area_overflow = 0;
+int64_t flush_diag_area_logged_ms = 0;
+
+void flush_diag_invalidate_event(lv_event_t *event) {
+    const auto *area = static_cast<const lv_area_t *>(lv_event_get_param(event));
+    if (!area)
+        return;
+    for (size_t i = 0; i < flush_diag_area_used; ++i) {
+        auto &entry = flush_diag_areas[i];
+        if (entry.x1 == area->x1 && entry.y1 == area->y1 && entry.x2 == area->x2 &&
+            entry.y2 == area->y2) {
+            ++entry.count;
+            return;
+        }
+    }
+    if (flush_diag_area_used < flush_diag_area_slots)
+        flush_diag_areas[flush_diag_area_used++] = {
+            static_cast<int16_t>(area->x1), static_cast<int16_t>(area->y1),
+            static_cast<int16_t>(area->x2), static_cast<int16_t>(area->y2), 1};
+    else
+        ++flush_diag_area_overflow;
+}
+
+void flush_diag_log_areas() {
+    for (size_t i = 0; i < flush_diag_area_used; ++i) {
+        const auto &entry = flush_diag_areas[i];
+        ESP_LOGI(tag, "LCD_DIAG inval x=%d..%d y=%d..%d n=%u", entry.x1, entry.x2, entry.y1,
+                 entry.y2, (unsigned)entry.count);
+    }
+    if (flush_diag_area_overflow)
+        ESP_LOGI(tag, "LCD_DIAG inval other=%u", (unsigned)flush_diag_area_overflow);
+    flush_diag_area_used = 0;
+    flush_diag_area_overflow = 0;
+}
+
 void flush_diag_start_event(lv_event_t *) {
     const auto now = static_cast<uint32_t>(esp_timer_get_time());
     flush_diag_start_us.store(now, std::memory_order_relaxed);
@@ -278,6 +322,8 @@ bool DisplayRuntime::initialize() {
         const esp_lcd_panel_io_callbacks_t callbacks = {.on_color_trans_done = flush_diag_done};
         esp_lcd_panel_io_register_event_callbacks(panel_io_, &callbacks, display_);
         lv_display_add_event_cb(display_, flush_diag_start_event, LV_EVENT_FLUSH_START, nullptr);
+        lv_display_add_event_cb(display_, flush_diag_invalidate_event, LV_EVENT_INVALIDATE_AREA,
+                                nullptr);
     }
 #endif
     if (!lvgl_port_lock(1000)) {
@@ -324,6 +370,12 @@ void DisplayRuntime::update(const Registry &registry, const TrendCache &cache,
 #endif
     if (!ready() || !lvgl_port_lock(100))
         return;
+#if CONFIG_MONITOR_LCD_FLUSH_DIAG
+    if (uptime_ms - flush_diag_area_logged_ms >= 10000) {
+        flush_diag_area_logged_ms = uptime_ms;
+        flush_diag_log_areas();
+    }
+#endif
 #if CONFIG_MONITOR_LCD_TEST_PATTERN
     (void)registry;
     (void)cache;
