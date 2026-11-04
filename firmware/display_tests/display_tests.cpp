@@ -24,6 +24,16 @@ int main(int argc, char **argv) {
                            LV_DISPLAY_RENDER_MODE_FULL);
     lv_display_set_flush_cb(
         display, [](lv_display_t *d, const lv_area_t *, uint8_t *) { lv_display_flush_ready(d); });
+    // Concatenated text of every visible label on the active screen.
+    auto visible_text = [](lv_obj_t *root) {
+        std::string out;
+        for (uint32_t i = 0; i < lv_obj_get_child_count(root); ++i) {
+            auto *child = lv_obj_get_child(root, i);
+            if (!lv_obj_is_hidden(child) && lv_obj_check_type(child, &lv_label_class))
+                out += std::string(lv_label_get_text(child)) + "\n";
+        }
+        return out;
+    };
     auto save = [&](const std::string &name) {
         lv_tick_inc(50);
         lv_refr_now(display);
@@ -205,8 +215,19 @@ int main(int argc, char **argv) {
         CHECK(display_rows(registry, false)[0].value == "OFF");
         for (const auto &row : display_rows(registry, false))
             CHECK(row.value == "OFF" || row.value == "--.-");
-        view.provisioning("SIMULATION-ONLY", "example-only-wifi-key", "example-only-owner-code");
+        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP");
         save("provisioning-simulation-only");
+        {
+            const auto text = visible_text(lv_screen_active());
+            for (const char *expected :
+                 {"Wi-Fi setup", "1  Join this Wi-Fi", "TempMonitor-A1B2C3", "Password",
+                  "K7M4Q9XP2WTD", "2  Open in a browser", "192.168.4.1", "3  One-time owner code",
+                  "H5RB2WTD\nK7M4Q9XP"})
+                CHECK(text.find(expected) != std::string::npos);
+        }
+        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "");
+        save("provisioning-enrolled-simulation-only");
+        CHECK(visible_text(lv_screen_active()).find("owner code") == std::string::npos);
         options.extended = false;
         view.render(registry, cache, options, status, 3650000);
         CHECK(!view.showing_trends());
@@ -345,15 +366,44 @@ int main(int argc, char **argv) {
         CHECK(view.showing_trends() && selected() == 0);
         CHECK(lv_obj_is_hidden(lv_obj_get_child(lv_screen_active(), 6)));
         CHECK(!lv_obj_is_hidden(lv_obj_get_child(lv_screen_active(), 7)));
-        view.provisioning("test-network", "test-password", std::string(64, 'a'));
-        auto *setup_text = lv_obj_get_child(lv_screen_active(), 1);
-        const auto first_page = std::string(lv_label_get_text(setup_text));
+        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP");
+        const auto first_page = visible_text(lv_screen_active());
+        save("provisioning-compact-wifi");
         lv_tick_inc(10000);
-        view.provisioning("test-network", "test-password", std::string(64, 'a'));
-        const auto second_page = std::string(lv_label_get_text(setup_text));
-        CHECK(first_page != second_page);
-        CHECK((first_page.find("Owner code") != std::string::npos) !=
-              (second_page.find("Owner code") != std::string::npos));
+        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP");
+        const auto second_page = visible_text(lv_screen_active());
+        save("provisioning-compact-owner-code");
+        for (const char *expected : {"1  Join this Wi-Fi", "TempMonitor-\nA1B2C3", "K7M4Q9XP2WTD",
+                                     "2  Open in a browser", "192.168.4.1", "1/2"})
+            CHECK(first_page.find(expected) != std::string::npos);
+        CHECK(first_page.find("H5RB2WTD") == std::string::npos);
+        for (const char *expected : {"Owner code", "H5RB2WTD\nK7M4Q9XP", "2/2"})
+            CHECK(second_page.find(expected) != std::string::npos);
+        CHECK(second_page.find("K7M4Q9XP2WTD") == std::string::npos);
+        {
+            // Each line of the compact SSID must fit the 124 px label for every hex suffix.
+            auto *probe = lv_label_create(lv_screen_active());
+            lv_obj_set_style_text_font(probe, &lv_font_montserrat_12, 0);
+            lv_obj_set_width(probe, LV_SIZE_CONTENT);
+            int32_t widest = 0;
+            for (char digit : std::string("0123456789ABCDEF"))
+                for (const auto &line : {std::string("TempMonitor-"), std::string(6, digit)}) {
+                    lv_label_set_text(probe, line.c_str());
+                    lv_obj_update_layout(probe);
+                    widest = std::max(widest, lv_obj_get_width(probe));
+                }
+            lv_obj_delete(probe);
+            CHECK(widest <= 124);
+        }
+        // An enrolled device has no owner code: one steady page, no "1/2" and no alternating.
+        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "");
+        const auto enrolled_first = visible_text(lv_screen_active());
+        save("provisioning-compact-enrolled");
+        lv_tick_inc(10000);
+        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "");
+        CHECK(visible_text(lv_screen_active()) == enrolled_first);
+        CHECK(enrolled_first.find("K7M4Q9XP2WTD") != std::string::npos &&
+              enrolled_first.find("/2") == std::string::npos);
         lv_screen_load(blank);
     }
     {

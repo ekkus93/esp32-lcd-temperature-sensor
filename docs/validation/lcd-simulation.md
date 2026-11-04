@@ -33,7 +33,11 @@ Names are constrained to one line after visual review caught overlapping wraps.
 | Missing interval | [Trends](lcd-simulation/trends-negative-with-gap.png) |
 | Bus fault | [Overview](lcd-simulation/overview-bus-fault.png) |
 | Disabled/lost and BOOT progress | [Overview](lcd-simulation/overview-off-and-lost.png) |
-| Temporary setup state | [Provisioning](lcd-simulation/provisioning-simulation-only.png) |
+| Setup state, 240 × 320, with owner code | [Provisioning](lcd-simulation/provisioning-simulation-only.png) |
+| Setup state, 240 × 320, already enrolled | [Provisioning](lcd-simulation/provisioning-enrolled-simulation-only.png) |
+| Setup state, compact, Wi-Fi page | [Provisioning](lcd-simulation/provisioning-compact-wifi.png) |
+| Setup state, compact, owner-code page | [Provisioning](lcd-simulation/provisioning-compact-owner-code.png) |
+| Setup state, compact, already enrolled | [Provisioning](lcd-simulation/provisioning-compact-enrolled.png) |
 
 All temperatures and setup text in these images are test fixtures. Saved LCD
 settings, physical display integration and timezone/DST application remain open.

@@ -91,7 +91,7 @@ Use at most the ~240 × 320 canvas; prefer one tiny line chart per sensor rather
 - **Offline after prior synchronization in same power session:** continue using the running system clock and show Wi-Fi offline; retain an indication when time quality becomes questionable.
 - **Cold boot without valid wall-clock synchronization:** display `--:--` until time is established. Never present an invented calendar date/time.
 - **Wi-Fi is optional for measurement:** loss of connectivity cannot stop temperature updates or history logging.
-- **Initial provisioning:** temporarily show SSID, how to connect, and local provisioning URL (`192.168.4.1` by default). If an AP password is needed, show the device-specific provisioned credential appropriately. Web UI performs all setup; LCD has no input.
+- **Initial provisioning:** temporarily show SSID, how to connect, and local provisioning URL (`192.168.4.1` by default). The device-specific setup credentials are short enough to type from the screen: a 12-character Wi-Fi key and, until an owner is enrolled, a 16-character one-time owner code, both from a 32-character alphabet without `0`, `1`, `I` or `O`. The screen shows numbered steps (join this Wi-Fi, password, open `192.168.4.1`, owner code) with muted headings and bright values. The compact 128 × 160 screen alternates a Wi-Fi page and an owner-code page every ten seconds, and stays on the Wi-Fi page when there is no owner code to show. Web UI performs all setup; LCD has no input.
 - **Provisioned but network unavailable:** continue to show Overview with `Wi-Fi offline`; do not force setup mode or clear credentials on transient failures.
 
 ## 6. Web-configurable LCD settings

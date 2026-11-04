@@ -6,6 +6,8 @@
 #include <string>
 namespace monitor {
 std::string secure_token(size_t bytes = 24);
+// Random code from the unambiguous typing alphabet; empty on failure. See readable_code.hpp.
+std::string readable_secret(size_t length);
 class AuthService {
   public:
     esp_err_t initialize(); // Call after radio start so hardware entropy is available.

@@ -5,6 +5,7 @@
 #include "freertos/task.h"
 #include "nvs.h"
 #include "psa/crypto.h"
+#include "readable_code.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -56,6 +57,25 @@ std::string secure_token(size_t size) {
     }
     return text;
 }
+std::string readable_secret(size_t length) {
+    return make_readable_code(length, [](uint8_t *bytes, size_t size) {
+        return psa_generate_random(bytes, size) == PSA_SUCCESS;
+    });
+}
+namespace {
+// Generates and persists a new owner setup code; leaves `code` untouched on failure.
+esp_err_t store_new_setup_code(nvs_handle_t handle, std::string &code) {
+    auto fresh = readable_secret(owner_setup_code_length);
+    if (fresh.size() != owner_setup_code_length)
+        return ESP_FAIL;
+    auto result = nvs_set_str(handle, "bootstrap", fresh.c_str());
+    if (result == ESP_OK)
+        result = nvs_commit(handle);
+    if (result == ESP_OK)
+        code = std::move(fresh);
+    return result;
+}
+} // namespace
 esp_err_t AuthService::initialize() {
     if (psa_crypto_init() != PSA_SUCCESS)
         return ESP_FAIL;
@@ -87,17 +107,20 @@ esp_err_t AuthService::initialize() {
         size = sizeof(secret);
         result = nvs_get_str(handle, "bootstrap", secret, &size);
         if (result == ESP_ERR_NVS_NOT_FOUND) {
-            setup_ = secure_token(32);
-            if (setup_.size() != 64)
-                result = ESP_FAIL;
-            else {
-                result = nvs_set_str(handle, "bootstrap", setup_.c_str());
-                if (result == ESP_OK)
-                    result = nvs_commit(handle);
-            }
-        } else if (result == ESP_OK && size == 65)
+            result = store_new_setup_code(handle, setup_);
+        } else if (result == ESP_OK && is_readable_code(secret, owner_setup_code_length)) {
             setup_ = secret;
-        else
+        } else if (result == ESP_OK && is_legacy_hex_secret(secret, 64)) {
+            // Replace the old 64-character hex code with a short typeable one. If that fails the
+            // old code still works, so enrollment is never blocked.
+            setup_ = secret;
+            if (store_new_setup_code(handle, setup_) != ESP_OK)
+                ESP_LOGW("auth",
+                         "Could not shorten the owner setup code; keeping the existing one");
+            else
+                ESP_LOGI("auth", "Owner setup code replaced with a shorter format");
+            result = ESP_OK;
+        } else
             result = ESP_ERR_INVALID_STATE;
     } else
         result = ESP_OK;

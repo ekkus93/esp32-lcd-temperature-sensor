@@ -11,6 +11,7 @@
 #include "monitor.hpp"
 #include "nvs.h"
 #include "psa/crypto.h"
+#include "readable_code.hpp"
 #include "wifi_ap_window.hpp"
 #include "wifi_credentials.hpp"
 #include "wifi_scan_window.hpp"
@@ -99,17 +100,29 @@ esp_err_t WifiService::start() {
             nvs_close(handle);
             return ESP_FAIL;
         }
-        ap_password_ = secure_token(16);
-        if (ap_password_.size() != 32) {
+        ap_password_ = readable_secret(wifi_setup_key_length);
+        if (ap_password_.size() != wifi_setup_key_length) {
             nvs_close(handle);
             return ESP_FAIL;
         }
         result = nvs_set_str(handle, "ap_pass", ap_password_.c_str());
         if (result == ESP_OK)
             result = nvs_commit(handle);
-    } else if (result == ESP_OK && size >= 9)
+    } else if (result == ESP_OK && size >= 9) {
         ap_password_ = password;
-    else
+        if (is_legacy_hex_secret(ap_password_, 32) && psa_crypto_init() == PSA_SUCCESS) {
+            // Replace the old 32-character hex key with a short typeable one; keep the old key
+            // if that fails, since it is still a valid WPA2 passphrase.
+            auto fresh = readable_secret(wifi_setup_key_length);
+            if (fresh.size() == wifi_setup_key_length &&
+                nvs_set_str(handle, "ap_pass", fresh.c_str()) == ESP_OK &&
+                nvs_commit(handle) == ESP_OK) {
+                ap_password_ = fresh;
+                ESP_LOGI("wifi_control", "Setup Wi-Fi key replaced with a shorter format");
+            } else
+                ESP_LOGW("wifi_control", "Could not shorten the setup Wi-Fi key; keeping it");
+        }
+    } else
         result = ESP_ERR_INVALID_STATE;
     if (result != ESP_OK) {
         nvs_close(handle);

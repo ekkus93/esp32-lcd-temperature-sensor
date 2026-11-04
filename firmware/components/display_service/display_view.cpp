@@ -1,10 +1,12 @@
 #include "display_view.hpp"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 namespace monitor {
 namespace {
 constexpr uint32_t background = 0x101b20, foreground = 0xf1f5f6;
+constexpr uint32_t setup_muted = 0x9daeb6, setup_accent = 0x8fe3c8;
 lv_obj_t *screen() {
     auto *root = lv_obj_create(nullptr);
     lv_obj_set_size(root, lv_display_get_horizontal_resolution(nullptr),
@@ -52,15 +54,6 @@ uint32_t color(State state) {
     default:
         return 0x9be3c4;
     }
-}
-std::string wrapped(const std::string &value) {
-    std::string output;
-    for (size_t i = 0; i < value.size(); i += 16) {
-        if (i)
-            output += '\n';
-        output += value.substr(i, 16);
-    }
-    return output;
 }
 } // namespace
 DisplayView::DisplayView() {
@@ -116,13 +109,52 @@ DisplayView::DisplayView() {
         }
     }
     setup_ = screen();
-    text(label(setup_, compact ? 2 : 10, compact ? 0 : 10, compact ? 124 : 220,
-               compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14),
-         "Wi-Fi setup (read-only)");
-    setup_text_ = label(setup_, compact ? 2 : 10, compact ? 16 : 38, compact ? 124 : 220,
-                        compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
-    lv_obj_set_height(setup_text_, compact ? 144 : 280);
-    lv_label_set_long_mode(setup_text_, LV_LABEL_LONG_WRAP);
+    // Slots: 0 title, 1 step-1 heading, 2 SSID, 3 password heading, 4 password, 5 step-2
+    // heading, 6 address, 7 owner-code heading, 8 owner code, 9 page footer, 10 hint.
+    struct SlotLayout {
+        int x, y, width, height;
+        const lv_font_t *font;
+        uint32_t color;
+    };
+    const auto &small = compact ? lv_font_montserrat_12 : lv_font_montserrat_14;
+    const auto &medium = lv_font_montserrat_14;
+    const auto &large = compact ? lv_font_montserrat_14 : lv_font_montserrat_24;
+    const int x = compact ? 2 : 10, w = compact ? 124 : 220;
+    using SlotLayouts = std::array<SlotLayout, setup_slot_count>;
+    const SlotLayouts compact_layout{{
+        {x, 0, w, 16, &medium, foreground},    // title
+        {x, 20, w, 14, &small, setup_muted},   // 1 Join this Wi-Fi
+        {x, 35, w, 30, &small, foreground},    // SSID, two lines
+        {x, 68, w, 14, &small, setup_muted},   // Password
+        {x, 83, w, 18, &large, setup_accent},  // password value
+        {x, 106, w, 14, &small, setup_muted},  // 2 Open in a browser
+        {x, 121, w, 18, &large, setup_accent}, // address
+        {x, 20, w, 14, &small, setup_muted},   // owner heading (page 2)
+        {x, 35, w, 36, &large, setup_accent},  // owner code, two lines (page 2)
+        {x, 143, w, 14, &small, setup_muted},  // page footer
+        {x, 84, w, 32, &small, setup_muted},   // hint (page 2)
+    }};
+    const SlotLayouts large_layout{{
+        {x, 10, w, 18, &medium, foreground},   // title
+        {x, 44, w, 16, &small, setup_muted},   // 1 Join this Wi-Fi
+        {x, 64, w, 18, &medium, foreground},   // SSID
+        {x, 98, w, 16, &small, setup_muted},   // Password
+        {x, 118, w, 30, &large, setup_accent}, // password value
+        {x, 162, w, 16, &small, setup_muted},  // 2 Open in a browser
+        {x, 182, w, 30, &large, setup_accent}, // address
+        {x, 226, w, 16, &small, setup_muted},  // 3 Owner code
+        {x, 246, w, 60, &large, setup_accent}, // owner code, two lines
+        {x, 300, w, 16, &small, setup_muted},  // unused on this layout
+        {x, 300, w, 16, &small, setup_muted},  // unused on this layout
+    }};
+    const SlotLayouts &layouts = compact ? compact_layout : large_layout;
+    for (size_t i = 0; i < setup_slot_count; ++i) {
+        setup_slots_[i] =
+            label(setup_, layouts[i].x, layouts[i].y, layouts[i].width, layouts[i].font);
+        lv_obj_set_height(setup_slots_[i], layouts[i].height);
+        lv_label_set_long_mode(setup_slots_[i], LV_LABEL_LONG_WRAP);
+        lv_obj_set_style_text_color(setup_slots_[i], lv_color_hex(layouts[i].color), 0);
+    }
     lv_screen_load(overview_.root);
 }
 DisplayView::~DisplayView() {
@@ -251,14 +283,48 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
 }
 void DisplayView::provisioning(const std::string &ssid, const std::string &wifi_key,
                                const std::string &owner_code) {
-    if (lv_display_get_horizontal_resolution(nullptr) <= 128) {
-        const bool owner_page = (lv_tick_get() / 10000) % 2;
-        text(setup_text_, owner_page ? "Owner code:\n" + wrapped(owner_code) + "\n(2/2)"
-                                     : "Connect:\n" + wrapped(ssid) + "\nKey:\n" +
-                                           wrapped(wifi_key) + "\n192.168.4.1\n(1/2)");
+    const bool compact = lv_display_get_horizontal_resolution(nullptr) <= 128;
+    const bool has_owner_code = !owner_code.empty();
+    // The compact screen alternates between the Wi-Fi page and the owner-code page, but only when
+    // there is an owner code to show (an enrolled device has none).
+    const bool owner_page = compact && has_owner_code && (lv_tick_get() / 10000) % 2;
+    // Codes are wrapped in two equal lines so each line fits the screen without breaking a word.
+    auto two_lines = [](const std::string &code) {
+        const size_t half = (code.size() + 1) / 2;
+        return code.size() <= 8 ? code : code.substr(0, half) + "\n" + code.substr(half);
+    };
+    auto set = [&](size_t slot, const std::string &value) {
+        text(setup_slots_[slot], value);
+        lv_obj_set_hidden(setup_slots_[slot], value.empty());
+    };
+    const std::string title = owner_page ? "Owner code" : "Wi-Fi setup";
+    if (compact && owner_page) {
+        for (size_t slot : {size_t(1), size_t(2), size_t(3), size_t(4), size_t(5), size_t(6)})
+            set(slot, "");
+        set(0, title);
+        set(7, "Owner setup code:");
+        set(8, two_lines(owner_code));
+        set(10, "Type it once at\n192.168.4.1");
+        set(9, "2/2");
     } else {
-        text(setup_text_, "Connect to:\n" + ssid + "\nWi-Fi key:\n" + wrapped(wifi_key) +
-                              "\nOpen 192.168.4.1\nOwner code:\n" + wrapped(owner_code));
+        set(0, title);
+        set(1, "1  Join this Wi-Fi");
+        // "TempMonitor-XXXXXX" is wider than the compact screen, so break it after the hyphen
+        // instead of letting it wrap or clip unpredictably.
+        const auto dash = ssid.find('-');
+        set(2, compact && dash != std::string::npos && dash + 1 < ssid.size()
+                   ? ssid.substr(0, dash + 1) + "\n" + ssid.substr(dash + 1)
+                   : ssid);
+        set(3, "Password");
+        set(4, wifi_key);
+        set(5, "2  Open in a browser");
+        set(6, "192.168.4.1");
+        set(7, compact ? "" : "3  One-time owner code");
+        set(8, compact ? "" : two_lines(owner_code));
+        set(10, "");
+        set(9, compact && has_owner_code ? "1/2" : "");
+        if (!compact && !has_owner_code)
+            set(7, "");
     }
     if (lv_screen_active() != setup_)
         lv_screen_load(setup_);

@@ -24,7 +24,11 @@ class DisplayView {
         std::array<lv_chart_series_t *, max_sensors> series{};
     };
     Screen overview_{}, trends_{};
-    lv_obj_t *setup_ = nullptr, *setup_text_ = nullptr;
+    // Setup screen: title, "1 join" heading/SSID, password heading/value, "2 open" heading/URL,
+    // owner-code heading/value, a hint and a page footer, shown or hidden per layout and page.
+    static constexpr size_t setup_slot_count = 11;
+    lv_obj_t *setup_ = nullptr;
+    std::array<lv_obj_t *, setup_slot_count> setup_slots_{};
     DisplayCycle cycle_;
     DisplayOptions options_;
     bool configured_ = false, showing_trends_ = false;
