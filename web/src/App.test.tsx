@@ -24,7 +24,7 @@ it('shows empty sensors honestly without a fabricated reading', async () => {
   expect(
     screen.queryByText(/No history available yet/),
   ).not.toBeInTheDocument();
-  expect(screen.queryByText('0.0 °C')).not.toBeInTheDocument();
+  expect(screen.queryByText('32.0 °F')).not.toBeInTheDocument();
 });
 it('shows the age of the latest valid probe reading', async () => {
   const snapshot = {
@@ -48,7 +48,7 @@ it('shows the age of the latest valid probe reading', async () => {
   );
   render(<App />);
   expect(await screen.findByText('Updated 5 seconds ago')).toBeInTheDocument();
-  expect(screen.getByText('-18.5 °C')).toBeInTheDocument();
+  expect(screen.getByText('-1.3 °F')).toBeInTheDocument();
 });
 it('shows all five probes with long labels without dropping readings', async () => {
   const sensors = Array.from({ length: 5 }, (_, index) => ({
@@ -71,7 +71,7 @@ it('shows all five probes with long labels without dropping readings', async () 
   expect(
     await screen.findByText('Probe 5 insulated utility room'),
   ).toBeInTheDocument();
-  expect(screen.getByText('24.0 °C')).toBeInTheDocument();
+  expect(screen.getByText('75.2 °F')).toBeInTheDocument();
 });
 it('keeps healthy sensors visible alongside bus and per-probe fault states', async () => {
   const snapshot = {
@@ -132,7 +132,7 @@ it('keeps healthy sensors visible alongside bus and per-probe fault states', asy
   expect(screen.getByText('high')).toBeInTheDocument();
   expect(screen.getByText('disabled')).toBeInTheDocument();
   expect(screen.getByText('disconnected')).toBeInTheDocument();
-  expect(screen.getByText('21.0 °C')).toBeInTheDocument();
+  expect(screen.getByText('69.8 °F')).toBeInTheDocument();
 });
 it('reports excess and incomplete physical probe discovery', async () => {
   vi.stubGlobal(

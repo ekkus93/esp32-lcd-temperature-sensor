@@ -66,6 +66,24 @@ int main(int argc, char **argv) {
             view.render(registry, cache, options, status, 0);
             save("overview-" + std::to_string(count));
         }
+        {
+            // DS18B20 extremes must fit the same 7-character value field in both scales.
+            auto extremes = fake_readings(2);
+            *extremes[0].celsius = 125;
+            *extremes[1].celsius = -55;
+            Registry extreme_registry;
+            extreme_registry.sample(extremes, 0);
+            const auto fahrenheit_rows = display_rows(extreme_registry, true);
+            CHECK(fahrenheit_rows[0].value == "257.0\xC2\xB0"
+                                              "F");
+            CHECK(fahrenheit_rows[1].value == "-67.0\xC2\xB0"
+                                              "F");
+            const auto celsius_rows = display_rows(extreme_registry, false);
+            CHECK(celsius_rows[0].value == "125.0\xC2\xB0"
+                                           "C");
+            CHECK(celsius_rows[1].value == "-55.0\xC2\xB0"
+                                           "C");
+        }
         auto sensors = registry.sensors();
         for (unsigned i = 0; i < sensors.size(); ++i) {
             auto settings = sensors[i].settings;
@@ -88,10 +106,13 @@ int main(int argc, char **argv) {
         status.local_time = "23:59";
         status.wifi = "connected";
         status.logging = true;
-        options.fahrenheit = true;
+        CHECK(options.fahrenheit); // default scale
         view.render(registry, cache, options, status, 6000);
         save("overview-negative-fahrenheit");
         options.fahrenheit = false;
+        view.render(registry, cache, options, status, 6000);
+        save("overview-negative-celsius");
+        options.fahrenheit = true;
         status.local_time.clear();
         registry.sample(fake_readings(), 10000);
         view.render(registry, cache, options, status, 10000);
@@ -210,6 +231,26 @@ int main(int argc, char **argv) {
                 bucket.sensors.push_back(
                     {sensor.rom, 20.0 + double(t / bucket_ms), 18, 34, 60, false});
             cache.add(bucket);
+        }
+        {
+            // Compact Overview in the default Fahrenheit scale at the DS18B20 extremes.
+            auto readings = fake_readings(5);
+            const double celsius_values[] = {125.0, -55.0, 37.8, 18.0625, 0.0};
+            for (size_t i = 0; i < 5; ++i)
+                readings[i].celsius = celsius_values[i];
+            Registry compact_registry;
+            compact_registry.sample(readings, 0);
+            CHECK(options.fahrenheit && !options.extended);
+            view.render(compact_registry, cache, options, status, 1000);
+            lv_tick_inc(50);
+            lv_refr_now(display);
+            save("overview-compact-fahrenheit");
+            options.fahrenheit = false;
+            view.render(compact_registry, cache, options, status, 1000);
+            lv_tick_inc(50);
+            lv_refr_now(display);
+            save("overview-compact-celsius");
+            options.fahrenheit = true;
         }
         options.extended = true;
         options.overview_seconds = 5;

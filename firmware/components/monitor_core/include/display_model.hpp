@@ -15,7 +15,7 @@ class TrendCache {
     std::deque<Bucket> buckets_; // <= 24 hours of five-minute windows, RAM only
 };
 struct DisplayOptions {
-    bool fahrenheit = false;
+    bool fahrenheit = true; // default scale; saved TMD1 settings keep their own value
     bool extended = false;
     unsigned overview_seconds = 20, trends_seconds = 10, lookback_minutes = 60;
 };

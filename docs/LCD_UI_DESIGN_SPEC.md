@@ -102,7 +102,7 @@ Use at most the ~240 × 320 canvas; prefer one tiny line chart per sensor rather
 | Overview duration | `20 s` | Active only in Extended mode |
 | Trends duration | `10 s` | Active only in Extended mode |
 | Trends time range | `60 min` | Suggested choices: 15 min / 1 h / 6 h / 24 h; bound by available history |
-| Temperature units | `°C` | `°C` / `°F`; applies to LCD and web UI by configured preference |
+| Temperature units | `°F` | `°C` / `°F`; applies to LCD and web UI by configured preference. The default applies to new installs; a saved preference is kept |
 | Time zone | User-selected | Store an unambiguous time-zone rule/identifier |
 | Sensor name | User-defined | Stable mapping to DS18B20 ROM ID |
 | Sensor enable | Enabled for discovered sensors | Disabling suppresses alerts from that sensor |

@@ -19,6 +19,11 @@ int main() {
     const auto restored_utc = decode_device_options(encode_device_options(saved_utc));
     CHECK(restored_utc && restored_utc->timezone == "UTC");
     CHECK(!options.extended && options.overview_seconds == 20 && options.trends_seconds == 10);
+    CHECK(options.fahrenheit); // new installs default to Fahrenheit
+    auto saved_celsius = options;
+    saved_celsius.fahrenheit = false;
+    const auto restored_celsius = decode_device_options(encode_device_options(saved_celsius));
+    CHECK(restored_celsius && !restored_celsius->fahrenheit); // saved Celsius is preserved
     options.extended = true;
     options.fahrenheit = true;
     options.timezone = "America/Los_Angeles";

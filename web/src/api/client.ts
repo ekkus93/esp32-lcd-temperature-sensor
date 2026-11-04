@@ -30,7 +30,7 @@ export async function getSnapshot(signal?: AbortSignal): Promise<Snapshot> {
 }
 export function temperature(
   value: number | null,
-  unit: 'C' | 'F' = 'C',
+  unit: 'C' | 'F' = 'F',
 ): string {
   if (value === null || !Number.isFinite(value)) return '—';
   return `${(unit === 'F' ? value * 1.8 + 32 : value).toFixed(1)} °${unit}`;

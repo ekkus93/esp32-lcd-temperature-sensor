@@ -155,7 +155,7 @@ Use distinct, comprehensible sections/cards:
 - **Overview dwell:** default **20 seconds** in Extended mode, adjustable independently.
 - **Trends dwell:** default **10 seconds** in Extended mode, adjustable independently.
 - **Trends lookback range:** default **60 minutes** (LCD's five small sparklines); granularity constrained by available 5-minute history; the live measurement remains separate.
-- **Units:** Celsius/Fahrenheit, default °C.
+- **Units:** Celsius/Fahrenheit, default °F (new installs; saved preferences are kept). The API, history and CSV stay Celsius.
 - Optional `Show disabled sensors`, LCD label preview and **backlight control only after hardware BL pin capability is verified**. Do not promise software brightness control until confirmed.
 - No on-LCD tap/press workflow. Preview with accurate 240×320 portrait mock on web.
 

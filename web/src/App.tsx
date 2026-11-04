@@ -47,7 +47,7 @@ export default function App() {
   const [dark, setDark] = useState(
     () => matchMedia?.('(prefers-color-scheme: dark)').matches ?? false,
   );
-  const [unit, setUnit] = useState<'C' | 'F'>('C');
+  const [unit, setUnit] = useState<'C' | 'F'>('F');
   const [timezone, setTimezone] = useState<string | null>(null);
   const [probeScan, setProbeScan] = useState<ProbeScanStatus | null>(null);
   const applySettings = useCallback(

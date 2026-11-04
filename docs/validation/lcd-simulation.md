@@ -25,7 +25,10 @@ Names are constrained to one line after visual review caught overlapping wraps.
 | Empty positions | [Overview](lcd-simulation/overview-empty.png) |
 | Five readings | [Overview](lcd-simulation/overview-5.png) |
 | Long labels and five warnings | [Overview](lcd-simulation/overview-five-warnings-long-names.png) |
-| Negative values and trusted time | [Overview](lcd-simulation/overview-negative-fahrenheit.png) |
+| Negative values and trusted time (Fahrenheit, the default) | [Overview](lcd-simulation/overview-negative-fahrenheit.png) |
+| Same values in Celsius | [Overview](lcd-simulation/overview-negative-celsius.png) |
+| Compact 128 × 160 Overview at DS18B20 extremes, Fahrenheit | [Overview](lcd-simulation/overview-compact-fahrenheit.png) |
+| Compact 128 × 160 Overview, Celsius | [Overview](lcd-simulation/overview-compact-celsius.png) |
 | No history | [Trends](lcd-simulation/trends-no-data.png) |
 | Missing interval | [Trends](lcd-simulation/trends-negative-with-gap.png) |
 | Bus fault | [Overview](lcd-simulation/overview-bus-fault.png) |
