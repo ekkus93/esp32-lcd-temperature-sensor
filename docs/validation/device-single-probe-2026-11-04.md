@@ -1,9 +1,8 @@
 # Single physical probe bring-up and authenticated load — 2026-11-04
 
 Hardware: the connected ESP32-S3 board with the ST7735 LCD, one DS18B20 probe on
-GPIO4 and the owner's wiring. The owner did not confirm whether exactly one
-4.7 kΩ pull-up is fitted, so T02-14's wiring criteria are not closed by this
-record. Firmware: ESP-IDF v6.1 image built with `CONFIG_MONITOR_SENSOR_BUS=y`
+GPIO4 and the owner's wiring. The owner later confirmed (below) that exactly one
+4.7 kΩ pull-up is fitted. Firmware: ESP-IDF v6.1 image built with `CONFIG_MONITOR_SENSOR_BUS=y`
 (the default image leaves GPIO4 untouched), flashed with a plain `idf.py flash`.
 
 ## Bring-up (T02-14, T02-15 partial)
@@ -54,3 +53,18 @@ The owner saw only the Temps (Overview) screen during the test because the
 saved display mode is `basic`, which never shows Trends. Trends cycling in
 `extended` mode, readability across all screens at the real size and a long
 soak are not yet checked.
+
+## Pull-up confirmation (T02-14)
+
+The owner confirmed the probe is wired through one of the adapter boards supplied
+with the sensors and that its 4.7 kΩ resistor is the only pull-up on the data
+line. This is owner-reported and was not measured with a meter; it is consistent with
+the valid CRC read on every one of the 43 cycles logged under load. T02-14 is closed
+for this single-probe setup.
+
+For two to five probes: if each probe sits on its own adapter board, every board's
+4.7 kΩ resistor would be in parallel (five boards would be about 940 Ω, roughly
+3.5 mA of pull-up current at 3.3 V), which is stronger than intended and can
+corrupt reads. Use one pull-up in total, either by removing or desoldering the resistor
+on all but one board or by using boards without a resistor, and measure about
+4.7 kΩ between `GPIO4` and `3V3` with the probes detached before T02-15.
