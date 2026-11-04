@@ -47,5 +47,9 @@ six-digit suffix on two lines, "Password" with the 12-character key on one line,
 enrolled, so there is no owner code page). The photo has a strong blue cast, so
 the muted-heading and bright-value colours could not be judged from it. The
 photo is not stored in the repository because it shows a live setup password.
-Not confirmed: the on-screen hold-progress indicator during the hold, the
-owner-code page (no unenrolled device was available), and typing the key on a phone.
+The owner then confirmed seeing the hold-progress percentage on the LCD during
+the hold and liked it; that closes the LCD progress, SoftAP-entry and
+continued-sampling criteria of T05-10 on the connected board. Not confirmed: the
+owner-code page (no unenrolled device was available), typing the key on a phone,
+and setup while the router is unavailable (T10-10). After the photo the board was
+reset over USB and returned to normal operation with settings preserved.
