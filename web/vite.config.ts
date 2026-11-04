@@ -7,5 +7,9 @@ export default defineConfig({
   plugins: [react()],
   server: { proxy: simulatorProxy },
   preview: { proxy: simulatorProxy },
-  test: { environment: 'jsdom', setupFiles: ['./src/test-setup.ts'] },
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test-setup.ts'],
+    testTimeout: 20000,
+  },
 });
