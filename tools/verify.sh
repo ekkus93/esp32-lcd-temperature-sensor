@@ -16,7 +16,7 @@ else
   echo "LVGL render checks unavailable: resolve pinned firmware components with idf.py build first."
   exit 1
 fi
-rg --files -0 firmware -g '*.cpp' -g '*.hpp' -g '*.h' -g '!**/build/**' -g '!**/managed_components/**' -g '!**/generated/**' | xargs -0 clang-format --dry-run --Werror
+rg --files -0 firmware -g '*.cpp' -g '*.hpp' -g '*.h' -g '!**/build/**' -g '!**/build-sim/**' -g '!**/managed_components/**' -g '!**/generated/**' | xargs -0 clang-format --dry-run --Werror
 npm --prefix web run format:check
 npm --prefix web run lint
 npm --prefix web run test
