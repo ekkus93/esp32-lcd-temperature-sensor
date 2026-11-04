@@ -39,3 +39,18 @@ Limits: one probe, 120 seconds, one client machine on the LAN, no concurrent
 flash-write stress beyond the normal five-minute history cadence and no soak. This
 is host-driven network load and does not establish five-probe, long-soak or
 optical results.
+
+## LCD alert appearance (T04-14 partial)
+
+With the probe reading about 18.9 °C, Sensor 1's high threshold was temporarily
+set to 15 °C through the authenticated sensor API (persistence 15 s, hysteresis
+0.5 °C). After about 21 seconds the API reported state `high`, one active alert
+and a logged alert event. The owner reported the LCD row showed "HIGH", that it was
+readable without relying on colour alone, and that the red alert colour is
+liked. The original settings (no low/high limit, persistence 15 s, hysteresis
+0.5 °C, calibration 0) were restored afterwards and the alert cleared.
+
+The owner saw only the Temps (Overview) screen during the test because the
+saved display mode is `basic`, which never shows Trends. Trends cycling in
+`extended` mode, readability across all screens at the real size and a long
+soak are not yet checked.

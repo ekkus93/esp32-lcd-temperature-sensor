@@ -94,7 +94,7 @@ The original ST7789 path remains selectable. No probes were connected.
 - [x] **T04-11** Render `--:--` without trusted time; refresh local time with timezone/DST once synchronized. The view substitutes `--:--` for an empty trusted-time value and receives the timezone-aware local time on every sample cycle. Headless render regression verifies the unsynchronized-to-synchronized display change; physical validation remains open under T04-14.
 - [x] **T04-12** Implement efficient event-driven repaint and small trend cache; do not reload LittleFS or reallocate all LVGL objects per screen switch.
 - [x] **T04-13** Add screenshots/simulated render tests for 0–5 probes, longest allowed names, negative temperatures, five warnings, and `NO DATA` trends.
-- [ ] **T04-14 [HW]** Inspect physical readability at the real screen size, adjust font sizes/truncation/contrast and confirm cycling/alerts over long soak test.
+- [ ] **T04-14 [HW]** Inspect physical readability at the real screen size, adjust font sizes/truncation/contrast and confirm cycling/alerts over long soak test. **2026-11-04:** a temporary high-threshold alert showed "HIGH" on the real LCD Overview, readable without relying on colour alone per the owner; Trends cycling (needs `extended` mode), other readability checks and the long soak remain ([record](validation/device-single-probe-2026-11-04.md)).
 
 **Phase gate:** exactly two normal read-only views; no requirement for touch, menus or additional buttons. Boot and first-run AP state are handled gracefully.
 
