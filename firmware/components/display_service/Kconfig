@@ -15,13 +15,13 @@ config MONITOR_LCD_TEST_PATTERN
 		physical panel bring-up. Keep disabled for normal firmware builds.
 
 config MONITOR_LCD_FLUSH_DIAG
-	bool "Log LVGL flush-to-completion timing on the normal UI"
+	bool "Log LVGL flush-to-transfer-complete timing on the normal UI"
 	default n
 	help
-		Log LCD_DIAG flush_to_wait_complete_us for each LVGL flush while the
-		normal display view runs. This is software transfer timing, not optical
-		refresh latency, and the interval ends at LVGL's next flush wait, so
-		it is only meaningful for back-to-back flushes; a lone repaint reports
-		the time until the next repaint. Keep disabled for normal firmware builds.
+		Every ten seconds log LCD_DIAG flush_us with the cumulative count,
+		minimum, average and maximum time from LVGL flush start to SPI transfer
+		completion. This replaces esp_lvgl_port's transfer-done callback with an
+		equivalent one that timestamps first. It is software timing, not optical
+		refresh latency. Keep disabled for normal firmware builds.
 
 endmenu

@@ -11,6 +11,9 @@
 #if CONFIG_MONITOR_LCD_TEST_PATTERN || CONFIG_MONITOR_LCD_FLUSH_DIAG
 #include "esp_timer.h"
 #endif
+#if CONFIG_MONITOR_LCD_FLUSH_DIAG
+#include <atomic>
+#endif
 #if CONFIG_MONITOR_LCD_TEST_PATTERN
 #include <tuple>
 #endif
@@ -28,7 +31,7 @@ constexpr int height = 320;
 constexpr int draw_height = 40;
 constexpr int spi_frequency_hz = 20000000;
 
-#if CONFIG_MONITOR_LCD_TEST_PATTERN || CONFIG_MONITOR_LCD_FLUSH_DIAG
+#if CONFIG_MONITOR_LCD_TEST_PATTERN
 int64_t flush_started_us = 0;
 void diagnostic_flush_event(lv_event_t *event) {
     if (lv_event_get_code(event) == LV_EVENT_FLUSH_START) {
@@ -38,6 +41,53 @@ void diagnostic_flush_event(lv_event_t *event) {
                  static_cast<long long>(esp_timer_get_time() - flush_started_us));
         flush_started_us = 0;
     }
+}
+#endif
+
+#if CONFIG_MONITOR_LCD_FLUSH_DIAG
+// LVGL flush start to SPI transfer-complete time. Values are 32-bit
+// microseconds, so unsigned subtraction survives timer wrap; the cumulative sum
+// wraps after about 71 minutes of flushing, which is beyond a diagnostic run.
+// The completion callback runs in interrupt context, so it only touches
+// lock-free atomics and logging happens later from update().
+std::atomic<uint32_t> flush_diag_start_us{0};
+std::atomic<uint32_t> flush_diag_count{0};
+std::atomic<uint32_t> flush_diag_sum_us{0};
+std::atomic<uint32_t> flush_diag_min_us{UINT32_MAX};
+std::atomic<uint32_t> flush_diag_max_us{0};
+int64_t flush_diag_logged_ms = 0;
+
+void flush_diag_start_event(lv_event_t *) {
+    flush_diag_start_us.store(static_cast<uint32_t>(esp_timer_get_time()),
+                              std::memory_order_relaxed);
+}
+
+// Replaces esp_lvgl_port's transfer-done callback, which only calls
+// lv_display_flush_ready() and returns false, after timestamping completion.
+bool flush_diag_done(esp_lcd_panel_io_handle_t, esp_lcd_panel_io_event_data_t *, void *user_ctx) {
+    const uint32_t elapsed = static_cast<uint32_t>(esp_timer_get_time()) -
+                             flush_diag_start_us.load(std::memory_order_relaxed);
+    flush_diag_count.fetch_add(1, std::memory_order_relaxed);
+    flush_diag_sum_us.fetch_add(elapsed, std::memory_order_relaxed);
+    if (elapsed < flush_diag_min_us.load(std::memory_order_relaxed))
+        flush_diag_min_us.store(elapsed, std::memory_order_relaxed);
+    if (elapsed > flush_diag_max_us.load(std::memory_order_relaxed))
+        flush_diag_max_us.store(elapsed, std::memory_order_relaxed);
+    lv_display_flush_ready(static_cast<lv_display_t *>(user_ctx));
+    return false;
+}
+
+void flush_diag_log(int64_t uptime_ms) {
+    if (uptime_ms - flush_diag_logged_ms < 10000)
+        return;
+    flush_diag_logged_ms = uptime_ms;
+    const uint32_t count = flush_diag_count.load(std::memory_order_relaxed);
+    if (count == 0)
+        return;
+    ESP_LOGI(tag, "LCD_DIAG flush_us count=%u min=%u avg=%u max=%u", (unsigned)count,
+             (unsigned)flush_diag_min_us.load(std::memory_order_relaxed),
+             (unsigned)(flush_diag_sum_us.load(std::memory_order_relaxed) / count),
+             (unsigned)flush_diag_max_us.load(std::memory_order_relaxed));
 }
 #endif
 
@@ -188,12 +238,19 @@ bool DisplayRuntime::initialize() {
         deinitialize();
         return false;
     }
+#if CONFIG_MONITOR_LCD_FLUSH_DIAG
+    {
+        const esp_lcd_panel_io_callbacks_t callbacks = {.on_color_trans_done = flush_diag_done};
+        esp_lcd_panel_io_register_event_callbacks(panel_io_, &callbacks, display_);
+        lv_display_add_event_cb(display_, flush_diag_start_event, LV_EVENT_FLUSH_START, nullptr);
+    }
+#endif
     if (!lvgl_port_lock(1000)) {
         ESP_LOGE(tag, "LVGL lock timed out during view initialization");
         deinitialize();
         return false;
     }
-#if CONFIG_MONITOR_LCD_TEST_PATTERN || CONFIG_MONITOR_LCD_FLUSH_DIAG
+#if CONFIG_MONITOR_LCD_TEST_PATTERN
     lv_display_add_event_cb(display_, diagnostic_flush_event, LV_EVENT_ALL, nullptr);
 #endif
     view_.reset(new (std::nothrow) DisplayView());
@@ -226,6 +283,10 @@ void DisplayRuntime::update(const Registry &registry, const TrendCache &cache,
                             const DisplayOptions &options, const DisplayStatus &status,
                             int64_t uptime_ms, bool provisioning, const std::string &ssid,
                             const std::string &wifi_key, const std::string &owner_code) {
+#if CONFIG_MONITOR_LCD_FLUSH_DIAG
+    if (ready())
+        flush_diag_log(uptime_ms);
+#endif
     if (!ready() || !lvgl_port_lock(100))
         return;
 #if CONFIG_MONITOR_LCD_TEST_PATTERN
