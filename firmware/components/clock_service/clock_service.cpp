@@ -1,5 +1,8 @@
 #include "clock_service.hpp"
+#include "esp_event.h"
+#include "esp_log.h"
 #include "esp_netif_sntp.h"
+#include "esp_sntp.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -14,11 +17,30 @@ std::atomic<int64_t> last_sync_utc_seconds{-1};
 std::atomic<int64_t> last_sync_monotonic_ms{-1};
 SemaphoreHandle_t clock_mutex = nullptr;
 bool initialized = false;
+bool ip_handler_registered = false;
 std::string server;
+
+// SNTP is started with the radio, before the station has an address. lwIP then backs off its
+// retries exponentially (15 s doubling to 150 s) after the first request fails, so the clock
+// could stay unsynchronized for minutes although the network was up within seconds. Restarting
+// SNTP when an address arrives resets that backoff and sends the first real query immediately.
+void restart_sntp_on_new_address(void *, esp_event_base_t, int32_t, void *) {
+    if (esp_sntp_restart())
+        ESP_LOGI("clock", "Network address acquired; SNTP restarted");
+}
 } // namespace
 bool start_clock(const DeviceOptions &options) {
     clock_mutex = xSemaphoreCreateMutex();
-    return clock_mutex && configure_clock(options);
+    if (!clock_mutex || !configure_clock(options))
+        return false;
+    if (!ip_handler_registered) {
+        ip_handler_registered =
+            esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, restart_sntp_on_new_address,
+                                       nullptr) == ESP_OK;
+        if (!ip_handler_registered)
+            ESP_LOGW("clock", "Could not watch for the network address; SNTP retries may be slow");
+    }
+    return true;
 }
 bool configure_clock(const DeviceOptions &options) {
     if (!valid_device_options(options) || !clock_mutex ||
