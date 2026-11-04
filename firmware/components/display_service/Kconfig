@@ -20,7 +20,8 @@ config MONITOR_LCD_FLUSH_DIAG
 	help
 		Every ten seconds log LCD_DIAG flush_us with the cumulative count,
 		minimum, average and maximum time from LVGL flush start to SPI transfer
-		completion. This replaces esp_lvgl_port's transfer-done callback with an
+		completion, for each strip and for each whole frame (first strip's flush
+		start to the last strip's completion). This replaces esp_lvgl_port's transfer-done callback with an
 		equivalent one that timestamps first. It is software timing, not optical
 		refresh latency. Keep disabled for normal firmware builds.
 

@@ -271,6 +271,23 @@ int main(int argc, char **argv) {
             return index;
         };
         CHECK(selected() == 0);
+        {
+            // Repeated renders of unchanged data while Trends is shown must not repaint.
+            unsigned trend_invalidations = 0;
+            lv_display_add_event_cb(
+                display,
+                [](lv_event_t *event) {
+                    ++*static_cast<unsigned *>(lv_event_get_user_data(event));
+                },
+                LV_EVENT_INVALIDATE_AREA, &trend_invalidations);
+            lv_refr_now(display);
+            trend_invalidations = 0;
+            for (int64_t t = 3605100; t <= 3606000; t += 100)
+                view.render(registry, cache, options, status, t);
+            CHECK(view.showing_trends());
+            CHECK(trend_invalidations == 0);
+            lv_display_remove_event(display, lv_display_get_event_count(display) - 1);
+        }
         lv_obj_update_layout(lv_screen_active());
         auto *first_chart = lv_obj_get_child(lv_screen_active(), 6);
         CHECK(lv_obj_get_width(first_chart) == 120 && lv_obj_get_height(first_chart) == 75);

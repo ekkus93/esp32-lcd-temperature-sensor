@@ -55,25 +55,52 @@ std::atomic<uint32_t> flush_diag_count{0};
 std::atomic<uint32_t> flush_diag_sum_us{0};
 std::atomic<uint32_t> flush_diag_min_us{UINT32_MAX};
 std::atomic<uint32_t> flush_diag_max_us{0};
+// Whole-frame timing: first strip's flush start to the last strip's transfer completion.
+std::atomic<bool> flush_diag_in_frame{false};
+std::atomic<uint32_t> flush_diag_frame_start_us{0};
+std::atomic<uint32_t> flush_diag_frame_count{0};
+std::atomic<uint32_t> flush_diag_frame_sum_us{0};
+std::atomic<uint32_t> flush_diag_frame_min_us{UINT32_MAX};
+std::atomic<uint32_t> flush_diag_frame_max_us{0};
+// Largest frame since the previous log line, so periodic full-screen switches stand out from
+// the boot-time render that dominates the cumulative maximum.
+std::atomic<uint32_t> flush_diag_frame_interval_max_us{0};
 int64_t flush_diag_logged_ms = 0;
 
 void flush_diag_start_event(lv_event_t *) {
-    flush_diag_start_us.store(static_cast<uint32_t>(esp_timer_get_time()),
-                              std::memory_order_relaxed);
+    const auto now = static_cast<uint32_t>(esp_timer_get_time());
+    flush_diag_start_us.store(now, std::memory_order_relaxed);
+    if (!flush_diag_in_frame.load(std::memory_order_relaxed)) {
+        flush_diag_frame_start_us.store(now, std::memory_order_relaxed);
+        flush_diag_in_frame.store(true, std::memory_order_relaxed);
+    }
 }
 
 // Replaces esp_lvgl_port's transfer-done callback, which only calls
 // lv_display_flush_ready() and returns false, after timestamping completion.
 bool flush_diag_done(esp_lcd_panel_io_handle_t, esp_lcd_panel_io_event_data_t *, void *user_ctx) {
-    const uint32_t elapsed = static_cast<uint32_t>(esp_timer_get_time()) -
-                             flush_diag_start_us.load(std::memory_order_relaxed);
+    const auto now = static_cast<uint32_t>(esp_timer_get_time());
+    const uint32_t elapsed = now - flush_diag_start_us.load(std::memory_order_relaxed);
     flush_diag_count.fetch_add(1, std::memory_order_relaxed);
     flush_diag_sum_us.fetch_add(elapsed, std::memory_order_relaxed);
     if (elapsed < flush_diag_min_us.load(std::memory_order_relaxed))
         flush_diag_min_us.store(elapsed, std::memory_order_relaxed);
     if (elapsed > flush_diag_max_us.load(std::memory_order_relaxed))
         flush_diag_max_us.store(elapsed, std::memory_order_relaxed);
-    lv_display_flush_ready(static_cast<lv_display_t *>(user_ctx));
+    auto *display = static_cast<lv_display_t *>(user_ctx);
+    if (lv_display_flush_is_last(display) && flush_diag_in_frame.load(std::memory_order_relaxed)) {
+        const uint32_t frame = now - flush_diag_frame_start_us.load(std::memory_order_relaxed);
+        flush_diag_frame_count.fetch_add(1, std::memory_order_relaxed);
+        flush_diag_frame_sum_us.fetch_add(frame, std::memory_order_relaxed);
+        if (frame < flush_diag_frame_min_us.load(std::memory_order_relaxed))
+            flush_diag_frame_min_us.store(frame, std::memory_order_relaxed);
+        if (frame > flush_diag_frame_max_us.load(std::memory_order_relaxed))
+            flush_diag_frame_max_us.store(frame, std::memory_order_relaxed);
+        if (frame > flush_diag_frame_interval_max_us.load(std::memory_order_relaxed))
+            flush_diag_frame_interval_max_us.store(frame, std::memory_order_relaxed);
+        flush_diag_in_frame.store(false, std::memory_order_relaxed);
+    }
+    lv_display_flush_ready(display);
     return false;
 }
 
@@ -88,6 +115,14 @@ void flush_diag_log(int64_t uptime_ms) {
              (unsigned)flush_diag_min_us.load(std::memory_order_relaxed),
              (unsigned)(flush_diag_sum_us.load(std::memory_order_relaxed) / count),
              (unsigned)flush_diag_max_us.load(std::memory_order_relaxed));
+    const uint32_t frames = flush_diag_frame_count.load(std::memory_order_relaxed);
+    if (frames)
+        ESP_LOGI(tag, "LCD_DIAG frame_us count=%u min=%u avg=%u max=%u interval_max=%u",
+                 (unsigned)frames,
+                 (unsigned)flush_diag_frame_min_us.load(std::memory_order_relaxed),
+                 (unsigned)(flush_diag_frame_sum_us.load(std::memory_order_relaxed) / frames),
+                 (unsigned)flush_diag_frame_max_us.load(std::memory_order_relaxed),
+                 (unsigned)flush_diag_frame_interval_max_us.exchange(0, std::memory_order_relaxed));
 }
 #endif
 
