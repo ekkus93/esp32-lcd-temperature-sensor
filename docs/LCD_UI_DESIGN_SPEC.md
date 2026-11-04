@@ -42,7 +42,7 @@ No carousel, navigation strip, touch target, or on-screen settings control. A te
 **Content:**
 
 1. Header: short product name (`Temp Monitor` or `Temps`), compact Wi-Fi state icon, **local time** (`HH:MM`) when synchronized.
-2. Five fixed-order sensor rows, one per discovered or configured slot. Each row: abbreviated sensor label, prominent current temperature with unit (°C/°F), and warning/status icon as applicable.
+2. Five fixed-order sensor rows, one per discovered or configured slot. Each row: abbreviated sensor label, prominent current temperature in the configured unit (°C/°F), the same reading in the other unit in a smaller muted line beneath it (shown only when the row has a numeric reading), and warning/status icon as applicable. The Trends screen keeps a single unit.
 3. Lower status band: concise connectivity and logging/storage health indicators. Long IP addresses are **not** required in the main view.
 
 **Layout guidance (240 × 320 portrait):**

@@ -90,11 +90,14 @@ std::array<DisplayRow, max_sensors> display_rows(const Registry &registry, bool 
         }
         if ((row.state == State::normal || row.state == State::high || row.state == State::low) &&
             sensor.temperature && std::isfinite(*sensor.temperature)) {
+            const double celsius = *sensor.temperature, degrees_f = celsius * 1.8 + 32;
             char text[24];
-            std::snprintf(text, sizeof(text), "%.1f\xC2\xB0%s",
-                          fahrenheit ? *sensor.temperature * 1.8 + 32 : *sensor.temperature,
+            std::snprintf(text, sizeof(text), "%.1f\xC2\xB0%s", fahrenheit ? degrees_f : celsius,
                           fahrenheit ? "F" : "C");
             row.value = text;
+            std::snprintf(text, sizeof(text), "%.1f\xC2\xB0%s", fahrenheit ? celsius : degrees_f,
+                          fahrenheit ? "C" : "F");
+            row.alt_value = text;
         }
     }
     return rows;

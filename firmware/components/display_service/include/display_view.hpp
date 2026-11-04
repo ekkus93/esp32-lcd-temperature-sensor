@@ -19,7 +19,7 @@ class DisplayView {
   private:
     struct Screen {
         lv_obj_t *root, *time, *footer;
-        std::array<lv_obj_t *, max_sensors> labels{}, values{}, states{}, charts{};
+        std::array<lv_obj_t *, max_sensors> labels{}, values{}, alts{}, states{}, charts{};
         std::array<lv_obj_t *, max_sensors> no_data{};
         std::array<lv_chart_series_t *, max_sensors> series{};
     };

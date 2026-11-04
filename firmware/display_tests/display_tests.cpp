@@ -84,11 +84,20 @@ int main(int argc, char **argv) {
             Registry extreme_registry;
             extreme_registry.sample(extremes, 0);
             const auto fahrenheit_rows = display_rows(extreme_registry, true);
+            CHECK(fahrenheit_rows[0].alt_value == "125.0\xC2\xB0"
+                                                  "C");
+            CHECK(fahrenheit_rows[1].alt_value == "-55.0\xC2\xB0"
+                                                  "C");
+            CHECK(fahrenheit_rows[2].alt_value.empty()); // unused slot has no second unit
             CHECK(fahrenheit_rows[0].value == "257.0\xC2\xB0"
                                               "F");
             CHECK(fahrenheit_rows[1].value == "-67.0\xC2\xB0"
                                               "F");
             const auto celsius_rows = display_rows(extreme_registry, false);
+            CHECK(celsius_rows[0].alt_value == "257.0\xC2\xB0"
+                                               "F");
+            CHECK(celsius_rows[1].alt_value == "-67.0\xC2\xB0"
+                                               "F");
             CHECK(celsius_rows[0].value == "125.0\xC2\xB0"
                                            "C");
             CHECK(celsius_rows[1].value == "-55.0\xC2\xB0"
@@ -213,6 +222,7 @@ int main(int argc, char **argv) {
         CHECK(footer_text().find("Hold BOOT 75%") != std::string::npos);
         save("overview-off-and-lost");
         CHECK(display_rows(registry, false)[0].value == "OFF");
+        CHECK(display_rows(registry, false)[0].alt_value.empty()); // no reading, no second unit
         for (const auto &row : display_rows(registry, false))
             CHECK(row.value == "OFF" || row.value == "--.-");
         view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP");
@@ -266,11 +276,35 @@ int main(int argc, char **argv) {
             lv_tick_inc(50);
             lv_refr_now(display);
             save("overview-compact-fahrenheit");
+            {
+                // Each reading shows in both scales on the compact Overview.
+                const auto both = visible_text(lv_screen_active());
+                for (const char *expected : {"257.0\xC2\xB0"
+                                             "F",
+                                             "125.0\xC2\xB0"
+                                             "C",
+                                             "-67.0\xC2\xB0"
+                                             "F",
+                                             "-55.0\xC2\xB0"
+                                             "C",
+                                             "64.5\xC2\xB0"
+                                             "F",
+                                             "18.1\xC2\xB0"
+                                             "C"})
+                    CHECK(both.find(expected) != std::string::npos);
+            }
             options.fahrenheit = false;
             view.render(compact_registry, cache, options, status, 1000);
             lv_tick_inc(50);
             lv_refr_now(display);
             save("overview-compact-celsius");
+            {
+                const auto both = visible_text(lv_screen_active());
+                CHECK(both.find("125.0\xC2\xB0"
+                                "C") != std::string::npos);
+                CHECK(both.find("257.0\xC2\xB0"
+                                "F") != std::string::npos);
+            }
             options.fahrenheit = true;
         }
         options.extended = true;

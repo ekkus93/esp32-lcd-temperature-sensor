@@ -28,7 +28,9 @@ struct DisplayStatus {
 };
 struct DisplayRow {
     uint64_t rom = 0;
-    std::string label, value, status;
+    // `value` is in the configured unit; `alt_value` is the same reading in the other unit and
+    // is empty unless the row has a numeric reading.
+    std::string label, value, alt_value, status;
     State state = State::unassigned;
 };
 std::array<DisplayRow, max_sensors> display_rows(const Registry &registry, bool fahrenheit);

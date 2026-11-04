@@ -82,6 +82,16 @@ DisplayView::DisplayView() {
                 compact ? &lv_font_montserrat_12
                         : (s == &overview_ ? &lv_font_montserrat_24 : &lv_font_montserrat_14));
             lv_obj_set_style_text_align(s->values[i], LV_TEXT_ALIGN_RIGHT, 0);
+            if (s == &overview_) {
+                // The same reading in the other unit, under the main value; hidden unless the
+                // row has a numeric reading, so it never meets the status text on the left.
+                s->alts[i] = label(s->root, compact ? 60 : 114, top + (compact ? 12 : 26),
+                                   compact ? 66 : 116,
+                                   compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
+                lv_obj_set_style_text_align(s->alts[i], LV_TEXT_ALIGN_RIGHT, 0);
+                lv_obj_set_style_text_color(s->alts[i], lv_color_hex(setup_muted), 0);
+                lv_obj_set_hidden(s->alts[i], true);
+            }
             s->states[i] =
                 label(s->root, large_trend ? 2 : (compact ? 2 : (s == &overview_ ? 10 : 160)),
                       large_trend ? 122 : top + (compact ? 12 : 24),
@@ -201,8 +211,11 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
             text_color(s->values[i], color(row.state));
             // The Trends status text depends on chart data computed below; setting it here and
             // overwriting it later flipped the label twice on every refresh.
-            if (s == &overview_)
+            if (s == &overview_) {
                 text(s->states[i], row.status);
+                text(s->alts[i], row.alt_value);
+                lv_obj_set_hidden(s->alts[i], row.alt_value.empty());
+            }
             text_color(s->states[i], color(row.state));
         }
         if (plots_changed || chart_roms_[i] != row.rom) {
