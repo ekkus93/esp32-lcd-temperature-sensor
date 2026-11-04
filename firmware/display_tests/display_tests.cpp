@@ -29,12 +29,13 @@ int main(int argc, char **argv) {
         lv_refr_now(display);
         png_image image{};
         image.version = PNG_IMAGE_VERSION;
-        image.width = 240;
-        image.height = 320;
+        image.width = lv_display_get_horizontal_resolution(display);
+        image.height = lv_display_get_vertical_resolution(display);
         image.format = PNG_FORMAT_RGB;
         auto path = std::string(argv[1]) + '/' + name + ".png";
         // LVGL RGB888 stores BGR bytes in memory on this little-endian host.
-        auto pixels = framebuffer;
+        std::vector<uint8_t> pixels(framebuffer.begin(),
+                                    framebuffer.begin() + image.width * image.height * 3);
         for (size_t i = 0; i < pixels.size(); i += 3)
             std::swap(pixels[i], pixels[i + 2]);
         CHECK(png_image_write_to_file(&image, path.c_str(), 0, pixels.data(), 0, nullptr));
@@ -50,6 +51,15 @@ int main(int argc, char **argv) {
         view.render(registry, cache, options, status, 0);
         CHECK(!view.showing_trends());
         save("overview-empty");
+        unsigned invalidations = 0;
+        auto *stable_event = lv_display_add_event_cb(
+            display,
+            [](lv_event_t *event) { ++*static_cast<unsigned *>(lv_event_get_user_data(event)); },
+            LV_EVENT_INVALIDATE_AREA, &invalidations);
+        view.render(registry, cache, options, status, 0);
+        CHECK(invalidations == 0);
+        lv_display_remove_event(display, lv_display_get_event_count(display) - 1);
+        (void)stable_event;
         for (unsigned count = 1; count <= 5; ++count) {
             registry = Registry{};
             registry.sample(fake_readings(count), 0);
@@ -194,6 +204,53 @@ int main(int argc, char **argv) {
         CHECK(lv_obj_get_height(lv_screen_active()) == 160);
         lv_tick_inc(50);
         lv_refr_now(display);
+        for (int64_t t = 0; t < 3600000; t += bucket_ms) {
+            Bucket bucket{123, t, {}, {}};
+            for (const auto &sensor : registry.sensors())
+                bucket.sensors.push_back(
+                    {sensor.rom, 20.0 + double(t / bucket_ms), 18, 34, 60, false});
+            cache.add(bucket);
+        }
+        options.extended = true;
+        options.overview_seconds = 5;
+        options.trends_seconds = 10;
+        view.render(registry, cache, options, status, 3600000);
+        view.render(registry, cache, options, status, 3605000);
+        CHECK(view.showing_trends());
+        auto selected = [&]() {
+            auto *root = lv_screen_active();
+            int index = -1;
+            for (unsigned i = 0; i < max_sensors; ++i) {
+                auto *sensor_label = lv_obj_get_child(root, 3 + 5 * i);
+                if (!lv_obj_is_hidden(sensor_label)) {
+                    CHECK(index == -1);
+                    index = int(i);
+                }
+            }
+            return index;
+        };
+        CHECK(selected() == 0);
+        lv_obj_update_layout(lv_screen_active());
+        auto *first_chart = lv_obj_get_child(lv_screen_active(), 6);
+        CHECK(lv_obj_get_width(first_chart) == 120 && lv_obj_get_height(first_chart) == 75);
+        save("trends-compact-single-simulated-probe");
+        view.render(registry, cache, options, status, 3610000);
+        CHECK(view.showing_trends() && selected() == 1);
+        std::array<bool, max_sensors> seen{};
+        for (int64_t t = 3611000; t <= 3730000; t += 1000) {
+            view.render(registry, cache, options, status, t);
+            if (view.showing_trends()) {
+                const int index = selected();
+                CHECK(index >= 0 && index < int(max_sensors));
+                seen[index] = true;
+            }
+        }
+        CHECK(std::all_of(seen.begin(), seen.end(), [](bool item) { return item; }));
+        Registry empty;
+        view.render(empty, cache, options, status, 3730000);
+        CHECK(view.showing_trends() && selected() == 0);
+        CHECK(lv_obj_is_hidden(lv_obj_get_child(lv_screen_active(), 6)));
+        CHECK(!lv_obj_is_hidden(lv_obj_get_child(lv_screen_active(), 7)));
         view.provisioning("test-network", "test-password", std::string(64, 'a'));
         auto *setup_text = lv_obj_get_child(lv_screen_active(), 1);
         const auto first_page = std::string(lv_label_get_text(setup_text));

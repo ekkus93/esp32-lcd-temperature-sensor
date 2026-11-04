@@ -15,7 +15,7 @@
 - [x] **T00-05** Use **ESP-IDF v6.1** (not a floating `latest` or different SDK line) in local builds and CI; pin and verify the exact v6.1 revision/toolchain and ESP-IDF component dependency lockfile. Baseline compatible LVGL 9, 1-Wire/RMT, LCD and filesystem components, web dependencies and licenses; audit React 19 support and production bundle size.
 - [x] **T00-06** Maintain cross-document consistency when design decisions change (in particular, **one shared bus rather than five independent GPIOs**, and **5-minute rather than 1-minute history**).
 
-> **Hardware hold points:** GPIO15 must not be wired to the LCD backlight until its electrical behavior is confirmed. Physical panel silkscreen appears to read `2.8 IPS 240x320` despite ~2-inch design sizing; confirm on-device. Other software work can proceed without waiting for those measurements.
+> **Hardware hold points:** GPIO15 must not be wired to the LCD backlight until its electrical behavior is confirmed. The connected panel is marked ST7735 and 128 × 120; actual geometry, power and backlight characteristics remain to be measured. Other software work can proceed without waiting for those measurements.
 
 ## Phase 1 — Repo skeleton, build system, and verification harness
 
@@ -36,8 +36,8 @@
 ### Board and LCD electrical checkpoints
 
 - [ ] **T02-01 [HW]** Confirm ESP32-S3-N16R8 flash/PSRAM/board variant, physical USB-C functions, BOOT/RESET routing and silkscreen GPIO orientation from actual board. The connected module reports 16 MiB flash/8 MiB PSRAM and enumerates native USB Serial/JTAG (`303a:1001`, `/dev/ttyACM0`). Only this connector is verified; physical variant markings, the second USB-C function, button routing and pin-orientation photograph are still required.
-- [ ] **T02-02 [HW]** Measure/read LCD header signal order, supply rating, backlight `BL/BLK` voltage, polarity and drive/current requirements; document results and **only then** wire GPIO15 or suitable driver.
-- [ ] **T02-03 [HW]** Confirm LCD controller variant, 240×320 addressing/offsets, actual visible size, rotation, RGB/BGR order, and 3.3V regulator current budget.
+- [ ] **T02-02 [HW]** Measure/read LCD header signal order, supply rating, backlight `BL/BLK` voltage, polarity and drive/current requirements; document results and **only then** wire GPIO15 or suitable driver. The ST7735 photo shows `GND VCC SCL SDA RES DC CS BL`; the owner says VCC and BL are connected and has chosen to defer multimeter checks. Their destinations, voltages, polarity, current requirements, and GPIO15 compatibility remain unverified.
+- [ ] **T02-03 [HW]** Confirm the connected LCD controller, addressing/offsets, actual visible size, rotation, RGB/BGR order, and 3.3 V regulator current budget. The PCB identifies ST7735; a 128×160 portrait test pattern with RGB order and x=2/y=1 offset shows the expected colors and complete corner border. The PCB says 128×120; actual pixel dimensions, visible diagonal and regulator current budget remain unmeasured.
 - [x] **T02-04** Add a single authoritative board pin/config header: `DQ=4`, LCD `SCLK=12`, `MOSI=11`, `CS=10`, `DC=9`, `RST=14`, conditional `BL=15`, `BOOT=0`.
 
 ### 1-Wire driver and discovery
@@ -76,18 +76,17 @@ Additional host-only diagnostic-evidence checks reject ambiguous UART lines (dup
 ## Phase 4 — LCD driver and two-mode LVGL UI
 
 **Connected display, 2026-11-03:** The owner's 1.8-inch module identifies its
-controller as ST7735 and its PCB is marked 128 × 120. The new selectable
-ST7735 driver uses an initial 128 × 160 layout; a physical photo shows readable
-Overview text after flashing. A few bright pixels are visible at the right edge,
-so geometry, offset, colors and the remaining LCD acceptance are still open.
+controller as ST7735 and its PCB is marked 128 × 120. The selectable ST7735
+driver uses a 128 × 160 layout; physical photos show readable Overview text and
+the corrected RGB order and corner pattern after setting x=2/y=1 address gaps.
 The original ST7789 path remains selectable. No probes were connected.
 
-- [ ] **T04-01** Bring up `esp_lcd` ST7789 SPI at 240×320 portrait on the chosen GPIOs; draw color/rotation/offset test patterns. The runtime and opt-in RGB/corner-marker diagnostic compile in normal and test-pattern configurations; physical color order, rotation, offsets, and visible output remain unverified until the panel is attached.
+- [x] **T04-01** Bring up the selected `esp_lcd` SPI panel in portrait on the chosen GPIOs; draw color/rotation/offset test patterns. The connected ST7735 shows the 128 × 160 frame, all corner labels and the expected red/green/blue bars after setting RGB order and x=2/y=1 address gaps. The original 240 × 320 ST7789 driver remains selectable. See [ST7735 bring-up](validation/lcd-st7735-2026-11-03.md); electrical checks and physical UI soak remain open under T02-02/03 and T04-14.
 - [ ] **T04-02 [HW]** Complete backlight safe-drive check and any external driver wiring; verify stable LCD supply under Wi-Fi TX load.
-- [ ] **T04-03** Integrate LVGL 9/`esp_lvgl_port`; verify buffers, DMA-eligible memory, lock/context rules, memory usage and refresh latency. Software integration uses two 240×40 PSRAM/DMA RGB565 buffers and lock-protected updates, and logs internal heap after initialization. Physical DMA allocation, memory floor under Wi-Fi, and refresh latency still need device measurement.
+- [ ] **T04-03** Integrate LVGL 9/`esp_lvgl_port`; verify buffers, DMA-eligible memory, lock/context rules, memory usage and refresh latency. The connected ST7735 uses two 128×40 PSRAM/DMA RGB565 buffers and lock-protected updates. On 2026-11-03 the pattern firmware registered the double-buffered LVGL display and logged 91,375 bytes internal heap immediately after initialization; a 30-second connected-board smoke during Wi-Fi association and time synchronization recorded an internal minimum watermark of 45,404 bytes and no panic. Seven LVGL flush-to-wait-completion intervals were 4.786–23.460 ms; these do not establish optical refresh latency. See [ST7735 bring-up](validation/lcd-st7735-2026-11-03.md). End-to-end refresh latency and a sustained Wi-Fi memory floor remain to be measured.
 - [x] **T04-04** Implement read-only **Overview** LVGL screen: five ordered rows, LCD-short name, current value, units, error/warning icon, Wi-Fi state and clock.
 - [x] **T04-05** Implement disabled/unassigned/disconnected/invalid/bus-fault row appearances with meaningful text/icon cues and without relying solely on colors.
-- [x] **T04-06** Implement read-only **Trends** LVGL screen with five sparklines, ROM-stable ordering, lookback (default 60 minutes), missing-data gaps and no touch/menu targets.
+- [x] **T04-06** Implement read-only **Trends** LVGL screen with ROM-stable ordering, lookback (default 60 minutes), missing-data gaps and no touch/menu targets. The original large display shows five sparklines; at the owner's request the compact ST7735 view shows one larger chart and rotates through installed sensors every five seconds of visible Trends time. Headless tests exercise all five choices and the no-data case; physical graphs with probes remain unverified under T04-14.
 - [x] **T04-07** Implement `basic` (Overview always; default) and `extended` (Overview→Trends→Overview) display modes.
 - [x] **T04-08** Implement independent web-configurable dwell settings; defaults **20 seconds Overview**, **10 seconds Trends**, bounded **5–300 seconds** each; use monotonic timers and apply changes without reboot. Versioned device settings expose and persist both values; the LVGL view reconfigures its monotonic cycle when they change. Device-options host tests cover defaults, boundaries, and runtime reconfiguration. Physical LCD timing remains T04-14.
 - [x] **T04-09** Show temporary **SoftAP provisioning** screen with generated SSID, setup credential/code and `192.168.4.1`; not a third normal user-selectable page.
@@ -293,12 +292,12 @@ passed. T07-10 is now complete. Device details:
 [API validation](validation/device-api-results.txt) and
 [smoke validation](validation/device-smoke-2026-10-30.txt).
 
-Numbered tracker: **124 complete, 21 open of 145**. Open tasks are T02-01/02/03/14/15;
-T04-01/02/03/14; T05-10/13/18; T06-15/16; T10-02/05/08/09/10;
+Numbered tracker: **125 complete, 20 open of 145**. Open tasks are T02-01/02/03/14/15;
+T04-02/03/14; T05-10/13/18; T06-15/16; T10-02/05/08/09/10;
 and T11-01/08. Remaining gates require physical LCD/probes, BOOT/owner-network
 access, populated storage/power interruption, OTA/rollback, combined load/soak,
-or release signoff as described inline. The owner-designated board has no LCD
-or temperature probes connected.
+or release signoff as described inline. The owner-designated board has the
+ST7735 LCD connected; temperature probes are not connected.
 
 Use this list to track physical acceptance separately from software tasks; these reference the canonical IDs above.
 

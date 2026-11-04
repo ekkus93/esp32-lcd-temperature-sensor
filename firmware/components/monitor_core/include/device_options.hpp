@@ -2,7 +2,7 @@
 #include "display_model.hpp"
 namespace monitor {
 struct DeviceOptions : DisplayOptions {
-    std::string timezone = "UTC";
+    std::string timezone = "America/Los_Angeles";
     std::string ntp_server = "pool.ntp.org";
 };
 const char *timezone_rule(const std::string &identifier);

@@ -30,6 +30,11 @@ void text(lv_obj_t *obj, const std::string &value) {
     if (std::strcmp(lv_label_get_text(obj), value.c_str()))
         lv_label_set_text(obj, value.c_str());
 }
+void text_color(lv_obj_t *obj, uint32_t value) {
+    const auto desired = lv_color_hex(value);
+    if (!lv_color_eq(lv_obj_get_style_text_color(obj, LV_PART_MAIN), desired))
+        lv_obj_set_style_text_color(obj, desired, 0);
+}
 uint32_t color(State state) {
     switch (state) {
     case State::high:
@@ -73,24 +78,27 @@ DisplayView::DisplayView() {
         lv_obj_set_height(s->footer, compact ? 19 : 38);
         lv_label_set_long_mode(s->footer, LV_LABEL_LONG_WRAP);
         for (unsigned i = 0; i < max_sensors; ++i) {
-            const int top = compact ? 17 + 24 * i : 40 + 47 * i;
-            s->labels[i] = label(s->root, compact ? 2 : 10, top, compact ? 58 : 98,
-                                 compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
+            const bool large_trend = compact && s == &trends_;
+            const int top = large_trend ? 20 : (compact ? 17 + 24 * i : 40 + 47 * i);
+            s->labels[i] =
+                label(s->root, compact ? 2 : 10, top, large_trend ? 70 : (compact ? 58 : 98),
+                      compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
             s->values[i] = label(
-                s->root, compact ? 60 : 114, top, compact ? 66 : 116,
+                s->root, large_trend ? 74 : (compact ? 60 : 114), top,
+                large_trend ? 52 : (compact ? 66 : 116),
                 compact ? &lv_font_montserrat_12
                         : (s == &overview_ ? &lv_font_montserrat_24 : &lv_font_montserrat_14));
             lv_obj_set_style_text_align(s->values[i], LV_TEXT_ALIGN_RIGHT, 0);
             s->states[i] =
-                label(s->root, compact ? (s == &overview_ ? 2 : 80) : (s == &overview_ ? 10 : 160),
-                      top + (compact ? 12 : 24),
-                      compact ? (s == &overview_ ? 124 : 46) : (s == &overview_ ? 210 : 72),
+                label(s->root, large_trend ? 2 : (compact ? 2 : (s == &overview_ ? 10 : 160)),
+                      large_trend ? 122 : top + (compact ? 12 : 24),
+                      large_trend ? 124 : (compact ? 124 : (s == &overview_ ? 210 : 72)),
                       &lv_font_montserrat_12);
             if (s == &trends_) {
                 auto *chart = lv_chart_create(s->root);
                 s->charts[i] = chart;
-                lv_obj_set_pos(chart, compact ? 2 : 12, top + (compact ? 13 : 21));
-                lv_obj_set_size(chart, compact ? 76 : 141, compact ? 10 : 23);
+                lv_obj_set_pos(chart, large_trend ? 4 : 12, large_trend ? 42 : top + 21);
+                lv_obj_set_size(chart, large_trend ? 120 : 141, large_trend ? 75 : 23);
                 lv_obj_set_style_bg_opa(chart, LV_OPA_TRANSP, 0);
                 lv_obj_set_style_border_width(chart, 0, 0);
                 lv_obj_set_style_pad_all(chart, 0, 0);
@@ -101,8 +109,8 @@ DisplayView::DisplayView() {
                 lv_obj_set_clickable(chart, false);
                 s->series[i] =
                     lv_chart_add_series(chart, lv_color_hex(0x9be3c4), LV_CHART_AXIS_PRIMARY_Y);
-                s->no_data[i] = label(s->root, compact ? 2 : 12, top + (compact ? 12 : 24),
-                                      compact ? 76 : 141, &lv_font_montserrat_12);
+                s->no_data[i] = label(s->root, large_trend ? 4 : 12, large_trend ? 70 : top + 24,
+                                      large_trend ? 120 : 141, &lv_font_montserrat_12);
                 text(s->no_data[i], "NO DATA");
             }
         }
@@ -137,16 +145,30 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
     if (changed)
         cycle_.configure(options.extended, options.overview_seconds, options.trends_seconds, now);
     options_ = options;
-    configured_ = true;
     const auto rows = display_rows(registry, options.fahrenheit);
+    const bool compact = lv_display_get_horizontal_resolution(nullptr) <= 128;
+    const bool next_trends = cycle_.trends(now);
+    if (compact && configured_ && showing_trends_ && next_trends && now >= last_render_ms_ &&
+        now - last_render_ms_ <= int64_t(options.trends_seconds) * 1000)
+        compact_trend_visible_ms_ += now - last_render_ms_;
+    last_render_ms_ = now;
+    configured_ = true;
+    std::array<size_t, max_sensors> compact_rows{};
+    size_t compact_count = 0;
+    for (size_t i = 0; i < rows.size(); ++i)
+        if (rows[i].rom)
+            compact_rows[compact_count++] = i;
+    const size_t compact_position =
+        compact_count ? (compact_trend_visible_ms_ / 5000) % compact_count : 0;
+    const size_t selected_row = compact_count ? compact_rows[compact_position] : 0;
     for (unsigned i = 0; i < max_sensors; ++i) {
         const auto &row = rows[i];
         for (auto *s : {&overview_, &trends_}) {
             text(s->labels[i], row.label);
             text(s->values[i], row.value);
-            lv_obj_set_style_text_color(s->values[i], lv_color_hex(color(row.state)), 0);
+            text_color(s->values[i], color(row.state));
             text(s->states[i], row.status);
-            lv_obj_set_style_text_color(s->states[i], lv_color_hex(color(row.state)), 0);
+            text_color(s->states[i], color(row.state));
         }
         if (plots_changed || chart_roms_[i] != row.rom) {
             const auto values = cache.values(row.rom, now, options.lookback_minutes);
@@ -169,9 +191,15 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
                                     high == INT32_MIN ? 100 : high + 50);
             chart_roms_[i] = row.rom;
         }
+        const bool selected = !compact || i == selected_row;
+        if (compact) {
+            lv_obj_set_hidden(trends_.labels[i], !selected);
+            lv_obj_set_hidden(trends_.values[i], !selected);
+            lv_obj_set_hidden(trends_.states[i], !selected);
+        }
         const bool show_chart = chart_data_[i] && row.state != State::disabled && row.rom;
-        lv_obj_set_hidden(trends_.charts[i], !show_chart);
-        lv_obj_set_hidden(trends_.no_data[i], show_chart);
+        lv_obj_set_hidden(trends_.charts[i], !selected || !show_chart);
+        lv_obj_set_hidden(trends_.no_data[i], !selected || show_chart);
         text(trends_.no_data[i], row.state == State::disabled ? "OFF" : "NO DATA");
         if (row.state == State::disabled)
             text(trends_.states[i], "OFF");
@@ -192,7 +220,7 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
         footer += "\nOTA ROLLBACK";
     else
         footer += "\nPast " + std::to_string(options.lookback_minutes) + " min";
-    if (lv_display_get_horizontal_resolution(nullptr) <= 128) {
+    if (compact) {
         const auto newline = footer.find('\n');
         if (newline != std::string::npos &&
             (registry.bus_fault() || status.button_progress || status.ota_state == "new" ||
@@ -204,9 +232,14 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
     }
     for (auto *s : {&overview_, &trends_}) {
         text(s->time, clock);
-        text(s->footer, footer);
+        if (compact && s == &trends_ && footer.rfind("Wi-Fi ", 0) == 0)
+            text(s->footer, std::to_string(options.lookback_minutes) + "m  " +
+                                std::to_string(compact_position + 1) + "/" +
+                                std::to_string(std::max<size_t>(compact_count, 1)));
+        else
+            text(s->footer, footer);
     }
-    showing_trends_ = cycle_.trends(now);
+    showing_trends_ = next_trends;
     auto *desired = showing_trends_ ? trends_.root : overview_.root;
     if (lv_screen_active() != desired)
         lv_screen_load(desired);

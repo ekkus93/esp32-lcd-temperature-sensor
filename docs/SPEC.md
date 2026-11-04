@@ -3,7 +3,7 @@
 **Status:** Approved architecture baseline; implementation in progress (see `PROGRESS.md`)  
 **Version:** 1.0-draft  
 **Date:** 2026-10-25  
-**Target:** ESP32-S3-N16R8 (16 MB flash, 8 MB PSRAM), up to five DS18B20 probes, 240 × 320 ST7789 SPI LCD  
+**Target:** ESP32-S3-N16R8 (16 MB flash, 8 MB PSRAM), up to five DS18B20 probes, 1.8-inch ST7735 SPI LCD; optional 240 × 320 ST7789<br>
 **Implementation:** **ESP-IDF v6.1** (C/C++), LVGL 9, React 19 + TypeScript + Vite, Material 3 design
 
 > This document is the source of truth for **system-level behavior**. The accompanying wiring, LCD and web UI documents in this `docs/` directory define their respective interfaces. If the drawings differ from this specification, implement the **documented requirements**, not illustrative sample values. Hardware-specific uncertainties are explicitly marked below and must be resolved before electrical connection.
@@ -35,12 +35,17 @@ Cloud dashboards or remote access, MQTT/Home Assistant integrations, relay contr
 
 ### 2.1 Selected components
 
+**Connected panel update (2026-11-03):** The owner's current panel is a
+1.8-inch ST7735 module marked 128 × 120. The selectable compact firmware
+currently uses 128 × 160 geometry pending physical confirmation. The ST7789
+entry below records the original design option, not the connected panel.
+
 | Part | Qty | Use / assumptions |
 |---|---:|---|
 | ESP32-S3-N16R8 development board | 1 | 16 MB flash, 8 MB PSRAM; photographed 44-pin, dual-USB-C board |
 | Waterproof DS18B20, three-wire probe | 1–5 | Externally powered at **3.3 V** (no parasite mode); approximately 1 m cable each |
 | 4.7 kΩ resistor | **1** | Pulls the single 1-Wire DATA line up to 3.3 V |
-| ST7789-class IPS LCD, 240 × 320 | 1 | SPI portrait, **read-only**; photographed PCB says **2.8-inch**, though screen was conversationally described as ~2-inch |
+| ST7735 SPI LCD, 1.8-inch | 1 | Connected panel; 128 × 160 firmware frame verified by corner pattern; PCB marked 128 × 120. Optional original ST7789 240 × 320 path remains selectable. |
 | Common wiring/junctions | As needed | Three-conductor shared bus and LCD SPI leads |
 | USB-C power | 1 | Adequate 3.3 V regulator and 5 V source; measure power budget during bring-up |
 
@@ -190,7 +195,7 @@ Full specification: [`docs/LCD_UI_DESIGN_SPEC.md`](LCD_UI_DESIGN_SPEC.md). Mocku
 ## 8. Timekeeping
 
 - After joining Wi-Fi, synchronize via **SNTP/NTP** (configurable server, initially a suitable public pool). Support a local time server. Capture clock-sync state/quality in both APIs and LCD.
-- Store timestamps in **UTC** where trusted; format local time using user-selected timezone, including daylight-saving rules.
+- Store timestamps in **UTC** where trusted; format local time using the user-selected timezone, including daylight-saving rules. New installations default to `America/Los_Angeles`; existing saved timezone selections are preserved.
 - Continue keeping time while powered if temporarily offline, tracking last sync and uncertainty. **After power loss without trusted time, do not invent absolute timestamps**.
 - When wall time is unknown, retain sequence/boot-id and monotonic offsets for bounded unsynchronized records; if sync occurs later in the **same boot**, a defined rebase process may recover those records. Otherwise expose them as unsynchronized; never quietly treat uptime as UTC.
 - Apply deliberate behavior for NTP jumps, DST transitions, stale time and 5-minute window alignment. All display-cycle timing is monotonic, independent of wall-clock corrections.

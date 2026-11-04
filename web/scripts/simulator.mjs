@@ -40,7 +40,7 @@ const server = http.createServer((req, res) => {
         overview_seconds: 20,
         trends_seconds: 10,
         lookback_minutes: 60,
-        timezone: 'UTC',
+        timezone: 'America/Los_Angeles',
         ntp_server: 'pool.ntp.org',
       }),
     );

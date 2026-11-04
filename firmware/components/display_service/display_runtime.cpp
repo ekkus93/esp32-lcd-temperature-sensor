@@ -9,6 +9,7 @@
 #include "esp_log.h"
 #include <new>
 #if CONFIG_MONITOR_LCD_TEST_PATTERN
+#include "esp_timer.h"
 #include <tuple>
 #endif
 
@@ -26,6 +27,17 @@ constexpr int draw_height = 40;
 constexpr int spi_frequency_hz = 20000000;
 
 #if CONFIG_MONITOR_LCD_TEST_PATTERN
+int64_t flush_started_us = 0;
+void diagnostic_flush_event(lv_event_t *event) {
+    if (lv_event_get_code(event) == LV_EVENT_FLUSH_START) {
+        flush_started_us = esp_timer_get_time();
+    } else if (lv_event_get_code(event) == LV_EVENT_FLUSH_WAIT_FINISH && flush_started_us) {
+        ESP_LOGI(tag, "LCD_DIAG flush_to_wait_complete_us=%lld",
+                 static_cast<long long>(esp_timer_get_time() - flush_started_us));
+        flush_started_us = 0;
+    }
+}
+
 lv_obj_t *diagnostic_pattern() {
     auto *root = lv_obj_create(nullptr);
     if (!root)
@@ -128,8 +140,11 @@ bool DisplayRuntime::initialize() {
 
     esp_lcd_panel_dev_config_t panel_config{};
     panel_config.reset_gpio_num = static_cast<gpio_num_t>(PIN_LCD_RST);
-    // Generic ST7789 boards commonly use BGR; confirm color order and offsets on the panel.
+#if CONFIG_MONITOR_LCD_ST7735
+    panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+#else
     panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
+#endif
     panel_config.data_endian = LCD_RGB_DATA_ENDIAN_BIG;
     panel_config.bits_per_pixel = 16;
 #if CONFIG_MONITOR_LCD_ST7735
@@ -138,7 +153,11 @@ bool DisplayRuntime::initialize() {
     auto panel_result = esp_lcd_new_panel_st7789(panel_io_, &panel_config, &panel_);
 #endif
     if (panel_result != ESP_OK || esp_lcd_panel_reset(panel_) != ESP_OK ||
-        esp_lcd_panel_init(panel_) != ESP_OK || esp_lcd_panel_disp_on_off(panel_, true) != ESP_OK) {
+        esp_lcd_panel_init(panel_) != ESP_OK ||
+#if CONFIG_MONITOR_LCD_ST7735
+        esp_lcd_panel_set_gap(panel_, 2, 1) != ESP_OK ||
+#endif
+        esp_lcd_panel_disp_on_off(panel_, true) != ESP_OK) {
         ESP_LOGE(tag, "LCD panel initialization failed");
         deinitialize();
         return false;
@@ -170,6 +189,9 @@ bool DisplayRuntime::initialize() {
         deinitialize();
         return false;
     }
+#if CONFIG_MONITOR_LCD_TEST_PATTERN
+    lv_display_add_event_cb(display_, diagnostic_flush_event, LV_EVENT_ALL, nullptr);
+#endif
     view_.reset(new (std::nothrow) DisplayView());
 #if CONFIG_MONITOR_LCD_TEST_PATTERN
     if (view_)
@@ -217,8 +239,14 @@ void DisplayRuntime::update(const Registry &registry, const TrendCache &cache,
 #else
     if (provisioning)
         view_->provisioning(ssid, wifi_key, owner_code);
-    else
+    else {
+        const bool previous_trends = view_->showing_trends();
         view_->render(registry, cache, options, status, uptime_ms);
+        if (view_->showing_trends() != previous_trends)
+            ESP_LOGI(tag, "LCD_VIEW mode=%s uptime_ms=%lld",
+                     view_->showing_trends() ? "trends" : "overview",
+                     static_cast<long long>(uptime_ms));
+    }
     lvgl_port_unlock();
 #endif
 }

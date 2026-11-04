@@ -2,10 +2,15 @@
 
 **Revision:** 1.0 · 2026-10-25  
 **Board:** ESP32-S3-N16R8 (44-pin dual-USB-C DevKit-style board shown in photos)  
-**Display:** 2.8-inch 240 × 320 ST7789, 4-wire SPI, 8-pin header (as inferred from photos)  
+**Display:** connected 1.8-inch ST7735 SPI module; PCB marked 128 × 120, with 128 × 160 firmware geometry under physical evaluation<br>
 **Temperature sensors:** Up to five waterproof DS18B20 probes, one shared 3-wire 1-Wire bus
 
 > **Important — verify before powering:** The display's backlight pin (`BL`/`BLK`) cannot be conclusively identified as a logic-level enable from the provided photos. All other connections below are the selected design. The `GPIO15 → BLK` wire in the drawing is **dashed / conditional**: connect it only after confirming that the LCD board accepts a 3.3 V logic-level backlight signal. If the pin instead exposes a raw backlight LED terminal, it needs an appropriate driver, not a direct GPIO connection. Also verify the LCD header's actual pin names/order and the probe wire colors on your particular parts.
+
+The supplied diagram depicts the original ST7789 design; the connected ST7735
+module has the same eight printed signal names, but its electrical ratings and
+actual wiring still require verification. The header photo reads GND, VCC, SCL,
+SDA, RES, DC, CS, BL in order.
 
 ## Wiring diagram
 
@@ -15,7 +20,7 @@
 
 > The SVG is a **net/wiring schematic**, not a to-scale drawing of the physical header positions. Use the GPIO/silkscreen names and the board-header references below to find the correct holes. **A filled junction dot indicates an electrical connection; crossed lines without a dot are *not* connected.**
 
-## 1. LCD: ESP32-S3 ↔ ST7789 (SPI)
+## 1. LCD: ESP32-S3 ↔ ST7735 (SPI)
 
 | LCD header signal | LCD header position* | ESP32-S3 signal | Board header position** | Purpose |
 |---|---:|---|---|---|
@@ -28,7 +33,7 @@
 | `CS` | 7 | `GPIO10` | J1-16 | Active-low chip select |
 | `BL` / `BLK` | 8 | `GPIO15` **conditional** | J1-8 | Backlight control **only if logic-level compatible** |
 
-\* Header order is the *common eight-pin ST7789 SPI module* convention, **not confirmed by readable pin labels in your photo**. Follow the actual printed signal labels if your module differs.  
+\* Header order matches the labels visible on the connected ST7735 module. Confirm each wire at both ends before changing power or wiring.<br>
 \** `J1` is the **left** 22-pin header with the antenna at the top and USB connectors at the bottom; `J3` is the **right** 22-pin header, same orientation. Counts run from the antenna end toward USB, consistent with the 44-pin YD/DevKit-style reference. Board revisions may differ, so prioritize the GPIO silkscreen label.
 
 **There is no LCD MISO wire in this write-only SPI arrangement.** Backlight brightness via GPIO15/PWM is optional and depends on confirmed backlight hardware. To bring up the logic interface, you can leave `BLK` unconnected until you identify its electrical function; the screen may remain dark in that state.
@@ -62,7 +67,7 @@ You can plug in **any number from one to five**; no extra resistors are needed w
 | Item | Quantity | Notes |
 |---|---:|---|
 | ESP32-S3-N16R8 44-pin board | 1 | Powered from a suitable USB-C supply |
-| 2.8-inch ST7789 SPI TFT module | 1 | 3.3 V supply and 3.3 V I/O assumed |
+| 1.8-inch ST7735 SPI TFT module | 1 | 3.3 V supply and 3.3 V I/O assumed pending electrical checks |
 | Waterproof DS18B20, three-wire | Up to 5 | Individually addressed in firmware |
 | **4.7 kΩ resistor** | **1** | Between shared data and 3.3 V |
 | Three-conductor wiring / terminal strips | As needed | For `3V3`, `DQ`, `GND` distribution |
@@ -77,7 +82,7 @@ You can plug in **any number from one to five**; no extra resistors are needed w
 3. Connect one DS18B20 probe to the shared `3V3`, `GPIO4`, and `GND` conductors. Install **one 4.7 kΩ pull-up from `GPIO4` to `3V3`**.
 4. Before power-on, use a multimeter to check that `3V3` and `GND` are not shorted; measure about 4.7 kΩ between `GPIO4` and `3V3` **with sensors detached** (when no extra pull-ups are installed).
 5. Apply power and test reading one temperature sensor. Add the other four probes one at a time, checking that device discovery finds 1, 2, 3, 4 and 5 unique ROM IDs.
-6. Bring up the ST7789 test pattern, then LVGL UI. Confirm backlight wiring separately; a black screen may mean only that the backlight is off.
+6. Bring up the selected panel's test pattern, then LVGL UI. Confirm backlight wiring separately; a black screen may mean only that the backlight is off.
 7. For the longer bus, prefer a **three-wire trunk with short sensor branches** over five long star-shaped branches. If communication is intermittent, reduce stub lengths, inspect connections, and check bus rise time and pull-up value.
 8. In firmware, use the ESP-IDF RMT-backed 1-Wire bus on `GPIO4`, with sensor polling and CRC checks. No five-channel RMT allocation is required.
 
@@ -87,7 +92,7 @@ You can plug in **any number from one to five**; no extra resistors are needed w
 // DS18B20: single shared 1-Wire bus
 #define PIN_ONEWIRE_DATA     4
 
-// ST7789: 4-wire SPI + control
+// ST7735 or ST7789: 4-wire SPI + control
 #define PIN_LCD_SCLK       12
 #define PIN_LCD_MOSI       11
 #define PIN_LCD_CS         10

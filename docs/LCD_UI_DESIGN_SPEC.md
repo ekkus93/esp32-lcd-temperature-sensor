@@ -6,6 +6,14 @@
 **Interaction model:** **Read-only LCD**; all configuration and control live in the Wi-Fi web application.  
 **Related artifacts:** `SPEC.md` (project-wide requirements), `TODO.md` (implementation checklist), `ESP32_S3_TEMPERATURE_MONITOR_WIRING.md` (wiring), `LCD_UI_MOCKUPS.png` (concept art)
 
+**Connected panel update (2026-11-03):** The owner's current panel is a
+1.8-inch ST7735 module, with 128 × 120 printed on the PCB. The firmware uses a
+compact 128 × 160 layout. In compact Trends, one larger sensor graph is shown
+at a time and the sensor rotates automatically every five seconds of visible
+Trends time. The 240 × 320 ST7789 design below remains the baseline for the
+selectable larger panel; compact graph readability with real probes and
+physical acceptance are still open.
+
 > **Hardware verification:** The photographed LCD board appears to be silkscreened **"2.8 IPS 240x320"**, although we have been referring to it as a ~2-inch display. The interface is specified by its known 240 × 320 pixel resolution and designed conservatively for readability on a **2-inch-class display**. Measure the actual visible diagonal before finalizing physical typography. Confirm ST7789 configuration and backlight electrical requirements during bring-up.
 
 ## 1. Purpose and design principles

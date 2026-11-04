@@ -64,6 +64,14 @@ and 10-second Trends dwell; both are independently adjustable. The lookback
 controls the LCD trend display. Sensor labels, order, enable state, calibration,
 and alarms are edited on the Sensors page.
 
+On the compact 1.8-inch LCD, Trends shows one larger sensor graph at a time,
+advancing to the next installed sensor after five seconds of visible Trends
+time. The indicator at the bottom shows the history window and sensor position.
+
+New devices default to the `America/Los_Angeles` timezone, including daylight
+saving changes. You can choose another timezone in Settings. Existing saved
+timezone choices are preserved when the firmware is updated.
+
 To change Wi-Fi, scan nearby 2.4 GHz networks or enter a hidden SSID and
 password, then submit the candidate. The device tests it before replacing saved
 credentials; on failure, the old network remains and setup can be retried. The

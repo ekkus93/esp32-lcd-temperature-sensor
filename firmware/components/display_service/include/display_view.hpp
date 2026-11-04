@@ -28,6 +28,7 @@ class DisplayView {
     DisplayCycle cycle_;
     DisplayOptions options_;
     bool configured_ = false, showing_trends_ = false;
+    int64_t last_render_ms_ = 0, compact_trend_visible_ms_ = 0;
     int64_t cache_window_ = -1;
     std::array<uint64_t, max_sensors> chart_roms_{};
     std::array<bool, max_sensors> chart_data_{};

@@ -13,6 +13,11 @@ using namespace monitor;
 int main() {
     DeviceOptions options;
     CHECK(valid_device_options(options));
+    CHECK(options.timezone == "America/Los_Angeles");
+    auto saved_utc = options;
+    saved_utc.timezone = "UTC";
+    const auto restored_utc = decode_device_options(encode_device_options(saved_utc));
+    CHECK(restored_utc && restored_utc->timezone == "UTC");
     CHECK(!options.extended && options.overview_seconds == 20 && options.trends_seconds == 10);
     options.extended = true;
     options.fahrenheit = true;
