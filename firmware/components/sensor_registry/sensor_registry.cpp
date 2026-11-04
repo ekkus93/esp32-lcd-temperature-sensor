@@ -16,12 +16,27 @@ bool Registry::discover(uint64_t rom) {
         ++excess_;
         return false;
     }
+    std::array<bool, max_sensors> used_orders{};
+    for (const auto &existing : sensors_)
+        if (existing.settings.order < used_orders.size())
+            used_orders[existing.settings.order] = true;
+    const auto available_order = std::find(used_orders.begin(), used_orders.end(), false);
+    const auto order = static_cast<unsigned>(available_order - used_orders.begin());
     Sensor sensor;
     sensor.rom = rom;
-    sensor.settings.order = sensors_.size();
-    sensor.settings.name = "Sensor " + std::to_string(sensors_.size() + 1);
+    sensor.settings.order = order;
+    sensor.settings.name = "Sensor " + std::to_string(order + 1);
     sensor.state = State::invalid;
     sensors_.push_back(sensor);
+    return true;
+}
+bool Registry::retire(uint64_t rom) {
+    auto it = std::find_if(sensors_.begin(), sensors_.end(),
+                           [rom](const Sensor &sensor) { return sensor.rom == rom; });
+    if (it == sensors_.end() || it->state != State::disconnected)
+        return false;
+    sensors_.erase(it);
+    ++sequence_;
     return true;
 }
 bool Registry::configure(uint64_t rom, const Settings &settings, std::optional<int64_t> now_ms) {

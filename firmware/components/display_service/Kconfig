@@ -1,7 +1,14 @@
 menu "Temperature monitor LCD"
 
+config MONITOR_LCD_ST7735
+	bool "Use 128x160 ST7735 LCD"
+	default y
+	help
+		Select the connected 1.8-inch ST7735 module. Disable for the
+		original 240x320 ST7789 display.
+
 config MONITOR_LCD_TEST_PATTERN
-	bool "Show ST7789 color and orientation diagnostics"
+	bool "Show LCD color and orientation diagnostics"
 	default n
 	help
 		Replace the normal display view with RGB bars and corner markers for

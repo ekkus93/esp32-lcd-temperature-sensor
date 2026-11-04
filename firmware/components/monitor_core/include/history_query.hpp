@@ -1,5 +1,7 @@
 #pragma once
 #include "history.hpp"
+#include <map>
+#include <optional>
 #include <string_view>
 namespace monitor {
 struct HistoryQuery {
@@ -32,6 +34,9 @@ class HistoryReducer {
     explicit HistoryReducer(HistoryQuery query);
     void add(const Bucket &bucket);
     std::vector<HistoryPoint> finish() const;
+    const std::vector<HistoryGap> &gaps() const {
+        return gaps_;
+    }
     bool truncated() const {
         return truncated_;
     }
@@ -44,6 +49,10 @@ class HistoryReducer {
     HistoryQuery query_;
     int64_t width_ = bucket_ms;
     std::vector<std::vector<Cell>> groups_;
+    // Retain continuity only for the active boot; the map holds at most five ROMs.
+    std::map<uint64_t, int64_t> last_end_;
+    std::optional<uint64_t> last_boot_id_;
+    std::vector<HistoryGap> gaps_;
     bool truncated_ = false;
 };
 } // namespace monitor

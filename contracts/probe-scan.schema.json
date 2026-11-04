@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:temperature-monitor:probe-scan:1",
+  "title": "Probe Scan Status",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "enabled", "complete", "discovered_count", "overflow"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "enabled": { "type": "boolean" },
+    "complete": { "type": "boolean" },
+    "discovered_count": { "type": "integer", "minimum": 0, "maximum": 16 },
+    "overflow": { "type": "boolean" }
+  }
+}

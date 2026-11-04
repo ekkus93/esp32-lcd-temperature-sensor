@@ -19,6 +19,7 @@ parser.add_argument('--port', required=True)
 parser.add_argument('--setup-file', default='.build/device-setup.json')
 parser.add_argument('--admin-file', default='.build/device-admin.json')
 parser.add_argument('--fresh-enrollment', action='store_true', help='Reset only a test-managed administrator and re-enroll it')
+parser.add_argument('--wait-for-provisioning', action='store_true', help='Wait up to 90 seconds for BOOT provisioning before enrolling an unowned test board')
 parser.add_argument('--change-password', action='store_true', help='Rotate only the test-managed administrator and update its private file')
 parser.add_argument('--candidate-failure', action='store_true', help='Test a nonexistent SSID only when no real station credentials are saved')
 parser.add_argument('--slow-client', action='store_true', help='Hold a tiny-window WebSocket client open while checking HTTP responsiveness')
@@ -171,8 +172,23 @@ try:
     state = json.loads(call('/api/v1/auth/state')['body'])
     if not state['enrolled']:
         check(bool(setup.get('setup_secret')),'physical setup secret available')
-        result = call('/api/v1/auth/enroll','POST',{'setup_secret':setup['setup_secret'],'password':password},origin)
-        check(result['status']==201,f'one-time owner enrollment (HTTP {result["status"]})')
+        if args.wait_for_provisioning:
+            print('Waiting up to 90 seconds for BOOT provisioning; hold BOOT for five seconds now.', flush=True)
+            enrollment_deadline = time.monotonic() + 90
+            result = None
+            while time.monotonic() < enrollment_deadline:
+                attempt = call('/api/v1/auth/enroll','POST',
+                               {'setup_secret':setup['setup_secret'],'password':password},origin)
+                if attempt['status'] == 201:
+                    result = attempt
+                    break
+                if attempt['status'] != 403:
+                    raise RuntimeError(f'enrollment returned HTTP {attempt["status"]}')
+                time.sleep(2)
+            check(result is not None,'one-time owner enrollment after BOOT provisioning')
+        else:
+            result = call('/api/v1/auth/enroll','POST',{'setup_secret':setup['setup_secret'],'password':password},origin)
+            check(result['status']==201,f'one-time owner enrollment (HTTP {result["status"]})')
     result = call('/api/v1/auth/login','POST',{'password':password},origin)
     check(result['status']==200,'PBKDF2 password verification and login')
     cookie = result['cookie'].split(';',1)[0]
@@ -278,6 +294,10 @@ try:
         check(stalled['http_successes']==slow_seconds and stalled['http_failures']==0 and
               stalled['max_http_ms'] < 5000,
               'authenticated HTTP status remains responsive during stalled-client recovery')
+        captured_lower = bytes(slow_health_traffic).lower()
+        check(not any(marker in captured_lower for marker in
+                      (b'task_wdt', b'watchdog', b'backtrace', b'cpu 1')),
+              'no watchdog warning or backtrace during stalled-client load')
         health_samples=[]
         for line in slow_health_traffic.splitlines():
             match=re.search(rb'HEALTH uptime_ms=([0-9]+).*?internal_free=([0-9]+) '
@@ -298,6 +318,25 @@ try:
         print('Device load telemetry: %s' % json.dumps(load_report,sort_keys=True),flush=True)
     snapshot = json.loads(call('/api/v1/status',headers=authorized)['body'])
     Path('.build/device-snapshot.json').write_text(json.dumps(snapshot)+'\n')
+    check('probe_scan' not in snapshot,
+          'snapshot v1 remains unchanged for strict schema clients')
+    scan = json.loads(call('/api/v1/probe-scan',headers=authorized)['body'])
+    check(set(scan)=={'schema_version','enabled','complete','discovered_count','overflow'} and
+          scan['schema_version']==1,
+          'probe discovery diagnostics use the separate versioned endpoint')
+    sensor_storage = json.loads(call('/api/v1/sensors/storage',headers=authorized)['body'])
+    check(sensor_storage.get('schema_version')==1 and
+          sensor_storage.get('state')=='ready' and sensor_storage.get('writable') is True,
+          'sensor persistence health is available and writable on the test device')
+    clock_status=json.loads(call('/api/v1/clock',headers=authorized)['body'])
+    check(set(clock_status)=={'schema_version','synchronized','last_sync_utc_seconds','sync_age_ms'} and
+          clock_status.get('schema_version')==1 and
+          isinstance(clock_status.get('synchronized'),bool) and
+          ((clock_status.get('last_sync_utc_seconds') is not None and
+            clock_status.get('sync_age_ms') is not None) if clock_status['synchronized'] else
+           (clock_status.get('last_sync_utc_seconds') is None and
+            clock_status.get('sync_age_ms') is None)),
+          'clock diagnostics report coherent sync epoch and monotonic age or explicit unknown')
     expected_sensors = 5 if args.expect_simulation else 0
     check(len(snapshot['sensors'])==expected_sensors and
           snapshot['simulated'] is bool(args.expect_simulation),

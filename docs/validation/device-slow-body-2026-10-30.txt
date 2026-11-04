@@ -1,0 +1,42 @@
+ESP32-S3 slow-body and API recovery — 2026-10-30
+
+Tested source: current working tree based on 290640c (uncommitted remediation
+changes), normal ESP-IDF v6.1 image on ESP32-S3 N16R8 at /dev/ttyACM0. LCD and
+temperature probes were disconnected. The test-managed administrator secret
+remained in ignored .build/ files and is not included here.
+
+Commands:
+
+  source /home/phil/esp/esp-idf-v6.1/export.sh && idf.py -C firmware build
+  idf.py -C firmware -B firmware/build -p /dev/ttyACM0 app-flash
+  python tools/device_api_test.py --port /dev/ttyACM0
+  python tools/device_smoke.py --port /dev/ttyACM0 --seconds 20 --output .build/slow-body-final-smoke.log
+  python tools/device_slow_body_test.py --host 100.64.64.61
+
+The pinned firmware build passed. The complete device API suite passed its
+snapshot, authentication/Host/Origin/CSRF checks, malformed and oversized JSON,
+OTA rejection, radio scan, four WebSocket clients/fifth-client rejection,
+history bounds, logout, and safe-restart checks. Two slow JSON uploads against
+the same normal build recovered HTTP service in 5.34s and 4.90s with the client
+left open, within the six-second acceptance limit. During the 4.90s run, serial
+logs captured health intervals of about five seconds, zero physical sensors,
+healthy history, READY, and no panic. The expected timed-out socket send error
+was logged as its response connection closed. WebSocket recovery specifically
+after the slow request and physical sensor acquisition remain unverified.
+
+The normal bare-board API suite was rerun on the normal image after adding
+strict snapshot-v1, separate probe-scan endpoint, and sensor-storage status
+assertions. It passed those contracts, auth/Host/Origin/CSRF, live and loaded
+WebSocket behavior, history/event paging, bounded malformed/oversized requests,
+and safe restart, then returned to READY.
+
+An additional network test authenticated from the private test-admin file,
+opened a live WebSocket, left an incomplete login body open, and verified the
+connection closed in 4.56–4.61s, concurrent HTTP recovered, and a newer
+WebSocket snapshot arrived after the body deadline. While serial health was
+captured during that same combination, the log emitted repeated CPU1 idle Task
+Watchdog warnings during PBKDF2 (about 15s). The board continued reporting
+healthy five-second bare-board health with zero sensors and no panic, but the
+watchdog warnings are an unresolved software risk. Do not mark CR06.5 complete
+until the long KDF no longer starves CPU1 idle. Physical acquisition also
+remains unverified because probes were not attached.

@@ -56,7 +56,7 @@ it('distinguishes active bus/probe faults, pages recovery events and shows reten
       .mockResolvedValueOnce({ ok: true, json: async () => first })
       .mockResolvedValue({ ok: true, json: async () => second }),
   );
-  render(<AlertsView />);
+  render(<AlertsView timezone={null} />);
   expect(await screen.findByText(/Device: bus fault/)).toBeInTheDocument();
   expect(screen.getByText(/Freezer: disconnected/)).toBeInTheDocument();
   expect(screen.getByText(/disconnected → normal/)).toBeInTheDocument();
@@ -70,4 +70,75 @@ it('distinguishes active bus/probe faults, pages recovery events and shows reten
   expect(vi.mocked(fetch).mock.calls[1][0]).toContain(
     '/alerts?after=2&limit=50',
   );
+});
+
+it('formats synchronized events in the configured device timezone', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        active: [],
+        events: [
+          {
+            sequence: 1,
+            boot_id: '0000000000000001',
+            kind: 'reboot',
+            rom_id: null,
+            previous: 'normal',
+            state: 'normal',
+            uptime_ms: 0,
+            utc_seconds: 1767268800,
+            detail: 0,
+          },
+        ],
+        next_after: 1,
+        has_more: false,
+        oldest_available: 1,
+        event_log_healthy: true,
+      }),
+    }),
+  );
+  render(<AlertsView timezone="America/Los_Angeles" />);
+  expect(
+    await screen.findByText(
+      /Jan 1, 2026, 4:00 AM PST \(America\/Los_Angeles\): Device started/,
+    ),
+  ).toBeInTheDocument();
+});
+
+it('keeps unsynchronized events boot-relative when the device timezone is unknown', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        active: [],
+        events: [
+          {
+            sequence: 1,
+            boot_id: '0123456789abcdef',
+            kind: 'reboot',
+            rom_id: null,
+            previous: 'normal',
+            state: 'normal',
+            uptime_ms: 12500,
+            utc_seconds: null,
+            detail: 0,
+          },
+        ],
+        next_after: 1,
+        has_more: false,
+        oldest_available: 1,
+        event_log_healthy: true,
+      }),
+    }),
+  );
+  render(<AlertsView timezone={null} />);
+  expect(
+    await screen.findByText(/Boot 01234567 · \+13 seconds: Device started/),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/Device timezone unavailable; synchronized times use UTC/),
+  ).toBeInTheDocument();
 });

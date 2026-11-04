@@ -18,7 +18,7 @@ esp_err_t OneWireService::initialize() {
     return ESP_OK;
 #endif
 }
-std::vector<Reading> OneWireService::read(int64_t now_ms) {
+std::vector<Reading> OneWireService::read(int64_t now_ms, const std::vector<uint64_t> &managed) {
     std::vector<Reading> readings;
     if (!bus_)
         return readings;
@@ -30,31 +30,38 @@ std::vector<Reading> OneWireService::read(int64_t now_ms) {
         next_scan_ = now_ms + 30000;
         onewire_device_iter_handle_t iterator = nullptr;
         if (onewire_new_device_iter(bus_, &iterator) != ESP_OK) {
+            scan_status_ = probe_scan_status(0, false, false);
             fault_ = bus_fault_detected(false, true, roms_.size(), 0);
             next_scan_ = now_ms + 5000;
             return readings;
         }
-        std::vector<uint64_t> discovered;
+        std::vector<uint64_t> observed;
         onewire_device_t device{};
         esp_err_t result = ESP_OK;
         // Bound enumeration, including unexpected families and excess devices.
-        for (unsigned i = 0; i < 16; ++i) {
+        unsigned enumerated = 0;
+        for (; enumerated < 16; ++enumerated) {
             result = onewire_device_iter_get_next(iterator, &device);
             if (result != ESP_OK)
                 break;
-            if (valid_rom(device.address))
-                discovered.push_back(device.address);
+            observed.push_back(device.address);
         }
         onewire_del_device_iter(iterator);
-        std::sort(discovered.begin(), discovered.end());
-        discovered.erase(std::unique(discovered.begin(), discovered.end()), discovered.end());
-        if (discovered.size() > max_sensors)
-            discovered.resize(max_sensors);
-        roms_ = discovered;
-        if (result != ESP_OK && result != ESP_ERR_NOT_FOUND) {
-            fault_ = bus_fault_detected(false, true, roms_.size(), 0);
+        const bool enumeration_capped = enumerated == 16 && result == ESP_OK;
+        const bool iterator_complete = result == ESP_ERR_NOT_FOUND;
+        auto discovery = collect_probe_discovery(observed, iterator_complete, enumeration_capped);
+        scan_status_ = discovery.status;
+        if (scan_status_.complete)
+            roms_ = select_probe_reads(discovery.roms, managed);
+        else {
             next_scan_ = now_ms + 5000;
-            return readings;
+            if (!enumeration_capped) {
+                fault_ = bus_fault_detected(false, true, roms_.size(), 0);
+                return readings;
+            }
+            auto candidates = discovery.roms;
+            candidates.insert(candidates.end(), roms_.begin(), roms_.end());
+            roms_ = select_probe_reads(candidates, managed);
         }
     }
     if (roms_.empty())

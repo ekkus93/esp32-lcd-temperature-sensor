@@ -169,6 +169,7 @@ int main(int argc, char **argv) {
         registry.sample({}, 3645000);
         status.button_progress = 75;
         view.render(registry, cache, options, status, 3645000);
+        CHECK(footer_text().find("Hold BOOT 75%") != std::string::npos);
         save("overview-off-and-lost");
         CHECK(display_rows(registry, false)[0].value == "OFF");
         for (const auto &row : display_rows(registry, false))
@@ -178,6 +179,30 @@ int main(int argc, char **argv) {
         options.extended = false;
         view.render(registry, cache, options, status, 3650000);
         CHECK(!view.showing_trends());
+        lv_screen_load(blank);
+    }
+    lv_display_set_resolution(display, 128, 160);
+    {
+        DisplayView view;
+        DisplayOptions options;
+        DisplayStatus status;
+        TrendCache cache;
+        Registry registry;
+        registry.sample(fake_readings(), 0);
+        view.render(registry, cache, options, status, 0);
+        CHECK(lv_obj_get_width(lv_screen_active()) == 128);
+        CHECK(lv_obj_get_height(lv_screen_active()) == 160);
+        lv_tick_inc(50);
+        lv_refr_now(display);
+        view.provisioning("test-network", "test-password", std::string(64, 'a'));
+        auto *setup_text = lv_obj_get_child(lv_screen_active(), 1);
+        const auto first_page = std::string(lv_label_get_text(setup_text));
+        lv_tick_inc(10000);
+        view.provisioning("test-network", "test-password", std::string(64, 'a'));
+        const auto second_page = std::string(lv_label_get_text(setup_text));
+        CHECK(first_page != second_page);
+        CHECK((first_page.find("Owner code") != std::string::npos) !=
+              (second_page.find("Owner code") != std::string::npos));
         lv_screen_load(blank);
     }
     {

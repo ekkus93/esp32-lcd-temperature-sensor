@@ -1,6 +1,6 @@
 # History record size and capacity forecast
 
-Date: 2026-10-27
+Date: 2026-10-31
 
 Host `storage_recovery` tests encode TMH2 records with 32-byte labels for one
 through five probes and assert the actual byte lengths. A full 300-second record
@@ -18,7 +18,35 @@ and the 3 MiB temperature payload budget, the floor forecast is:
 These are host-measured encoded record lengths and a payload-only capacity
 calculation. LittleFS segment boundaries, filesystem metadata, shorter labels,
 partial windows, and corruption reserve affect actual retained duration. The
-board is unavailable and has no connected probes in the current setup, so no
-oldest/latest device timestamps or real retention range have been measured.
-The checked-in design forecast remains useful for planning but is not a device
-retention guarantee.
+checked-in design forecast is not a device retention guarantee.
+
+## Production HistoryStore rollover profile on the host
+
+The opt-in `history_retention_profile` target writes maximum-length five-minute
+records through the production `HistoryStore`, exceeds its 3 MiB logical budget,
+and measures retained file bytes and oldest/latest boot-relative record starts
+after segment eviction. Run it with:
+
+```sh
+cmake -S firmware/tests -B .build/host -G Ninja
+cmake --build .build/host --target history_retention_profile
+.build/host/history_retention_profile
+```
+
+The 2026-10-31 POSIX host run reported:
+
+| Probes | Record bytes | Retained file bytes | Records | Oldest start (ms) | Latest start (ms) | Whole retained days |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 99 | 3,114,045 | 31,455 | 396,000,000 | 9,832,200,000 | 109 |
+| 2 | 158 | 3,140,092 | 19,874 | 310,500,000 | 6,272,400,000 | 69 |
+| 3 | 217 | 3,133,263 | 14,439 | 317,100,000 | 4,648,500,000 | 50 |
+| 4 | 276 | 3,128,460 | 11,335 | 318,600,000 | 3,718,800,000 | 39 |
+| 5 | 335 | 3,123,205 | 9,323 | 320,100,000 | 3,116,700,000 | 32 |
+
+These are simulated uptime values and POSIX `HistoryStore` file contents, not
+real timestamps, LittleFS physical allocation, or probe measurements. They
+confirm the host rollover policy retains approximately the payload-only
+forecast after segment eviction. Actual MCU LittleFS retained range, filesystem
+metadata/wear, and timestamps with physical probes still need device
+qualification; T06-15 remains open until those device measurements are
+recorded.

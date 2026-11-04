@@ -6,6 +6,14 @@ config MONITOR_SIMULATION
         Runs five explicitly simulated probes without touching GPIO4. Uses separate
         NVS/history storage and marks every API snapshot as simulated. Never use as
         evidence of physical sensor verification.
+config MONITOR_SIM_REPLACEMENT_TEST
+    bool "Simulate a disconnected saved probe and one excess replacement ROM"
+    depends on MONITOR_SIMULATION
+    default n
+    help
+        Test-only simulation mode. Omits ROM 1 from readings and adds ROM 6 so a
+        saved five-probe registry can exercise durable retirement and replacement.
+        It never enables or accesses the physical sensor bus.
 config MONITOR_SENSOR_BUS
     bool "Enable physical DS18B20 bus on GPIO4"
     depends on !MONITOR_SIMULATION

@@ -59,6 +59,13 @@ struct Reading {
     std::optional<double> celsius;
     bool conversion_complete = true;
 };
+struct ProbeScanStatus {
+    unsigned discovered_count = 0;
+    bool overflow = false;
+    bool complete = false;
+    bool enabled = false;
+    std::vector<uint64_t> discovered_roms;
+};
 struct Event {
     uint64_t sequence;
     uint64_t rom;

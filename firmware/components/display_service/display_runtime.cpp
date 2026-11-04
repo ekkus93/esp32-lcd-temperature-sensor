@@ -5,6 +5,7 @@
 #include "esp_check.h"
 #include "esp_heap_caps.h"
 #include "esp_lcd_panel_st7789.h"
+#include "esp_lcd_st7735.h"
 #include "esp_log.h"
 #include <new>
 #if CONFIG_MONITOR_LCD_TEST_PATTERN
@@ -14,8 +15,13 @@
 namespace monitor {
 namespace {
 constexpr char tag[] = "display";
+#if CONFIG_MONITOR_LCD_ST7735
+constexpr int width = 128;
+constexpr int height = 160;
+#else
 constexpr int width = 240;
 constexpr int height = 320;
+#endif
 constexpr int draw_height = 40;
 constexpr int spi_frequency_hz = 20000000;
 
@@ -64,8 +70,8 @@ lv_obj_t *diagnostic_pattern() {
     lv_obj_t *center = lv_label_create(root);
     if (!center)
         return nullptr;
-    lv_label_set_text(center, "240 x 320");
-    lv_obj_set_pos(center, 80, height / 2 + 70);
+    lv_label_set_text(center, width == 128 ? "128 x 160" : "240 x 320");
+    lv_obj_set_pos(center, width == 128 ? 20 : 80, height / 2 + (height == 160 ? 35 : 70));
     lv_obj_set_style_text_color(center, lv_color_hex(0xffffff), 0);
     lv_obj_set_style_text_font(center, &lv_font_montserrat_14, 0);
     return root;
@@ -126,10 +132,14 @@ bool DisplayRuntime::initialize() {
     panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_BGR;
     panel_config.data_endian = LCD_RGB_DATA_ENDIAN_BIG;
     panel_config.bits_per_pixel = 16;
-    if (esp_lcd_new_panel_st7789(panel_io_, &panel_config, &panel_) != ESP_OK ||
-        esp_lcd_panel_reset(panel_) != ESP_OK || esp_lcd_panel_init(panel_) != ESP_OK ||
-        esp_lcd_panel_disp_on_off(panel_, true) != ESP_OK) {
-        ESP_LOGE(tag, "ST7789 panel initialization failed");
+#if CONFIG_MONITOR_LCD_ST7735
+    auto panel_result = esp_lcd_new_panel_st7735(panel_io_, &panel_config, &panel_);
+#else
+    auto panel_result = esp_lcd_new_panel_st7789(panel_io_, &panel_config, &panel_);
+#endif
+    if (panel_result != ESP_OK || esp_lcd_panel_reset(panel_) != ESP_OK ||
+        esp_lcd_panel_init(panel_) != ESP_OK || esp_lcd_panel_disp_on_off(panel_, true) != ESP_OK) {
+        ESP_LOGE(tag, "LCD panel initialization failed");
         deinitialize();
         return false;
     }
@@ -181,7 +191,7 @@ bool DisplayRuntime::initialize() {
         lvgl_port_unlock();
     }
 #endif
-    ESP_LOGI(tag, "ST7789/LVGL ready; internal heap=%u",
+    ESP_LOGI(tag, "LCD/LVGL ready; internal heap=%u",
              (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
     return true;
 }

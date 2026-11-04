@@ -25,7 +25,7 @@ export interface HistoryResult {
     partial: boolean;
   }[];
   /**
-   * @maxItems 2560
+   * @maxItems 512
    */
   gaps: {
     boot_id: string;

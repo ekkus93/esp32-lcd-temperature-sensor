@@ -8,11 +8,15 @@ const generator = path.join(root, 'web/node_modules/.bin/json2ts');
 const formatter = path.join(root, 'web/node_modules/.bin/prettier');
 const files = [
   ['snapshot.schema.json', 'generated.ts'],
+  ['probe-scan.schema.json', 'api-probe-scan.generated.ts'],
+  ['clock-diagnostics.schema.json', 'api-clock-diagnostics.generated.ts'],
   ['auth-state.schema.json', 'api-auth.generated.ts'],
   ['alerts.schema.json', 'api-alerts.generated.ts'],
   ['history.schema.json', 'api-history.generated.ts'],
   ['sensor-configurations.schema.json', 'api-sensors.generated.ts'],
+  ['sensor-storage.schema.json', 'api-sensor-storage.generated.ts'],
   ['sensor-patch.schema.json', 'api-sensor-patch.generated.ts'],
+  ['sensor-retire.schema.json', 'api-sensor-retire.generated.ts'],
   ['device-settings.schema.json', 'api-device-settings.generated.ts'],
   [
     'device-settings-patch.schema.json',

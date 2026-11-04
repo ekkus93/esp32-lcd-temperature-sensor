@@ -9,4 +9,13 @@ std::vector<Reading> fake_readings(unsigned count) {
     }
     return values;
 }
+std::vector<Reading> fake_replacement_readings() {
+    std::vector<Reading> values;
+    for (unsigned serial = 2; serial <= max_sensors + 1; ++serial) {
+        uint8_t bytes[7] = {0x28, static_cast<uint8_t>(serial)};
+        const uint64_t id = 0x28 | (uint64_t(serial) << 8) | (uint64_t(crc8(bytes, 7)) << 56);
+        values.push_back({id, 18.0 + serial, true});
+    }
+    return values;
+}
 } // namespace monitor

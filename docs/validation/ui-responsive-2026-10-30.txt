@@ -1,0 +1,25 @@
+Responsive UI and keyboard spot check — 2026-10-30
+
+Environment: Chromium 156 on the local Vite production preview, connected to
+the five-probe host simulator. No device credentials or secrets were used.
+Every page was inspected at 360×800 and 1280×900 CSS pixels.
+
+| Page | document/body width at 360 px | document/body width at 1280 px | Notes |
+| --- | ---: | ---: | --- |
+| Dashboard | 345 px | 1280 px | Five live simulated probe cards and status labels visible |
+| History | 345 px | 1280 px | Range, zoom, export controls and explicit empty/unsynchronized state visible |
+| Sensors | 345 px | 1265 px | Five probe forms, read-only storage status and recovery guidance visible |
+| Alerts | 360 px | 1280 px | Empty active/recent states and event-time guidance visible |
+| Settings | 345 px | 1265 px | Storage, preference, firmware and network sections rendered |
+
+No page exceeded its viewport width. At 360 px, the Dashboard screenshot showed
+readable status chips and stacked cards without horizontal scrolling. Native
+Tab navigation reached the Dashboard navigation button with `aria-current`;
+all pages exposed focusable navigation and their available controls in the
+accessibility tree. The browser page began in a connection-error state before
+the simulator started and recovered after reload; this exercised the visible
+retry/error presentation. Sensors showed the simulator's read-only storage
+state. These are browser/simulator checks, not a physical-device or contrast
+audit. The simulator response fixtures were corrected to include required
+history gaps, alert pagination fields, sensor storage status, and probe-scan
+status so the production validators can exercise the pages.

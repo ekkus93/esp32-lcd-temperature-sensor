@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Card, CardContent, Stack, Typography } from '@mui/material';
 import { getAlerts, type AlertData } from '../api/alerts';
+import { formatDeviceTime } from '../api/time';
 function wifiState(value: number) {
   return ['offline', 'connecting', 'connected', 'setup'][value] ?? 'unknown';
 }
@@ -14,12 +15,15 @@ function description(event: AlertData['events'][number]) {
   if (event.kind === 'reboot') return 'Device started';
   return 'History storage write failed';
 }
-function timestamp(event: AlertData['events'][number]) {
+function timestamp(
+  event: AlertData['events'][number],
+  timezone: string | null,
+) {
   return event.utc_seconds === null
     ? `Boot ${event.boot_id.slice(0, 8)} · +${(event.uptime_ms / 1000).toFixed(0)} seconds`
-    : new Date(event.utc_seconds * 1000).toLocaleString();
+    : formatDeviceTime(event.utc_seconds * 1000, timezone);
 }
-export default function AlertsView() {
+export default function AlertsView({ timezone }: { timezone: string | null }) {
   const [data, setData] = useState<AlertData | null>(null);
   const [error, setError] = useState('');
   const [historyGap, setHistoryGap] = useState(false);
@@ -102,8 +106,11 @@ export default function AlertsView() {
         <CardContent>
           <Typography variant="h6">Recent device events</Typography>
           <Typography color="text.secondary" variant="body2" sx={{ my: 1 }}>
-            Events are stored in a bounded local journal across reboots. Times
-            use local timezone when synchronized, otherwise boot uptime.
+            Events are stored in a bounded local journal across reboots.{' '}
+            {timezone
+              ? `Synchronized times use ${timezone}`
+              : 'Device timezone unavailable; synchronized times use UTC'}
+            ; unsynchronized times use boot uptime.
           </Typography>
           {data && !data.event_log_healthy && (
             <Alert severity="error" sx={{ mb: 1 }}>
@@ -121,7 +128,7 @@ export default function AlertsView() {
             .reverse()
             .map((item) => (
               <Typography key={item.sequence} sx={{ py: 1 }}>
-                {timestamp(item)}: {description(item)}
+                {timestamp(item, timezone)}: {description(item)}
               </Typography>
             ))}
           {data && !data.events.length && (

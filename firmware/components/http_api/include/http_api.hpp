@@ -13,10 +13,14 @@ namespace monitor {
 class HttpApi {
   public:
     bool start(AuthService &auth, WifiService &wifi, HistoryService &history,
-               DeviceSettingsService &settings, uint64_t boot_id, bool simulated = false);
-    bool next_sensor_update(uint64_t &rom, Settings &settings);
-    void publish(const Registry &registry, int64_t uptime, bool logging, bool synchronized,
-                 const std::string &utc);
+               DeviceSettingsService &settings, uint64_t boot_id, bool simulated = false,
+               bool sensor_settings_writable = true);
+    void set_sensor_settings_writable(bool writable) {
+        sensor_settings_writable_.store(writable);
+    }
+    bool next_sensor_update(uint64_t &rom, Settings &settings, bool &retire);
+    bool publish(const Registry &registry, ProbeScanStatus probe_scan, int64_t uptime, bool logging,
+                 bool synchronized, const std::string &utc);
 
   private:
     static esp_err_t dispatch(httpd_req_t *request);
@@ -35,14 +39,17 @@ class HttpApi {
         uint64_t rom;
         Settings settings;
         uint64_t generation;
+        bool retire;
     };
     QueueHandle_t updates_ = nullptr;
     std::atomic<uint64_t> sent_generation_{0}, published_generation_{0};
     uint64_t consumed_generation_ = 0;
     Registry registry_;
+    ProbeScanStatus probe_scan_{};
     int64_t uptime_ = 0;
     bool logging_ = false, synchronized_ = false;
     bool simulated_ = false;
+    std::atomic<bool> sensor_settings_writable_{true};
     std::string utc_, boot_id_;
     httpd_handle_t server_ = nullptr;
     WsLive ws_live_;

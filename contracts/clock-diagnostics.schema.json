@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:temperature-monitor:clock-diagnostics:1",
+  "title": "ClockDiagnostics",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "synchronized",
+    "last_sync_utc_seconds",
+    "sync_age_ms"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "synchronized": { "type": "boolean" },
+    "last_sync_utc_seconds": { "type": ["integer", "null"], "minimum": 0 },
+    "sync_age_ms": { "type": ["integer", "null"], "minimum": 0 }
+  }
+}

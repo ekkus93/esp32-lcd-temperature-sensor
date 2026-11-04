@@ -8,9 +8,14 @@ namespace monitor {
 class SamplingService {
   public:
     esp_err_t initialize(bool simulated);
-    std::vector<Reading> read(int64_t now_ms);
+    std::vector<Reading> read(int64_t now_ms, const std::vector<uint64_t> &managed);
     bool fault() const;
     bool enabled() const;
+    ProbeScanStatus scan_status() const {
+        auto status = simulated_ ? ProbeScanStatus{} : bus_.scan_status();
+        status.enabled = enabled();
+        return status;
+    }
 
   private:
     OneWireService bus_;

@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:temperature-monitor:sensor-storage:1",
+  "title": "SensorStorageStatus",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "state", "writable"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "state": { "enum": ["ready", "read_only"] },
+    "writable": { "type": "boolean" }
+  }
+}

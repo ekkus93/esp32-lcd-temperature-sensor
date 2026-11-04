@@ -1,4 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   Alert,
   Button,
@@ -15,19 +21,29 @@ export default function AuthGate({ children }: { children: ReactNode }) {
   const [secret, setSecret] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(true);
+  const mounted = useRef(false);
+  const checking = useRef(false);
+  const checkAuthState = useCallback(async () => {
+    if (checking.current) return;
+    checking.current = true;
+    try {
+      const next = await authState();
+      if (mounted.current) {
+        setCsrf(next.csrf ?? '');
+        setState(next);
+      }
+    } catch (e) {
+      if (mounted.current)
+        setError(e instanceof Error ? e.message : 'Device unavailable');
+    } finally {
+      checking.current = false;
+      if (mounted.current) setCheckingStatus(false);
+    }
+  }, []);
   useEffect(() => {
-    let active = true;
-    authState()
-      .then((next) => {
-        if (active) {
-          setCsrf(next.csrf ?? '');
-          setState(next);
-        }
-      })
-      .catch((e) => {
-        if (active)
-          setError(e instanceof Error ? e.message : 'Device unavailable');
-      });
+    mounted.current = true;
+    void Promise.resolve().then(checkAuthState);
     const expired = () => {
       setCsrf('');
       setState((old) => ({ enrolled: old?.enrolled ?? true }));
@@ -35,10 +51,10 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     };
     addEventListener('auth-required', expired);
     return () => {
-      active = false;
+      mounted.current = false;
       removeEventListener('auth-required', expired);
     };
-  }, []);
+  }, [checkAuthState]);
   if (state?.csrf) return children;
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -96,7 +112,24 @@ export default function AuthGate({ children }: { children: ReactNode }) {
             </Alert>
           )}
           {!state ? (
-            <Typography>Connecting to device…</Typography>
+            <Stack spacing={2}>
+              <Typography>
+                {checkingStatus
+                  ? 'Connecting to device…'
+                  : 'Device connection unavailable.'}
+              </Typography>
+              <Button
+                variant="contained"
+                disabled={checkingStatus}
+                onClick={() => {
+                  setCheckingStatus(true);
+                  setError('');
+                  void checkAuthState();
+                }}
+              >
+                {checkingStatus ? 'Connecting…' : 'Retry connection'}
+              </Button>
+            </Stack>
           ) : (
             <form onSubmit={submit}>
               <Stack spacing={2}>

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
+import type { ClockDiagnostics } from '../api/clock';
 import DeviceSettings from './DeviceSettings';
 const settings = {
   schema_version: 1,
@@ -15,7 +16,7 @@ const settings = {
   ntp_server: 'pool.ntp.org',
 };
 afterEach(() => vi.unstubAllGlobals());
-it('saves device preferences with an update precondition and applies the shared units', async () => {
+it('saves device preferences with an update precondition and applies shared settings', async () => {
   const applied = vi.fn();
   vi.stubGlobal(
     'fetch',
@@ -43,7 +44,7 @@ it('saves device preferences with an update precondition and applies the shared 
     screen.getByRole('button', { name: 'Save device preferences' }),
   );
   await screen.findByText('Device preferences saved.');
-  expect(applied).toHaveBeenLastCalledWith('F');
+  expect(applied).toHaveBeenLastCalledWith('F', 'UTC');
   const last = vi.mocked(fetch).mock.calls.at(-1)!;
   expect(last[0]).toBe('/api/v1/settings');
   expect(last[1]?.headers).toMatchObject({ 'If-Match': settings.etag });
@@ -65,6 +66,10 @@ it('prevents writes when existing device settings are preserved read-only', asyn
   expect(
     await screen.findByRole('button', { name: 'Save device preferences' }),
   ).toBeDisabled();
+  expect(
+    screen.getByRole('combobox', { name: 'Device timezone' }),
+  ).toHaveAttribute('aria-disabled', 'true');
+  expect(screen.getByLabelText(/Overview duration/)).toBeDisabled();
 });
 
 it('exposes independent read-only LCD mode, dwell times, and trend lookback', async () => {
@@ -80,4 +85,47 @@ it('exposes independent read-only LCD mode, dwell times, and trend lookback', as
   expect(screen.getByLabelText(/Overview duration/)).toHaveValue(20);
   expect(screen.getByLabelText(/Trends duration/)).toHaveValue(10);
   expect(screen.getByLabelText(/LCD history lookback/)).toHaveValue(60);
+});
+
+it('shows an honest unknown clock state and a UTC sync age after synchronization', async () => {
+  const diagnostics: ClockDiagnostics = {
+    schema_version: 1,
+    synchronized: false,
+    last_sync_utc_seconds: null,
+    sync_age_ms: null,
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: RequestInfo | URL) => {
+      const path = String(input);
+      return Promise.resolve({
+        ok: true,
+        json: async () =>
+          path === '/api/v1/clock'
+            ? diagnostics
+            : path === '/api/v1/settings'
+              ? settings
+              : {
+                  ...settings,
+                  schema_version: 1,
+                  etag: settings.etag,
+                  revision: 1,
+                },
+      } as Response);
+    }),
+  );
+  const first = render(<DeviceSettings onApplied={vi.fn()} />);
+  expect(
+    await screen.findByText('Clock has not synchronized since this boot.'),
+  ).toBeInTheDocument();
+  first.unmount();
+  diagnostics.synchronized = true;
+  diagnostics.last_sync_utc_seconds = 1_798_000_000;
+  diagnostics.sync_age_ms = 65_000;
+  render(<DeviceSettings onApplied={vi.fn()} />);
+  expect(
+    await screen.findByText(
+      /Last successful NTP sync: .* UTC · 65 seconds ago/,
+    ),
+  ).toBeInTheDocument();
 });

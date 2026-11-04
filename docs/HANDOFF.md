@@ -1,3 +1,9 @@
+## 2026-10-31 — Current project status
+
+The canonical backlog has **124 complete and 21 open of 145 numbered tasks**. T06-14 software acceptance now passes focused host storage/power-cut simulations plus device history/reboot evidence. Physical power interruption is tracked separately at T06-16. See the current [project handoff](ESP32_TEMPERATURE_MONITOR_HANDOFF_2026-10-31.md) and [progress record](PROGRESS.md).
+
+The current ESP-IDF v6.1 firmware is image 0x1ee5f0 and runs on /dev/ttyACM0. Full verification passed 24 host CTests, 14 Python tests, simulator checks, headless LVGL, 78 web tests and the pinned firmware build. The board passed a fresh 120-second bare-board health smoke with healthy storage and no panic; see [validation](validation/device-bare-board-2026-10-31.txt). The LCD and temperature probes are disconnected; no physical LCD/probe acceptance is claimed. The device test-managed admin is currently un-enrolled after a test-only credential reset, awaiting BOOT provisioning to resume authenticated tests.
+
 ## 2026-10-30 — Current connected-board checkpoint
 
 The ESP32-S3 is visible at `/dev/ttyACM0`. A normal-image smoke and the complete

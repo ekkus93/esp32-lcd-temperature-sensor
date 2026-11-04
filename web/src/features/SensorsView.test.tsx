@@ -20,10 +20,20 @@ const sensor = {
 beforeEach(() =>
   vi.stubGlobal(
     'fetch',
-    vi.fn().mockResolvedValue({ ok: true, json: async () => [sensor] }),
+    vi.fn().mockImplementation(async (input: RequestInfo | URL) => ({
+      ok: true,
+      json: async () =>
+        String(input).endsWith('/sensors/storage')
+          ? { schema_version: 1, state: 'ready', writable: true }
+          : [sensor],
+    })),
   ),
 );
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
 it('submits ROM-keyed settings including negative calibration and disabled state', async () => {
   render(<SensorsView />);
   fireEvent.change(await screen.findByLabelText(/Sensor name/), {
@@ -51,6 +61,49 @@ it('submits ROM-keyed settings including negative calibration and disabled state
   });
   expect(JSON.parse(last[1]?.body as string)).not.toHaveProperty('rom_id');
 });
+it('explains the empty managed-sensor list', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation(async (input: RequestInfo | URL) => ({
+      ok: true,
+      json: async () =>
+        String(input).endsWith('/sensors/storage')
+          ? { schema_version: 1, state: 'ready', writable: true }
+          : [],
+    })),
+  );
+  render(<SensorsView />);
+  expect(
+    await screen.findByText(
+      'No sensors discovered. Unused positions do not cause alarms.',
+    ),
+  ).toBeInTheDocument();
+});
+it('renders all five sensor editors with maximum-length names', async () => {
+  const sensors = Array.from({ length: 5 }, (_, index) => ({
+    ...sensor,
+    rom_id: `28${String(index + 1).padStart(14, '0')}`,
+    etag: `"simulator:${index}:1"`,
+    name: `${index + 1}${'x'.repeat(31)}`,
+    order: index,
+  }));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation(async (input: RequestInfo | URL) => ({
+      ok: true,
+      json: async () =>
+        String(input).endsWith('/sensors/storage')
+          ? { schema_version: 1, state: 'ready', writable: true }
+          : sensors,
+    })),
+  );
+  render(<SensorsView />);
+  const editors = await screen.findAllByLabelText(/Sensor name/);
+  expect(editors).toHaveLength(5);
+  expect(editors.map((editor) => (editor as HTMLInputElement).value)).toEqual(
+    sensors.map((item) => item.name),
+  );
+});
 it('rejects reversed thresholds before sending an update', async () => {
   render(<SensorsView />);
   await screen.findByLabelText(/Sensor name/);
@@ -62,7 +115,12 @@ it('rejects reversed thresholds before sending an update', async () => {
   });
   fireEvent.click(screen.getByRole('button', { name: 'Save sensor settings' }));
   await screen.findByText('Low threshold must be below high threshold.');
-  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(
+    vi
+      .mocked(fetch)
+      .mock.calls.every(([, options]) => options?.method !== 'PATCH'),
+  ).toBe(true);
 });
 it('rejects malformed configuration payloads without rendering an unsafe editor', async () => {
   vi.mocked(fetch).mockResolvedValueOnce({
@@ -74,4 +132,90 @@ it('rejects malformed configuration payloads without rendering an unsafe editor'
   expect(
     screen.queryByRole('button', { name: 'Save sensor settings' }),
   ).not.toBeInTheDocument();
+});
+
+it('disables sensor edits when persistent storage is read-only', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation(async (input: RequestInfo | URL) => ({
+      ok: true,
+      json: async () =>
+        String(input).endsWith('/sensors/storage')
+          ? { schema_version: 1, state: 'read_only', writable: false }
+          : [sensor],
+    })),
+  );
+  render(<SensorsView />);
+  expect(
+    await screen.findByText(
+      /stored configuration could not be safely opened or saved/,
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: 'Save sensor settings' }),
+  ).toBeDisabled();
+  expect(screen.getByLabelText(/Sensor name/)).toBeDisabled();
+});
+
+it('requires confirmation and queues retirement with the current sensor ETag', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockImplementation(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          if (init?.method === 'DELETE')
+            return {
+              ok: true,
+              status: 202,
+              json: async () => ({ status: 'queued' }),
+            };
+          return {
+            ok: true,
+            status: 200,
+            json: async () =>
+              String(input).endsWith('/sensors/storage')
+                ? { schema_version: 1, state: 'ready', writable: true }
+                : [{ ...sensor, state: 'disconnected' }],
+          };
+        },
+      ),
+  );
+  render(<SensorsView />);
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Retire disconnected probe' }),
+  );
+  expect(await screen.findByText(/Retirement queued/)).toBeInTheDocument();
+  expect(window.confirm).toHaveBeenCalledWith(
+    expect.stringContaining(sensor.rom_id),
+  );
+  const deletion = vi
+    .mocked(fetch)
+    .mock.calls.find(([, init]) => init?.method === 'DELETE');
+  expect(deletion?.[0]).toBe(`/api/v1/sensors/${sensor.rom_id}`);
+  expect(deletion?.[1]?.headers).toMatchObject({ 'If-Match': sensor.etag });
+});
+
+it('does not submit retirement when its confirmation is cancelled', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(false);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation(async (input: RequestInfo | URL) => ({
+      ok: true,
+      status: 200,
+      json: async () =>
+        String(input).endsWith('/sensors/storage')
+          ? { schema_version: 1, state: 'ready', writable: true }
+          : [{ ...sensor, state: 'disconnected' }],
+    })),
+  );
+  render(<SensorsView />);
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Retire disconnected probe' }),
+  );
+  expect(window.confirm).toHaveBeenCalled();
+  expect(
+    vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'DELETE'),
+  ).toBe(false);
 });

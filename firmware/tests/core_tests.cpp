@@ -1,5 +1,7 @@
+#include "display_model.hpp"
 #include "fake_bus.hpp"
 #include "monitor.hpp"
+#include "settings_codec.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -43,6 +45,46 @@ void identity() {
     settings.high = 20;
     CHECK(!registry.configure(original, settings));
 }
+void retirement() {
+    Registry registry;
+    const auto retired_id = rom(1);
+    const auto retained_id = rom(2);
+    Aggregator history(123);
+    registry.sample({{retired_id, 20}, {retained_id, 22}}, 0);
+    CHECK(!history.add(registry, 0));
+    auto retained = registry.sensors()[1].settings;
+    retained.name = "Keep this mapping";
+    retained.calibration = 1.5;
+    CHECK(registry.configure(retained_id, retained));
+    CHECK(!registry.retire(retired_id)); // A connected mapping cannot be retired.
+    registry.sample({}, 5000);
+    registry.sample({}, 10000);
+    registry.sample({}, 15000);
+    CHECK(registry.sensors()[0].state == State::disconnected);
+    registry.sample({}, bucket_ms);
+    const auto stored_history = history.add(registry, bucket_ms);
+    CHECK(stored_history);
+    CHECK(std::any_of(stored_history->sensors.begin(), stored_history->sensors.end(),
+                      [retired_id](const Aggregate &sensor) {
+                          return sensor.rom == retired_id && sensor.name == "Sensor 1";
+                      }));
+    CHECK(registry.retire(retired_id));
+    CHECK(!registry.retire(retired_id));
+    CHECK(registry.sensors().size() == 1);
+    CHECK(registry.sensors()[0].rom == retained_id);
+    CHECK(registry.sensors()[0].settings.name == "Keep this mapping");
+    CHECK(registry.sensors()[0].settings.calibration == 1.5);
+    const auto persisted = decode_settings(encode_settings(registry.sensors()));
+    CHECK(persisted && persisted->size() == 1 && (*persisted)[0].rom == retained_id);
+    registry.sample({{retired_id, 21}}, 20000);
+    CHECK(registry.sensors().size() == 2);
+    const auto &rediscovered = registry.sensors()[1];
+    CHECK(rediscovered.rom == retired_id);
+    CHECK(rediscovered.settings.name == "Sensor 1");
+    CHECK(rediscovered.settings.calibration == 0 && !rediscovered.settings.low &&
+          !rediscovered.settings.high);
+    CHECK(stored_history->sensors.front().rom == retired_id);
+}
 void invalid_and_faults() {
     CHECK(bus_fault_detected(true, false, 0, 0));
     CHECK(bus_fault_detected(false, true, 0, 0));
@@ -65,6 +107,15 @@ void invalid_and_faults() {
     CHECK(registry.sensors()[0].state == State::normal);
     registry.expire(45001);
     CHECK(registry.sensors()[0].state == State::stale);
+    Registry fresh_owner;
+    fresh_owner.sample({{id, 24}}, 1000);
+    Registry display_snapshot = fresh_owner;
+    CHECK(!expire_display_snapshot(display_snapshot, 16000));
+    CHECK(expire_display_snapshot(display_snapshot, 16001));
+    CHECK(display_snapshot.sensors()[0].state == State::stale);
+    CHECK(!display_snapshot.sensors()[0].temperature);
+    CHECK(fresh_owner.sensors()[0].state == State::normal);
+    CHECK(fresh_owner.sensors()[0].temperature == 24);
     registry.sample({}, 50000, true);
     auto count = registry.events().size();
     CHECK(registry.sensors()[0].state == State::bus_fault);
@@ -314,6 +365,7 @@ void controls() {
 }
 int run_core_tests() {
     identity();
+    retirement();
     invalid_and_faults();
     alarms();
     history_and_clock();
@@ -322,7 +374,8 @@ int run_core_tests() {
     bucket_alignment();
     aggregate_metadata();
     controls();
-    std::cout << "PASS: identity, CRC, invalid data, alerts, aggregates, clock, display and BOOT\n";
+    std::cout << "PASS: identity, retirement, CRC, invalid data, alerts, aggregates, clock, "
+                 "display and BOOT\n";
     return 0;
 }
 

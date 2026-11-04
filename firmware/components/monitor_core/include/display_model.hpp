@@ -33,4 +33,5 @@ struct DisplayRow {
 };
 std::array<DisplayRow, max_sensors> display_rows(const Registry &registry, bool fahrenheit);
 bool valid_display_options(const DisplayOptions &options);
+bool expire_display_snapshot(Registry &snapshot, int64_t now_ms);
 } // namespace monitor

@@ -1,4 +1,5 @@
 #include "http_api.hpp"
+#include "bounded_body_reader.hpp"
 #include "cJSON.h"
 #include "clock_service.hpp"
 #include "esp_heap_caps.h"
@@ -6,15 +7,93 @@
 #include "esp_timer.h"
 #include "history_csv.hpp"
 #include "ota_service.hpp"
+#include "retirement_policy.hpp"
 #include "web_assets.h"
 #include <algorithm>
+#include <cerrno>
 #include <cmath>
 #include <cstring>
 #include <memory>
+#include <sys/select.h>
+#include <sys/socket.h>
 #include <vector>
 namespace monitor {
 namespace {
 using Json = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>;
+std::atomic<int> body_deadline_socket{-1};
+std::atomic<int64_t> body_deadline_us{0};
+int deadline_recv(httpd_handle_t, int socket, char *buffer, size_t length, int flags) {
+    const auto deadline = body_deadline_us.load();
+    if (socket != body_deadline_socket.load() || deadline == 0)
+        return recv(socket, buffer, length, flags);
+    int selected;
+    for (;;) {
+        const int64_t remaining_us = deadline - esp_timer_get_time();
+        if (remaining_us <= 0)
+            return HTTPD_SOCK_ERR_TIMEOUT;
+        fd_set readable;
+        FD_ZERO(&readable);
+        FD_SET(socket, &readable);
+        timeval remaining{static_cast<time_t>(remaining_us / 1000000),
+                          static_cast<suseconds_t>(remaining_us % 1000000)};
+        selected = select(socket + 1, &readable, nullptr, nullptr, &remaining);
+        if (selected >= 0 || errno != EINTR)
+            break;
+    }
+    if (selected == 0)
+        return HTTPD_SOCK_ERR_TIMEOUT;
+    if (selected < 0)
+        return HTTPD_SOCK_ERR_FAIL;
+    return recv(socket, buffer, length, flags | MSG_DONTWAIT);
+}
+int request_receive(void *context, char *buffer, size_t length) {
+    return httpd_req_recv(static_cast<httpd_req_t *>(context), buffer, length);
+}
+int64_t body_clock(void *) {
+    return esp_timer_get_time();
+}
+class BodyReceiveDeadline {
+  public:
+    explicit BodyReceiveDeadline(httpd_req_t *request)
+        : server_(request->handle), socket_(httpd_req_to_sockfd(request)),
+          deadline_us_(esp_timer_get_time() + 4500000) {
+        valid_ =
+            socket_ >= 0 && httpd_sess_set_recv_override(server_, socket_, deadline_recv) == ESP_OK;
+        if (valid_) {
+            body_deadline_socket.store(socket_);
+            body_deadline_us.store(deadline_us_);
+        }
+    }
+    ~BodyReceiveDeadline() {
+        if (valid_) {
+            body_deadline_us.store(0);
+            body_deadline_socket.store(-1);
+        }
+        if (valid_ && close_socket_)
+            shutdown(socket_, SHUT_RDWR);
+        if (valid_ && close_socket_)
+            httpd_sess_trigger_close(server_, socket_);
+    }
+    bool ready() const {
+        return valid_;
+    }
+    int64_t deadline_us() const {
+        return deadline_us_;
+    }
+    void mark_timeout() {
+        close_socket_ = true;
+    }
+    void close_connection() {
+        close_socket_ = true;
+    }
+
+  private:
+    httpd_handle_t server_;
+    int socket_;
+    int64_t deadline_us_;
+    bool valid_ = false;
+    bool close_socket_ = false;
+};
 int64_t now() {
     return esp_timer_get_time() / 1000;
 }
@@ -51,16 +130,33 @@ esp_err_t json(httpd_req_t *r, cJSON *object) {
     return result;
 }
 Json body(httpd_req_t *r) {
-    if (r->content_len <= 0 || r->content_len > 2048 ||
-        header(r, "Content-Type", 128).find("application/json") != 0)
+    if (r->content_len <= 0)
         return {nullptr, cJSON_Delete};
-    std::string text(r->content_len, '\0');
-    size_t used = 0;
-    while (used < text.size()) {
-        int count = httpd_req_recv(r, text.data() + used, text.size() - used);
-        if (count <= 0)
-            return {nullptr, cJSON_Delete};
-        used += count;
+    BodyReceiveDeadline deadline(r);
+    if (!deadline.ready())
+        return {nullptr, cJSON_Delete};
+    const bool oversized = static_cast<size_t>(r->content_len) > 2048;
+    const bool wrong_type = header(r, "Content-Type", 128).find("application/json") != 0;
+    if (oversized || wrong_type) {
+        const auto drained =
+            discard_exact_body(static_cast<size_t>(r->content_len), deadline.deadline_us(), r,
+                               request_receive, body_clock);
+        if (drained == BodyReadStatus::timeout)
+            deadline.mark_timeout();
+        else if (drained == BodyReadStatus::receive_error)
+            deadline.close_connection();
+        return {nullptr, cJSON_Delete};
+    }
+    std::string text;
+    const auto received =
+        read_exact_body(static_cast<size_t>(r->content_len), 2048, deadline.deadline_us(), r,
+                        request_receive, body_clock, text);
+    if (received != BodyReadStatus::complete) {
+        if (received == BodyReadStatus::timeout)
+            deadline.mark_timeout();
+        else if (received == BodyReadStatus::receive_error)
+            deadline.close_connection();
+        return {nullptr, cJSON_Delete};
     }
     if (text.find('\0') != std::string::npos || text.find("\\u0000") != std::string::npos)
         return {nullptr, cJSON_Delete};
@@ -131,8 +227,10 @@ Session *HttpApi::session(httpd_req_t *r, bool csrf) {
     return value;
 }
 bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &history,
-                    DeviceSettingsService &settings, uint64_t id, bool simulated) {
+                    DeviceSettingsService &settings, uint64_t id, bool simulated,
+                    bool sensor_settings_writable) {
     simulated_ = simulated;
+    sensor_settings_writable_.store(sensor_settings_writable);
     auth_ = &auth;
     wifi_ = &wifi;
     history_ = &history;
@@ -171,7 +269,7 @@ bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &histor
     ws.is_websocket = true;
     ws.ws_pre_handshake_cb = ws_pre;
     httpd_register_uri_handler(server_, &ws);
-    for (auto method : {HTTP_GET, HTTP_POST, HTTP_PATCH}) {
+    for (auto method : {HTTP_GET, HTTP_POST, HTTP_PATCH, HTTP_DELETE}) {
         httpd_uri_t route{};
         route.uri = "/*";
         route.method = method;
@@ -181,30 +279,35 @@ bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &histor
     }
     return true;
 }
-bool HttpApi::next_sensor_update(uint64_t &rom, Settings &settings) {
+bool HttpApi::next_sensor_update(uint64_t &rom, Settings &settings, bool &retire) {
     SensorUpdate *update = nullptr;
     if (!updates_ || xQueueReceive(updates_, &update, 0) != pdTRUE)
         return false;
     consumed_generation_ = update->generation;
     rom = update->rom;
     settings = update->settings;
+    retire = update->retire;
     delete update;
     return true;
 }
-void HttpApi::publish(const Registry &registry, int64_t uptime, bool logging, bool synchronized,
-                      const std::string &utc) {
+bool HttpApi::publish(const Registry &registry, ProbeScanStatus probe_scan, int64_t uptime,
+                      bool logging, bool synchronized, const std::string &utc) {
     if (!server_)
-        return;
+        return true;
     if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10)) == pdTRUE) {
         registry_ = registry;
+        probe_scan_ = probe_scan;
         uptime_ = uptime;
         logging_ = logging;
         synchronized_ = synchronized;
         utc_ = utc;
         published_generation_ = consumed_generation_;
         xSemaphoreGive(mutex_);
+    } else {
+        return false;
     }
     ws_live_.schedule();
+    return true;
 }
 std::string HttpApi::snapshot() {
     Registry registry;
@@ -348,6 +451,36 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
         auto *s = session(r, r->method != HTTP_GET);
         if (!s)
             return error(r, "401 Unauthorized", "Administrator session required");
+        if (path == "/api/v1/clock" && r->method == HTTP_GET) {
+            const auto status = clock_sync_diagnostics();
+            Json output(cJSON_CreateObject(), cJSON_Delete);
+            cJSON_AddNumberToObject(output.get(), "schema_version", 1);
+            cJSON_AddBoolToObject(output.get(), "synchronized", status.synchronized);
+            if (status.last_sync_utc_seconds)
+                cJSON_AddNumberToObject(output.get(), "last_sync_utc_seconds",
+                                        *status.last_sync_utc_seconds);
+            else
+                cJSON_AddNullToObject(output.get(), "last_sync_utc_seconds");
+            if (status.sync_age_ms)
+                cJSON_AddNumberToObject(output.get(), "sync_age_ms", *status.sync_age_ms);
+            else
+                cJSON_AddNullToObject(output.get(), "sync_age_ms");
+            return json(r, output.get());
+        }
+        if (path == "/api/v1/probe-scan" && r->method == HTTP_GET) {
+            ProbeScanStatus status;
+            if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10)) != pdTRUE)
+                return error(r, "503 Service Unavailable", "Probe scan status busy");
+            status = probe_scan_;
+            xSemaphoreGive(mutex_);
+            Json object(cJSON_CreateObject(), cJSON_Delete);
+            cJSON_AddNumberToObject(object.get(), "schema_version", 1);
+            cJSON_AddBoolToObject(object.get(), "enabled", status.enabled);
+            cJSON_AddBoolToObject(object.get(), "complete", status.complete);
+            cJSON_AddNumberToObject(object.get(), "discovered_count", status.discovered_count);
+            cJSON_AddBoolToObject(object.get(), "overflow", status.overflow);
+            return json(r, object.get());
+        }
         if (path == "/api/v1/ota" && r->method == HTTP_POST)
             return handle_ota_upload(r);
         if (path == "/api/v1/system/reboot" && r->method == HTTP_POST) {
@@ -560,8 +693,9 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                 return httpd_resp_send_chunk(r, nullptr, 0);
             }
             std::vector<HistoryPoint> points;
+            std::vector<HistoryGap> gap_records;
             bool truncated = false;
-            if (!history_->query(query, points, truncated))
+            if (!history_->query(query, points, gap_records, truncated))
                 return error(r, "503 Service Unavailable", "History unavailable or busy");
             Json output(cJSON_CreateObject(), cJSON_Delete);
             cJSON_AddNumberToObject(output.get(), "schema_version", 1);
@@ -590,7 +724,18 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                 cJSON_AddItemToArray(items, item);
             }
             auto *gaps = cJSON_AddArrayToObject(output.get(), "gaps");
-            for (const auto &gap : history_gaps(points)) {
+            for (const auto &gap : history_gaps(points))
+                if (std::find_if(gap_records.begin(), gap_records.end(), [&](const auto &item) {
+                        return item.boot_id == gap.boot_id && item.rom == gap.rom &&
+                               item.start_ms == gap.start_ms && item.end_ms == gap.end_ms;
+                    }) == gap_records.end())
+                    gap_records.push_back(gap);
+            if (gap_records.size() > 512) {
+                gap_records.resize(512);
+                cJSON_SetBoolValue(cJSON_GetObjectItemCaseSensitive(output.get(), "truncated"),
+                                   true);
+            }
+            for (const auto &gap : gap_records) {
                 auto *item = cJSON_CreateObject();
                 char boot[17];
                 std::snprintf(boot, sizeof(boot), "%016llx",
@@ -606,9 +751,11 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
         if ((path == "/api/v1/sensors" || path == "/api/v1/alerts" ||
              path.rfind("/api/v1/sensors/", 0) == 0)) {
             Registry current;
+            ProbeScanStatus scan;
             if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10)) != pdTRUE)
                 return error(r, "503 Service Unavailable", "Snapshot busy");
             current = registry_;
+            scan = probe_scan_;
             const uint64_t snapshot_generation = published_generation_.load();
             xSemaphoreGive(mutex_);
             if (path == "/api/v1/alerts" && r->method == HTTP_GET) {
@@ -738,7 +885,20 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                     cJSON_AddItemToArray(output.get(), serialize(sensor));
                 return json(r, output.get());
             }
-            if (r->method == HTTP_PATCH && path.rfind("/api/v1/sensors/", 0) == 0) {
+            if (path == "/api/v1/sensors/storage" && r->method == HTTP_GET) {
+                Json output(cJSON_CreateObject(), cJSON_Delete);
+                cJSON_AddNumberToObject(output.get(), "schema_version", 1);
+                const bool writable = sensor_settings_writable_.load();
+                cJSON_AddStringToObject(output.get(), "state", writable ? "ready" : "read_only");
+                cJSON_AddBoolToObject(output.get(), "writable", writable);
+                return json(r, output.get());
+            }
+            if ((r->method == HTTP_PATCH || r->method == HTTP_DELETE) &&
+                path.rfind("/api/v1/sensors/", 0) == 0) {
+                if (!sensor_settings_writable_.load())
+                    return error(
+                        r, "503 Service Unavailable",
+                        "Sensor settings are read-only; stored data is preserved for recovery");
                 auto id = path.substr(16);
                 auto found =
                     std::find_if(current.sensors().begin(), current.sensors().end(),
@@ -758,6 +918,26 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                 if (match != expected)
                     return error(r, "412 Precondition Failed",
                                  "Sensor settings changed; refresh before saving");
+                if (r->method == HTTP_DELETE) {
+                    if (r->content_len != 0)
+                        return error(r, "400 Bad Request", "Retirement does not accept a body");
+                    if (!can_retire_sensor(found->state, found->rom, scan, simulated_))
+                        return error(r, "409 Conflict",
+                                     "Probe must be disconnected and absent from a complete scan");
+                    const uint64_t generation = sent_generation_.load() + 1;
+                    auto *update = new (std::nothrow)
+                        SensorUpdate{found->rom, found->settings, generation, true};
+                    if (!update)
+                        return error(r, "503 Service Unavailable",
+                                     "Configuration memory unavailable");
+                    if (xQueueSend(updates_, &update, 0) != pdTRUE) {
+                        delete update;
+                        return error(r, "503 Service Unavailable", "Configuration queue full");
+                    }
+                    sent_generation_ = generation;
+                    httpd_resp_set_status(r, "202 Accepted");
+                    return httpd_resp_send(r, "{\"status\":\"queued\"}", HTTPD_RESP_USE_STRLEN);
+                }
                 auto input = body(r);
                 if (!input)
                     return error(r, "400 Bad Request", "Expected bounded JSON object");
@@ -834,7 +1014,8 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                 if (!valid || !valid_settings(settings))
                     return error(r, "400 Bad Request", "Invalid sensor settings");
                 const uint64_t generation = sent_generation_.load() + 1;
-                auto *update = new (std::nothrow) SensorUpdate{found->rom, settings, generation};
+                auto *update =
+                    new (std::nothrow) SensorUpdate{found->rom, settings, generation, false};
                 if (!update)
                     return error(r, "503 Service Unavailable", "Configuration memory unavailable");
                 if (xQueueSend(updates_, &update, 0) != pdTRUE) {

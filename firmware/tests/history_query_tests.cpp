@@ -58,6 +58,47 @@ int main() {
     points = gaps.finish();
     CHECK(points.size() == 1 && points[0].count == 90 && points[0].partial);
     CHECK(points[0].average > 13.33 && points[0].average < 13.34);
+    HistoryReducer downsampled_gap({123, 0, 900000, 1, {rom}});
+    downsampled_gap.add({123, 0, {}, {{rom, 10, 9, 11, 60, false}}});
+    downsampled_gap.add({123, 2 * bucket_ms, {}, {{rom, 20, 19, 21, 60, false}}});
+    points = downsampled_gap.finish();
+    CHECK(points.size() == 1 && points[0].partial);
+    CHECK(downsampled_gap.gaps().size() == 1 && downsampled_gap.gaps()[0].start_ms == bucket_ms &&
+          downsampled_gap.gaps()[0].end_ms == 2 * bucket_ms);
+    const auto second_rom = fake_readings(2)[1].rom;
+    HistoryReducer several_series({123, 0, 24LL * 60 * 60 * 1000, 512, {}});
+    several_series.add(
+        {123, 0, {}, {{rom, 10, 9, 11, 60, true}, {second_rom, 12, 11, 13, 60, false}}});
+    // The absent bucket models disabled/disconnected periods. The next point lands in a
+    // different reduction group, so its original gap must still be retained.
+    several_series.add({123,
+                        2 * bucket_ms,
+                        {},
+                        {{rom, 20, 19, 21, 60, false}, {second_rom, 22, 21, 23, 60, false}}});
+    const auto &series_gaps = several_series.gaps();
+    CHECK(series_gaps.size() == 2);
+    CHECK(series_gaps[0].rom == rom && series_gaps[0].start_ms == bucket_ms &&
+          series_gaps[0].end_ms == 2 * bucket_ms);
+    CHECK(series_gaps[1].rom == second_rom && series_gaps[1].start_ms == bucket_ms &&
+          series_gaps[1].end_ms == 2 * bucket_ms);
+    CHECK(several_series.finish().size() == 4); // two ROMs across two reduction groups
+    HistoryReducer one_hour({123, 0, 3600000, 120, {rom}});
+    HistoryReducer one_day({123, 0, 24LL * 3600000, 120, {rom}});
+    HistoryReducer one_week({123, 0, 7LL * 24 * 3600000, 120, {rom}});
+    HistoryReducer one_month({123, 0, 30LL * 24 * 3600000, 120, {rom}});
+    for (auto *range : {&one_hour, &one_day, &one_week, &one_month}) {
+        range->add({123, 0, {}, {{rom, 10, 9, 11, 60, false}}});
+        range->add({123, 2 * bucket_ms, {}, {{rom, 12, 11, 13, 30, true}}});
+        CHECK(range->gaps().size() == 1 && range->gaps()[0].start_ms == bucket_ms);
+        const auto range_points = range->finish();
+        CHECK(!range_points.empty() &&
+              std::any_of(range_points.begin(), range_points.end(),
+                          [](const auto &point) { return point.partial; }));
+    }
+    HistoryReducer capped_gaps({123, 0, 31LL * 24 * 3600000, 512, {rom}});
+    for (int64_t t = 0; t <= 1026 * bucket_ms; t += 2 * bucket_ms)
+        capped_gaps.add({123, t, {}, {{rom, 10, 9, 11, 60, false}}});
+    CHECK(capped_gaps.gaps().size() == 512 && capped_gaps.truncated());
     const auto explicit_gaps = history_gaps({
         {123, rom, 0, bucket_ms, {}, 10, 9, 11, 60, false},
         {123, rom, 2 * bucket_ms, 3 * bucket_ms, {}, 12, 11, 13, 60, false},

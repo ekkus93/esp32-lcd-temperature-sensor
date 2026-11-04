@@ -1,0 +1,25 @@
+ESP32-S3 owner enrollment and API acceptance
+Date: 2026-10-31
+
+The normal ESP-IDF v6.1 image was tested over native USB Serial/JTAG at
+`/dev/ttyACM0`, with no LCD or temperature probes connected. The test-managed
+administrator had been reset and was unenrolled before this run. While the
+serial session remained open, the owner held BOOT for five seconds. One-time
+owner enrollment returned HTTP 201 and the complete
+`tools/device_api_test.py --wait-for-provisioning` run exited successfully.
+
+The run passed password login, authenticated status, OTA input validation,
+radio scan bounds, WebSocket authentication/origin policy, three-frame cadence,
+four-client fanout/fifth-client rejection, responsive HTTP under that load,
+sensor/storage/clock diagnostics, history query limits, 62 pages of bounded
+event journal retrieval, CSRF/origin and malformed-body checks, failed-login
+cooldown with the five-second sampling cadence preserved, safe reboot, and
+session invalidation after reboot. The board returned to `READY` after restart.
+
+An isolated five-provider simulation image was then built and flashed to assess
+the MCU history path. It booted with five simulated providers, but
+`device_sensor_test.py --history-only` did not pass administrator login. The
+normal image was restored, and `device_smoke.py --seconds 15` passed with zero
+physical sensors, healthy storage, normal firmware, and no panic. No LCD or
+temperature probes were connected. The MCU LittleFS retention/profile gate
+remains open.

@@ -2,7 +2,13 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import App from './App';
 import { empty } from './api/fixtures';
+vi.mock('./features/HistoryView', () => ({
+  default: ({ timezone }: { timezone: string | null }) => (
+    <div>Selected zone: {timezone ?? 'not loaded'}</div>
+  ),
+}));
 beforeEach(() => {
+  history.replaceState({}, '', '/');
   vi.stubGlobal('matchMedia', () => ({ matches: false }));
   vi.stubGlobal(
     'fetch',
@@ -12,6 +18,12 @@ beforeEach(() => {
 it('shows empty sensors honestly without a fabricated reading', async () => {
   render(<App />);
   expect(await screen.findByText('No probes detected')).toBeInTheDocument();
+  expect(
+    screen.getByText(/Explore five-minute averages, minima and maxima/),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText(/No history available yet/),
+  ).not.toBeInTheDocument();
   expect(screen.queryByText('0.0 °C')).not.toBeInTheDocument();
 });
 it('shows the age of the latest valid probe reading', async () => {
@@ -122,6 +134,29 @@ it('keeps healthy sensors visible alongside bus and per-probe fault states', asy
   expect(screen.getByText('disconnected')).toBeInTheDocument();
   expect(screen.getByText('21.0 °C')).toBeInTheDocument();
 });
+it('reports excess and incomplete physical probe discovery', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation(async (input: RequestInfo | URL) => ({
+      ok: true,
+      json: async () =>
+        String(input).endsWith('/probe-scan')
+          ? {
+              schema_version: 1,
+              enabled: true,
+              complete: false,
+              discovered_count: 6,
+              overflow: true,
+            }
+          : empty,
+    })),
+  );
+  render(<App />);
+  expect(await screen.findByText(/at least 6/)).toBeInTheDocument();
+  expect(
+    screen.getByText(/Previously selected probes remain prioritized/),
+  ).toBeInTheDocument();
+});
 it('marks unavailable device data visibly', async () => {
   vi.stubGlobal(
     'fetch',
@@ -157,6 +192,115 @@ it('shows storage capacity and five-minute policy in Settings diagnostics', asyn
   expect(
     screen.getByText(/Aggregates are recorded every 300 seconds/),
   ).toBeInTheDocument();
+});
+
+it('applies a saved timezone to History without reloading the app', async () => {
+  let settings = {
+    schema_version: 1,
+    etag: '"device:settings:1"',
+    revision: 1,
+    writable: true,
+    units: 'C',
+    display_mode: 'basic',
+    overview_seconds: 20,
+    trends_seconds: 10,
+    lookback_minutes: 60,
+    timezone: 'UTC',
+    ntp_server: 'pool.ntp.org',
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockImplementation(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          const path = String(input);
+          if (path.endsWith('/probe-scan'))
+            return {
+              ok: true,
+              json: async () => ({
+                schema_version: 1,
+                enabled: false,
+                complete: false,
+                discovered_count: 0,
+                overflow: false,
+              }),
+            };
+          if (path.endsWith('/settings')) {
+            if (init?.method === 'PATCH') {
+              settings = {
+                ...settings,
+                ...JSON.parse(init.body as string),
+                revision: 2,
+                etag: '"device:settings:2"',
+              };
+            }
+            return { ok: true, json: async () => settings };
+          }
+          return { ok: true, json: async () => empty };
+        },
+      ),
+  );
+  const app = render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  fireEvent.mouseDown(await screen.findByLabelText('Device timezone'));
+  fireEvent.click(
+    await screen.findByRole('option', { name: 'America/Los Angeles' }),
+  );
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Save device preferences' }),
+  );
+  await screen.findByText('Device preferences saved.');
+  fireEvent.click(screen.getByRole('button', { name: 'History' }));
+  expect(
+    await screen.findByText('Selected zone: America/Los_Angeles'),
+  ).toBeInTheDocument();
+  app.unmount();
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: 'History' }));
+  expect(
+    await screen.findByText('Selected zone: America/Los_Angeles'),
+  ).toBeInTheDocument();
+});
+
+it('keeps the dashboard history link neutral across populated and unsynchronized snapshots', async () => {
+  const snapshots = [
+    {
+      ...empty,
+      uptime_ms: 600000,
+      sensors: [
+        {
+          rom_id: '2801000000000029',
+          name: 'Room',
+          state: 'normal',
+          temperature_c: 20,
+          last_seen_ms: 600000,
+          enabled: true,
+          order: 0,
+        },
+      ],
+    },
+    {
+      ...empty,
+      boot_id: 'different-boot',
+      uptime_ms: 300000,
+      clock: { ...empty.clock, synchronized: false, utc_seconds: null },
+    },
+  ];
+  for (const snapshot of snapshots) {
+    history.replaceState({}, '', '/');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => snapshot }),
+    );
+    const view = render(<App />);
+    expect(
+      await screen.findByText(
+        /Explore five-minute averages, minima and maxima/,
+      ),
+    ).toBeInTheDocument();
+    view.unmount();
+  }
 });
 it('explains unavailable storage without implying healthy logging', async () => {
   render(<App />);

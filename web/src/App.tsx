@@ -1,4 +1,11 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import {
   Alert,
   Button,
@@ -13,6 +20,7 @@ import {
 } from '@mui/material';
 import { temperature } from './api/client';
 import { getSettings } from './api/settings';
+import { getProbeScan, type ProbeScanStatus } from './api/probe-scan';
 import { subscribeLive } from './api/live';
 import type { Snapshot } from './api/generated';
 const NetworkSettings = lazy(() => import('./features/NetworkSettings'));
@@ -40,15 +48,46 @@ export default function App() {
     () => matchMedia?.('(prefers-color-scheme: dark)').matches ?? false,
   );
   const [unit, setUnit] = useState<'C' | 'F'>('C');
+  const [timezone, setTimezone] = useState<string | null>(null);
+  const [probeScan, setProbeScan] = useState<ProbeScanStatus | null>(null);
+  const applySettings = useCallback(
+    (nextUnit: 'C' | 'F', nextTimezone: string) => {
+      setUnit(nextUnit);
+      setTimezone(nextTimezone);
+    },
+    [],
+  );
   useEffect(() => {
     let active = true;
     getSettings()
       .then((settings) => {
-        if (active) setUnit(settings.units);
+        if (active) applySettings(settings.units, settings.timezone);
       })
       .catch(() => {});
     return () => {
       active = false;
+    };
+  }, [applySettings]);
+  useEffect(() => {
+    let active = true;
+    let inFlight = false;
+    const refresh = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const next = await getProbeScan();
+        if (active) setProbeScan(next);
+      } catch {
+        if (active) setProbeScan(null);
+      } finally {
+        inFlight = false;
+      }
+    };
+    void Promise.resolve().then(refresh);
+    const interval = setInterval(() => void refresh(), 5000);
+    return () => {
+      active = false;
+      clearInterval(interval);
     };
   }, []);
   const theme = useMemo(
@@ -171,6 +210,22 @@ export default function App() {
               Shared sensor bus fault. Current readings unavailable.
             </Alert>
           )}
+          {probeScan?.enabled && probeScan.overflow && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              More than five probes were detected (
+              {probeScan.complete
+                ? probeScan.discovered_count
+                : `at least ${probeScan.discovered_count}`}
+              ). Managed probes keep reading priority; remove excess probes to
+              monitor them.
+            </Alert>
+          )}
+          {probeScan?.enabled && !probeScan.complete && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              Probe discovery is incomplete. Previously selected probes remain
+              prioritized until a complete scan succeeds.
+            </Alert>
+          )}
           {index === 0 && (
             <>
               <div className="sensor-grid">
@@ -221,8 +276,8 @@ export default function App() {
                 <CardContent>
                   <Typography variant="h6">Temperature history</Typography>
                   <Typography color="text.secondary">
-                    Five-minute averages, minima and maxima. No history
-                    available yet.
+                    Explore five-minute averages, minima and maxima in the
+                    history view.
                   </Typography>
                   <Button onClick={() => navigate(1)}>Open history</Button>
                 </CardContent>
@@ -231,7 +286,11 @@ export default function App() {
           )}
           {index === 1 && snapshot && (
             <Suspense fallback={<Typography>Loading history…</Typography>}>
-              <HistoryView snapshot={snapshot} unit={unit} />
+              <HistoryView
+                snapshot={snapshot}
+                unit={unit}
+                timezone={timezone}
+              />
             </Suspense>
           )}
           {index === 2 && (
@@ -241,7 +300,7 @@ export default function App() {
           )}
           {index === 3 && (
             <Suspense fallback={<Typography>Loading alerts…</Typography>}>
-              <AlertsView />
+              <AlertsView timezone={timezone} />
             </Suspense>
           )}
           {index === 4 && (
@@ -298,7 +357,7 @@ export default function App() {
               <Suspense
                 fallback={<Typography>Loading device preferences…</Typography>}
               >
-                <DeviceSettings onApplied={setUnit} />
+                <DeviceSettings onApplied={applySettings} />
               </Suspense>
               <Card>
                 <CardContent>

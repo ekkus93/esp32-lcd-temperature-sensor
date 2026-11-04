@@ -1,0 +1,46 @@
+ESP32-S3 managed sensor retirement validation
+Date: 2026-10-31
+
+Hardware and image
+------------------
+- Board: ESP32-S3, USB Serial/JTAG at /dev/ttyACM0.
+- Image: ESP-IDF 6.1 build with CONFIG_MONITOR_SIMULATION and
+  CONFIG_MONITOR_SIM_REPLACEMENT_TEST. This uses fake providers, an isolated
+  simulation NVS namespace, and does not access the physical 1-Wire bus.
+- LCD and temperature probes were not connected.
+
+Results
+-------
+- `./tools/verify.sh --firmware` passed with the pinned ESP-IDF 6.1 environment:
+  24 native tests, 14 Python tests, simulator contract/load tests, headless LVGL,
+  75 web tests, formatting/lint/build checks, and the firmware build.
+- `npm run lint`, `npm run typecheck`, and the focused sensor UI/API tests passed.
+- On-device authenticated checks confirmed five saved mappings, ROM
+  `2801000000000029` disconnected, and an excess replacement ROM available.
+- Connected retirement returned HTTP 409; missing If-Match returned HTTP 428;
+  authorized disconnected retirement returned HTTP 202 queued.
+- An unauthenticated retirement request returned HTTP 401 and a stale ETag
+  returned HTTP 412. Existing device settings checks also verify disable keeps
+  the ROM mapping.
+- The registry then removed ROM 1 and admitted ROM
+  `28060000000000ac` as “Sensor 1” with enabled=true, zero calibration and no
+  thresholds. The other four ROM-keyed configurations remained unchanged.
+- Authenticated reboot and `--retirement-only --verify-reboot` confirmed the
+  retired ROM stayed absent and the replacement plus four retained mappings
+  remained persisted.
+- The simulation history query returned no points for the old ROM. Host
+  `core_behavior` verifies the existing aggregate keeps its original ROM/name
+  after retirement and a returning ROM gets neutral defaults.
+
+Test corrections and remaining limits
+--------------------------------------
+- The first device attempt exposed that the USB HTTP bridge did not forward
+  DELETE; the bridge now maps DELETE to ESP-IDF HTTP_METHOD_DELETE.
+- The replacement fixture assertion initially used the wrong Dallas CRC. The
+  correct displayed ROM is `28060000000000ac`; the assertion and host test now
+  cover it.
+- The initial authenticated login took about 19 seconds for the configured
+  PBKDF2 cost and serial capture showed a CPU1 watchdog backtrace. This is an
+  existing unresolved CR06.5 risk and needs a separate bounded KDF/yield fix.
+- Physical-probe retirement, real-bus scan confirmation, NVS failure injection
+  on device, and LCD behavior remain unverified.

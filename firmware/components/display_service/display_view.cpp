@@ -7,7 +7,8 @@ namespace {
 constexpr uint32_t background = 0x101b20, foreground = 0xf1f5f6;
 lv_obj_t *screen() {
     auto *root = lv_obj_create(nullptr);
-    lv_obj_set_size(root, 240, 320);
+    lv_obj_set_size(root, lv_display_get_horizontal_resolution(nullptr),
+                    lv_display_get_vertical_resolution(nullptr));
     lv_obj_set_style_bg_color(root, lv_color_hex(background), 0);
     lv_obj_set_style_text_color(root, lv_color_hex(foreground), 0);
     lv_obj_set_style_pad_all(root, 0, 0);
@@ -58,27 +59,38 @@ std::string wrapped(const std::string &value) {
 }
 } // namespace
 DisplayView::DisplayView() {
+    const bool compact = lv_display_get_horizontal_resolution(nullptr) <= 128;
     for (auto *s : {&overview_, &trends_}) {
         s->root = screen();
-        text(label(s->root, 10, 10, 160, &lv_font_montserrat_14),
-             s == &overview_ ? "Temp Monitor" : "Temperature trends");
-        s->time = label(s->root, 183, 10, 50, &lv_font_montserrat_14);
-        s->footer = label(s->root, 10, 281, 225, &lv_font_montserrat_14);
-        lv_obj_set_height(s->footer, 38);
+        text(label(s->root, compact ? 2 : 10, compact ? 0 : 10, compact ? 76 : 160,
+                   compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14),
+             s == &overview_ ? (compact ? "Temps" : "Temp Monitor")
+                             : (compact ? "Trends" : "Temperature trends"));
+        s->time = label(s->root, compact ? 82 : 183, compact ? 0 : 10, compact ? 44 : 50,
+                        compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
+        s->footer = label(s->root, compact ? 2 : 10, compact ? 141 : 281, compact ? 124 : 225,
+                          compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
+        lv_obj_set_height(s->footer, compact ? 19 : 38);
         lv_label_set_long_mode(s->footer, LV_LABEL_LONG_WRAP);
         for (unsigned i = 0; i < max_sensors; ++i) {
-            const int top = 40 + 47 * i;
-            s->labels[i] = label(s->root, 10, top, 98, &lv_font_montserrat_14);
-            s->values[i] = label(s->root, 114, top, 116,
-                                 s == &overview_ ? &lv_font_montserrat_24 : &lv_font_montserrat_14);
+            const int top = compact ? 17 + 24 * i : 40 + 47 * i;
+            s->labels[i] = label(s->root, compact ? 2 : 10, top, compact ? 58 : 98,
+                                 compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
+            s->values[i] = label(
+                s->root, compact ? 60 : 114, top, compact ? 66 : 116,
+                compact ? &lv_font_montserrat_12
+                        : (s == &overview_ ? &lv_font_montserrat_24 : &lv_font_montserrat_14));
             lv_obj_set_style_text_align(s->values[i], LV_TEXT_ALIGN_RIGHT, 0);
-            s->states[i] = label(s->root, s == &overview_ ? 10 : 160, top + 24,
-                                 s == &overview_ ? 210 : 72, &lv_font_montserrat_12);
+            s->states[i] =
+                label(s->root, compact ? (s == &overview_ ? 2 : 80) : (s == &overview_ ? 10 : 160),
+                      top + (compact ? 12 : 24),
+                      compact ? (s == &overview_ ? 124 : 46) : (s == &overview_ ? 210 : 72),
+                      &lv_font_montserrat_12);
             if (s == &trends_) {
                 auto *chart = lv_chart_create(s->root);
                 s->charts[i] = chart;
-                lv_obj_set_pos(chart, 12, top + 21);
-                lv_obj_set_size(chart, 141, 23);
+                lv_obj_set_pos(chart, compact ? 2 : 12, top + (compact ? 13 : 21));
+                lv_obj_set_size(chart, compact ? 76 : 141, compact ? 10 : 23);
                 lv_obj_set_style_bg_opa(chart, LV_OPA_TRANSP, 0);
                 lv_obj_set_style_border_width(chart, 0, 0);
                 lv_obj_set_style_pad_all(chart, 0, 0);
@@ -89,15 +101,19 @@ DisplayView::DisplayView() {
                 lv_obj_set_clickable(chart, false);
                 s->series[i] =
                     lv_chart_add_series(chart, lv_color_hex(0x9be3c4), LV_CHART_AXIS_PRIMARY_Y);
-                s->no_data[i] = label(s->root, 12, top + 24, 141, &lv_font_montserrat_12);
+                s->no_data[i] = label(s->root, compact ? 2 : 12, top + (compact ? 12 : 24),
+                                      compact ? 76 : 141, &lv_font_montserrat_12);
                 text(s->no_data[i], "NO DATA");
             }
         }
     }
     setup_ = screen();
-    text(label(setup_, 10, 10, 220, &lv_font_montserrat_14), "Wi-Fi setup (read-only)");
-    setup_text_ = label(setup_, 10, 38, 220, &lv_font_montserrat_14);
-    lv_obj_set_height(setup_text_, 280);
+    text(label(setup_, compact ? 2 : 10, compact ? 0 : 10, compact ? 124 : 220,
+               compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14),
+         "Wi-Fi setup (read-only)");
+    setup_text_ = label(setup_, compact ? 2 : 10, compact ? 16 : 38, compact ? 124 : 220,
+                        compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
+    lv_obj_set_height(setup_text_, compact ? 144 : 280);
     lv_label_set_long_mode(setup_text_, LV_LABEL_LONG_WRAP);
     lv_screen_load(overview_.root);
 }
@@ -176,6 +192,16 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
         footer += "\nOTA ROLLBACK";
     else
         footer += "\nPast " + std::to_string(options.lookback_minutes) + " min";
+    if (lv_display_get_horizontal_resolution(nullptr) <= 128) {
+        const auto newline = footer.find('\n');
+        if (newline != std::string::npos &&
+            (registry.bus_fault() || status.button_progress || status.ota_state == "new" ||
+             status.ota_state == "pending_verify" || status.ota_state == "invalid" ||
+             status.ota_state == "aborted"))
+            footer = footer.substr(newline + 1);
+        else
+            footer = "Wi-Fi " + status.wifi;
+    }
     for (auto *s : {&overview_, &trends_}) {
         text(s->time, clock);
         text(s->footer, footer);
@@ -187,8 +213,15 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
 }
 void DisplayView::provisioning(const std::string &ssid, const std::string &wifi_key,
                                const std::string &owner_code) {
-    text(setup_text_, "Connect to:\n" + ssid + "\nWi-Fi key:\n" + wrapped(wifi_key) +
-                          "\nOpen 192.168.4.1\nOwner code:\n" + wrapped(owner_code));
+    if (lv_display_get_horizontal_resolution(nullptr) <= 128) {
+        const bool owner_page = (lv_tick_get() / 10000) % 2;
+        text(setup_text_, owner_page ? "Owner code:\n" + wrapped(owner_code) + "\n(2/2)"
+                                     : "Connect:\n" + wrapped(ssid) + "\nKey:\n" +
+                                           wrapped(wifi_key) + "\n192.168.4.1\n(1/2)");
+    } else {
+        text(setup_text_, "Connect to:\n" + ssid + "\nWi-Fi key:\n" + wrapped(wifi_key) +
+                              "\nOpen 192.168.4.1\nOwner code:\n" + wrapped(owner_code));
+    }
     if (lv_screen_active() != setup_)
         lv_screen_load(setup_);
 }

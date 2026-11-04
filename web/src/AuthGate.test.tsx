@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import AuthGate from './AuthGate';
 beforeEach(() => vi.stubGlobal('fetch', vi.fn()));
@@ -64,4 +70,51 @@ it('returns to login after session expiration', async () => {
   expect(
     await screen.findByText('Session expired. Please sign in.'),
   ).toBeInTheDocument();
+});
+
+it('allows retrying an initial authentication-state connection failure', async () => {
+  vi.mocked(fetch)
+    .mockRejectedValueOnce(new Error('Device unavailable'))
+    .mockRejectedValueOnce(new Error('Device is still offline'))
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ enrolled: true }),
+    } as Response);
+  render(
+    <AuthGate>
+      <div>Protected dashboard</div>
+    </AuthGate>,
+  );
+  expect(await screen.findByText('Device unavailable')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry connection' }));
+  expect(
+    await screen.findByText('Device is still offline'),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry connection' }));
+  expect(await screen.findByRole('button', { name: 'Sign in' })).toBeEnabled();
+  expect(fetch).toHaveBeenCalledTimes(3);
+  expect(screen.queryByText('Protected dashboard')).not.toBeInTheDocument();
+});
+
+it('ignores an authentication response that arrives after unmount', async () => {
+  let resolveRequest!: (value: Response) => void;
+  vi.mocked(fetch).mockReturnValue(
+    new Promise<Response>((resolve) => {
+      resolveRequest = resolve;
+    }),
+  );
+  const { unmount } = render(
+    <AuthGate>
+      <div>Protected dashboard</div>
+    </AuthGate>,
+  );
+  await screen.findByText('Connecting to device…');
+  unmount();
+  await act(async () => {
+    resolveRequest({
+      ok: true,
+      json: async () => ({ enrolled: true }),
+    } as Response);
+  });
+  expect(fetch).toHaveBeenCalledTimes(1);
 });

@@ -3,6 +3,13 @@ import { spawn } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import Ajv from "../web/node_modules/ajv/dist/ajv.js";
 import schema from "../contracts/snapshot.schema.json" with { type: "json" };
+import historySchema from "../contracts/history.schema.json" with { type: "json" };
+import alertsSchema from "../contracts/alerts.schema.json" with { type: "json" };
+import sensorsSchema from "../contracts/sensor-configurations.schema.json" with { type: "json" };
+import storageSchema from "../contracts/sensor-storage.schema.json" with { type: "json" };
+import probeScanSchema from "../contracts/probe-scan.schema.json" with { type: "json" };
+import clockSchema from "../contracts/clock-diagnostics.schema.json" with { type: "json" };
+import settingsSchema from "../contracts/device-settings.schema.json" with { type: "json" };
 import WebSocket from "../web/node_modules/ws/wrapper.mjs";
 
 const port = 30000 + Math.floor(Math.random() * 20000);
@@ -98,6 +105,25 @@ try {
   const statusResponse = await fetch(`http://127.0.0.1:${port}/api/v1/status`);
   assert.equal(statusResponse.status, 200);
   assert.equal((await statusResponse.json()).sensors.length, 5);
+  for (const [path, contract] of [
+    ["/api/v1/history?from=0&to=60000", historySchema],
+    ["/api/v1/alerts?after=0&limit=50", alertsSchema],
+    ["/api/v1/sensors", sensorsSchema],
+    ["/api/v1/sensors/storage", storageSchema],
+    ["/api/v1/probe-scan", probeScanSchema],
+    ["/api/v1/clock", clockSchema],
+    ["/api/v1/settings", settingsSchema],
+  ]) {
+    const response = await fetch(`http://127.0.0.1:${port}${path}`);
+    assert.equal(response.status, 200, `${path} status`);
+    const value = await response.json();
+    const validate = new Ajv().compile(contract);
+    assert.equal(
+      validate(value),
+      true,
+      `${path}: ${JSON.stringify(validate.errors)}`,
+    );
+  }
   const socket = await connect();
   const first = await nextMessage(socket);
   assert.equal(first.binary, false);
@@ -169,7 +195,7 @@ try {
     await didDisconnect;
   }
   console.log(
-    "PASS: simulator live snapshots, four-client limit, slow-client cutoff, read-only rejection, and 30 reconnects",
+    "PASS: simulator API contracts, live snapshots, four-client limit, slow-client cutoff, read-only rejection, and 30 reconnects",
   );
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);

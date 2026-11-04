@@ -1,0 +1,21 @@
+Clock diagnostics validation — 2026-10-30
+
+Software checks
+---------------
+- `clock_sync_diagnostics` native CTest passed, covering unknown state,
+  monotonic age across wall-clock changes, resynchronization and an
+  out-of-order monotonic observation.
+- Authenticated ESP32-S3 API suite passed the `/api/v1/clock` response shape
+  and coherent-state assertion. The normal image had not synchronized time,
+  so it returned explicit unknown values rather than inventing an epoch.
+- After the API suite's authorized safe restart, `python
+  tools/device_smoke.py --port /dev/ttyACM0 --seconds 20` passed READY, health
+  cadence, zero fabricated probes and no panic. The final application-only
+  flash was followed by another smoke in which serial health logs transitioned
+  from `clock=unsynchronized` to `clock=synchronized`, proving the runtime
+  SNTP callback fired.
+- The authenticated endpoint's synchronized payload was not re-read after that
+  transition, and network-loss aging was not observed on hardware.
+
+No LCD or temperature probes were connected. This is API/device evidence for
+the normal image, not physical display or sensor qualification.

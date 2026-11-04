@@ -14,6 +14,7 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "history_service.hpp"
 #include "http_api.hpp"
@@ -26,6 +27,58 @@
 #include "sensor_diagnostics.hpp"
 #include "settings_service.hpp"
 #include "wifi_service.hpp"
+#include <algorithm>
+#include <vector>
+
+namespace {
+struct DisplayFrame {
+    monitor::Registry registry;
+    monitor::TrendCache trend_cache;
+    monitor::DeviceOptions options;
+    monitor::DisplayStatus status;
+    monitor::ProbeScanStatus scan_status;
+    int64_t uptime_ms = 0;
+    int64_t published_at_ms = 0;
+    bool provisioning = false;
+    bool logging = false, synchronized = false;
+    std::string utc;
+    std::string ssid, wifi_key, owner_code;
+};
+
+struct DisplayTaskContext {
+    monitor::DisplayRuntime *display;
+    monitor::HttpApi *api;
+    SemaphoreHandle_t mutex;
+    bool api_publish_pending = false;
+    DisplayFrame frame;
+};
+
+void display_refresh_task(void *argument) {
+    auto &context = *static_cast<DisplayTaskContext *>(argument);
+    TickType_t wake = xTaskGetTickCount();
+    while (true) {
+        if (xSemaphoreTake(context.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+            context.frame.status.button_progress = monitor::boot_hold_progress();
+            const auto now_ms = esp_timer_get_time() / 1000;
+            const auto uptime_ms = context.frame.uptime_ms +
+                                   std::max<int64_t>(0, now_ms - context.frame.published_at_ms);
+            context.api_publish_pending |=
+                monitor::expire_display_snapshot(context.frame.registry, uptime_ms);
+            if (context.api_publish_pending &&
+                context.api->publish(context.frame.registry, context.frame.scan_status, uptime_ms,
+                                     context.frame.logging, context.frame.synchronized,
+                                     context.frame.utc))
+                context.api_publish_pending = false;
+            context.display->update(context.frame.registry, context.frame.trend_cache,
+                                    context.frame.options, context.frame.status, uptime_ms,
+                                    context.frame.provisioning, context.frame.ssid,
+                                    context.frame.wifi_key, context.frame.owner_code);
+            xSemaphoreGive(context.mutex);
+        }
+        vTaskDelayUntil(&wake, pdMS_TO_TICKS(100));
+    }
+}
+} // namespace
 
 int run_core_tests();
 extern "C" void app_main() {
@@ -47,6 +100,13 @@ extern "C" void app_main() {
             ESP_LOGE(tag, "Factory reset could not be completed: %s; reset intent preserved",
                      esp_err_to_name(reset));
     }
+    monitor::Registry registry;
+    monitor::SettingsService settings(simulated ? "monitor_sim" : "temp_monitor");
+    auto load = settings.load(registry);
+    bool sensor_settings_writable = settings.writable();
+    if (!sensor_settings_writable)
+        ESP_LOGE(tag, "Sensor settings unavailable: %s; original data preserved",
+                 esp_err_to_name(load));
     monitor::DeviceSettingsService device_settings;
     auto device_load = device_settings.initialize(simulated);
     if (device_load != ESP_OK)
@@ -78,7 +138,8 @@ extern "C" void app_main() {
         auto auth_status = auth.initialize();
         auth_started = auth_status == ESP_OK;
         if (auth_started) {
-            http_started = api.start(auth, wifi, history, device_settings, boot_id, simulated);
+            http_started = api.start(auth, wifi, history, device_settings, boot_id, simulated,
+                                     sensor_settings_writable);
             if (!http_started)
                 ESP_LOGE(tag, "HTTP server unavailable");
             if (!monitor::start_captive_dns(wifi))
@@ -91,14 +152,15 @@ extern "C" void app_main() {
     } else
         ESP_LOGE(tag, "Wi-Fi init failed: %s", esp_err_to_name(network_status));
     monitor::Aggregator aggregator(boot_id);
-    monitor::Registry registry;
-    monitor::SettingsService settings(simulated ? "monitor_sim" : "temp_monitor");
-    auto load = settings.load(registry);
-    if (load != ESP_OK && load != ESP_ERR_NVS_NOT_FOUND)
-        ESP_LOGE(tag, "Sensor settings unavailable: %s", esp_err_to_name(load));
     monitor::DisplayRuntime display;
     if (!display.initialize())
         ESP_LOGE(tag, "LCD unavailable; sensor/network services continue without display");
+    DisplayTaskContext display_context{&display, &api, xSemaphoreCreateMutex(), false, {}};
+    const bool display_task_started = display.ready() && display_context.mutex &&
+                                      xTaskCreate(display_refresh_task, "display_refresh", 6144,
+                                                  &display_context, 3, nullptr) == pdPASS;
+    if (display.ready() && !display_task_started)
+        ESP_LOGE(tag, "Independent display refresh unavailable; using acquisition cadence");
     monitor::TrendCache trend_cache;
     monitor::SamplingService sampling;
     monitor::SensorDiagnostics sensor_diagnostics;
@@ -123,15 +185,41 @@ extern "C" void app_main() {
         auto now = esp_timer_get_time() / 1000;
         uint64_t changed_rom = 0;
         monitor::Settings changed_settings;
+        auto committed_registry = registry;
+        bool configuration_update = false;
+        bool retire_update = false;
         for (unsigned update = 0;
-             update < 4 && api.next_sensor_update(changed_rom, changed_settings); ++update) {
-            if (registry.configure(changed_rom, changed_settings,
-                                   simulated ? int64_t(simulated_tick * 5000) : now))
+             update < 4 && api.next_sensor_update(changed_rom, changed_settings, retire_update);
+             ++update) {
+            const bool changed =
+                retire_update
+                    ? registry.retire(changed_rom)
+                    : registry.configure(changed_rom, changed_settings,
+                                         simulated ? int64_t(simulated_tick * 5000) : now);
+            if (changed) {
                 settings_dirty = true;
+                configuration_update = true;
+            }
+        }
+        if (configuration_update) {
+            const auto saved = settings.save_or_restore(registry, committed_registry);
+            if (saved != ESP_OK) {
+                settings_dirty = false;
+                sensor_settings_writable = false;
+                api.set_sensor_settings_writable(false);
+                ESP_LOGE(tag, "Sensor settings commit failed; edit rejected: %s",
+                         esp_err_to_name(saved));
+            } else {
+                settings_dirty = false;
+            }
         }
         auto before = registry.sensors().size();
+        std::vector<uint64_t> managed_roms;
+        managed_roms.reserve(registry.sensors().size());
+        for (const auto &sensor : registry.sensors())
+            managed_roms.push_back(sensor.rom);
         const int64_t read_started_ms = esp_timer_get_time() / 1000;
-        auto readings = sampling.read(now);
+        auto readings = sampling.read(now, managed_roms);
         const int64_t read_ended_ms = esp_timer_get_time() / 1000;
         if (sampling.enabled())
             sensor_diagnostics.observe(readings, sampling.fault(), read_ended_ms - read_started_ms);
@@ -190,16 +278,18 @@ extern "C" void app_main() {
                 ESP_LOGE(tag, "History queue unavailable/full");
         }
         settings_dirty = settings_dirty || registry.sensors().size() != before;
-        if (load == ESP_ERR_NVS_NOT_FOUND || load == ESP_OK) {
+        if (sensor_settings_writable) {
             if (settings_dirty) {
                 auto saved = settings.save(registry);
-                if (saved != ESP_OK)
+                if (saved != ESP_OK) {
                     ESP_LOGE(tag, "Settings save failed: %s", esp_err_to_name(saved));
-                else
+                    sensor_settings_writable = false;
+                    api.set_sensor_settings_writable(false);
+                } else
                     settings_dirty = false;
             }
         }
-        api.publish(registry, sampled_at, history.healthy(),
+        api.publish(registry, sampling.scan_status(), sampled_at, history.healthy(),
                     (!simulated && monitor::clock_synchronized()),
                     simulated ? std::string{} : monitor::utc_text());
         if (display.ready()) {
@@ -212,9 +302,30 @@ extern "C" void app_main() {
             display_status.logging = history.healthy();
             display_status.button_progress = monitor::boot_hold_progress();
             display_status.ota_state = monitor::ota_status().state;
-            display.update(registry, trend_cache, options, display_status, sampled_at,
-                           network.provisioning, wifi.ap_ssid(), wifi.ap_password(),
-                           auth.setup_secret());
+            if (display_task_started) {
+                if (xSemaphoreTake(display_context.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                    display_context.frame.registry = registry;
+                    display_context.frame.trend_cache = trend_cache;
+                    display_context.frame.options = options;
+                    display_context.frame.status = display_status;
+                    display_context.frame.scan_status = sampling.scan_status();
+                    display_context.frame.uptime_ms = sampled_at;
+                    display_context.frame.published_at_ms = esp_timer_get_time() / 1000;
+                    display_context.frame.logging = history.healthy();
+                    display_context.frame.synchronized =
+                        !simulated && monitor::clock_synchronized();
+                    display_context.frame.utc = simulated ? std::string{} : monitor::utc_text();
+                    display_context.frame.provisioning = network.provisioning;
+                    display_context.frame.ssid = wifi.ap_ssid();
+                    display_context.frame.wifi_key = wifi.ap_password();
+                    display_context.frame.owner_code = auth.setup_secret();
+                    xSemaphoreGive(display_context.mutex);
+                }
+            } else {
+                display.update(registry, trend_cache, options, display_status, sampled_at,
+                               network.provisioning, wifi.ap_ssid(), wifi.ap_password(),
+                               auth.setup_secret());
+            }
         }
         if (!simulated && !ota_boot_checked && ++healthy_cycles >= 2) {
             const auto *running = esp_ota_get_running_partition();

@@ -81,10 +81,47 @@ const server = http.createServer((req, res) => {
         truncated: false,
         time_basis: 'uptime',
         points: [],
+        gaps: [],
       }),
     );
-  else if (req.url === '/api/v1/alerts')
-    res.end(JSON.stringify({ active: [], events: [] }));
+  else if (req.url.startsWith('/api/v1/alerts?'))
+    res.end(
+      JSON.stringify({
+        active: [],
+        events: [],
+        next_after: 0,
+        has_more: false,
+        oldest_available: null,
+        event_log_healthy: true,
+      }),
+    );
+  else if (req.url === '/api/v1/sensors/storage')
+    res.end(
+      JSON.stringify({
+        schema_version: 1,
+        state: 'read_only',
+        writable: false,
+      }),
+    );
+  else if (req.url === '/api/v1/probe-scan')
+    res.end(
+      JSON.stringify({
+        schema_version: 1,
+        enabled: true,
+        complete: true,
+        discovered_count: snapshot.sensors.length,
+        overflow: false,
+      }),
+    );
+  else if (req.url === '/api/v1/clock')
+    res.end(
+      JSON.stringify({
+        schema_version: 1,
+        synchronized: false,
+        last_sync_utc_seconds: null,
+        sync_age_ms: null,
+      }),
+    );
   else {
     res.writeHead(404);
     res.end('{"error":"Not found"}');

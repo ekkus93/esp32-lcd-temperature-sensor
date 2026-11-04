@@ -18,7 +18,8 @@ class HistoryService {
     bool submit(const Bucket &bucket);
     bool submit_event(const JournalEvent &event);
     JournalPage event_page(uint64_t after, size_t limit);
-    bool query(const HistoryQuery &query, std::vector<HistoryPoint> &points, bool &truncated);
+    bool query(const HistoryQuery &query, std::vector<HistoryPoint> &points,
+               std::vector<HistoryGap> &gaps, bool &truncated);
     bool visit(const HistoryQuery &query, const std::function<bool(const Bucket &)> &visitor);
     HistoryStorageInfo storage_info();
     bool healthy() const {

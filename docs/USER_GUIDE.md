@@ -20,8 +20,17 @@ disable monitoring, and choose display order. Calibration adds a fixed Celsius
 offset. Low/high alarm thresholds can be independently left blank. Hysteresis
 sets the return margin, persistence sets how long a condition must remain before
 an alert changes, and the disconnect switch controls that probe's disconnect
-alerts. Save applies the queued settings at the next measurement cycle; refresh
-after the UI reports the update applied.
+alerts. Save commits settings before applying them. The editor confirms success
+only after the device reports the committed revision. If stored configuration
+is unreadable or a save fails, editing is disabled and the prior configuration
+is retained for recovery.
+
+At five saved probe identities, a disconnected probe's mapping can be retired
+from the Sensors page to make room for a replacement. Retirement requires
+confirmation and is saved before the slot is released; disabling monitoring
+does not free a slot. If the same ROM later reappears, it is treated as a new
+default-configured entry when capacity is available. Existing history remains
+associated with that ROM and is never reassigned to another probe.
 
 ## Alerts and event history
 
@@ -29,8 +38,10 @@ The **Alerts** page separates active conditions from recent device events.
 Events include probe/bus transitions, Wi-Fi state changes, clock synchronization,
 reboots, and history write failures. The journal is bounded; the page warns when
 older records have been compacted or the journal is unavailable. When the clock
-is synchronized, event times are shown in the browser's local timezone. Before
-synchronization, the page shows boot ID and elapsed uptime instead.
+is synchronized, event times use the timezone selected in Settings and include
+the local zone abbreviation. If that setting is unavailable, synchronized times
+are explicitly shown in UTC. Before synchronization, the page shows boot ID and
+elapsed uptime instead.
 
 ## Temperature history
 
@@ -38,8 +49,10 @@ The **History** page graphs persisted five-minute averages and displays minima,
 maxima, valid sample counts, and partial/gap markers. Select 1 hour, 24 hours,
 7 days, or 30 days; choose available probe series; use Zoom and Earlier/Later to
 inspect a bounded range. Refresh reloads persisted data. CSV export downloads
-five-minute aggregate rows, not raw five-second readings. Unknown time is scoped
-to a device boot and is not assigned a fabricated date. See
+five-minute aggregate rows, not raw five-second readings. Synchronized history
+uses the timezone selected in Settings; unavailable timezone settings fall back
+to explicitly labeled UTC. Unknown time is scoped to a device boot and is not
+assigned a fabricated date. See
 [`HISTORY_FORMAT.md`](HISTORY_FORMAT.md) for CSV fields, retention forecasts,
 and backup/recovery procedures.
 
@@ -55,7 +68,9 @@ To change Wi-Fi, scan nearby 2.4 GHz networks or enter a hidden SSID and
 password, then submit the candidate. The device tests it before replacing saved
 credentials; on failure, the old network remains and setup can be retried. The
 status area reports connection progress and the LAN address. Clock time remains
-unknown until synchronization succeeds.
+unknown until synchronization succeeds. Settings reports the last successful
+NTP sync in UTC and its age from the monotonic clock; before the first sync it
+states that the time is unknown rather than inferring freshness from wall time.
 
 The physical LCD is currently disabled and has not passed panel/electrical
 acceptance. Display preferences can be stored and viewed in Settings, but do not

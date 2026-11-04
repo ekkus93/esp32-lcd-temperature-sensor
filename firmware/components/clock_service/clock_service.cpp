@@ -1,5 +1,6 @@
 #include "clock_service.hpp"
 #include "esp_netif_sntp.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include <atomic>
@@ -8,6 +9,9 @@
 namespace monitor {
 namespace {
 std::atomic<bool> synchronized{false};
+std::atomic<uint32_t> sync_generation{0};
+std::atomic<int64_t> last_sync_utc_seconds{-1};
+std::atomic<int64_t> last_sync_monotonic_ms{-1};
 SemaphoreHandle_t clock_mutex = nullptr;
 bool initialized = false;
 std::string server;
@@ -29,7 +33,15 @@ bool configure_clock(const DeviceOptions &options) {
         initialized = false;
         server = options.ntp_server;
         esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG(server.c_str());
-        config.sync_cb = [](struct timeval *) { synchronized = true; };
+        config.sync_cb = [](struct timeval *time) {
+            if (!time)
+                return;
+            sync_generation.fetch_add(1, std::memory_order_acq_rel);
+            last_sync_utc_seconds.store(time->tv_sec, std::memory_order_relaxed);
+            last_sync_monotonic_ms.store(esp_timer_get_time() / 1000, std::memory_order_relaxed);
+            synchronized.store(true, std::memory_order_release);
+            sync_generation.fetch_add(1, std::memory_order_release);
+        };
         initialized = esp_netif_sntp_init(&config) == ESP_OK;
         ok = initialized;
     }
@@ -38,6 +50,22 @@ bool configure_clock(const DeviceOptions &options) {
 }
 bool clock_synchronized() {
     return synchronized.load();
+}
+ClockDiagnostics clock_sync_diagnostics() {
+    for (unsigned attempt = 0; attempt < 3; ++attempt) {
+        const auto before = sync_generation.load(std::memory_order_acquire);
+        if (before & 1)
+            continue;
+        const auto utc = last_sync_utc_seconds.load(std::memory_order_relaxed);
+        const auto monotonic = last_sync_monotonic_ms.load(std::memory_order_relaxed);
+        const auto after = sync_generation.load(std::memory_order_acquire);
+        if (before == after)
+            return make_clock_diagnostics(utc < 0 ? std::nullopt : std::optional<int64_t>(utc),
+                                          monotonic < 0 ? std::nullopt
+                                                        : std::optional<int64_t>(monotonic),
+                                          esp_timer_get_time() / 1000);
+    }
+    return {};
 }
 std::optional<int64_t> trusted_utc() {
     if (!synchronized)

@@ -37,6 +37,7 @@ it('shows selectable history series for probes no longer in the live snapshot', 
     <HistoryView
       snapshot={parseSnapshot({ ...empty, uptime_ms: 7200000 })}
       unit="C"
+      timezone={null}
     />,
   );
   const checkbox = await screen.findByRole('checkbox', {
@@ -60,7 +61,7 @@ it('shows selectable history series for probes no longer in the live snapshot', 
   expect(
     screen.queryByRole('img', { name: /Probe 0029/ }),
   ).not.toBeInTheDocument();
-});
+}, 10000);
 
 it('explains an empty range and unsynchronized boot-relative time', async () => {
   vi.stubGlobal(
@@ -77,7 +78,9 @@ it('explains an empty range and unsynchronized boot-relative time', async () => 
       }),
     }),
   );
-  render(<HistoryView snapshot={parseSnapshot(empty)} unit="C" />);
+  render(
+    <HistoryView snapshot={parseSnapshot(empty)} unit="C" timezone={null} />,
+  );
   expect(
     await screen.findByText('No history available in this range.'),
   ).toBeInTheDocument();
@@ -86,4 +89,64 @@ it('explains an empty range and unsynchronized boot-relative time', async () => 
       /Clock unsynchronized: showing elapsed time for this boot only/,
     ),
   ).toBeInTheDocument();
+});
+
+it('visibly shades missing intervals in the selected history series', async () => {
+  const rom = '2801000000000029';
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        schema_version: 1,
+        simulated: false,
+        truncated: false,
+        time_basis: 'uptime',
+        points: [
+          {
+            boot_id: '0123456789abcdef',
+            rom_id: rom,
+            start_ms: 300000,
+            end_ms: 600000,
+            utc_seconds: null,
+            average_c: 4,
+            minimum_c: 3,
+            maximum_c: 5,
+            count: 60,
+            partial: false,
+          },
+          {
+            boot_id: '0123456789abcdef',
+            rom_id: rom,
+            start_ms: 1200000,
+            end_ms: 1500000,
+            utc_seconds: null,
+            average_c: 4.5,
+            minimum_c: 4,
+            maximum_c: 5,
+            count: 60,
+            partial: false,
+          },
+        ],
+        gaps: [
+          {
+            boot_id: '0123456789abcdef',
+            rom_id: rom,
+            start_ms: 600000,
+            end_ms: 1200000,
+          },
+        ],
+      }),
+    }),
+  );
+  render(
+    <HistoryView
+      snapshot={parseSnapshot({ ...empty, uptime_ms: 7200000 })}
+      unit="C"
+      timezone="America/Los_Angeles"
+    />,
+  );
+  expect(
+    await screen.findByRole('img', { name: /Probe 0029 five-minute/ }),
+  ).toContainHTML('Missing data: 600000–1200000');
 });

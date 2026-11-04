@@ -1,0 +1,53 @@
+ESP32-S3 independent display refresh smoke
+Date: 2026-10-31
+
+The normal ESP-IDF v6.1 image with a dedicated 100 ms display-refresh task was
+flashed to `/dev/ttyACM0`. The LCD and temperature probes were not connected.
+The 15-second bare-board smoke passed: firmware reached READY, history and
+event storage remained healthy, no fabricated probes were reported, and there
+was no panic. HEALTH logs continued at approximately five-second intervals.
+The sampled internal free heap was 75,419 bytes at the first health record;
+minimum internal heap watermark was 42,644 bytes, largest internal block was
+31,744 bytes, and minimum main-task stack watermark was 2,764 reported units.
+
+This verifies build, startup, resource health and the independent task running
+without crashing on bare board. It does not verify visible LCD refresh latency,
+BOOT progress visibility, screen dwell, or physical probe continuity.
+
+After the BOOT GPIO service was split into its own source module, the image was
+rebuilt (`0x1ee060` bytes), reflashed, and the same 15-second smoke passed
+again. The latest first-health sample reported 89,671 bytes internal free;
+minimum internal heap watermark was 43,208 bytes, largest internal block was
+31,744 bytes, and minimum main-task stack watermark was 2,764 units. No panic
+or fabricated probe reading appeared. The API suite still needs re-enrollment
+of the test-managed administrator before it can run on this image.
+
+After adding stale-snapshot expiry/publication to the refresh task, a fresh
+`0x1ee1a0` image was flashed and passed another 15-second bare-board smoke.
+The latest health samples showed 74,711 bytes initial internal free, a 42,300
+byte internal watermark, 31,744-byte largest internal block, and 2,668 units
+minimum main-task stack. Storage remained healthy and no panic or fabricated
+probe appeared. A stalled-acquisition/API freshness injection has not yet been
+run.
+
+After extracting the fake-clock snapshot-expiry policy into the production
+`expire_display_snapshot` helper and adding an exact-threshold host regression,
+the final image (`0x1ee5d0` bytes) was reflashed and passed a 15-second smoke.
+Storage remained healthy; the first HEALTH record had 70,447 bytes internal
+free, 43,184-byte internal minimum watermark, 31,744-byte largest block, and
+2,668-unit main-task stack watermark. No panic or fabricated probe appeared.
+
+The final retryable API-publication image (`0x1ee5f0` bytes) was flashed and
+passed a 15-second bare-board smoke. HEALTH samples continued, with 70,315
+bytes initial internal free, 42,256-byte internal minimum watermark, 31,744-
+byte largest internal block, and 2,668-unit main-task stack watermark. History
+remained healthy and no panic/fabricated probe was reported.
+
+Repeat smoke after the board was reconnected on 2026-10-31 also passed using
+the same `0x1ee5f0` image. The current run reported 80,687 bytes internal free
+at first health, a 42,212-byte minimum watermark, a 31,744-byte largest block,
+and a 2,668-unit main-task stack watermark. Firmware reached READY with healthy
+history and event storage, zero sensors (bus disabled), and no panic. The LCD
+and probes remain disconnected; visible refresh and sensor behavior are not
+covered. Captured serial output: `.build/device-current-smoke.log` (local,
+untracked build artifact).

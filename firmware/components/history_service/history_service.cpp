@@ -75,7 +75,7 @@ JournalPage HistoryService::event_page(uint64_t after, size_t limit) {
     return page;
 }
 bool HistoryService::query(const HistoryQuery &query, std::vector<HistoryPoint> &points,
-                           bool &truncated) {
+                           std::vector<HistoryGap> &gaps, bool &truncated) {
     if (!valid_query(query)) {
         ESP_LOGW("history", "Rejected invalid history query");
         return false;
@@ -97,6 +97,7 @@ bool HistoryService::query(const HistoryQuery &query, std::vector<HistoryPoint> 
         ESP_LOGE("history", "History query storage iteration failed");
     if (ok) {
         points = reducer.finish();
+        gaps = reducer.gaps();
         truncated = reducer.truncated();
     }
     return ok;

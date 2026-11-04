@@ -7,6 +7,7 @@ namespace monitor {
 class Registry {
   public:
     bool discover(uint64_t rom);
+    bool retire(uint64_t rom);
     bool configure(uint64_t rom, const Settings &settings,
                    std::optional<int64_t> now_ms = std::nullopt);
     void sample(const std::vector<Reading> &readings, int64_t now_ms, bool bus_fault = false);

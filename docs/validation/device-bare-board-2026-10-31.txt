@@ -1,0 +1,20 @@
+ESP32-S3 bare-board stability smoke
+Date: 2026-10-31
+
+Command: `python tools/device_smoke.py --port /dev/ttyACM0 --seconds 120`
+Firmware image: `0x1ee5f0` bytes, ESP-IDF v6.1, app slot `ota_0`.
+
+The normal firmware returned READY with healthy LittleFS history and event
+storage. The 1-Wire bus was disabled and reported zero sensors; the LCD and
+temperature probes were not connected. The 120-second smoke passed health
+cadence, no-fabricated-reading and panic checks. Twenty-four complete health
+records covered uptime 717 through 115,710 ms. Across those records, internal
+free heap ranged from 79,519 to 85,655 bytes, the internal minimum watermark
+was 42,496 bytes, the largest internal block was 31,744 bytes, PSRAM free and
+minimum were 8,346,908 bytes, and minimum main-task stack watermark was 2,668
+reported units.
+
+Captured serial output is `.build/device-current-120s-smoke.log` (local,
+untracked build artifact). This is an idle bare-board smoke; it does not qualify
+sensor/LCD operation, network-client load, flash write load, or the 24–72-hour
+combined peripheral soak required by T10-08.

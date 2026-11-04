@@ -33,6 +33,11 @@ bool valid_display_options(const DisplayOptions &o) {
     return o.overview_seconds >= 5 && o.overview_seconds <= 300 && o.trends_seconds >= 5 &&
            o.trends_seconds <= 300 && o.lookback_minutes >= 5 && o.lookback_minutes <= 1440;
 }
+bool expire_display_snapshot(Registry &snapshot, int64_t now_ms) {
+    const auto sequence = snapshot.sequence();
+    snapshot.expire(now_ms);
+    return snapshot.sequence() != sequence;
+}
 std::array<DisplayRow, max_sensors> display_rows(const Registry &registry, bool fahrenheit) {
     std::array<DisplayRow, max_sensors> rows{};
     std::vector<const Sensor *> ordered;

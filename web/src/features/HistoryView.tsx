@@ -17,6 +17,7 @@ import {
   type HistoryResult,
 } from '../api/history';
 import { temperature } from '../api/client';
+import { formatDeviceTime } from '../api/time';
 import type { Snapshot } from '../api/generated';
 const ranges = [
   { label: '1h', hours: 1 },
@@ -27,9 +28,11 @@ const ranges = [
 export default function HistoryView({
   snapshot,
   unit,
+  timezone,
 }: {
   snapshot: Snapshot;
   unit: 'C' | 'F';
+  timezone: string | null;
 }) {
   const [hours, setHours] = useState(24);
   const [loaded, setLoaded] = useState<{
@@ -195,7 +198,9 @@ export default function HistoryView({
             <Typography color="text.secondary">
               {result.time_basis === 'uptime'
                 ? 'Clock unsynchronized: showing elapsed time for this boot only.'
-                : 'Times shown in your browser’s local timezone.'}{' '}
+                : timezone
+                  ? `Times shown in ${timezone}.`
+                  : 'Device timezone unavailable; synchronized times shown in UTC.'}{' '}
               Missing intervals remain gaps.
             </Typography>
             {!result.points.length && (
@@ -265,6 +270,31 @@ export default function HistoryView({
                       aria-label={`${name} five-minute average temperature chart`}
                       style={{ width: '100%', maxHeight: 240 }}
                     >
+                      {result.gaps
+                        .filter(
+                          (gap) =>
+                            gap.rom_id === rom &&
+                            points.some(
+                              (point) => point.boot_id === gap.boot_id,
+                            ) &&
+                            gap.end_ms > viewFrom &&
+                            gap.start_ms < viewTo,
+                        )
+                        .map((gap) => (
+                          <rect
+                            key={`gap:${gap.boot_id}:${gap.start_ms}`}
+                            x={x(gap.start_ms)}
+                            y="15"
+                            width={Math.max(1, x(gap.end_ms) - x(gap.start_ms))}
+                            height="120"
+                            fill="currentColor"
+                            opacity=".08"
+                          >
+                            <title>
+                              Missing data: {gap.start_ms}–{gap.end_ms}
+                            </title>
+                          </rect>
+                        ))}
                       {points.map((p, i) => (
                         <g key={`${p.boot_id}:${p.start_ms}`}>
                           <line
@@ -296,7 +326,7 @@ export default function HistoryView({
                           >
                             <title>
                               {result.time_basis === 'utc'
-                                ? new Date(p.start_ms).toLocaleString()
+                                ? formatDeviceTime(p.start_ms, timezone)
                                 : `${Math.floor(p.start_ms / 60000)} min since boot`}
                               : {temperature(p.average_c, unit)}; {p.count}{' '}
                               readings{p.partial ? '; partial' : ''}

@@ -9,6 +9,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import { getClockDiagnostics, type ClockDiagnostics } from '../api/clock';
 import {
   getSettings,
   saveSettings,
@@ -25,7 +26,7 @@ function Editor({
   onApplied,
 }: {
   settings: Settings;
-  onApplied: (unit: 'C' | 'F') => void;
+  onApplied: (unit: 'C' | 'F', timezone: Settings['timezone']) => void;
 }) {
   const [draft, setDraft] = useState(settings);
   const [numbers, setNumbers] = useState(() =>
@@ -35,6 +36,7 @@ function Editor({
   );
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const readOnly = busy || !draft.writable;
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setMessage('');
@@ -60,7 +62,7 @@ function Editor({
     try {
       const next = await saveSettings(patch, etag);
       setDraft(next);
-      onApplied(next.units);
+      onApplied(next.units, next.timezone);
       setMessage('Device preferences saved.');
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Settings update failed');
@@ -84,6 +86,7 @@ function Editor({
         <TextField
           label="Temperature units"
           select
+          disabled={readOnly}
           value={draft.units}
           onChange={(e) =>
             setDraft({ ...draft, units: e.target.value as 'C' | 'F' })
@@ -95,6 +98,7 @@ function Editor({
         <TextField
           label="LCD display mode"
           select
+          disabled={readOnly}
           value={draft.display_mode}
           onChange={(e) =>
             setDraft({
@@ -111,6 +115,7 @@ function Editor({
             key={key}
             type="number"
             required
+            disabled={readOnly}
             label={
               [
                 'Overview duration (seconds)',
@@ -128,6 +133,7 @@ function Editor({
         <TextField
           label="Device timezone"
           select
+          disabled={readOnly}
           value={draft.timezone}
           onChange={(e) =>
             setDraft({
@@ -145,16 +151,13 @@ function Editor({
         <TextField
           label="NTP server"
           required
+          disabled={readOnly}
           value={draft.ntp_server}
           onChange={(e) => setDraft({ ...draft, ntp_server: e.target.value })}
           helperText="Hostname or IP address; UTC stays unknown until synchronization succeeds."
           slotProps={{ htmlInput: { maxLength: 253 } }}
         />
-        <Button
-          type="submit"
-          variant="contained"
-          disabled={busy || !draft.writable}
-        >
+        <Button type="submit" variant="contained" disabled={readOnly}>
           Save device preferences
         </Button>
       </Stack>
@@ -164,9 +167,11 @@ function Editor({
 export default function DeviceSettings({
   onApplied,
 }: {
-  onApplied: (unit: 'C' | 'F') => void;
+  onApplied: (unit: 'C' | 'F', timezone: Settings['timezone']) => void;
 }) {
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [clock, setClock] = useState<ClockDiagnostics | null>(null);
+  const [clockError, setClockError] = useState(false);
   const [error, setError] = useState('');
   const [refresh, setRefresh] = useState(0);
   useEffect(() => {
@@ -175,7 +180,7 @@ export default function DeviceSettings({
       .then((next) => {
         if (active) {
           setSettings(next);
-          onApplied(next.units);
+          onApplied(next.units, next.timezone);
         }
       })
       .catch((e: unknown) => {
@@ -188,6 +193,31 @@ export default function DeviceSettings({
       active = false;
     };
   }, [onApplied, refresh]);
+  useEffect(() => {
+    let active = true;
+    let inFlight = false;
+    const poll = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const status = await getClockDiagnostics();
+        if (active) {
+          setClock(status);
+          setClockError(false);
+        }
+      } catch {
+        if (active) setClockError(true);
+      } finally {
+        inFlight = false;
+      }
+    };
+    void poll();
+    const interval = window.setInterval(() => void poll(), 5000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
   return (
     <Card>
       <CardContent>
@@ -197,6 +227,13 @@ export default function DeviceSettings({
         <Typography sx={{ mb: 2 }}>
           The LCD is read-only. Choose its display mode, timing and temperature
           units here.
+        </Typography>
+        <Typography role="status" aria-live="polite" sx={{ mb: 2 }}>
+          {clockError
+            ? 'Clock synchronization status is unavailable.'
+            : !clock?.synchronized
+              ? 'Clock has not synchronized since this boot.'
+              : `Last successful NTP sync: ${new Date(clock.last_sync_utc_seconds! * 1000).toISOString()} UTC · ${Math.floor(clock.sync_age_ms! / 1000)} seconds ago`}
         </Typography>
         {error && <Alert severity="error">{error}</Alert>}
         <Button

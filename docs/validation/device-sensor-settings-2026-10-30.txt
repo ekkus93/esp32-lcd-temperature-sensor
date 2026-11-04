@@ -1,0 +1,40 @@
+ESP32-S3 simulated sensor-settings persistence — 2026-10-30
+
+Tested source: current working tree based on 290640c (uncommitted remediation
+changes). ESP-IDF v6.1, ESP32-S3 N16R8, simulation image with five fake probes.
+The image used the isolated `monitor_sim` sensor namespace and
+`/history/simulation`; no physical probe or LCD was connected.
+
+Commands:
+
+  source /home/phil/esp/esp-idf-v6.1/export.sh
+  idf.py -C firmware -B firmware/build-sim build
+  idf.py -C firmware -B firmware/build-sim -p /dev/ttyACM0 app-flash
+  python tools/device_sensor_test.py --port /dev/ttyACM0
+  python -m esptool --chip esp32s3 -p /dev/ttyACM0 --before default_reset --after hard_reset read_mac
+  python tools/device_sensor_test.py --port /dev/ttyACM0 --verify-reboot
+
+Results: simulation firmware built and flashed successfully. Live USB-bridged
+API checks passed administrator login, five fake probes, required/stale
+preconditions, malformed edits, queued settings, acquisition-owner apply,
+calibration and alarm behavior, disable/re-enable behavior, independent ROM
+settings, and event recording. After a hardware reset, both ROMs retained their
+distinct labels, limits, and calibration. No physical storage failure was
+injected, so the device-side failure rollback remains open.
+
+The normal image was restored with:
+
+  idf.py -C firmware -B firmware/build -p /dev/ttyACM0 app-flash
+  python tools/device_smoke.py --port /dev/ttyACM0 --seconds 20 --output .build/remediation-normal-smoke.log
+
+The normal-image smoke passed self-tests, healthy history mount, READY with
+zero physical sensors, disabled 1-Wire/backlight, approximately five-second
+health cadence, and no panic. The LCD and temperature probes remained
+disconnected throughout.
+
+The isolated simulation image was subsequently reflashed to exercise populated
+MCU history. `python tools/device_sensor_test.py --port /dev/ttyACM0
+--history-only` passed bounded UTC/boot selection, ROM filtering, empty unknown-
+boot handling, extrema/count checks, five-minute CSV values/validity metadata,
+authentication, and refusal of point-limit parameters on CSV. The normal image
+was restored again afterward; the board was left on the normal firmware.

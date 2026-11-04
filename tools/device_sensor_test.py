@@ -20,6 +20,7 @@ parser.add_argument('--port', required=True)
 parser.add_argument('--verify-reboot', action='store_true')
 parser.add_argument('--history-only', action='store_true')
 parser.add_argument('--settings-only', action='store_true')
+parser.add_argument('--retirement-only', action='store_true')
 args = parser.parse_args()
 os.umask(0o077)
 port = serial.Serial(port=None, baudrate=115200, timeout=.2)
@@ -38,7 +39,9 @@ def call(path, method='GET', body=None, headers=None):
         request['body'] = body if isinstance(body, str) else json.dumps(body)
     port.write(('HTTP_BRIDGE ' + json.dumps(request) + '\n').encode())
     data = b''
-    deadline = time.monotonic() + 38
+    # Owner login may need about 30 seconds for PBKDF2 on the MCU; leave the
+    # same margin used by the authenticated device API test bridge.
+    deadline = time.monotonic() + 68
     while time.monotonic() < deadline and b'HTTP_BRIDGE_END' not in data:
         data += port.read(4096)
     data = data.replace(b'\r', b'')
@@ -72,6 +75,80 @@ try:
     check(snapshot['simulated'] is True and len(snapshot['sensors']) == 5,
           'explicit simulation image with five fake providers; safe to mutate')
     sensors = get('/sensors')
+    if args.retirement_only:
+        target_id = '2801000000000029'
+        replacement_id = '28060000000000ac'
+        expected_path = Path('.build/sensor-retirement-expected.json')
+        if args.verify_reboot:
+            expected = json.loads(expected_path.read_text())
+            current = {item['rom_id']: item for item in sensors}
+            check(target_id not in current and replacement_id in current,
+                  'retired ROM stays absent and replacement remains after restart')
+            check(all(rom_id in current and all(current[rom_id][key] == value
+                                                for key, value in values.items())
+                      for rom_id, values in expected['sensors'].items()),
+                  'four retained mappings and the replacement defaults persisted')
+            sys.exit(0)
+
+        check(snapshot['simulated'] and len(sensors) == 5,
+              'five-mapping simulation image is active')
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            target = next((item for item in sensors if item['rom_id'] == target_id), None)
+            if target and target['state'] == 'disconnected':
+                break
+            time.sleep(.5)
+            sensors = json.loads(call('/sensors', headers=headers)['body'])
+        check(target is not None and target['state'] == 'disconnected',
+              'saved ROM 1 reaches disconnected state in replacement simulation')
+        retained = {item['rom_id']: item for item in sensors if item['rom_id'] != target_id}
+        check(len(retained) == 4 and replacement_id not in retained,
+              'replacement ROM is excess before the old slot is retired')
+        connected = next(iter(retained.values()))
+        check(call('/sensors/' + connected['rom_id'], 'DELETE', headers=origin)['status'] == 401,
+              'unauthenticated retirement is rejected')
+        check(call('/sensors/' + connected['rom_id'], 'DELETE', headers={
+            **headers, 'If-Match': '"stale-revision"'})['status'] == 412,
+              'stale retirement revision is rejected')
+        check(call('/sensors/' + connected['rom_id'], 'DELETE',
+                   headers={**headers, 'If-Match': connected['etag']})['status'] == 409,
+              'connected probe retirement is rejected')
+        check(call('/sensors/' + target_id, 'DELETE', headers=headers)['status'] == 428,
+              'retirement requires a current sensor precondition')
+        retirement = call('/sensors/' + target_id, 'DELETE',
+                          headers={**headers, 'If-Match': target['etag']})
+        check(retirement['status'] == 202 and
+              json.loads(retirement['body']) == {'status': 'queued'},
+              'disconnected ROM retirement is queued with the current revision')
+        deadline = time.monotonic() + 15
+        current = sensors
+        while time.monotonic() < deadline:
+            time.sleep(.5)
+            current = json.loads(call('/sensors', headers=headers)['body'])
+            ids = {item['rom_id'] for item in current}
+            if target_id not in ids and replacement_id in ids:
+                break
+        check(target_id not in {item['rom_id'] for item in current} and
+              replacement_id in {item['rom_id'] for item in current},
+              'durable retirement frees capacity and admits the excess ROM')
+        current_by_rom = {item['rom_id']: item for item in current}
+        keys = ('name', 'short_name', 'enabled', 'disconnect_alert', 'order',
+                'calibration_c', 'low_c', 'high_c', 'hysteresis_c', 'persistence_seconds')
+        check(all(all(current_by_rom[rom_id][key] == before[key]
+                      for key in keys)
+                  for rom_id, before in retained.items()),
+              'retirement preserves every remaining ROM-keyed configuration')
+        replacement = current_by_rom[replacement_id]
+        check(replacement['name'] == 'Sensor 1' and replacement['enabled'] is True and
+              replacement['calibration_c'] == 0 and replacement['low_c'] is None and
+              replacement['high_c'] is None,
+              'new ROM receives neutral defaults instead of retired settings')
+        expected_path.write_text(json.dumps({'sensors': {
+            rom_id: {key: current_by_rom[rom_id][key] for key in keys}
+            for rom_id in [*retained.keys(), replacement_id]}}) + '\n')
+        print('Reboot the simulation image, then run --retirement-only --verify-reboot.',
+              flush=True)
+        sys.exit(0)
     sensor = sensors[0]
     if args.settings_only:
         settings = get('/settings')

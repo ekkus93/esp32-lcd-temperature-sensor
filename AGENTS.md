@@ -1,33 +1,17 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
+## Project Structure
 
-This repository is currently in the design stage; no application source, build configuration, or tests exist yet.
+This ESP32-S3 temperature monitor uses ESP-IDF v6.1 in `firmware/`, with services under `firmware/components/` and startup in `firmware/main/`. Host C++ tests live in `firmware/tests/`; headless LVGL tests are in `firmware/display_tests/`. The React 19, TypeScript and Vite client is in `web/src/`; shared API schemas are in `contracts/`. Requirements, UI/wiring designs and hardware validation records live in `docs/`.
 
-- `docs/SPEC.md` defines the ESP32-S3 temperature monitor’s system requirements.
-- `docs/TODO.md` tracks implementation phases and acceptance checks.
-- `docs/LCD_UI_DESIGN_SPEC.md` and `docs/WEB_UI_DESIGN_SPEC.md` describe the interfaces; accompanying SVG/PNG files provide mockups.
-- `docs/ESP32_S3_TEMPERATURE_MONITOR_WIRING.md` and its SVG document hardware connections.
-- Planned directories are `firmware/` for ESP-IDF C/C++ and `web/` for React 19, TypeScript, and Vite. Keep firmware services modular and sensor/alert logic testable on a host.
+## Build and Verification
 
-## Build, Test, and Development Commands
+Activate the pinned ESP-IDF v6.1 environment as described in `docs/DEVELOPMENT.md`. Run `./tools/verify.sh` for host, simulator, display, web, formatting and lint checks. Run `./tools/verify.sh --firmware` for those checks plus the pinned SDK check and firmware build. From `web/`, `npm ci` installs locked dependencies; `npm run dev` starts Vite, and `npm test`, `npm run lint`, `npm run format:check`, and `npm run build` run focused checks. Device scripts under `tools/device_*.py` require a connected board and setup file; follow `docs/DEVELOPMENT.md` and protect credentials.
 
-There are no runnable project build or test commands yet. Once the planned scaffolding exists:
+## Coding and Testing
 
-- In an initialized ESP-IDF environment, `idf.py --version` checks SDK identity.
-- From `firmware/`, `idf.py set-target esp32s3` selects the chip and `idf.py build` compiles firmware.
-- From `firmware/`, `idf.py -p <PORT> flash monitor` flashes a connected board and opens serial logs.
+Follow existing C++ formatting (`clang-format`) and TypeScript formatting (Prettier); ESLint treats warnings as errors. Keep firmware services modular and sensor, history and protocol logic host-testable. Name tests for behavior and failure conditions. Run focused tests during development and the full verification script before integration. Distinguish host simulations from physical sensor, LCD, network and power-loss acceptance.
 
-The specification requires ESP-IDF v6.1 with an exact pinned revision/toolchain. Add and document web development, build, lint, typecheck, and test scripts when creating `web/package.json`.
+## Changes and Hardware
 
-## Coding Style & Naming Conventions
-
-No formatter, linter, or indentation rules are configured. Establish explicit C/C++ and TypeScript formatting rules with the initial scaffolding; follow surrounding style thereafter. Use descriptive service names such as `sensor_registry` and `history_service`. Preserve existing documentation filenames and relative links. Keep specifications, mockups, wiring, and task descriptions consistent when requirements change.
-
-## Testing Guidelines
-
-No testing framework or numerical coverage threshold is established. Add host tests with fake sensors, clocks, and storage, plus frontend unit and API contract tests. Name cases by behavior, covering CRC failures, sensor reconnection, alert hysteresis, and history gaps. Record commands and results; distinguish simulated checks from physical ESP32 verification. Check TODO items only after their acceptance checks pass.
-
-## Commit & Pull Request Guidelines
-
-Git history contains only `Initial commit`, so no commit convention is established. Use concise, imperative subjects describing one focused change. PRs should explain behavior, reference relevant TODO IDs or issues, report validation and hardware limitations, and include screenshots for UI changes.
+Use concise imperative commit subjects. Describe behavior, relevant TODO IDs, verification commands and hardware limitations in reviews. Handle API/schema and persistent-storage compatibility deliberately. GPIO15 backlight and sensor-bus wiring require the electrical checks in `docs/ESP32_S3_TEMPERATURE_MONITOR_WIRING.md`; builds and simulations do not establish physical acceptance. Keep secrets and device setup files out of version control.

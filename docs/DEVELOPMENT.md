@@ -96,6 +96,13 @@ The storage test accelerates a full day of five-second samples.
 
 ## Device tests without peripherals
 
+The connected 1.8-inch module is marked ST7735; `CONFIG_MONITOR_LCD_ST7735`
+selects its compact display layout and driver by default. Disable that option
+for the original 240 × 320 ST7789 design. The ST7735 build initially assumes
+128 × 160 pixels; the module PCB says 128 × 120, so physical dimensions,
+address offsets, rotation and colors must be checked on the actual panel.
+The compact setup screen alternates between Wi-Fi and owner-code pages.
+
 ```bash
 python tools/device_smoke.py --port /dev/ttyACM0 --seconds 20
 ```
@@ -222,6 +229,25 @@ With the simulation firmware running, use
 `python tools/device_sensor_test.py --port /dev/ttyACM0 --history-only` to check
 persisted LittleFS aggregates and query bounds on the ESP32. This uses explicitly
 fake probes and accelerated time, never physical-sensor evidence.
+
+For concurrent populated-history traffic profiling, the five-provider
+simulation firmware must also have a test administrator and a station address
+reachable from the host. Run:
+
+```sh
+python tools/device_history_profile.py --port /dev/ttyACM0 --seconds 120
+```
+
+It concurrently queries history, streams CSV, requests status, and captures
+serial health/resource samples while the MCU
+continues accelerated sampling and LittleFS appends. The time range accounts for
+the simulator's 20× uptime scale; the report includes query/export/status
+latency, maximum returned records/bytes, storage usage, and heap/stack minima.
+The JSON report excludes credentials and is created with mode 0600. This is
+simulated-probe MCU evidence, not physical sensor/LCD qualification. A host that
+cannot route to the device's station address cannot run this concurrent-network
+profile through the USB bridge; do not replace it with sequential USB requests
+and describe those as concurrent traffic.
 
 Wi-Fi scanning uses authenticated `POST /api/v1/wifi/scan` (CSRF required), then
 polling `GET /api/v1/wifi/scan`. Requests are limited to one per 10 seconds,

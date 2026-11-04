@@ -1,3 +1,15 @@
+# 2026-10-31 — Repository TODO and remediation continuation
+
+`docs/TODO.md` has 124/145 numbered tasks complete; 21 remain open. T06-14 is now complete based on focused host recovery/power-cut suites and prior simulated-device history/reboot evidence. Physical power-interruption testing remains under T06-16. Current acceptance prerequisites are itemized in [the 2026-10-31 project handoff](ESP32_TEMPERATURE_MONITOR_HANDOFF_2026-10-31.md).
+
+The latest normal ESP-IDF v6.1 firmware includes an independent 100 ms display-refresh task, snapshot-only stale expiry/publication, retry when API snapshot publication is temporarily busy, and BOOT GPIO logic separated from the USB diagnostic bridge. Host storage/settings fault and unknown-time Alerts regressions pass. The full pinned verifier passed 24 host CTests, 14 Python tests, simulator/API checks, headless display, 78 web tests, formatting, lint, typecheck, Vite and ESP-IDF v6.1 build. Final image size was `0x1ee5f0` bytes. On `/dev/ttyACM0`, 15-second and fresh 120-second bare-board smokes passed with healthy history/event storage, no panic and zero probes. The LCD and probes were not connected. See [display refresh validation](validation/device-display-refresh-2026-10-31.txt) and [bare-board stability validation](validation/device-bare-board-2026-10-31.txt).
+
+The device test-admin login was stale; the device test helper reset only its test-managed administrator. Re-enrollment awaits provisioning mode; Wi-Fi/history data were not targeted by that reset. Do not claim another authenticated API run on the latest image until that account is re-enrolled.
+
+Host retention follow-up: added an opt-in executable exercising production `HistoryStore` append, full-budget rollover and eviction on POSIX. It measured 99/158/217/276/335-byte records and retained 109/69/50/39/32 whole five-minute days for one through five probes. The results and exact oldest/latest boot-relative starts are in [history retention validation](validation/history-retention-estimate.md). This does not include MCU LittleFS allocation or physical-probe measurements, so T06-15 stays open.
+
+The MCU history traffic profiler also now derives its query window from the simulator's 20× elapsed-time scale, clamps long-running queries to the API's 30-day bound, and reports concurrent request latency plus LittleFS used-byte observations. Two offline time-window regressions pass. A full device profile still needs the test admin re-enrolled and a reachable station address; see [device profiling instructions](DEVELOPMENT.md).
+
 # 2026-10-30 — Connected-board acceptance updates
 
 The isolated simulation firmware was also flashed to the ESP32-S3 app partition

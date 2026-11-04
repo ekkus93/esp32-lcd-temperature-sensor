@@ -51,7 +51,7 @@
     },
     "gaps": {
       "type": "array",
-      "maxItems": 2560,
+      "maxItems": 512,
       "items": {
         "type": "object",
         "additionalProperties": false,

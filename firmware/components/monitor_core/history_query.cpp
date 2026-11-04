@@ -97,11 +97,29 @@ void HistoryReducer::add(const Bucket &bucket) {
     }
     if (time < query_.from || time >= query_.to)
         return;
+    if (!last_boot_id_ || *last_boot_id_ != bucket.boot_id) {
+        last_end_.clear();
+        last_boot_id_ = bucket.boot_id;
+    }
     auto &group = groups_[(time - query_.from) / width_];
     for (const auto &a : bucket.sensors) {
         if (!a.count || (!query_.roms.empty() && std::find(query_.roms.begin(), query_.roms.end(),
                                                            a.rom) == query_.roms.end()))
             continue;
+        const auto previous = last_end_.find(a.rom);
+        const int64_t record_end = time + bucket_ms;
+        if (previous != last_end_.end() && time > previous->second) {
+            const HistoryGap gap{bucket.boot_id, a.rom, previous->second, time};
+            if (!gaps_.empty() && gaps_.back().boot_id == gap.boot_id &&
+                gaps_.back().rom == gap.rom && gaps_.back().end_ms == gap.start_ms)
+                gaps_.back().end_ms = gap.end_ms;
+            else if (gaps_.size() < 512)
+                gaps_.push_back(gap);
+            else
+                truncated_ = true;
+        }
+        last_end_[a.rom] =
+            std::max(previous == last_end_.end() ? int64_t(0) : previous->second, record_end);
         // A trusted-clock reboot must still retain an explicit series boundary.
         auto found = std::find_if(group.begin(), group.end(), [&](const Cell &c) {
             return c.point.rom == a.rom && c.point.boot_id == bucket.boot_id;

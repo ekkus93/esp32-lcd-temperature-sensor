@@ -1,0 +1,42 @@
+ESP32-S3 API, WebSocket and scheduling stress
+Date: 2026-10-31
+
+The latest normal ESP-IDF v6.1 image was tested through the USB HTTP loopback
+bridge on `/dev/ttyACM0`. No LCD or temperature probes were connected.
+
+Results
+-------
+- The complete device API suite passed embedded asset/gzip checks, auth and
+  Origin/CSRF gates, OTA upload validation, bounded radio scan, snapshot v1,
+  probe/storage/clock diagnostics, history query limits, event-journal
+  pagination, safe restart, and account/session checks.
+- PBKDF2 login and failed-login checks completed in about 30 seconds per
+  derivation. The test confirmed the sampling cadence continued during the
+  expensive operations.
+- Authenticated WebSocket snapshots arrived at five-second cadence with
+  increasing sequence numbers. Four clients received complete frames and a
+  fifth was rejected; authenticated HTTP status remained responsive.
+- A 120-second stalled-WebSocket run used a one-byte receive buffer while
+  issuing authenticated HTTP status requests. The server cut off the stalled
+  client; 120/120 HTTP requests succeeded (255 ms maximum). Thirty-one health
+  samples recorded minimum internal free heap 78,351 bytes, minimum internal
+  heap watermark 41,548 bytes, largest free internal block 31,744 bytes,
+  minimum PSRAM free 8,346,508 bytes, and main-task stack watermark 2,700.
+- The test runner checks captured serial data during that load and fails on
+  task-watchdog warnings, backtraces, or CPU 1 watchdog messages; the check
+  passed on this run.
+- Serial output from the concurrent KDF login and health capture contained no
+  task watchdog warning or backtrace. Safe restart returned to READY and
+  invalidated the previous administrator session.
+
+Limitations
+-----------
+- A 30-second stalled-client attempt on the empty bare-board snapshot did not
+  fill its receive buffer and therefore did not trigger cutoff; HTTP remained
+  responsive. The 120-second repeat triggered the expected bounded cutoff.
+- Slow-body recovery with live LAN clients was previously verified, but the
+  current workstation cannot reach the device's recorded station IP for a
+  combined rerun after the KDF worker change. See
+  `device-slow-body-2026-10-30.txt` and `device-kdf-worker-2026-10-31.txt`.
+- Physical probes, powered LCD behavior and long-term sensor/history load
+  remain unverified.

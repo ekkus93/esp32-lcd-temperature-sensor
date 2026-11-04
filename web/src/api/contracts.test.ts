@@ -2,6 +2,8 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { getAlerts } from './alerts';
 import { authState } from './auth';
 import { networkProgress, wifiScan } from './network';
+import { parseSnapshot } from './client';
+import { empty } from './fixtures';
 
 let body: unknown;
 beforeEach(() => {
@@ -20,6 +22,21 @@ it('validates enrollment and session state from the device contract', async () =
   expect(await authState()).toEqual(body);
   body = { enrolled: true, csrf: 3 };
   await expect(authState()).rejects.toThrow('Invalid authentication state');
+});
+
+it('keeps snapshot v1 strict and validates separately versioned probe diagnostics elsewhere', () => {
+  expect(parseSnapshot(empty)).toEqual(empty);
+  expect(() =>
+    parseSnapshot({
+      ...empty,
+      probe_scan: {
+        enabled: true,
+        complete: true,
+        discovered_count: 6,
+        overflow: true,
+      },
+    }),
+  ).toThrow('Invalid device snapshot');
 });
 
 it('validates active bus and sensor alerts with bounded event history', async () => {

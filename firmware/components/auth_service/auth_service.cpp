@@ -1,12 +1,47 @@
 #include "auth_service.hpp"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "nvs.h"
 #include "psa/crypto.h"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
 namespace monitor {
+namespace {
+struct DeriveRequest {
+    const std::string *password;
+    const std::array<uint8_t, 16> *salt;
+    std::array<uint8_t, 32> *out;
+    uint32_t iterations;
+    TaskHandle_t caller;
+    bool result = false;
+};
+
+void derive_worker(void *context) {
+    auto &request = *static_cast<DeriveRequest *>(context);
+    psa_key_derivation_operation_t op = PSA_KEY_DERIVATION_OPERATION_INIT;
+    auto status = psa_key_derivation_setup(&op, PSA_ALG_PBKDF2_HMAC(PSA_ALG_SHA_256));
+    if (status == PSA_SUCCESS)
+        status = psa_key_derivation_input_integer(&op, PSA_KEY_DERIVATION_INPUT_COST,
+                                                  request.iterations);
+    if (status == PSA_SUCCESS)
+        status = psa_key_derivation_input_bytes(&op, PSA_KEY_DERIVATION_INPUT_SALT,
+                                                request.salt->data(), request.salt->size());
+    if (status == PSA_SUCCESS)
+        status = psa_key_derivation_input_bytes(
+            &op, PSA_KEY_DERIVATION_INPUT_PASSWORD,
+            reinterpret_cast<const uint8_t *>(request.password->data()), request.password->size());
+    if (status == PSA_SUCCESS)
+        status = psa_key_derivation_output_bytes(&op, request.out->data(), request.out->size());
+    psa_key_derivation_abort(&op);
+    request.result = status == PSA_SUCCESS;
+    xTaskNotifyGive(request.caller);
+    vTaskDelete(nullptr);
+}
+} // namespace
+
 std::string secure_token(size_t size) {
     if (size > 64)
         return {};
@@ -73,26 +108,22 @@ esp_err_t AuthService::initialize() {
 bool AuthService::derive(const std::string &password, const std::array<uint8_t, 16> &salt,
                          std::array<uint8_t, 32> &out, uint32_t iterations) {
     auto started = esp_timer_get_time();
-    psa_key_derivation_operation_t op = PSA_KEY_DERIVATION_OPERATION_INIT;
-    auto status = psa_key_derivation_setup(&op, PSA_ALG_PBKDF2_HMAC(PSA_ALG_SHA_256));
-    if (status == PSA_SUCCESS)
-        status = psa_key_derivation_input_integer(&op, PSA_KEY_DERIVATION_INPUT_COST, iterations);
-    if (status == PSA_SUCCESS)
-        status = psa_key_derivation_input_bytes(&op, PSA_KEY_DERIVATION_INPUT_SALT, salt.data(),
-                                                salt.size());
-    if (status == PSA_SUCCESS)
-        status = psa_key_derivation_input_bytes(&op, PSA_KEY_DERIVATION_INPUT_PASSWORD,
-                                                reinterpret_cast<const uint8_t *>(password.data()),
-                                                password.size());
-    if (status == PSA_SUCCESS)
-        status = psa_key_derivation_output_bytes(&op, out.data(), out.size());
-    psa_key_derivation_abort(&op);
-    if (status != PSA_SUCCESS)
-        ESP_LOGE("auth", "Password KDF unavailable: %ld", static_cast<long>(status));
+    DeriveRequest request{&password, &salt, &out, iterations, xTaskGetCurrentTaskHandle()};
+    // The HTTP task is pinned to core 1. A priority-0 worker shares that core
+    // with IDLE1, while higher-priority network tasks can still preempt it.
+    TaskHandle_t worker = nullptr;
+    if (xTaskCreatePinnedToCore(derive_worker, "password_kdf", 8192, &request, tskIDLE_PRIORITY,
+                                &worker, 1) != pdPASS) {
+        ESP_LOGE("auth", "Could not start password KDF worker");
+        return false;
+    }
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    if (!request.result)
+        ESP_LOGE("auth", "Password KDF unavailable");
     if (iterations > 1)
         ESP_LOGI("auth", "PBKDF2 iterations=%u elapsed_ms=%lld", unsigned(iterations),
                  static_cast<long long>((esp_timer_get_time() - started) / 1000));
-    return status == PSA_SUCCESS;
+    return request.result;
 }
 bool AuthService::save_password(const std::string &password) {
     if (password.size() < 12 || password.size() > 128)

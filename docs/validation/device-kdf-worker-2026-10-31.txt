@@ -1,0 +1,20 @@
+ESP32-S3 PBKDF2 scheduling check
+Date: 2026-10-31
+
+The password verifier remains the PSA PBKDF2-HMAC-SHA256 derivation at 100,000
+iterations. It now runs in a low-priority worker pinned to the HTTP server's
+core; the request task waits on a task notification. The worker shares core 1
+with IDLE1, while higher-priority network tasks can preempt it.
+
+On the ESP32-S3 normal firmware image, an authenticated USB-bridged login
+returned HTTP 200. PBKDF2 took 30,533 ms. Seven periodic main-task HEALTH lines
+arrived during the login, and captured serial output contained no task watchdog
+warning or backtrace. The board was left on the normal firmware image. The
+unchanged PBKDF2 known-answer self-test passed at boot, and the full pinned
+verification script passed after the change.
+
+This confirms the CPU1 idle-watchdog regression is addressed for the PBKDF2
+operation. The calculation still has high latency. The six-second slow-body
+concurrency and live-WebSocket scenario still needs to be rerun with a host that
+can reach the device over its LAN; the current workstation cannot reach the
+recorded station address. No physical probes or LCD were connected.

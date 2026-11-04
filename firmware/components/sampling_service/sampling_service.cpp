@@ -7,8 +7,14 @@ esp_err_t SamplingService::initialize(bool simulated) {
     return simulated_ ? ESP_OK : bus_.initialize();
 }
 
-std::vector<Reading> SamplingService::read(int64_t now_ms) {
-    return simulated_ ? fake_readings() : bus_.read(now_ms);
+std::vector<Reading> SamplingService::read(int64_t now_ms, const std::vector<uint64_t> &managed) {
+    if (!simulated_)
+        return bus_.read(now_ms, managed);
+#ifdef CONFIG_MONITOR_SIM_REPLACEMENT_TEST
+    return fake_replacement_readings();
+#else
+    return fake_readings();
+#endif
 }
 
 bool SamplingService::fault() const {
