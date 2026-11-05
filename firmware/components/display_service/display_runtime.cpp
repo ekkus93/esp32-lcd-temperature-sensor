@@ -389,8 +389,13 @@ void DisplayRuntime::update(const Registry &registry, const TrendCache &cache,
     lvgl_port_unlock();
     return;
 #else
-    if (provisioning)
-        view_->provisioning(ssid, wifi_key, owner_code);
+    // While setup mode is open the LCD alternates the setup page(s) with the normal readings, so
+    // temperatures and alerts stay visible instead of being replaced by setup details.
+    const SetupPhase phase = provisioning
+                                 ? setup_phase(uptime_ms, width <= 128, !owner_code.empty())
+                                 : SetupPhase::readings;
+    if (phase != SetupPhase::readings)
+        view_->provisioning(ssid, wifi_key, owner_code, phase == SetupPhase::owner_code);
     else {
         const bool previous_trends = view_->showing_trends();
         view_->render(registry, cache, options, status, uptime_ms);

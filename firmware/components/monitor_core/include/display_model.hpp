@@ -34,6 +34,12 @@ struct DisplayRow {
     State state = State::unassigned;
 };
 std::array<DisplayRow, max_sensors> display_rows(const Registry &registry, bool fahrenheit);
+// While setup mode is open the LCD rotates, ten seconds each, through the setup page(s) and the
+// normal readings, so temperatures and alerts stay visible. The compact screen splits setup into a
+// Wi-Fi page and an owner-code page (only when there is an owner code); the large screen shows
+// everything on one page.
+enum class SetupPhase { wifi, owner_code, readings };
+SetupPhase setup_phase(int64_t uptime_ms, bool compact, bool has_owner_code);
 bool valid_display_options(const DisplayOptions &options);
 bool expire_display_snapshot(Registry &snapshot, int64_t now_ms);
 } // namespace monitor

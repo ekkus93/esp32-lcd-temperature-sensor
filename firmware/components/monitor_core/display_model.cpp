@@ -29,6 +29,17 @@ std::vector<std::optional<double>> TrendCache::values(uint64_t rom, int64_t now,
     }
     return result;
 }
+SetupPhase setup_phase(int64_t uptime_ms, bool compact, bool has_owner_code) {
+    constexpr int64_t phase_ms = 10000;
+    const bool split = compact && has_owner_code;
+    const int64_t phases = split ? 3 : 2;
+    const int64_t index = uptime_ms < 0 ? 0 : (uptime_ms / phase_ms) % phases;
+    if (index == 0)
+        return SetupPhase::wifi;
+    if (split && index == 1)
+        return SetupPhase::owner_code;
+    return SetupPhase::readings;
+}
 bool valid_display_options(const DisplayOptions &o) {
     return o.overview_seconds >= 5 && o.overview_seconds <= 300 && o.trends_seconds >= 5 &&
            o.trends_seconds <= 300 && o.lookback_minutes >= 5 && o.lookback_minutes <= 1440;

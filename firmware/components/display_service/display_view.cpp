@@ -295,12 +295,12 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
         lv_screen_load(desired);
 }
 void DisplayView::provisioning(const std::string &ssid, const std::string &wifi_key,
-                               const std::string &owner_code) {
+                               const std::string &owner_code, bool owner_page_requested) {
     const bool compact = lv_display_get_horizontal_resolution(nullptr) <= 128;
     const bool has_owner_code = !owner_code.empty();
     // The compact screen alternates between the Wi-Fi page and the owner-code page, but only when
     // there is an owner code to show (an enrolled device has none).
-    const bool owner_page = compact && has_owner_code && (lv_tick_get() / 10000) % 2;
+    const bool owner_page = compact && has_owner_code && owner_page_requested;
     // Codes are wrapped in two equal lines so each line fits the screen without breaking a word.
     auto two_lines = [](const std::string &code) {
         const size_t half = (code.size() + 1) / 2;

@@ -403,8 +403,7 @@ int main(int argc, char **argv) {
         view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP");
         const auto first_page = visible_text(lv_screen_active());
         save("provisioning-compact-wifi");
-        lv_tick_inc(10000);
-        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP");
+        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP", true);
         const auto second_page = visible_text(lv_screen_active());
         save("provisioning-compact-owner-code");
         for (const char *expected : {"1  Join this Wi-Fi", "TempMonitor-\nA1B2C3", "K7M4Q9XP2WTD",
