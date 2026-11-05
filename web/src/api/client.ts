@@ -28,10 +28,7 @@ export async function getSnapshot(signal?: AbortSignal): Promise<Snapshot> {
     throw new Error(`Device request failed (${response.status})`);
   return parseSnapshot(await response.json());
 }
-export function temperature(
-  value: number | null,
-  unit: 'C' | 'F' = 'F',
-): string {
+export function temperature(value: number | null, unit: 'C' | 'F'): string {
   if (value === null || !Number.isFinite(value)) return '—';
   return `${(unit === 'F' ? value * 1.8 + 32 : value).toFixed(1)} °${unit}`;
 }

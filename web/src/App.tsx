@@ -57,15 +57,29 @@ export default function App() {
     },
     [],
   );
+  const [settingsFailed, setSettingsFailed] = useState(false);
   useEffect(() => {
     let active = true;
-    getSettings()
-      .then((settings) => {
-        if (active) applySettings(settings.units, settings.timezone);
-      })
-      .catch(() => {});
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let attempt = 0;
+    const load = () => {
+      getSettings()
+        .then((settings) => {
+          if (!active) return;
+          applySettings(settings.units, settings.timezone);
+          setSettingsFailed(false);
+        })
+        .catch(() => {
+          if (!active) return;
+          // Keep the default unit on screen, say so, and try again with a growing delay.
+          setSettingsFailed(true);
+          timer = setTimeout(load, Math.min(30000, 2000 * 2 ** attempt++));
+        });
+    };
+    load();
     return () => {
       active = false;
+      clearTimeout(timer);
     };
   }, [applySettings]);
   useEffect(() => {
@@ -200,6 +214,12 @@ export default function App() {
             />
             {snapshot?.simulated && <Chip label="SIMULATION" color="warning" />}
           </Stack>
+          {settingsFailed && (
+            <Alert severity="info" sx={{ mb: 2 }} role="status">
+              Display settings could not be loaded, so temperatures are shown in
+              °F and times in the device clock until they load. Retrying…
+            </Alert>
+          )}
           {error && (
             <Alert severity="warning" sx={{ mb: 2 }} role="status">
               {error} {snapshot && 'Cached readings are stale.'}

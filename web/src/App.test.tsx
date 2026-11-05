@@ -364,3 +364,69 @@ it('keeps the last readings visible, marked stale, when the live connection drop
   expect(screen.getByText('-1.3 °F')).toBeInTheDocument();
   expect(screen.getByText('Stale')).toBeInTheDocument();
 });
+it('shows an error and retries when the display settings cannot be loaded', async () => {
+  const snapshot = {
+    ...empty,
+    uptime_ms: 10000,
+    sensors: [
+      {
+        rom_id: '2801000000000029',
+        name: 'Freezer',
+        state: 'normal',
+        temperature_c: -18.5,
+        last_seen_ms: 5000,
+        enabled: true,
+        order: 0,
+      },
+    ],
+  };
+  const settings = {
+    schema_version: 1,
+    etag: '"device:settings:1"',
+    revision: 1,
+    writable: true,
+    units: 'C',
+    display_mode: 'basic',
+    overview_seconds: 20,
+    trends_seconds: 10,
+    lookback_minutes: 60,
+    timezone: 'UTC',
+    ntp_server: 'pool.ntp.org',
+  };
+  let settingsCalls = 0;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path.endsWith('/settings')) {
+        settingsCalls += 1;
+        if (settingsCalls === 1) throw new TypeError('Failed to fetch');
+        return { ok: true, json: async () => settings };
+      }
+      if (path.endsWith('/probe-scan'))
+        return {
+          ok: true,
+          json: async () => ({
+            schema_version: 1,
+            enabled: false,
+            complete: false,
+            discovered_count: 0,
+            overflow: false,
+          }),
+        };
+      return { ok: true, json: async () => snapshot };
+    }),
+  );
+  render(<App />);
+  // Until the real setting is known, the page says so instead of silently assuming Fahrenheit.
+  expect(
+    await screen.findByText(/Display settings could not be loaded/),
+  ).toBeInTheDocument();
+  // The retry succeeds: the saved unit applies and the notice goes away.
+  expect(
+    await screen.findByText('-18.5 °C', {}, { timeout: 6000 }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText(/Display settings could not be loaded/),
+  ).not.toBeInTheDocument();
+});

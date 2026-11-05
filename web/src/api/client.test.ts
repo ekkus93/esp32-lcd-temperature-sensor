@@ -50,9 +50,9 @@ describe('device contract', () => {
     ).toThrow();
   });
   it('converts only at presentation and never renders null as zero', () => {
-    expect(temperature(null)).toBe('—');
+    expect(temperature(null, 'F')).toBe('—');
     expect(temperature(0, 'F')).toBe('32.0 °F');
     expect(temperature(-20, 'C')).toBe('-20.0 °C');
-    expect(temperature(-20)).toBe('-4.0 °F');
+    expect(temperature(-20, 'F')).toBe('-4.0 °F');
   });
 });
