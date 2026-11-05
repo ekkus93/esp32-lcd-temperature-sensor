@@ -61,10 +61,10 @@ DisplayView::DisplayView() {
     const bool compact = compact_;
     for (auto *s : {&overview_, &trends_}) {
         s->root = screen();
-        text(label(s->root, compact ? 2 : 10, compact ? 0 : 10, compact ? 76 : 160,
-                   compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14),
-             s == &overview_ ? (compact ? "Temps" : "Temp Monitor")
-                             : (compact ? "Trends" : "Temperature trends"));
+        s->title = label(s->root, compact ? 2 : 10, compact ? 0 : 10, compact ? 76 : 160,
+                         compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
+        text(s->title, s == &overview_ ? (compact ? "Temps" : "Temp Monitor")
+                                       : (compact ? "Trends" : "Temperature trends"));
         s->time = label(s->root, compact ? 82 : 183, compact ? 0 : 10, compact ? 44 : 50,
                         compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
         s->footer = label(s->root, compact ? 2 : 10, compact ? 141 : 281, compact ? 124 : 225,
@@ -102,8 +102,10 @@ DisplayView::DisplayView() {
             if (s == &trends_) {
                 auto *chart = lv_chart_create(s->root);
                 s->charts[i] = chart;
-                lv_obj_set_pos(chart, large_trend ? 4 : 12, large_trend ? 42 : top + 21);
-                lv_obj_set_size(chart, large_trend ? 120 : 141, large_trend ? 75 : 23);
+                // The compact chart leaves room on its left for the highest and lowest value and
+                // below it for the time axis, so the line can be read as temperatures over time.
+                lv_obj_set_pos(chart, large_trend ? 38 : 12, large_trend ? 42 : top + 21);
+                lv_obj_set_size(chart, large_trend ? 86 : 141, large_trend ? 64 : 23);
                 lv_obj_set_style_bg_opa(chart, LV_OPA_TRANSP, 0);
                 lv_obj_set_style_border_width(chart, 0, 0);
                 lv_obj_set_style_pad_all(chart, 0, 0);
@@ -114,10 +116,25 @@ DisplayView::DisplayView() {
                 lv_obj_set_clickable(chart, false);
                 s->series[i] =
                     lv_chart_add_series(chart, lv_color_hex(0x9be3c4), LV_CHART_AXIS_PRIMARY_Y);
+                if (large_trend) {
+                    for (auto *axis : {&s->axis_max[i], &s->axis_min[i]}) {
+                        *axis = label(s->root, 0, axis == &s->axis_max[i] ? 42 : 92, 36,
+                                      &lv_font_montserrat_12);
+                        lv_obj_set_style_text_align(*axis, LV_TEXT_ALIGN_RIGHT, 0);
+                        lv_obj_set_style_text_color(*axis, lv_color_hex(setup_muted), 0);
+                    }
+                }
                 s->no_data[i] = label(s->root, large_trend ? 4 : 12, large_trend ? 70 : top + 24,
                                       large_trend ? 120 : 141, &lv_font_montserrat_12);
                 text(s->no_data[i], "NO DATA");
             }
+        }
+        if (compact && s == &trends_) {
+            s->axis_from = label(s->root, 38, 107, 43, &lv_font_montserrat_12);
+            s->axis_now = label(s->root, 81, 107, 43, &lv_font_montserrat_12);
+            lv_obj_set_style_text_align(s->axis_now, LV_TEXT_ALIGN_RIGHT, 0);
+            for (auto *axis : {s->axis_from, s->axis_now})
+                lv_obj_set_style_text_color(axis, lv_color_hex(setup_muted), 0);
         }
     }
     setup_ = screen();
@@ -205,6 +222,7 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
     const size_t compact_position =
         compact_count ? (compact_trend_visible_ms_ / 5000) % compact_count : 0;
     const size_t selected_row = compact_count ? compact_rows[compact_position] : 0;
+    bool axis_visible = false; // the selected compact chart is drawn, so its axes are shown
     for (unsigned i = 0; i < max_sensors; ++i) {
         const auto &row = rows[i];
         for (auto *s : {&overview_, &trends_}) {
@@ -240,6 +258,13 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
                                     low == INT32_MAX ? 0 : low - 50,
                                     high == INT32_MIN ? 100 : high + 50);
             chart_roms_[i] = row.rom;
+            if (compact) {
+                char text_buffer[16];
+                std::snprintf(text_buffer, sizeof(text_buffer), "%.1f", high / 100.0);
+                text(trends_.axis_max[i], high == INT32_MIN ? "" : text_buffer);
+                std::snprintf(text_buffer, sizeof(text_buffer), "%.1f", low / 100.0);
+                text(trends_.axis_min[i], low == INT32_MAX ? "" : text_buffer);
+            }
         }
         const bool selected = !compact || i == selected_row;
         if (compact) {
@@ -249,6 +274,12 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
         }
         const bool show_chart = chart_data_[i] && row.state != State::disabled && row.rom;
         lv_obj_set_hidden(trends_.charts[i], !selected || !show_chart);
+        if (compact) {
+            lv_obj_set_hidden(trends_.axis_max[i], !selected || !show_chart);
+            lv_obj_set_hidden(trends_.axis_min[i], !selected || !show_chart);
+            if (selected)
+                axis_visible = show_chart;
+        }
         lv_obj_set_hidden(trends_.no_data[i], !selected || show_chart);
         text(trends_.no_data[i], row.state == State::disabled ? "OFF" : "NO DATA");
         const char *trends_status = row.status.c_str();
@@ -257,6 +288,13 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
         else if (row.status.empty() && !chart_data_[i])
             trends_status = "NO DATA";
         text(trends_.states[i], trends_status);
+    }
+    if (compact) {
+        text(trends_.title, options.fahrenheit ? "Trends °F" : "Trends °C");
+        text(trends_.axis_from, "-" + std::to_string(options.lookback_minutes) + "m");
+        text(trends_.axis_now, "now");
+        lv_obj_set_hidden(trends_.axis_from, !axis_visible);
+        lv_obj_set_hidden(trends_.axis_now, !axis_visible);
     }
     cache_window_ = now / bucket_ms;
     cache_size_ = cache.size();

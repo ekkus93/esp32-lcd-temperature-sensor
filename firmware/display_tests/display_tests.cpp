@@ -438,7 +438,16 @@ int main(int argc, char **argv) {
         }
         lv_obj_update_layout(lv_screen_active());
         auto *first_chart = view.trends_chart(0);
-        CHECK(lv_obj_get_width(first_chart) == 120 && lv_obj_get_height(first_chart) == 75);
+        CHECK(lv_obj_get_width(first_chart) == 86 && lv_obj_get_height(first_chart) == 64);
+        {
+            // The compact graph says what it shows: the unit, the highest and lowest value, and
+            // the time span.
+            const auto text = visible_text(lv_screen_active());
+            for (const char *expected : {"Trends °F", "-60m", "now"})
+                CHECK(text.find(expected) != std::string::npos);
+            CHECK(!lv_obj_is_hidden(view.trends_axis_max(0)) ||
+                  !lv_obj_is_hidden(view.trends_axis_max(1)));
+        }
         save("trends-compact-single-simulated-probe");
         view.render(registry, cache, options, status, 3610000);
         CHECK(view.showing_trends() && selected() == 1);

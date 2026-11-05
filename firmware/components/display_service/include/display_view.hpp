@@ -31,13 +31,19 @@ class DisplayView {
     lv_obj_t *trends_chart(size_t sensor) const {
         return trends_.charts[sensor];
     }
+    lv_obj_t *trends_axis_max(size_t sensor) const {
+        return trends_.axis_max[sensor];
+    }
     lv_obj_t *trends_status(size_t sensor) const {
         return trends_.states[sensor];
     }
 
   private:
     struct Screen {
-        lv_obj_t *root, *time, *footer;
+        lv_obj_t *root, *time, *footer, *title = nullptr;
+        // Compact Trends only: highest and lowest value on each chart, and the time axis ends.
+        lv_obj_t *axis_from = nullptr, *axis_now = nullptr;
+        std::array<lv_obj_t *, 5> axis_max{}, axis_min{};
         std::array<lv_obj_t *, max_sensors> labels{}, values{}, alts{}, states{}, charts{};
         std::array<lv_obj_t *, max_sensors> no_data{};
         std::array<lv_chart_series_t *, max_sensors> series{};
