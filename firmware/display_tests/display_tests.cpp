@@ -527,6 +527,37 @@ int main(int argc, char **argv) {
             lv_refr_now(display);
             save("trends-compact-five-lines");
             {
+                // One full bucket is one point: no line, so no chart and no scale (it would show
+                // the same value as both highest and lowest); the screen says it is collecting.
+                TrendCache one_point;
+                Bucket only{123, 3900000, {}, {}};
+                for (const auto &sensor : five.sensors())
+                    only.sensors.push_back({sensor.rom, 21.5, 21, 22, 60, false});
+                one_point.add(only);
+                int64_t t = 4210000;
+                view.render(five, one_point, options, status, t);
+                for (; t < 4300000 && !view.showing_trends(); t += 1000)
+                    view.render(five, one_point, options, status, t);
+                CHECK(view.showing_trends());
+                CHECK(lv_obj_is_hidden(view.trends_chart(0)));
+                CHECK(lv_obj_is_hidden(view.trends_axis_max(0)));
+                CHECK(!lv_obj_is_hidden(view.trends_no_data()));
+                CHECK(std::string(lv_label_get_text(view.trends_no_data())) == "COLLECTING DATA");
+                save("trends-compact-collecting");
+                // A second point later makes a line: the chart and its scale appear.
+                Bucket next{123, 4200000, {}, {}};
+                for (const auto &sensor : five.sensors())
+                    next.sensors.push_back({sensor.rom, 22.0, 21, 23, 60, false});
+                one_point.add(next);
+                view.render(five, one_point, options, status, 4510000);
+                for (t = 4510000; t < 4620000 && !view.showing_trends(); t += 1000)
+                    view.render(five, one_point, options, status, t);
+                CHECK(view.showing_trends());
+                CHECK(!lv_obj_is_hidden(view.trends_chart(0)));
+                CHECK(!lv_obj_is_hidden(view.trends_axis_max(0)));
+                CHECK(lv_obj_is_hidden(view.trends_no_data()));
+            }
+            {
                 // The same balance for four probes (2 + 2), three (2 + 1) and one.
                 auto layout = [&](size_t count) {
                     Registry some;

@@ -267,6 +267,9 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
                     high = std::max(high, points[p]);
                 }
             chart_data_[i] = low != INT32_MAX;
+            chart_points_[i] =
+                size_t(std::count_if(points.begin(), points.begin() + values.size(),
+                                     [](int32_t p) { return p != LV_CHART_POINT_NONE; }));
             chart_low_[i] = low;
             chart_high_[i] = high;
             chart_roms_[i] = row.rom;
@@ -332,7 +335,15 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
                                legend_top + legend_row * int(is_left ? i : i - left));
             }
         }
-        const bool any = low != INT32_MAX;
+        // A line needs two points. Until some probe has them (the first full five-minute bucket
+        // is followed by a second one five minutes later) the chart and its scale are not shown:
+        // a single point has the same highest and lowest value and draws nothing.
+        size_t most_points = 0;
+        for (unsigned i = 0; i < max_sensors; ++i)
+            if (chart_data_[i] && rows[i].rom && rows[i].state != State::disabled)
+                most_points = std::max(most_points, chart_points_[i]);
+        const bool collecting = low != INT32_MAX && most_points < 2;
+        const bool any = low != INT32_MAX && !collecting;
         if (any && (low != trend_low_ || high != trend_high_)) {
             lv_chart_set_axis_range(trends_.charts[0], LV_CHART_AXIS_PRIMARY_Y, low - 50,
                                     high + 50);
@@ -349,6 +360,7 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
              {trends_.axis_max[0], trends_.axis_min[0], trends_.axis_from, trends_.axis_now})
             lv_obj_set_hidden(widget, !any);
         lv_obj_set_hidden(trends_.no_data[0], any);
+        text(trends_.no_data[0], collecting ? "COLLECTING DATA" : "NO DATA");
         text(trends_.title, options.fahrenheit ? "Trends °F" : "Trends °C");
         text(trends_.axis_from, "-" + std::to_string(options.lookback_minutes) + "m");
         text(trends_.axis_now, "now");

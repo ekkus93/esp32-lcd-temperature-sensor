@@ -75,6 +75,7 @@ class DisplayView {
     bool configured_ = false, showing_trends_ = false;
     // Compact Trends: each probe's own range and the combined range last drawn.
     std::array<int32_t, max_sensors> chart_low_{}, chart_high_{};
+    std::array<size_t, max_sensors> chart_points_{}; // points with a value in each probe's history
     int32_t trend_low_ = INT32_MAX, trend_high_ = INT32_MIN;
     std::array<bool, max_sensors> series_hidden_{};
     size_t legend_count_ = max_sensors + 1; // probes listed when the legend was last laid out
