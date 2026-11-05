@@ -1,4 +1,5 @@
 #include "display_view.hpp"
+#include "charter_fonts.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -62,7 +63,7 @@ DisplayView::DisplayView() {
     for (auto *s : {&overview_, &trends_}) {
         s->root = screen();
         s->title = label(s->root, compact ? 2 : 10, compact ? 0 : 10, compact ? 76 : 160,
-                         compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
+                         compact ? &font_charter_bold_12 : &font_charter_bold_14);
         text(s->title, s == &overview_ ? (compact ? "Temps" : "Temp Monitor")
                                        : (compact ? "Trends" : "Temperature trends"));
         // On the compact screen the time makes room for a Wi-Fi icon at the right edge.
@@ -71,7 +72,7 @@ DisplayView::DisplayView() {
         if (compact)
             s->wifi = label(s->root, 112, 0, 14, &lv_font_montserrat_12);
         s->footer = label(s->root, compact ? 2 : 10, compact ? 141 : 281, compact ? 124 : 225,
-                          compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
+                          compact ? &font_charter_regular_12 : &font_charter_regular_14);
         lv_obj_set_height(s->footer, compact ? 19 : 38);
         lv_label_set_long_mode(s->footer, LV_LABEL_LONG_WRAP);
         for (unsigned i = 0; i < max_sensors; ++i) {
@@ -80,11 +81,11 @@ DisplayView::DisplayView() {
             s->labels[i] =
                 label(s->root, compact ? 2 : 10, top, large_trend ? 70 : (compact ? 58 : 98),
                       compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
-            s->values[i] = label(
-                s->root, large_trend ? 74 : (compact ? 60 : 114), top,
-                large_trend ? 52 : (compact ? 66 : 116),
-                compact ? &lv_font_montserrat_12
-                        : (s == &overview_ ? &lv_font_montserrat_24 : &lv_font_montserrat_14));
+            s->values[i] =
+                label(s->root, large_trend ? 74 : (compact ? 60 : 114), top,
+                      large_trend ? 52 : (compact ? 66 : 116),
+                      compact ? &font_charter_bold_12
+                              : (s == &overview_ ? &font_charter_bold_24 : &font_charter_bold_14));
             lv_obj_set_style_text_align(s->values[i], LV_TEXT_ALIGN_RIGHT, 0);
             if (s == &overview_) {
                 // The same reading in the other unit, under the main value; hidden unless the row
@@ -92,7 +93,7 @@ DisplayView::DisplayView() {
                 // because the status text is short and left-aligned.
                 s->alts[i] = label(s->root, compact ? 60 : 114, top + (compact ? 12 : 26),
                                    compact ? 66 : 116,
-                                   compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
+                                   compact ? &font_charter_regular_12 : &font_charter_regular_14);
                 lv_obj_set_style_text_align(s->alts[i], LV_TEXT_ALIGN_RIGHT, 0);
                 lv_obj_set_style_text_color(s->alts[i], lv_color_hex(setup_muted), 0);
                 lv_obj_set_hidden(s->alts[i], true);

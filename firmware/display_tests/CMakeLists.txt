@@ -16,13 +16,19 @@ add_subdirectory("${lvgl_source}" lvgl)
 find_package(PNG REQUIRED)
 add_executable(display_tests display_tests.cpp
     ../components/display_service/display_view.cpp
+    ../components/display_service/fonts/font_charter_regular_12.c
+    ../components/display_service/fonts/font_charter_regular_14.c
+    ../components/display_service/fonts/font_charter_regular_24.c
+    ../components/display_service/fonts/font_charter_bold_12.c
+    ../components/display_service/fonts/font_charter_bold_14.c
+    ../components/display_service/fonts/font_charter_bold_24.c
     ../components/monitor_types/monitor_types.cpp
     ../components/alert_service/alert_service.cpp
     ../components/sensor_registry/sensor_registry.cpp
     ../components/monitor_core/monitor.cpp
     ../components/monitor_core/display_model.cpp
     ../components/monitor_core/fake_bus.cpp)
-target_include_directories(display_tests PRIVATE ../components/display_service/include ../components/monitor_core/include ../components/sensor_registry/include ../components/alert_service/include ../components/monitor_types/include)
+target_include_directories(display_tests PRIVATE ../components/display_service/include ../components/display_service/fonts ../components/monitor_core/include ../components/sensor_registry/include ../components/alert_service/include ../components/monitor_types/include)
 target_link_libraries(display_tests PRIVATE lvgl::lvgl PNG::PNG)
 target_compile_options(display_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_test(NAME display_render COMMAND display_tests "${CMAKE_CURRENT_BINARY_DIR}/screenshots")
