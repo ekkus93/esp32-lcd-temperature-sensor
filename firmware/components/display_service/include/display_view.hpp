@@ -77,6 +77,7 @@ class DisplayView {
     std::array<int32_t, max_sensors> chart_low_{}, chart_high_{};
     int32_t trend_low_ = INT32_MAX, trend_high_ = INT32_MIN;
     std::array<bool, max_sensors> series_hidden_{};
+    size_t legend_count_ = max_sensors + 1; // probes listed when the legend was last laid out
     int64_t cache_window_ = -1;
     std::array<uint64_t, max_sensors> chart_roms_{};
     std::array<bool, max_sensors> chart_data_{};

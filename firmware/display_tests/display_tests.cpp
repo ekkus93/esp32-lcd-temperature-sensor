@@ -402,17 +402,21 @@ int main(int argc, char **argv) {
         for (unsigned i = 0; i < max_sensors; ++i)
             CHECK(lv_obj_is_hidden(view.trends_label(i))); // no per-probe header any more
         {
-            // The legend is one column (every entry at the same x, one below the other) and ends
+            // Five probes: three names on the left, two on the right, all below the chart and
             // above the footer.
             lv_obj_update_layout(lv_screen_active());
-            for (unsigned i = 0; i < max_sensors; ++i) {
+            for (unsigned i = 0; i < 3; ++i)
                 CHECK(lv_obj_get_x(view.trends_legend(i)) == lv_obj_get_x(view.trends_legend(0)));
-                if (i)
-                    CHECK(lv_obj_get_y(view.trends_legend(i)) >
-                          lv_obj_get_y(view.trends_legend(i - 1)));
-            }
-            CHECK(lv_obj_get_y(view.trends_legend(4)) + lv_obj_get_height(view.trends_legend(4)) <=
+            for (unsigned i = 3; i < 5; ++i)
+                CHECK(lv_obj_get_x(view.trends_legend(i)) == lv_obj_get_x(view.trends_legend(3)) &&
+                      lv_obj_get_x(view.trends_legend(3)) > lv_obj_get_x(view.trends_legend(0)));
+            CHECK(lv_obj_get_y(view.trends_legend(1)) > lv_obj_get_y(view.trends_legend(0)));
+            CHECK(lv_obj_get_y(view.trends_legend(3)) == lv_obj_get_y(view.trends_legend(0)));
+            CHECK(lv_obj_get_y(view.trends_legend(4)) == lv_obj_get_y(view.trends_legend(1)));
+            CHECK(lv_obj_get_y(view.trends_legend(2)) + lv_obj_get_height(view.trends_legend(2)) <=
                   lv_obj_get_y(view.footer_label()));
+            CHECK(lv_obj_get_y(view.trends_legend(0)) >=
+                  lv_obj_get_y(view.trends_chart(0)) + lv_obj_get_height(view.trends_chart(0)));
         }
         {
             // Repeated renders of unchanged data while Trends is shown must not repaint.
@@ -474,7 +478,7 @@ int main(int argc, char **argv) {
         }
         lv_obj_update_layout(lv_screen_active());
         auto *first_chart = view.trends_chart(0);
-        CHECK(lv_obj_get_width(first_chart) == 86 && lv_obj_get_height(first_chart) == 50);
+        CHECK(lv_obj_get_width(first_chart) == 86 && lv_obj_get_height(first_chart) == 70);
         {
             // Fonts by role: serif (Charter) for every piece of text on the Overview and Trends
             // screens; the Wi-Fi icon is a symbol and stays in Montserrat.
@@ -522,6 +526,28 @@ int main(int argc, char **argv) {
             lv_tick_inc(50);
             lv_refr_now(display);
             save("trends-compact-five-lines");
+            {
+                // The same balance for four probes (2 + 2), three (2 + 1) and one.
+                auto layout = [&](size_t count) {
+                    Registry some;
+                    some.sample(fake_readings(count), 4200000);
+                    view.render(some, histories, options, status, 4210000);
+                    lv_obj_update_layout(lv_screen_active());
+                    std::array<int, 5> column{}; // 0 = left, 1 = right, -1 = hidden
+                    for (size_t i = 0; i < 5; ++i)
+                        column[i] = lv_obj_is_hidden(view.trends_legend(i))
+                                        ? -1
+                                        : (lv_obj_get_x(view.trends_legend(i)) >
+                                                   lv_obj_get_x(view.trends_legend(0))
+                                               ? 1
+                                               : 0);
+                    return column;
+                };
+                CHECK((layout(4) == std::array<int, 5>{0, 0, 1, 1, -1}));
+                CHECK((layout(3) == std::array<int, 5>{0, 0, 1, -1, -1}));
+                CHECK((layout(1) == std::array<int, 5>{0, -1, -1, -1, -1}));
+                CHECK((layout(5) == std::array<int, 5>{0, 0, 0, 1, 1}));
+            }
             view.render(registry, cache, options, status, 3605000);
         }
         {

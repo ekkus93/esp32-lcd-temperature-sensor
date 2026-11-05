@@ -75,7 +75,7 @@ and alarms are edited on the Sensors page.
 On the compact 1.8-inch LCD, Trends draws every probe as a line of its own colour on one graph
 with a shared scale: the highest and lowest value are printed at the left, the time span
 (`-60m` to `now`, following the lookback setting) under it, and the unit in the title. Under the
-graph a legend, one name per line in its line's colour (sky blue, amber, coral, lilac, mint, in probe order),. A probe with
+graph a legend in two balanced columns, each name in its line's colour (sky blue, amber, coral, lilac, mint, in probe order; the first half of the probes on the left, the rest on the right),. A probe with
 no history yet is still listed in its colour but has no line. With only the Overview and Trends screens, nothing
 rotates any more.
 
