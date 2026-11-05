@@ -144,11 +144,15 @@ extern "C" void app_main() {
                 ESP_LOGE(tag, "HTTP server unavailable");
             if (!monitor::start_captive_dns(wifi))
                 ESP_LOGE(tag, "Captive DNS unavailable; direct AP address remains available");
-            if (!monitor::start_provisioning_controls(wifi))
-                ESP_LOGE(tag, "Provisioning controls unavailable");
         } else
-            ESP_LOGE(tag, "Authentication unavailable: %s; HTTP remains closed",
+            ESP_LOGE(tag,
+                     "Authentication unavailable: %s; HTTP remains closed. Use the USB recovery "
+                     "console (RESET_ADMIN_CREDENTIALS CONFIRM) to reset it.",
                      esp_err_to_name(auth_status));
+        // The USB recovery console and the BOOT button service do not depend on authentication:
+        // they are the way out when the stored credentials are damaged.
+        if (!monitor::start_provisioning_controls(wifi))
+            ESP_LOGE(tag, "Provisioning controls unavailable");
     } else
         ESP_LOGE(tag, "Wi-Fi init failed: %s", esp_err_to_name(network_status));
     monitor::Aggregator aggregator(boot_id);

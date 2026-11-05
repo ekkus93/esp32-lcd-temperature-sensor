@@ -62,5 +62,23 @@ int main() {
     CHECK(!is_legacy_hex_secret(std::string(32, 'A'), 32));
     CHECK(!is_legacy_hex_secret(key, 32));
     CHECK(!is_legacy_hex_secret(key, 12));
+
+    // What to do with the stored one-time owner code when the device is not enrolled: keep a good
+    // one, replace the old hex format, and create a new one for anything missing or damaged, so
+    // startup never fails (and HTTP never stays closed) because of a bad stored code.
+    CHECK(plan_setup_code(false, "") == SetupCodeAction::create);
+    CHECK(plan_setup_code(true, owner) == SetupCodeAction::keep);
+    CHECK(plan_setup_code(true, std::string(64, 'a')) == SetupCodeAction::rotate);
+    CHECK(
+        plan_setup_code(true, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef") ==
+        SetupCodeAction::rotate);
+    CHECK(plan_setup_code(true, "") == SetupCodeAction::create);
+    CHECK(plan_setup_code(true, "short") == SetupCodeAction::create);
+    CHECK(plan_setup_code(true, std::string(16, '0')) == SetupCodeAction::create); // banned chars
+    CHECK(plan_setup_code(true, std::string(17, 'A')) == SetupCodeAction::create); // wrong length
+    CHECK(plan_setup_code(true, std::string(64, 'A')) == SetupCodeAction::create); // not hex
+    CHECK(plan_setup_code(true, std::string(65, 'a')) == SetupCodeAction::create); // too long
+    CHECK(plan_setup_code(true, std::string("ABCD\0EFGH23456789", 17)) ==
+          SetupCodeAction::create); // embedded NUL
     std::cout << "PASS: readable setup codes and legacy hex detection\n";
 }

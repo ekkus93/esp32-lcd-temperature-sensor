@@ -24,6 +24,16 @@ bool is_readable_code(const std::string &code, size_t length) {
     return true;
 }
 
+SetupCodeAction plan_setup_code(bool stored, const std::string &value) {
+    if (!stored)
+        return SetupCodeAction::create;
+    if (is_readable_code(value, owner_setup_code_length))
+        return SetupCodeAction::keep;
+    if (is_legacy_hex_secret(value, 64))
+        return SetupCodeAction::rotate;
+    return SetupCodeAction::create;
+}
+
 bool is_legacy_hex_secret(const std::string &secret, size_t length) {
     if (secret.size() != length)
         return false;

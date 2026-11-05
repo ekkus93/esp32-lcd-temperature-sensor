@@ -106,22 +106,32 @@ esp_err_t AuthService::initialize() {
         char secret[65]{};
         size = sizeof(secret);
         result = nvs_get_str(handle, "bootstrap", secret, &size);
-        if (result == ESP_ERR_NVS_NOT_FOUND) {
-            result = store_new_setup_code(handle, setup_);
-        } else if (result == ESP_OK && is_readable_code(secret, owner_setup_code_length)) {
-            setup_ = secret;
-        } else if (result == ESP_OK && is_legacy_hex_secret(secret, 64)) {
-            // Replace the old 64-character hex code with a short typeable one. If that fails the
-            // old code still works, so enrollment is never blocked.
-            setup_ = secret;
-            if (store_new_setup_code(handle, setup_) != ESP_OK)
-                ESP_LOGW("auth",
-                         "Could not shorten the owner setup code; keeping the existing one");
-            else
-                ESP_LOGI("auth", "Owner setup code replaced with a shorter format");
-            result = ESP_OK;
-        } else
-            result = ESP_ERR_INVALID_STATE;
+        const bool stored = result == ESP_OK;
+        // A missing, oversized or damaged code is replaced rather than failing startup: failing
+        // here would keep HTTP closed and leave no way to set the device up.
+        if (result == ESP_ERR_NVS_NOT_FOUND || result == ESP_ERR_NVS_INVALID_LENGTH || stored) {
+            switch (plan_setup_code(stored, stored ? std::string(secret) : std::string())) {
+            case SetupCodeAction::keep:
+                setup_ = secret;
+                result = ESP_OK;
+                break;
+            case SetupCodeAction::rotate:
+                // The old code still works if the replacement cannot be stored.
+                setup_ = secret;
+                if (store_new_setup_code(handle, setup_) != ESP_OK)
+                    ESP_LOGW("auth",
+                             "Could not shorten the owner setup code; keeping the existing one");
+                else
+                    ESP_LOGI("auth", "Owner setup code replaced with a shorter format");
+                result = ESP_OK;
+                break;
+            case SetupCodeAction::create:
+                if (result != ESP_ERR_NVS_NOT_FOUND)
+                    ESP_LOGW("auth", "Stored owner setup code is damaged; creating a new one");
+                result = store_new_setup_code(handle, setup_);
+                break;
+            }
+        }
     } else
         result = ESP_OK;
     nvs_close(handle);

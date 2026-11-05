@@ -18,4 +18,10 @@ std::string make_readable_code(size_t length, const RandomFill &fill);
 bool is_readable_code(const std::string &code, size_t length);
 // The previous format: lowercase hex of the given number of characters.
 bool is_legacy_hex_secret(const std::string &secret, size_t length);
+
+enum class SetupCodeAction { keep, rotate, create };
+// What to do with the stored one-time owner code while the device is not enrolled: keep a good
+// one, replace the old 64-character hex format, and create a new one when it is missing or
+// damaged, so a bad stored code can never leave the device without a working setup path.
+SetupCodeAction plan_setup_code(bool stored, const std::string &value);
 } // namespace monitor
