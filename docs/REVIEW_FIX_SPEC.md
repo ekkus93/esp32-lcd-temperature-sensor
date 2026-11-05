@@ -139,10 +139,11 @@ Firmware and web normalise the owner code before comparison: strip spaces, hyphe
 ### 6.3 Failed logins stall the web server (P1, verified)
 - **Problem:** each password check runs the 100k-iteration PBKDF2 (about 15 s) on the single HTTP task, under one global lockout (`auth_service.cpp:138-143, 204-218`). Repeated wrong guesses stall all REST and WebSocket traffic and lock out the owner.
 - **Required:**
-  - Password checks run off the HTTP task. A login request returns `202` with a short poll, or the handler responds asynchronously, so other requests continue during the derive.
-  - Only one derive runs at a time; further logins during a derive are rejected immediately with `429`.
-  - Lockout is per client address with a global cap, so a guessing client doesn't lock out the owner on another address.
-  - A KDF failure (for example, the worker can't start) does not count as a wrong password.
+  - Password checks run off the HTTP task: the login handler uses the HTTP server's async request API and a worker task answers on the request copy, so other requests and WebSocket traffic continue during the derive.
+  - Only one derive runs at a time; a login while one is running is refused immediately with `429` and `Retry-After`.
+  - Lockout is per client address (5, 10, 20, 40, then 60 s after consecutive wrong passwords; 0.5 s spacing after a correct one), so a guessing client doesn't lock out the owner on another address. A separate global cap is not needed: with one derive in flight (about 15 s) the total rate is already bounded to about four attempts a minute.
+  - A key-derivation failure (for example the worker can't start, or no entropy for the session token) does not count as a wrong password; the client waits 2 s.
+  - Session access from the HTTP and worker tasks is mutex-protected and callers receive copies, not pointers into the session table.
 - **Tests:** host tests of the lockout policy; device test that `/status` and the WebSocket keep responding during repeated wrong logins.
 
 ### 6.4 Auth internals (P3)
