@@ -69,7 +69,7 @@
 ## Phase R6 — Web application (P2/P3)
 
 - [x] **R06-01** Failed resync keeps live values shown as stale (§8.2). Done (web tests): a failed REST resync no longer raises the stale banner while the socket is open and delivering; when the connection really drops, readings stay on screen dimmed with a Stale chip instead of turning into dashes. Two live tests (healthy-socket resync failure, failed first load) and one App test.
-- [ ] **R06-02** `request()` checks status before parsing; readable errors; 401 still opens sign-in (§8.2).
+- [x] **R06-02** `request()` checks status before parsing; readable errors; 401 still opens sign-in (§8.2). Done (web tests, new `api/auth.test.ts`, 8 cases): `request()` decides on the status first and reads the body only for a message; non-JSON error pages give `Device request failed (N)`; a 401 opens sign-in even when its body is not JSON (not for `/auth/*`); timeouts read "The device did not answer in time", network failures "Could not reach the device", a non-JSON success "The device sent an unreadable response".
 - [ ] **R06-03** Empty display position gives a field error (§8.2).
 - [ ] **R06-04** `temperature()` unit argument required; failed `getSettings` shows an error and retries (§8.2).
 - [ ] **R06-05** History: readable gap tooltips, empty zoomed view message, re-fetch after first clock sync (§8.2).

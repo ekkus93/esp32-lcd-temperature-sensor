@@ -26,28 +26,56 @@ export async function request<T>(
     path === '/auth/password' ? 60000 : 30000,
   );
   try {
-    const response = await fetch(`/api/v1${path}`, {
-      method,
-      signal: controller.signal,
-      credentials: 'same-origin',
-      headers: {
-        ...(value !== undefined ? { 'Content-Type': 'application/json' } : {}),
-        ...(method !== 'GET' && csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
-        ...extraHeaders,
-      },
-      body: value === undefined ? undefined : JSON.stringify(value),
-    });
-    const result = await response.json();
+    let response: Response;
+    try {
+      response = await fetch(`/api/v1${path}`, {
+        method,
+        signal: controller.signal,
+        credentials: 'same-origin',
+        headers: {
+          ...(value !== undefined
+            ? { 'Content-Type': 'application/json' }
+            : {}),
+          ...(method !== 'GET' && csrfToken
+            ? { 'X-CSRF-Token': csrfToken }
+            : {}),
+          ...extraHeaders,
+        },
+        body: value === undefined ? undefined : JSON.stringify(value),
+      });
+    } catch (e) {
+      throw new Error(
+        controller.signal.aborted ||
+          (e instanceof DOMException && e.name === 'AbortError')
+          ? 'The device did not answer in time'
+          : 'Could not reach the device',
+        { cause: e },
+      );
+    }
+    // The status decides what happens next; the body is only read for a message.
     if (!response.ok) {
       if (response.status === 401 && !path.startsWith('/auth/'))
         window.dispatchEvent(new Event('auth-required'));
-      throw new Error(
-        typeof result.error === 'string'
-          ? result.error
-          : `Device request failed (${response.status})`,
-      );
+      let message = `Device request failed (${response.status})`;
+      try {
+        const body: unknown = await response.json();
+        if (
+          typeof body === 'object' &&
+          body !== null &&
+          'error' in body &&
+          typeof body.error === 'string'
+        )
+          message = body.error;
+      } catch {
+        // A proxy or error page may not be JSON; the status message stands.
+      }
+      throw new Error(message);
     }
-    return result as T;
+    try {
+      return (await response.json()) as T;
+    } catch (e) {
+      throw new Error('The device sent an unreadable response', { cause: e });
+    }
   } finally {
     clearTimeout(timeout);
   }
