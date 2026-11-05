@@ -20,7 +20,11 @@ rg --files -0 firmware -g '*.cpp' -g '*.hpp' -g '*.h' -g '!**/build/**' -g '!**/
 npm --prefix web run format:check
 npm --prefix web run lint
 npm --prefix web run test
-npm --prefix web run build
+# CI builds the web app once, before the firmware that embeds it; building it again here could
+# produce different files than the ones inside the image (SKIP_WEB_BUILD=1 reuses that build).
+if [[ "${SKIP_WEB_BUILD:-0}" != "1" ]]; then
+  npm --prefix web run build
+fi
 if [[ "${1:-}" == "--firmware" ]]; then
   tools/check-sdk.sh
   (cd firmware && idf.py build)

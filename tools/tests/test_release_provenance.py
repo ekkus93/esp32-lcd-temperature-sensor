@@ -26,7 +26,7 @@ class ReleaseProvenanceTests(unittest.TestCase):
         (self.dist / "assets").mkdir(parents=True)
         (self.build / "bootloader/bootloader.bin").write_bytes(b"BOOT")
         self.write_partition_binary()
-        (self.build / "temperature_monitor.bin").write_bytes(b"APP-IMAGE")
+        self.write_app()
         (self.build / "ota_data_initial.bin").write_bytes(b"OTA")
         (self.dist / "assets/main.js").write_bytes(b"console.log('ok')")
         (self.dist / "index.html").write_bytes(b"<html></html>")
@@ -55,6 +55,7 @@ class ReleaseProvenanceTests(unittest.TestCase):
             "0x20000": "temperature_monitor.bin",
         }
         self.save_flash_args()
+        self.write_embedded_web()
 
     def save_flash_args(self):
         (self.build / "flasher_args.json").write_text(
@@ -72,7 +73,7 @@ class ReleaseProvenanceTests(unittest.TestCase):
         self.assertEqual(sums, (output / "SHA256SUMS.txt").read_bytes())
         self.assertEqual(first["qualification"], "CI_BUILD_ONLY_NOT_RELEASE_APPROVED")
         self.assertEqual(first["source_commit"], SHA)
-        self.assertEqual(first["ota_headroom_bytes"], 0x400000 - len(b"APP-IMAGE"))
+        self.assertEqual(first["ota_headroom_bytes"], 0x400000 - len(self.app_bytes))
         self.assertEqual(len(first["flash_images"]), 4)
         self.assertEqual(len(first["web_assets"]), 2)
         for line in sums.decode().splitlines():
@@ -226,6 +227,92 @@ class ReleaseProvenanceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "physical flash"):
             provenance.collect(self.root, SHA)
 
+
+    def write_app(self, version="0.1.0", project="temperature_monitor", magic=0xABCD5432):
+        # 24-byte image header + 8-byte segment header, then esp_app_desc_t.
+        descriptor = struct.pack("<II8s32s32s", magic, 0, b"\x00" * 8,
+                                 version.encode().ljust(32, b"\x00"),
+                                 project.encode().ljust(32, b"\x00"))
+        self.app_bytes = b"\xe9" + b"\x00" * 31 + descriptor + b"APP-IMAGE"
+        (self.build / "temperature_monitor.bin").write_bytes(self.app_bytes)
+
+    def write_embedded_web(self):
+        # The firmware's packed asset list (tools/pack-web.py) for the current dist.
+        listing = []
+        for item in sorted(self.dist.rglob("*")):
+            if item.is_file():
+                listing.append({"url": "/" + item.relative_to(self.dist).as_posix(),
+                                "bytes": item.stat().st_size,
+                                "gzip_bytes": 1, "sha256": provenance.digest(item)})
+        target = self.root / "firmware/components/http_api/generated"
+        target.mkdir(parents=True, exist_ok=True)
+        (target / "web_assets.json").write_text(json.dumps(listing), encoding="utf-8")
+
+    def test_rejects_web_dist_that_differs_from_the_embedded_assets(self):
+        provenance.collect(self.root, SHA)  # consistent: fine
+        (self.dist / "assets/main.js").write_bytes(b"console.log('changed after packing')")
+        with self.assertRaisesRegex(ValueError, "differs from the assets embedded"):
+            provenance.collect(self.root, SHA)
+        self.write_embedded_web()
+        provenance.collect(self.root, SHA)
+        (self.dist / "assets/extra.js").write_bytes(b"x")  # a file the firmware does not carry
+        with self.assertRaisesRegex(ValueError, "differs from the assets embedded"):
+            provenance.collect(self.root, SHA)
+
+    def test_checks_the_checkout_and_the_sdk_that_were_really_used(self):
+        provenance.collect(self.root, SHA, head=SHA, dirty=[],
+                           idf_commit=provenance.PINNED_IDF)
+        with self.assertRaisesRegex(ValueError, "HEAD"):
+            provenance.collect(self.root, SHA, head="b" * 40)
+        with self.assertRaisesRegex(ValueError, "uncommitted"):
+            provenance.collect(self.root, SHA, dirty=[" M firmware/main/main.cpp"])
+        with self.assertRaisesRegex(ValueError, "pinned"):
+            provenance.collect(self.root, SHA, idf_commit="c" * 40)
+        manifest, _ = provenance.collect(self.root, SHA, idf_commit=provenance.PINNED_IDF)
+        self.assertEqual(manifest["esp_idf_commit"], provenance.PINNED_IDF)
+
+    def test_reads_the_version_from_the_app_descriptor(self):
+        manifest, _ = provenance.collect(self.root, SHA)
+        self.assertEqual(manifest["firmware_version"], "0.1.0")
+        self.write_app(version="0.0.9")
+        with self.assertRaisesRegex(ValueError, "descriptor version"):
+            provenance.collect(self.root, SHA)
+        self.write_app(project="another_product")
+        with self.assertRaisesRegex(ValueError, "another project"):
+            provenance.collect(self.root, SHA)
+        self.write_app(magic=0)
+        with self.assertRaisesRegex(ValueError, "no valid app descriptor"):
+            provenance.collect(self.root, SHA)
+
+    def test_command_line_refuses_a_dirty_or_mismatched_checkout(self):
+        import subprocess, sys
+        repo = self.root
+        for command in (["git", "init", "-q"], ["git", "add", "-A"],
+                        ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid",
+                         "commit", "-q", "-m", "fixture"]):
+            subprocess.run(command, cwd=repo, check=True, capture_output=True)
+        head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, check=True,
+                              capture_output=True, text=True).stdout.strip()
+        outside = tempfile.TemporaryDirectory()
+        self.addCleanup(outside.cleanup)
+        idf = Path(outside.name) / "fake-idf"  # outside the repository, so the tree stays clean
+        idf.mkdir()
+        for command in (["git", "init", "-q"], ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "--allow-empty", "-m", "sdk"]):
+            subprocess.run(command, cwd=idf, check=True, capture_output=True)
+        run = lambda commit: subprocess.run(
+            [sys.executable, str(SCRIPT), "--commit", commit, "--root", str(repo),
+             "--idf-path", str(idf)], capture_output=True, text=True)
+        # Not the pinned SDK (the fixture SDK has some other commit), so even a clean tree fails.
+        result = run(head)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("pinned", result.stderr)
+        result = run("d" * 40)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("HEAD", result.stderr)
+        (repo / "stray.txt").write_text("uncommitted", encoding="utf-8")
+        result = run(head)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("uncommitted", result.stderr)
 
     def write_partition_binary(self, entries=None):
         # Independent ESP-IDF binary fixture: magic, type/subtype, offset,

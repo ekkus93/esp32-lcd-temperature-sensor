@@ -96,6 +96,9 @@ jobs:
 
       - name: Run full host, display, web and firmware verification
         shell: bash
+        env:
+          # The web app was built once above and is what the firmware embeds; do not rebuild it.
+          SKIP_WEB_BUILD: "1"
         run: |
           set -euo pipefail
           source "$RUNNER_TEMP/esp-idf-v6.1/export.sh"
@@ -105,7 +108,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 tools/release_provenance.py --commit "${GITHUB_SHA}"
+          python3 tools/release_provenance.py --commit "${GITHUB_SHA}" \
+            --idf-path "$RUNNER_TEMP/esp-idf-v6.1"
 
       - name: Upload firmware binary and build manifest
         if: success()

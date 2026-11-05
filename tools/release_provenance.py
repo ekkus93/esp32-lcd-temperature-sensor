@@ -8,8 +8,10 @@ import argparse
 import csv
 import hashlib
 import json
+import os
 import re
 import struct
+import subprocess
 from pathlib import Path
 
 PINNED_IDF = "fff9895c82d744c7237be8847347bdd1b07c6643"
@@ -162,9 +164,59 @@ def verify_partition_binary(path, csv_layout):
             raise ValueError(f"binary partition {name} disagrees with CSV")
 
 
-def collect(root, commit):
+APP_DESC_OFFSET = 32  # after esp_image_header_t (24) and the first segment header (8)
+APP_DESC_MAGIC = 0xABCD5432
+APP_PROJECT_NAME = "temperature_monitor"
+
+
+def app_descriptor(path):
+    """Read (version, project_name) from the esp_app_desc_t at the start of an app image."""
+    # magic, secure_version, reserv1[2], version[32], project_name[32] are the first 80 bytes
+    head = path.read_bytes()[:APP_DESC_OFFSET + 80]
+    if (len(head) < APP_DESC_OFFSET + 80 or
+            struct.unpack_from("<I", head, APP_DESC_OFFSET)[0] != APP_DESC_MAGIC):
+        raise ValueError("application image has no valid app descriptor")
+    version = head[APP_DESC_OFFSET + 16:APP_DESC_OFFSET + 48].split(b"\x00")[0]
+    project = head[APP_DESC_OFFSET + 48:APP_DESC_OFFSET + 80].split(b"\x00")[0]
+    return version.decode("ascii", "replace"), project.decode("ascii", "replace")
+
+
+def verify_embedded_web(assets, embedded_json):
+    """The web files in dist must be exactly the ones packed into the firmware image."""
+    try:
+        embedded = json.loads(embedded_json.read_text(encoding="utf-8"))
+        wanted = {entry["url"]: (entry["bytes"], entry["sha256"]) for entry in embedded}
+    except (ValueError, KeyError, TypeError) as exc:
+        raise ValueError("embedded web asset list is unreadable") from exc
+    actual = {"/" + asset["path"]: (asset["size"], asset["sha256"]) for asset in assets}
+    if wanted != actual:
+        different = sorted(url for url in wanted.keys() | actual.keys()
+                           if wanted.get(url) != actual.get(url))
+        raise ValueError(
+            "web dist differs from the assets embedded in the firmware: "
+            + ", ".join(different[:5]) + (" ..." if len(different) > 5 else ""))
+
+
+def git_output(root, *arguments):
+    try:
+        result = subprocess.run(["git", "-C", str(root), *arguments], check=True,
+                                capture_output=True, text=True)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise ValueError(f"git {' '.join(arguments)} failed") from exc
+    return result.stdout
+
+
+def collect(root, commit, *, head=None, dirty=None, idf_commit=None):
+    """`head`, `dirty` and `idf_commit` are what the checkout and SDK really are (the command line
+    always supplies them); a caller that omits one skips that comparison."""
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise ValueError("source commit must be an exact lowercase SHA-1")
+    if head is not None and head != commit:
+        raise ValueError("--commit does not match the checked-out HEAD")
+    if dirty:
+        raise ValueError("the working tree has uncommitted changes: " + "; ".join(dirty[:5]))
+    if idf_commit is not None and idf_commit != PINNED_IDF:
+        raise ValueError("the ESP-IDF SDK in use is not the pinned commit")
     build = root / "firmware" / "build"
     web = root / "web"
     dist = web / "dist"
@@ -251,6 +303,8 @@ def collect(root, commit):
             raise ValueError("unexpected web asset type")
     if not assets:
         raise ValueError("web dist is empty")
+    verify_embedded_web(assets, regular_under(
+        root, "firmware/components/http_api/generated/web_assets.json"))
     # A flash manifest may not add arbitrary binaries to otherwise unused
     # address gaps. The device flashing plan is intentionally four images.
     if paths != set(EXPECTED_IMAGES):
@@ -260,6 +314,12 @@ def collect(root, commit):
     if not match:
         raise ValueError("firmware version unavailable")
     firmware_version = match.group(1)
+    # The version the device reports comes from the image itself, so check that image.
+    app_version, app_project = app_descriptor(regular_under(build, "temperature_monitor.bin"))
+    if app_project != APP_PROJECT_NAME:
+        raise ValueError("application image is for another project")
+    if app_version != firmware_version:
+        raise ValueError("application descriptor version disagrees with the firmware version")
     web_version = json.loads(package.read_text(encoding="utf-8"))["version"]
     lock_version = json.loads(lock.read_text(encoding="utf-8"))["version"]
     if firmware_version != web_version or web_version != lock_version:
@@ -280,7 +340,7 @@ def collect(root, commit):
         "schema_version": 1,
         "qualification": "CI_BUILD_ONLY_NOT_RELEASE_APPROVED",
         "source_commit": commit,
-        "esp_idf_commit": PINNED_IDF,
+        "esp_idf_commit": idf_commit or PINNED_IDF,
         "firmware_version": firmware_version,
         "web_version": web_version,
         "ota_slots": slots,
@@ -297,8 +357,8 @@ def collect(root, commit):
     return manifest, sorted(checksummed)
 
 
-def write_provenance(root, commit, output):
-    manifest, checksums = collect(root, commit)
+def write_provenance(root, commit, output, **checks):
+    manifest, checksums = collect(root, commit, **checks)
     output.mkdir(parents=True, exist_ok=True)
     (output / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -314,11 +374,20 @@ def main():
     parser.add_argument("--commit", required=True, help="exact source SHA from CI")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--idf-path", type=Path, default=os.environ.get("IDF_PATH"),
+                        help="the ESP-IDF checkout used for the build (default: $IDF_PATH)")
     args = parser.parse_args()
     root = args.root.resolve()
     output = args.output or root / "firmware/build/provenance"
     try:
-        manifest = write_provenance(root, args.commit, output)
+        if not args.idf_path:
+            raise ValueError("ESP-IDF path unknown: set IDF_PATH or pass --idf-path")
+        checks = {
+            "head": git_output(root, "rev-parse", "HEAD").strip(),
+            "dirty": git_output(root, "status", "--porcelain").splitlines(),
+            "idf_commit": git_output(args.idf_path, "rev-parse", "HEAD").strip(),
+        }
+        manifest = write_provenance(root, args.commit, output, **checks)
     except (ValueError, OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
         parser.exit(1, f"provenance verification failed: {exc}\n")
     print(f"CI-only provenance verified: {manifest['source_commit']}, "
