@@ -259,24 +259,27 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
     cache_window_ = now / bucket_ms;
     cache_size_ = cache.size();
     const std::string clock = status.local_time.empty() ? "--:--" : status.local_time;
-    std::string footer = "Wi-Fi " + status.wifi + (status.logging ? " | Log OK" : " | Log ERR");
-    if (registry.bus_fault())
-        footer += "\nBUS FAULT";
-    else if (status.button_progress)
-        footer += "\nHold BOOT " + std::to_string(std::min(100u, status.button_progress)) + "%";
+    // Urgent conditions replace the usual footer detail. Priority: a BOOT hold in progress (the
+    // owner is acting on it right now), then a bus fault, then an OTA state.
+    std::string urgent;
+    if (status.button_progress)
+        urgent = "Hold BOOT " + std::to_string(std::min(100u, status.button_progress)) + "%";
+    else if (registry.bus_fault())
+        urgent = "BUS FAULT";
     else if (status.ota_state == "new" || status.ota_state == "pending_verify")
-        footer += "\nOTA VERIFYING";
+        urgent = "OTA VERIFYING";
     else if (status.ota_state == "invalid" || status.ota_state == "aborted")
-        footer += "\nOTA ROLLBACK";
-    else
-        footer += "\nPast " + std::to_string(options.lookback_minutes) + " min";
+        urgent = "OTA ROLLBACK";
+    std::string footer =
+        "Wi-Fi " + status.wifi + (status.logging ? " | Log OK" : " | Log ERR") + "\n" +
+        (urgent.empty() ? "Past " + std::to_string(options.lookback_minutes) + " min" : urgent);
     if (compact) {
-        const auto newline = footer.find('\n');
-        if (newline != std::string::npos &&
-            (registry.bus_fault() || status.button_progress || status.ota_state == "new" ||
-             status.ota_state == "pending_verify" || status.ota_state == "invalid" ||
-             status.ota_state == "aborted"))
-            footer = footer.substr(newline + 1);
+        // One line only: an urgent condition, else a logging failure (it must be visible on the
+        // small screen), else the Wi-Fi state.
+        if (!urgent.empty())
+            footer = urgent;
+        else if (!status.logging)
+            footer = "Log ERR";
         else
             footer = "Wi-Fi " + status.wifi;
     }

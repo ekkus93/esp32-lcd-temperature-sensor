@@ -307,6 +307,57 @@ int main(int argc, char **argv) {
             }
             options.fahrenheit = true;
         }
+        {
+            // Compact footer priority: BOOT hold, bus fault, OTA state, logging failure, then the
+            // Wi-Fi state. A storage failure must be visible on the small screen, and a BOOT
+            // hold must stay visible during a bus fault.
+            Registry faulty;
+            faulty.sample(fake_readings(2), 1000, true);
+            CHECK(faulty.bus_fault());
+            Registry healthy_registry;
+            healthy_registry.sample(fake_readings(2), 1000);
+            DisplayStatus footer_status;
+            footer_status.wifi = "connected";
+            footer_status.logging = true;
+            auto footer_of = [&](const Registry &r, const DisplayStatus &st) {
+                view.render(r, cache, options, st, 1000);
+                lv_tick_inc(50);
+                lv_refr_now(display);
+                return visible_text(lv_screen_active());
+            };
+            auto has = [](const std::string &text, const char *needle) {
+                return text.find(needle) != std::string::npos;
+            };
+            auto text = footer_of(healthy_registry, footer_status);
+            CHECK(has(text, "Wi-Fi connected") && !has(text, "Log ERR"));
+            footer_status.logging = false;
+            text = footer_of(healthy_registry, footer_status);
+            CHECK(has(text, "Log ERR") && !has(text, "Wi-Fi connected"));
+            // Each faulty sensor row also says BUS FAULT, so the footer's own text is found by
+            // counting occurrences.
+            auto count = [](const std::string &haystack, const std::string &needle) {
+                size_t n = 0;
+                for (size_t at = haystack.find(needle); at != std::string::npos;
+                     at = haystack.find(needle, at + 1))
+                    ++n;
+                return n;
+            };
+            text = footer_of(faulty, footer_status); // bus fault outranks a logging failure
+            const auto fault_with_footer = count(text, "BUS FAULT");
+            CHECK(fault_with_footer >= 1 && !has(text, "Log ERR"));
+            footer_status.button_progress = 60; // a BOOT hold outranks the bus fault
+            text = footer_of(faulty, footer_status);
+            CHECK(has(text, "Hold BOOT 60%"));
+            CHECK(count(text, "BUS FAULT") + 1 == fault_with_footer); // the footer gave way
+            footer_status.button_progress = 0;
+            footer_status.logging = true;
+            footer_status.ota_state = "pending_verify";
+            text = footer_of(healthy_registry, footer_status);
+            CHECK(has(text, "OTA VERIFYING"));
+            footer_status.ota_state.clear();
+            text = footer_of(healthy_registry, footer_status);
+            CHECK(has(text, "Wi-Fi connected"));
+        }
         options.extended = true;
         options.overview_seconds = 5;
         options.trends_seconds = 10;
