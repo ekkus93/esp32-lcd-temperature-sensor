@@ -42,9 +42,9 @@ The two new features (§12 public read access, §13 mDNS) are P1 for the owner a
 ### 3.2 A bus fault hides active alerts (P0, verified)
 - **Problem:** `AlertService::update` writes `State::bus_fault` directly (`alert_service/alert_service.cpp:26-30`). After the fault clears, a sensor still over its limit goes `bus_fault → normal`, then raises `high` again only after `persistence_ms` (15 s default, up to 1 h). During that window an over-limit sensor reports `normal`, and the alarm history shows a fresh raise with no clear.
 - **Required:**
-  - A bus fault preserves the sensor's alarm condition (`high`, `low`, `disconnected`) underneath. Entering and leaving the fault go through `transition()` so every change is logged once.
-  - When the bus recovers, a sensor whose reading is still beyond its limit (with hysteresis) returns straight to that alarm state without a new persistence wait. A sensor that is back within limits returns to `normal`.
-  - The bus-level fault event from the registry stays the single "bus fault" record; per-sensor events must not duplicate it more than once per fault.
+  - A sensor remembers its state when a bus fault begins (`Sensor::state_before_fault`) and resumes from it when the fault clears, so an alarm episode, its persistence and its hysteresis are not split by the fault. Entering the fault stays silent for the sensor; the registry's bus-level event (rom 0) is the single record of the fault, once per fault.
+  - On recovery, a sensor still beyond its limit (with hysteresis) stays in alarm with no new persistence wait and no new event. A sensor that is back within limits produces the normal clearing event (previous state = the pre-fault alarm). A sensor that was normal and returns over its limit still has to persist before alarming.
+  - Disabling a sensor during a fault leaves it disabled.
 - **Tests:** high → bus fault → recovery still high (no `normal` in between, no duplicate raise); high → bus fault → recovery normal; disconnected → bus fault → recovery.
 
 ### 3.3 A truncated ROM search is treated as complete (P0)

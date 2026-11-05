@@ -17,7 +17,7 @@
 ## Phase R1 — Data correctness (P0)
 
 - [x] **R01-01** Clamp the bucket average to `[minimum, maximum]` (§3.1). Done: the new `aggregator_calibration` host test failed before the fix and passes after it; `./tools/verify.sh` green (26 host tests, display test, 78 web tests). Tests: calibrated steady and varying readings encode and round-trip; out-of-range data still rejected.
-- [ ] **R01-02** Bus fault preserves alarm state and goes through `transition()`; recovery returns straight to `high`/`low`/`disconnected` without a new persistence wait (§3.2). Tests: the three recovery cases in §3.2.
+- [x] **R01-02** Bus fault preserves alarm state; recovery returns straight to `high`/`low`/`disconnected` without a new persistence wait or duplicate event (§3.2). Done: the new `bus_fault_alarm` host test failed before the fix and passes after it (still-high, hysteresis, cleared, normal-then-over-limit, disconnected, bus-event count, disabled); `./tools/verify.sh` green (27 host tests).
 - [ ] **R01-03** Move 1-Wire scan decisions into a host-testable `monitor_core` policy (§4.4); `OneWireService` keeps only ESP-IDF calls.
 - [ ] **R01-04** Suspect scans: a smaller scan is accepted only after two agree; previous ROMs keep being read meanwhile (§3.3). Tests: mid-search drop, two agreeing scans, recovery.
 - [ ] **R01-05** No presence pulse with sensors expected is one bus fault, not N disconnects (§3.3). Test: all probes vanish → one bus-fault event.
