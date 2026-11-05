@@ -6,7 +6,7 @@ import {
   waitFor,
 } from '@testing-library/react';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
-import AuthGate from './AuthGate';
+import AuthGate, { AuthProvider } from './AuthGate';
 beforeEach(() => vi.stubGlobal('fetch', vi.fn()));
 afterEach(() => vi.unstubAllGlobals());
 it('gates the app until an administrator signs in', async () => {
@@ -20,9 +20,11 @@ it('gates the app until an administrator signs in', async () => {
       json: async () => ({ csrf: 'a'.repeat(48) }),
     } as Response);
   render(
-    <AuthGate>
-      <div>Protected dashboard</div>
-    </AuthGate>,
+    <AuthProvider>
+      <AuthGate>
+        <div>Protected dashboard</div>
+      </AuthGate>
+    </AuthProvider>,
   );
   expect(screen.queryByText('Protected dashboard')).not.toBeInTheDocument();
   await screen.findByText('Administrator sign in');
@@ -42,9 +44,11 @@ it('requires a device-specific secret for first enrollment', async () => {
     json: async () => ({ enrolled: false, signed_in: false }),
   } as Response);
   render(
-    <AuthGate>
-      <div>Protected dashboard</div>
-    </AuthGate>,
+    <AuthProvider>
+      <AuthGate>
+        <div>Protected dashboard</div>
+      </AuthGate>
+    </AuthProvider>,
   );
   const code = await screen.findByLabelText(/One-time owner code/);
   // The owner code is typed from the LCD, so it is shown (not masked) with a hint about
@@ -72,9 +76,11 @@ it('sends the owner code as typed and shows the device message for a malformed o
       }),
     } as Response);
   render(
-    <AuthGate>
-      <div>Protected dashboard</div>
-    </AuthGate>,
+    <AuthProvider>
+      <AuthGate>
+        <div>Protected dashboard</div>
+      </AuthGate>
+    </AuthProvider>,
   );
   fireEvent.change(await screen.findByLabelText(/One-time owner code/), {
     target: { value: 'h5rb 2wtd k7m4 q9x0' },
@@ -105,9 +111,11 @@ it('returns to login after session expiration', async () => {
     }),
   } as Response);
   render(
-    <AuthGate>
-      <div>Protected dashboard</div>
-    </AuthGate>,
+    <AuthProvider>
+      <AuthGate>
+        <div>Protected dashboard</div>
+      </AuthGate>
+    </AuthProvider>,
   );
   await screen.findByText('Protected dashboard');
   fireEvent(window, new Event('auth-required'));
@@ -128,9 +136,11 @@ it('allows retrying an initial authentication-state connection failure', async (
       json: async () => ({ enrolled: true, signed_in: false }),
     } as Response);
   render(
-    <AuthGate>
-      <div>Protected dashboard</div>
-    </AuthGate>,
+    <AuthProvider>
+      <AuthGate>
+        <div>Protected dashboard</div>
+      </AuthGate>
+    </AuthProvider>,
   );
   expect(
     await screen.findByText('Could not reach the device'),
@@ -153,9 +163,11 @@ it('ignores an authentication response that arrives after unmount', async () => 
     }),
   );
   const { unmount } = render(
-    <AuthGate>
-      <div>Protected dashboard</div>
-    </AuthGate>,
+    <AuthProvider>
+      <AuthGate>
+        <div>Protected dashboard</div>
+      </AuthGate>
+    </AuthProvider>,
   );
   await screen.findByText('Connecting to device…');
   unmount();

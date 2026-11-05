@@ -21,6 +21,8 @@ import {
 import { temperature } from './api/client';
 import { getDisplaySettings } from './api/settings';
 import { getProbeScan, type ProbeScanStatus } from './api/probe-scan';
+import AuthGate, { AuthProvider } from './AuthGate';
+import { useAuth } from './authContext';
 import { subscribeLive } from './api/live';
 import type { Snapshot } from './api/generated';
 const NetworkSettings = lazy(() => import('./features/NetworkSettings'));
@@ -40,7 +42,8 @@ const pages = [
 ] as const;
 const routes = ['/', '/history', '/sensors', '/alerts', '/settings'];
 const readable = (s: string) => s.replaceAll('_', ' ');
-export default function App() {
+function Shell() {
+  const auth = useAuth();
   const [path, setPath] = useState(location.pathname);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState('Connecting to device…');
@@ -204,12 +207,19 @@ export default function App() {
                 {pages[index]}
               </Typography>
             </div>
-            <Button
-              onClick={() => setDark(!dark)}
-              aria-label="Toggle dark theme"
-            >
-              {dark ? 'Light' : 'Dark'} theme
-            </Button>
+            <Stack direction="row" sx={{ gap: 1 }}>
+              {auth.state?.signed_in ? (
+                <Button onClick={() => void auth.signOut()}>Sign out</Button>
+              ) : (
+                <Button onClick={() => navigate(4)}>Sign in</Button>
+              )}
+              <Button
+                onClick={() => setDark(!dark)}
+                aria-label="Toggle dark theme"
+              >
+                {dark ? 'Light' : 'Dark'} theme
+              </Button>
+            </Stack>
           </header>
           <Stack direction="row" sx={{ my: 3, gap: 1, flexWrap: 'wrap' }}>
             <Chip label={`Wi-Fi: ${snapshot?.wifi.state ?? 'unknown'}`} />
@@ -333,9 +343,11 @@ export default function App() {
             </Suspense>
           )}
           {index === 2 && (
-            <Suspense fallback={<Typography>Loading sensors…</Typography>}>
-              <SensorsView unit={unit} />
-            </Suspense>
+            <AuthGate reason="Sign in to view and change sensor settings.">
+              <Suspense fallback={<Typography>Loading sensors…</Typography>}>
+                <SensorsView unit={unit} />
+              </Suspense>
+            </AuthGate>
           )}
           {index === 3 && (
             <Suspense fallback={<Typography>Loading alerts…</Typography>}>
@@ -384,41 +396,49 @@ export default function App() {
                   </Typography>
                 </CardContent>
               </Card>
-              <Card>
-                <CardContent>
-                  <Suspense
-                    fallback={<Typography>Loading system controls…</Typography>}
-                  >
-                    <SystemControls />
-                  </Suspense>
-                </CardContent>
-              </Card>
-              <Suspense
-                fallback={<Typography>Loading device preferences…</Typography>}
-              >
-                <DeviceSettings onApplied={applySettings} />
-              </Suspense>
-              <Card>
-                <CardContent>
-                  <Suspense
-                    fallback={
-                      <Typography>Loading firmware updater…</Typography>
-                    }
-                  >
-                    <FirmwareUpdate
-                      version={snapshot?.firmware.version ?? 'unavailable'}
-                      partition={snapshot?.firmware.partition ?? 'unknown slot'}
-                      state={snapshot?.firmware.ota_state ?? 'unknown'}
-                    />
-                  </Suspense>
-                </CardContent>
-              </Card>
-              <Suspense
-                fallback={<Typography>Loading network settings…</Typography>}
-              >
-                <NetworkSettings />
-                <PasswordSettings />
-              </Suspense>
+              <AuthGate reason="Sign in to change device settings, update firmware or manage the network.">
+                <Card>
+                  <CardContent>
+                    <Suspense
+                      fallback={
+                        <Typography>Loading system controls…</Typography>
+                      }
+                    >
+                      <SystemControls />
+                    </Suspense>
+                  </CardContent>
+                </Card>
+                <Suspense
+                  fallback={
+                    <Typography>Loading device preferences…</Typography>
+                  }
+                >
+                  <DeviceSettings onApplied={applySettings} />
+                </Suspense>
+                <Card>
+                  <CardContent>
+                    <Suspense
+                      fallback={
+                        <Typography>Loading firmware updater…</Typography>
+                      }
+                    >
+                      <FirmwareUpdate
+                        version={snapshot?.firmware.version ?? 'unavailable'}
+                        partition={
+                          snapshot?.firmware.partition ?? 'unknown slot'
+                        }
+                        state={snapshot?.firmware.ota_state ?? 'unknown'}
+                      />
+                    </Suspense>
+                  </CardContent>
+                </Card>
+                <Suspense
+                  fallback={<Typography>Loading network settings…</Typography>}
+                >
+                  <NetworkSettings />
+                  <PasswordSettings />
+                </Suspense>
+              </AuthGate>
             </Stack>
           )}
           <footer>
@@ -427,5 +447,13 @@ export default function App() {
         </main>
       </div>
     </ThemeProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Shell />
+    </AuthProvider>
   );
 }

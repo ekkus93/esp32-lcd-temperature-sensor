@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -14,36 +15,41 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { authState, request, setCsrf, type AuthState } from './api/auth';
-export default function AuthGate({ children }: { children: ReactNode }) {
+import { authState, request, setCsrf } from './api/auth';
+import { AuthContext, useAuth, type AuthState } from './authContext';
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState | null>(null);
-  const [password, setPassword] = useState('');
-  const [secret, setSecret] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [checkingStatus, setCheckingStatus] = useState(true);
+  const [checking, setChecking] = useState(true);
   const mounted = useRef(false);
-  const checking = useRef(false);
-  const checkAuthState = useCallback(async () => {
-    if (checking.current) return;
-    checking.current = true;
+  const inFlight = useRef(false);
+
+  const refresh = useCallback(async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setChecking(true);
     try {
       const next = await authState();
       if (mounted.current) {
         setCsrf(next.csrf ?? '');
         setState(next);
+        setError('');
       }
     } catch (e) {
       if (mounted.current)
         setError(e instanceof Error ? e.message : 'Device unavailable');
     } finally {
-      checking.current = false;
-      if (mounted.current) setCheckingStatus(false);
+      inFlight.current = false;
+      if (mounted.current) setChecking(false);
     }
   }, []);
+
   useEffect(() => {
     mounted.current = true;
-    void Promise.resolve().then(checkAuthState);
+    void Promise.resolve().then(refresh);
+    // An owner request that comes back 401 means the session ended.
     const expired = () => {
       setCsrf('');
       setState((old) => ({
@@ -57,53 +63,95 @@ export default function AuthGate({ children }: { children: ReactNode }) {
       mounted.current = false;
       removeEventListener('auth-required', expired);
     };
-  }, [checkAuthState]);
-  if (state?.csrf) return children;
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    if (!state) return;
-    setBusy(true);
-    setError('');
-    try {
-      if (!state.enrolled)
-        await request('/auth/enroll', 'POST', {
-          setup_secret: secret,
+  }, [refresh]);
+
+  const signIn = useCallback(
+    async (password: string, ownerCode = '') => {
+      if (!state) return;
+      setBusy(true);
+      setError('');
+      try {
+        if (!state.enrolled)
+          await request('/auth/enroll', 'POST', {
+            setup_secret: ownerCode,
+            password,
+          });
+        const result = await request<{ csrf: string }>('/auth/login', 'POST', {
           password,
         });
-      const result = await request<{ csrf: string }>('/auth/login', 'POST', {
-        password,
-      });
-      setCsrf(result.csrf);
-      setState({ enrolled: true, signed_in: true, csrf: result.csrf });
+        setCsrf(result.csrf);
+        setState({ enrolled: true, signed_in: true, csrf: result.csrf });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Authentication failed');
+        // An enrollment may have committed before a lost response. Recheck its state.
+        if (!state.enrolled) {
+          try {
+            const current = await authState();
+            if (current.enrolled) setState(current);
+          } catch {
+            /* Preserve the original error until the device is reachable. */
+          }
+        }
+        throw e;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [state],
+  );
+
+  const signOut = useCallback(async () => {
+    try {
+      await request('/auth/logout', 'POST');
+    } catch {
+      // The session may already be gone; either way this browser is signed out below.
+    }
+    setCsrf('');
+    setState((old) => ({ enrolled: old?.enrolled ?? true, signed_in: false }));
+    setError('');
+  }, []);
+
+  const value = useMemo(
+    () => ({ state, error, checking, busy, refresh, signIn, signOut }),
+    [state, error, checking, busy, refresh, signIn, signOut],
+  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+// Shows `children` to a signed-in owner and an inline sign-in (or first-time setup) otherwise.
+export default function AuthGate({
+  children,
+  reason = 'Sign in to change settings.',
+}: {
+  children: ReactNode;
+  reason?: string;
+}) {
+  const { state, error, checking, busy, refresh, signIn } = useAuth();
+  const [password, setPassword] = useState('');
+  const [secret, setSecret] = useState('');
+  if (state?.signed_in) return children;
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      await signIn(password, secret);
       setPassword('');
       setSecret('');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Authentication failed');
-      // An enrollment may have committed before a lost response. Recheck its state.
-      if (!state.enrolled) {
-        try {
-          const current = await authState();
-          if (current.enrolled) {
-            setState(current);
-            setSecret('');
-          }
-        } catch {
-          /* Preserve the original error until the device is reachable. */
-        }
-      }
-    } finally {
-      setBusy(false);
+    } catch {
+      // The provider shows the message.
     }
   }
   return (
-    <main
-      style={{ maxWidth: 520, margin: '8vh auto', fontFamily: 'system-ui' }}
-    >
+    <section style={{ maxWidth: 520 }}>
       <Card>
         <CardContent>
-          <Typography variant="overline">TEMPERATURE MONITOR</Typography>
-          <Typography variant="h4" component="h1">
-            {state?.enrolled ? 'Administrator sign in' : 'Set up your monitor'}
+          <Typography variant="h5" component="h2">
+            {state?.enrolled === false
+              ? 'Set up your monitor'
+              : 'Administrator sign in'}
+          </Typography>
+          <Typography color="text.secondary" sx={{ mt: 1 }}>
+            {reason} Readings and history do not need a password.
           </Typography>
           <Alert severity="info" sx={{ my: 2 }}>
             Local HTTP mode: use your trusted local network. Passwords and
@@ -117,20 +165,16 @@ export default function AuthGate({ children }: { children: ReactNode }) {
           {!state ? (
             <Stack spacing={2}>
               <Typography>
-                {checkingStatus
+                {checking
                   ? 'Connecting to device…'
                   : 'Device connection unavailable.'}
               </Typography>
               <Button
                 variant="contained"
-                disabled={checkingStatus}
-                onClick={() => {
-                  setCheckingStatus(true);
-                  setError('');
-                  void checkAuthState();
-                }}
+                disabled={checking}
+                onClick={() => void refresh()}
               >
-                {checkingStatus ? 'Connecting…' : 'Retry connection'}
+                {checking ? 'Connecting…' : 'Retry connection'}
               </Button>
             </Stack>
           ) : (
@@ -195,6 +239,6 @@ export default function AuthGate({ children }: { children: ReactNode }) {
           )}
         </CardContent>
       </Card>
-    </main>
+    </section>
   );
 }

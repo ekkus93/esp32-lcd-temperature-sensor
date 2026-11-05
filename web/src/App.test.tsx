@@ -226,6 +226,15 @@ it('applies a saved timezone to History without reloading the app', async () => 
       .mockImplementation(
         async (input: RequestInfo | URL, init?: RequestInit) => {
           const path = String(input);
+          if (path.endsWith('/auth/state'))
+            return {
+              ok: true,
+              json: async () => ({
+                enrolled: true,
+                signed_in: true,
+                csrf: 'c'.repeat(40),
+              }),
+            };
           if (path.endsWith('/probe-scan'))
             return {
               ok: true,
@@ -465,4 +474,160 @@ it('announces a shared sensor bus fault as an alert', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent(
     /Shared sensor bus fault/,
   );
+});
+
+// A device that serves public data and, depending on `signedIn`, owner data too.
+function stubDevice(options: { signedIn: boolean }) {
+  const state = { signedIn: options.signedIn };
+  const owner = {
+    schema_version: 1,
+    etag: '"device:settings:1"',
+    revision: 1,
+    writable: true,
+    units: 'F',
+    display_mode: 'basic',
+    overview_seconds: 20,
+    trends_seconds: 10,
+    lookback_minutes: 60,
+    timezone: 'UTC',
+    ntp_server: 'pool.ntp.org',
+  };
+  const calls: string[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockImplementation(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          const path = String(input);
+          calls.push(`${init?.method ?? 'GET'} ${path}`);
+          const ok = (body: unknown) => ({
+            ok: true,
+            status: 200,
+            json: async () => body,
+          });
+          const denied = () => ({
+            ok: false,
+            status: 401,
+            json: async () => ({ error: 'Administrator session required' }),
+          });
+          if (path.endsWith('/auth/state'))
+            return ok(
+              state.signedIn
+                ? { enrolled: true, signed_in: true, csrf: 'c'.repeat(40) }
+                : { enrolled: true, signed_in: false },
+            );
+          if (path.endsWith('/auth/login')) {
+            state.signedIn = true;
+            return ok({ csrf: 'c'.repeat(40) });
+          }
+          if (path.endsWith('/auth/logout')) {
+            state.signedIn = false;
+            return ok({});
+          }
+          if (path.endsWith('/settings'))
+            return state.signedIn
+              ? ok(owner)
+              : ok({
+                  schema_version: 1,
+                  units: 'F',
+                  display_mode: 'basic',
+                  overview_seconds: 20,
+                  trends_seconds: 10,
+                  lookback_minutes: 60,
+                  timezone: 'UTC',
+                });
+          if (path.endsWith('/sensors') || path.endsWith('/sensors/storage')) {
+            if (!state.signedIn) return denied();
+            return ok(
+              path.endsWith('/storage')
+                ? { schema_version: 1, state: 'ready', writable: true }
+                : [],
+            );
+          }
+          if (path.endsWith('/probe-scan'))
+            return ok({
+              schema_version: 1,
+              enabled: false,
+              complete: false,
+              discovered_count: 0,
+              overflow: false,
+            });
+          if (path.includes('/alerts'))
+            return ok({
+              active: [],
+              events: [],
+              next_after: 0,
+              has_more: false,
+              oldest_available: null,
+              event_log_healthy: true,
+            });
+          if (path.includes('/wifi/'))
+            return state.signedIn ? ok({}) : denied();
+          return ok(empty);
+        },
+      ),
+  );
+  return calls;
+}
+
+it('shows the dashboard and alerts without signing in', async () => {
+  stubDevice({ signedIn: false });
+  render(<App />);
+  expect(await screen.findByText('No probes detected')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Alerts' }));
+  expect(await screen.findByText('No active alerts.')).toBeInTheDocument();
+  expect(screen.queryByLabelText(/Administrator password/)).toBeNull();
+});
+
+it('asks for the password on the Sensors page and shows the forms after signing in', async () => {
+  const calls = stubDevice({ signedIn: false });
+  render(<App />);
+  await screen.findByText('No probes detected');
+  fireEvent.click(screen.getByRole('button', { name: 'Sensors' }));
+  expect(await screen.findByText('Administrator sign in')).toBeInTheDocument();
+  expect(
+    screen.getByText(/Readings and history do not need a password/),
+  ).toBeInTheDocument();
+  // The owner endpoints were not even requested while anonymous.
+  expect(calls.some((call) => call.endsWith('/sensors'))).toBe(false);
+  fireEvent.change(screen.getByLabelText(/Administrator password/), {
+    target: { value: 'an-example-password' },
+  });
+  fireEvent.click(screen.getAllByRole('button', { name: 'Sign in' }).at(-1)!);
+  expect(
+    await screen.findByText(
+      'No sensors discovered. Unused positions do not cause alarms.',
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+});
+
+it('keeps the Settings diagnostics public and gates the owner controls', async () => {
+  stubDevice({ signedIn: false });
+  render(<App />);
+  await screen.findByText('No probes detected');
+  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  expect(
+    await screen.findByText('Storage and diagnostics'),
+  ).toBeInTheDocument();
+  expect(await screen.findByText('Administrator sign in')).toBeInTheDocument();
+  expect(screen.queryByText('Save device preferences')).toBeNull();
+  expect(
+    screen.queryByRole('button', { name: 'Save device preferences' }),
+  ).toBeNull();
+});
+
+it('signs out from the app bar and returns to public reading', async () => {
+  const calls = stubDevice({ signedIn: true });
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
+  expect(
+    await screen.findByRole('button', { name: 'Sign in' }),
+  ).toBeInTheDocument();
+  expect(calls).toContain('POST /api/v1/auth/logout');
+  // Public data keeps showing.
+  expect(screen.getByText('No probes detected')).toBeInTheDocument();
 });
