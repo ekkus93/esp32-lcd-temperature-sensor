@@ -34,6 +34,12 @@ class DisplayView {
     lv_obj_t *trends_chart(size_t sensor) const {
         return trends_.charts[sensor];
     }
+    lv_obj_t *trends_legend(size_t sensor) const {
+        return trends_.legend[sensor];
+    }
+    lv_obj_t *trends_no_data() const {
+        return trends_.no_data[0];
+    }
     lv_obj_t *trends_value(size_t sensor) const {
         return trends_.values[sensor];
     }
@@ -51,7 +57,7 @@ class DisplayView {
         lv_obj_t *wifi = nullptr;
         // Compact Trends only: highest and lowest value on each chart, and the time axis ends.
         lv_obj_t *axis_from = nullptr, *axis_now = nullptr;
-        std::array<lv_obj_t *, 5> axis_max{}, axis_min{};
+        std::array<lv_obj_t *, 5> axis_max{}, axis_min{}, legend{};
         std::array<lv_obj_t *, max_sensors> labels{}, values{}, alts{}, states{}, charts{};
         std::array<lv_obj_t *, max_sensors> no_data{};
         std::array<lv_chart_series_t *, max_sensors> series{};
@@ -67,7 +73,10 @@ class DisplayView {
     DisplayCycle cycle_;
     DisplayOptions options_;
     bool configured_ = false, showing_trends_ = false;
-    int64_t last_render_ms_ = 0, compact_trend_visible_ms_ = 0;
+    // Compact Trends: each probe's own range and the combined range last drawn.
+    std::array<int32_t, max_sensors> chart_low_{}, chart_high_{};
+    int32_t trend_low_ = INT32_MAX, trend_high_ = INT32_MIN;
+    std::array<bool, max_sensors> series_hidden_{};
     int64_t cache_window_ = -1;
     std::array<uint64_t, max_sensors> chart_roms_{};
     std::array<bool, max_sensors> chart_data_{};

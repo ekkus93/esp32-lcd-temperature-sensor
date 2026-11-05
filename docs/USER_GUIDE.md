@@ -72,9 +72,12 @@ and 10-second Trends dwell; both are independently adjustable. The lookback
 controls the LCD trend display. Sensor labels, order, enable state, calibration,
 and alarms are edited on the Sensors page.
 
-On the compact 1.8-inch LCD, Trends shows one larger sensor graph at a time,
-advancing to the next installed sensor after five seconds of visible Trends
-time. The indicator at the bottom shows the history window and sensor position.
+On the compact 1.8-inch LCD, Trends draws every probe as a line of its own colour on one graph
+with a shared scale: the highest and lowest value are printed at the left, the time span
+(`-60m` to `now`, following the lookback setting) under it, and the unit in the title. Under the
+graph a legend names each colour (sky blue, amber, coral, lilac, mint, in probe order). A probe with
+no history yet is listed in grey and has no line. With only the Overview and Trends screens, nothing
+rotates any more.
 
 New devices default to the `America/Los_Angeles` timezone, including daylight
 saving changes. You can choose another timezone in Settings. Existing saved

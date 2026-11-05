@@ -56,6 +56,9 @@ uint32_t color(State state) {
         return 0x9be3c4;
     }
 }
+// One colour per probe position (the Trends legend names them): sky blue, amber, coral, lilac,
+// mint. They stay distinct on the dark background and are not the alert colours.
+constexpr uint32_t line_colors[max_sensors] = {0x7fc8ff, 0xffc857, 0xff8a80, 0xc3a6ff, 0x7fe0b0};
 } // namespace
 DisplayView::DisplayView() {
     compact_ = lv_display_get_horizontal_resolution(nullptr) <= 128;
@@ -104,38 +107,55 @@ DisplayView::DisplayView() {
                       large_trend ? 124 : (compact ? 124 : (s == &overview_ ? 210 : 72)),
                       &font_charter_regular_12);
             if (s == &trends_) {
-                auto *chart = lv_chart_create(s->root);
+                // Compact: one chart for every probe (created with the first), each probe a line
+                // of its own colour. Large screen: a small chart in each probe's row.
+                lv_obj_t *chart = nullptr;
+                if (large_trend && i > 0) {
+                    chart = s->charts[0];
+                } else {
+                    chart = lv_chart_create(s->root);
+                    lv_obj_set_pos(chart, large_trend ? 38 : 12, large_trend ? 40 : top + 21);
+                    lv_obj_set_size(chart, large_trend ? 86 : 141, large_trend ? 46 : 23);
+                    lv_obj_set_style_bg_opa(chart, LV_OPA_TRANSP, 0);
+                    lv_obj_set_style_border_width(chart, 0, 0);
+                    lv_obj_set_style_pad_all(chart, 0, 0);
+                    lv_obj_set_style_size(chart, 0, 0, LV_PART_INDICATOR);
+                    lv_obj_set_style_line_width(chart, large_trend ? 2 : 1, LV_PART_ITEMS);
+                    lv_chart_set_div_line_count(chart, 0, 0);
+                    lv_chart_set_type(chart, LV_CHART_TYPE_LINE);
+                    lv_obj_set_scrollable(chart, false);
+                    lv_obj_set_clickable(chart, false);
+                }
                 s->charts[i] = chart;
-                // The compact chart leaves room on its left for the highest and lowest value and
-                // below it for the time axis, so the line can be read as temperatures over time.
-                lv_obj_set_pos(chart, large_trend ? 38 : 12, large_trend ? 42 : top + 21);
-                lv_obj_set_size(chart, large_trend ? 86 : 141, large_trend ? 64 : 23);
-                lv_obj_set_style_bg_opa(chart, LV_OPA_TRANSP, 0);
-                lv_obj_set_style_border_width(chart, 0, 0);
-                lv_obj_set_style_pad_all(chart, 0, 0);
-                lv_obj_set_style_size(chart, 0, 0, LV_PART_INDICATOR);
-                lv_chart_set_div_line_count(chart, 0, 0);
-                lv_chart_set_type(chart, LV_CHART_TYPE_LINE);
-                lv_obj_set_scrollable(chart, false);
-                lv_obj_set_clickable(chart, false);
-                s->series[i] =
-                    lv_chart_add_series(chart, lv_color_hex(0x9be3c4), LV_CHART_AXIS_PRIMARY_Y);
+                s->series[i] = lv_chart_add_series(
+                    chart, lv_color_hex(large_trend ? line_colors[i] : 0x9be3c4),
+                    LV_CHART_AXIS_PRIMARY_Y);
                 if (large_trend) {
-                    for (auto *axis : {&s->axis_max[i], &s->axis_min[i]}) {
-                        *axis = label(s->root, 0, axis == &s->axis_max[i] ? 42 : 92, 36,
-                                      &font_charter_regular_12);
-                        lv_obj_set_style_text_align(*axis, LV_TEXT_ALIGN_RIGHT, 0);
-                        lv_obj_set_style_text_color(*axis, lv_color_hex(setup_muted), 0);
+                    // The legend: probe names in their line colours, two columns under the chart.
+                    s->legend[i] = label(s->root, i < 3 ? 2 : 64, 102 + 13 * (i < 3 ? i : i - 3),
+                                         i < 3 ? 62 : 62, &font_charter_regular_12);
+                    lv_label_set_long_mode(s->legend[i], LV_LABEL_LONG_CLIP);
+                    lv_obj_set_style_text_color(s->legend[i], lv_color_hex(line_colors[i]), 0);
+                    if (i == 0) {
+                        for (auto *axis : {&s->axis_max[0], &s->axis_min[0]}) {
+                            *axis = label(s->root, 0, axis == &s->axis_max[0] ? 40 : 72, 36,
+                                          &font_charter_regular_12);
+                            lv_obj_set_style_text_align(*axis, LV_TEXT_ALIGN_RIGHT, 0);
+                            lv_obj_set_style_text_color(*axis, lv_color_hex(setup_muted), 0);
+                        }
                     }
                 }
-                s->no_data[i] = label(s->root, large_trend ? 4 : 12, large_trend ? 70 : top + 24,
-                                      large_trend ? 120 : 141, &font_charter_regular_12);
-                text(s->no_data[i], "NO DATA");
+                if (!large_trend || i == 0) {
+                    s->no_data[i] =
+                        label(s->root, large_trend ? 4 : 12, large_trend ? 56 : top + 24,
+                              large_trend ? 120 : 141, &font_charter_regular_12);
+                    text(s->no_data[i], "NO DATA");
+                }
             }
         }
         if (compact && s == &trends_) {
-            s->axis_from = label(s->root, 38, 107, 43, &font_charter_regular_12);
-            s->axis_now = label(s->root, 81, 107, 43, &font_charter_regular_12);
+            s->axis_from = label(s->root, 38, 87, 43, &font_charter_regular_12);
+            s->axis_now = label(s->root, 81, 87, 43, &font_charter_regular_12);
             lv_obj_set_style_text_align(s->axis_now, LV_TEXT_ALIGN_RIGHT, 0);
             for (auto *axis : {s->axis_from, s->axis_now})
                 lv_obj_set_style_text_color(axis, lv_color_hex(setup_muted), 0);
@@ -213,20 +233,7 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
     const auto rows = display_rows(registry, options.fahrenheit);
     const bool compact = compact_;
     const bool next_trends = cycle_.trends(now);
-    if (compact && configured_ && showing_trends_ && next_trends && now >= last_render_ms_ &&
-        now - last_render_ms_ <= int64_t(options.trends_seconds) * 1000)
-        compact_trend_visible_ms_ += now - last_render_ms_;
-    last_render_ms_ = now;
     configured_ = true;
-    std::array<size_t, max_sensors> compact_rows{};
-    size_t compact_count = 0;
-    for (size_t i = 0; i < rows.size(); ++i)
-        if (rows[i].rom)
-            compact_rows[compact_count++] = i;
-    const size_t compact_position =
-        compact_count ? (compact_trend_visible_ms_ / 5000) % compact_count : 0;
-    const size_t selected_row = compact_count ? compact_rows[compact_position] : 0;
-    bool axis_visible = false; // the selected compact chart is drawn, so its axes are shown
     for (unsigned i = 0; i < max_sensors; ++i) {
         const auto &row = rows[i];
         for (auto *s : {&overview_, &trends_}) {
@@ -242,7 +249,8 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
             }
             text_color(s->states[i], color(row.state));
         }
-        if (plots_changed || chart_roms_[i] != row.rom) {
+        const bool replot = plots_changed || chart_roms_[i] != row.rom;
+        if (replot) {
             const auto values = cache.values(row.rom, now, options.lookback_minutes);
             std::array<int32_t, 288> points{};
             points.fill(LV_CHART_POINT_NONE);
@@ -255,36 +263,27 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
                     high = std::max(high, points[p]);
                 }
             chart_data_[i] = low != INT32_MAX;
-            lv_chart_set_point_count(trends_.charts[i], values.size());
+            chart_low_[i] = low;
+            chart_high_[i] = high;
+            chart_roms_[i] = row.rom;
+            // On the compact screen every probe is a series of the one shared chart, which has
+            // one point count and one scale (set below); each large-screen row has its own chart.
+            if (compact) {
+                lv_chart_set_point_count(trends_.charts[0], (options.lookback_minutes + 4) / 5);
+            } else {
+                lv_chart_set_point_count(trends_.charts[i], values.size());
+                lv_chart_set_axis_range(trends_.charts[i], LV_CHART_AXIS_PRIMARY_Y,
+                                        low == INT32_MAX ? 0 : low - 50,
+                                        high == INT32_MIN ? 100 : high + 50);
+            }
             lv_chart_set_series_values(trends_.charts[i], trends_.series[i], points.data(),
                                        values.size());
-            lv_chart_set_axis_range(trends_.charts[i], LV_CHART_AXIS_PRIMARY_Y,
-                                    low == INT32_MAX ? 0 : low - 50,
-                                    high == INT32_MIN ? 100 : high + 50);
-            chart_roms_[i] = row.rom;
-            if (compact) {
-                char text_buffer[16];
-                std::snprintf(text_buffer, sizeof(text_buffer), "%.1f", high / 100.0);
-                text(trends_.axis_max[i], high == INT32_MIN ? "" : text_buffer);
-                std::snprintf(text_buffer, sizeof(text_buffer), "%.1f", low / 100.0);
-                text(trends_.axis_min[i], low == INT32_MAX ? "" : text_buffer);
-            }
         }
-        const bool selected = !compact || i == selected_row;
-        if (compact) {
-            lv_obj_set_hidden(trends_.labels[i], !selected);
-            lv_obj_set_hidden(trends_.values[i], !selected);
-            lv_obj_set_hidden(trends_.states[i], !selected);
-        }
+        if (compact)
+            continue; // the compact Trends screen is drawn once after the loop
         const bool show_chart = chart_data_[i] && row.state != State::disabled && row.rom;
-        lv_obj_set_hidden(trends_.charts[i], !selected || !show_chart);
-        if (compact) {
-            lv_obj_set_hidden(trends_.axis_max[i], !selected || !show_chart);
-            lv_obj_set_hidden(trends_.axis_min[i], !selected || !show_chart);
-            if (selected)
-                axis_visible = show_chart;
-        }
-        lv_obj_set_hidden(trends_.no_data[i], !selected || show_chart);
+        lv_obj_set_hidden(trends_.charts[i], !show_chart);
+        lv_obj_set_hidden(trends_.no_data[i], show_chart);
         text(trends_.no_data[i], row.state == State::disabled ? "OFF" : "NO DATA");
         const char *trends_status = row.status.c_str();
         if (row.state == State::disabled)
@@ -294,11 +293,47 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
         text(trends_.states[i], trends_status);
     }
     if (compact) {
+        // One chart, one line per probe with data, one scale covering all of them.
+        int32_t low = INT32_MAX, high = INT32_MIN;
+        for (unsigned i = 0; i < max_sensors; ++i) {
+            const bool plotted = chart_data_[i] && rows[i].rom && rows[i].state != State::disabled;
+            if (series_hidden_[i] == plotted) { // only on a change: the call always repaints
+                series_hidden_[i] = !plotted;
+                lv_chart_hide_series(trends_.charts[0], trends_.series[i], !plotted);
+            }
+            if (plotted) {
+                low = std::min(low, chart_low_[i]);
+                high = std::max(high, chart_high_[i]);
+            }
+            // Legend: the probe's name in its line colour; muted when it has no line to show.
+            lv_obj_set_hidden(trends_.legend[i], rows[i].rom == 0);
+            text(trends_.legend[i], rows[i].label);
+            text_color(trends_.legend[i], plotted ? line_colors[i] : setup_muted);
+            // The per-probe header and status used on the large screen are not shown here.
+            lv_obj_set_hidden(trends_.labels[i], true);
+            lv_obj_set_hidden(trends_.values[i], true);
+            lv_obj_set_hidden(trends_.states[i], true);
+        }
+        const bool any = low != INT32_MAX;
+        if (any && (low != trend_low_ || high != trend_high_)) {
+            lv_chart_set_axis_range(trends_.charts[0], LV_CHART_AXIS_PRIMARY_Y, low - 50,
+                                    high + 50);
+            char text_buffer[16];
+            std::snprintf(text_buffer, sizeof(text_buffer), "%.1f", high / 100.0);
+            text(trends_.axis_max[0], text_buffer);
+            std::snprintf(text_buffer, sizeof(text_buffer), "%.1f", low / 100.0);
+            text(trends_.axis_min[0], text_buffer);
+        }
+        trend_low_ = low;
+        trend_high_ = high;
+        lv_obj_set_hidden(trends_.charts[0], !any);
+        for (auto *widget :
+             {trends_.axis_max[0], trends_.axis_min[0], trends_.axis_from, trends_.axis_now})
+            lv_obj_set_hidden(widget, !any);
+        lv_obj_set_hidden(trends_.no_data[0], any);
         text(trends_.title, options.fahrenheit ? "Trends °F" : "Trends °C");
         text(trends_.axis_from, "-" + std::to_string(options.lookback_minutes) + "m");
         text(trends_.axis_now, "now");
-        lv_obj_set_hidden(trends_.axis_from, !axis_visible);
-        lv_obj_set_hidden(trends_.axis_now, !axis_visible);
     }
     cache_window_ = now / bucket_ms;
     cache_size_ = cache.size();
@@ -321,15 +356,9 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
     std::string overview_footer, trends_footer;
     if (compact_) {
         // One line only: an urgent condition, else a logging failure (it must be visible on the
-        // small screen), else the Wi-Fi state. Trends shows its lookback and chart position
-        // instead of the Wi-Fi state when nothing needs attention.
-        // The Wi-Fi state is the icon beside the time, so the footer is empty when all is well.
+        // small screen), else nothing: the Wi-Fi state is the icon beside the time.
         overview_footer = !urgent.empty() ? urgent : !status.logging ? "Log ERR" : "";
-        trends_footer = overview_footer.empty()
-                            ? std::to_string(options.lookback_minutes) + "m  " +
-                                  std::to_string(compact_position + 1) + "/" +
-                                  std::to_string(std::max<size_t>(compact_count, 1))
-                            : overview_footer;
+        trends_footer = overview_footer; // the lookback is on the chart's time axis
     } else {
         overview_footer = urgent.empty() ? status_line : status_line + "\n" + urgent;
         trends_footer =

@@ -2,10 +2,12 @@
 #include "display_view.hpp"
 #include "fake_bus.hpp"
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <png.h>
+#include <set>
 using namespace monitor;
 #define CHECK(expr)                                                                                \
     do {                                                                                           \
@@ -387,18 +389,18 @@ int main(int argc, char **argv) {
         view.render(registry, cache, options, status, 3600000);
         view.render(registry, cache, options, status, 3605000);
         CHECK(view.showing_trends());
-        auto selected = [&]() {
-            int index = -1;
-            for (unsigned i = 0; i < max_sensors; ++i) {
-                auto *sensor_label = view.trends_label(i);
-                if (!lv_obj_is_hidden(sensor_label)) {
-                    CHECK(index == -1);
-                    index = int(i);
-                }
-            }
-            return index;
+        // Every probe that exists has a legend entry in its own colour, and there is one chart.
+        auto legend_entries = [&]() {
+            unsigned shown = 0;
+            for (unsigned i = 0; i < max_sensors; ++i)
+                shown += !lv_obj_is_hidden(view.trends_legend(i));
+            return shown;
         };
-        CHECK(selected() == 0);
+        CHECK(legend_entries() == 5);
+        CHECK(!lv_obj_is_hidden(view.trends_chart(0)));
+        CHECK(lv_obj_is_hidden(view.trends_no_data()));
+        for (unsigned i = 0; i < max_sensors; ++i)
+            CHECK(lv_obj_is_hidden(view.trends_label(i))); // no per-probe header any more
         {
             // Repeated renders of unchanged data while Trends is shown must not repaint.
             unsigned trend_invalidations = 0;
@@ -454,17 +456,16 @@ int main(int argc, char **argv) {
         }
         lv_obj_update_layout(lv_screen_active());
         auto *first_chart = view.trends_chart(0);
-        CHECK(lv_obj_get_width(first_chart) == 86 && lv_obj_get_height(first_chart) == 64);
+        CHECK(lv_obj_get_width(first_chart) == 86 && lv_obj_get_height(first_chart) == 46);
         {
             // Fonts by role: serif (Charter) for every piece of text on the Overview and Trends
             // screens; the Wi-Fi icon is a symbol and stays in Montserrat.
             auto font_of = [](lv_obj_t *obj) {
                 return lv_obj_get_style_text_font(obj, LV_PART_MAIN);
             };
-            CHECK(font_of(view.trends_label(0)) == &font_charter_regular_12);
-            CHECK(font_of(view.trends_value(0)) == &font_charter_bold_12);
+            CHECK(font_of(view.trends_legend(0)) == &font_charter_regular_12);
             CHECK(font_of(view.footer_label()) == &font_charter_regular_12);
-            CHECK(font_of(view.trends_status(0)) == &font_charter_regular_12);
+            CHECK(font_of(view.trends_no_data()) == &font_charter_regular_12);
             CHECK(font_of(view.wifi_icon()) == &lv_font_montserrat_12); // a symbol, not text
         }
         {
@@ -473,27 +474,60 @@ int main(int argc, char **argv) {
             const auto text = visible_text(lv_screen_active());
             for (const char *expected : {"Trends °F", "-60m", "now"})
                 CHECK(text.find(expected) != std::string::npos);
-            CHECK(!lv_obj_is_hidden(view.trends_axis_max(0)) ||
-                  !lv_obj_is_hidden(view.trends_axis_max(1)));
+            CHECK(!lv_obj_is_hidden(view.trends_axis_max(0)));
         }
-        save("trends-compact-single-simulated-probe");
-        view.render(registry, cache, options, status, 3610000);
-        CHECK(view.showing_trends() && selected() == 1);
-        std::array<bool, max_sensors> seen{};
-        for (int64_t t = 3611000; t <= 3730000; t += 1000) {
-            view.render(registry, cache, options, status, t);
-            if (view.showing_trends()) {
-                const int index = selected();
-                CHECK(index >= 0 && index < int(max_sensors));
-                seen[index] = true;
+        save("trends-compact-all-probes-one-chart");
+        {
+            // Five probes with their own histories: five lines on one chart, one shared scale.
+            Registry five;
+            five.sample(fake_readings(5), 4200000);
+            TrendCache histories;
+            // Later than the other fixtures, so the history window has moved on (as it does in
+            // real time whenever a bucket closes) and the chart is redrawn.
+            for (int64_t t = 0; t < 4200000; t += bucket_ms) {
+                Bucket bucket{123, t, {}, {}};
+                const double k = double(t / bucket_ms);
+                for (size_t i = 0; i < five.sensors().size(); ++i)
+                    bucket.sensors.push_back(
+                        {five.sensors()[i].rom,
+                         12.0 + 3.0 * double(i) + 2.5 * std::sin(k / 2.0 + double(i)), 10, 30, 60,
+                         false});
+                histories.add(bucket);
+            }
+            // Extended mode alternates; step forward until the Trends screen is the one showing.
+            int64_t t = 4210000;
+            view.render(five, histories, options, status, t);
+            for (; t < 4300000 && !view.showing_trends(); t += 1000)
+                view.render(five, histories, options, status, t);
+            CHECK(view.showing_trends());
+            CHECK(legend_entries() == 5 && !lv_obj_is_hidden(view.trends_chart(0)));
+            lv_tick_inc(50);
+            lv_refr_now(display);
+            save("trends-compact-five-lines");
+            view.render(registry, cache, options, status, 3605000);
+        }
+        {
+            // Each probe's line has its own colour, and the legend shows the same colours.
+            std::set<uint32_t> colours;
+            for (unsigned i = 0; i < max_sensors; ++i)
+                colours.insert(lv_color_to_u32(lv_obj_get_style_text_color(view.trends_legend(i),
+                                                                           LV_PART_MAIN)) &
+                               0xffffff);
+            CHECK(colours.size() == max_sensors);
+            // Nothing rotates any more: the same screen over time.
+            const auto first = visible_text(lv_screen_active());
+            for (int64_t t = 3610000; t <= 3730000; t += 10000) {
+                view.render(registry, cache, options, status, t);
+                if (view.showing_trends())
+                    CHECK(legend_entries() == 5 && visible_text(lv_screen_active()) == first);
             }
         }
-        CHECK(std::all_of(seen.begin(), seen.end(), [](bool item) { return item; }));
         Registry empty;
         view.render(empty, cache, options, status, 3730000);
-        CHECK(view.showing_trends() && selected() == 0);
+        CHECK(view.showing_trends());
         CHECK(lv_obj_is_hidden(view.trends_chart(0)));
-        CHECK(!lv_obj_is_hidden(view.trends_status(0)));
+        CHECK(!lv_obj_is_hidden(view.trends_no_data()));
+        CHECK(legend_entries() == 0);
         view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP");
         const auto first_page = visible_text(lv_screen_active());
         save("provisioning-compact-wifi");
