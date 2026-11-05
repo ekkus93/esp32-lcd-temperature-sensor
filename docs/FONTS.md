@@ -2,10 +2,11 @@
 
 The LCD uses two typefaces:
 
-- **Bitstream Charter** (serif) for the screen title, probe names and the temperature values, in
-  regular and bold at 12, 14 and 24 px. The 12 px sizes are used on the compact 1.8-inch screen.
-- **Montserrat** (sans-serif, built into LVGL) for small status text, the time, the axis labels,
-  the setup screens (where codes are typed by hand) and the Wi-Fi icon, which is a Montserrat symbol.
+- **Bitstream Charter** (serif) for all text on the Overview and Trends screens: titles, probe names,
+  temperature values (bold), the second unit, status words, the time, the axis labels and the footer,
+  at 12, 14 and 24 px. The 12 px sizes are used on the compact 1.8-inch screen.
+- **Montserrat** (sans-serif, built into LVGL) for the setup screens (where codes are typed by hand)
+  and for the Wi-Fi icon, which is a Montserrat symbol.
 
 Charter files are in `firmware/components/display_service/fonts/` (about 26 KB of bitmap data in
 total). They contain only basic Latin (U+0020 to U+007E) and the degree sign; there is no kerning

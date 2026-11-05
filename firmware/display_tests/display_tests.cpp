@@ -1,3 +1,4 @@
+#include "charter_fonts.h"
 #include "display_view.hpp"
 #include "fake_bus.hpp"
 #include <algorithm>
@@ -454,6 +455,18 @@ int main(int argc, char **argv) {
         lv_obj_update_layout(lv_screen_active());
         auto *first_chart = view.trends_chart(0);
         CHECK(lv_obj_get_width(first_chart) == 86 && lv_obj_get_height(first_chart) == 64);
+        {
+            // Fonts by role: serif (Charter) for every piece of text on the Overview and Trends
+            // screens; the Wi-Fi icon is a symbol and stays in Montserrat.
+            auto font_of = [](lv_obj_t *obj) {
+                return lv_obj_get_style_text_font(obj, LV_PART_MAIN);
+            };
+            CHECK(font_of(view.trends_label(0)) == &font_charter_regular_12);
+            CHECK(font_of(view.trends_value(0)) == &font_charter_bold_12);
+            CHECK(font_of(view.footer_label()) == &font_charter_regular_12);
+            CHECK(font_of(view.trends_status(0)) == &font_charter_regular_12);
+            CHECK(font_of(view.wifi_icon()) == &lv_font_montserrat_12); // a symbol, not text
+        }
         {
             // The compact graph says what it shows: the unit, the highest and lowest value, and
             // the time span.

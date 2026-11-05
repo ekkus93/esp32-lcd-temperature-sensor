@@ -68,7 +68,7 @@ DisplayView::DisplayView() {
                                        : (compact ? "Trends" : "Temperature trends"));
         // On the compact screen the time makes room for a Wi-Fi icon at the right edge.
         s->time = label(s->root, compact ? 72 : 183, compact ? 0 : 10, compact ? 38 : 50,
-                        compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
+                        compact ? &font_charter_regular_12 : &font_charter_regular_14);
         if (compact)
             s->wifi = label(s->root, 112, 0, 14, &lv_font_montserrat_12);
         s->footer = label(s->root, compact ? 2 : 10, compact ? 141 : 281, compact ? 124 : 225,
@@ -80,7 +80,7 @@ DisplayView::DisplayView() {
             const int top = large_trend ? 20 : (compact ? 17 + 24 * i : 40 + 47 * i);
             s->labels[i] =
                 label(s->root, compact ? 2 : 10, top, large_trend ? 70 : (compact ? 58 : 98),
-                      compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
+                      compact ? &font_charter_regular_12 : &font_charter_regular_14);
             s->values[i] =
                 label(s->root, large_trend ? 74 : (compact ? 60 : 114), top,
                       large_trend ? 52 : (compact ? 66 : 116),
@@ -102,7 +102,7 @@ DisplayView::DisplayView() {
                 label(s->root, large_trend ? 2 : (compact ? 2 : (s == &overview_ ? 10 : 160)),
                       large_trend ? 122 : top + (compact ? 12 : 24),
                       large_trend ? 124 : (compact ? 124 : (s == &overview_ ? 210 : 72)),
-                      &lv_font_montserrat_12);
+                      &font_charter_regular_12);
             if (s == &trends_) {
                 auto *chart = lv_chart_create(s->root);
                 s->charts[i] = chart;
@@ -123,19 +123,19 @@ DisplayView::DisplayView() {
                 if (large_trend) {
                     for (auto *axis : {&s->axis_max[i], &s->axis_min[i]}) {
                         *axis = label(s->root, 0, axis == &s->axis_max[i] ? 42 : 92, 36,
-                                      &lv_font_montserrat_12);
+                                      &font_charter_regular_12);
                         lv_obj_set_style_text_align(*axis, LV_TEXT_ALIGN_RIGHT, 0);
                         lv_obj_set_style_text_color(*axis, lv_color_hex(setup_muted), 0);
                     }
                 }
                 s->no_data[i] = label(s->root, large_trend ? 4 : 12, large_trend ? 70 : top + 24,
-                                      large_trend ? 120 : 141, &lv_font_montserrat_12);
+                                      large_trend ? 120 : 141, &font_charter_regular_12);
                 text(s->no_data[i], "NO DATA");
             }
         }
         if (compact && s == &trends_) {
-            s->axis_from = label(s->root, 38, 107, 43, &lv_font_montserrat_12);
-            s->axis_now = label(s->root, 81, 107, 43, &lv_font_montserrat_12);
+            s->axis_from = label(s->root, 38, 107, 43, &font_charter_regular_12);
+            s->axis_now = label(s->root, 81, 107, 43, &font_charter_regular_12);
             lv_obj_set_style_text_align(s->axis_now, LV_TEXT_ALIGN_RIGHT, 0);
             for (auto *axis : {s->axis_from, s->axis_now})
                 lv_obj_set_style_text_color(axis, lv_color_hex(setup_muted), 0);

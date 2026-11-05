@@ -34,6 +34,9 @@ class DisplayView {
     lv_obj_t *trends_chart(size_t sensor) const {
         return trends_.charts[sensor];
     }
+    lv_obj_t *trends_value(size_t sensor) const {
+        return trends_.values[sensor];
+    }
     lv_obj_t *trends_axis_max(size_t sensor) const {
         return trends_.axis_max[sensor];
     }
