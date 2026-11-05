@@ -210,16 +210,27 @@ bool AuthService::save_password(const std::string &password) {
     }
     return ok;
 }
-bool AuthService::enroll(const std::string &secret, const std::string &password, int64_t now_ms) {
+AuthService::EnrollResult AuthService::enroll(const std::string &secret,
+                                              const std::string &password, int64_t now_ms) {
     if (!ready_ || enrolled_ || now_ms < next_login_)
-        return false;
+        return EnrollResult::denied;
+    // A code in the current format is compared after normalising what was typed (case, spaces,
+    // hyphens). A malformed one is reported as such and is not a guess; the old 64-character hex
+    // code, if still stored, is compared exactly.
+    std::string candidate = secret;
+    if (is_readable_code(setup_, owner_setup_code_length)) {
+        const auto normalized = normalize_owner_code(secret);
+        if (!normalized)
+            return EnrollResult::bad_format;
+        candidate = *normalized;
+    }
     next_login_ = now_ms + 5000;
-    if (!constant_equal(secret, setup_))
-        return false;
-    bool ok = save_password(password);
+    if (!constant_equal(candidate, setup_))
+        return EnrollResult::denied;
+    const bool ok = save_password(password);
     if (ok)
         next_login_ = now_ms;
-    return ok;
+    return ok ? EnrollResult::enrolled : EnrollResult::denied;
 }
 AuthService::PasswordCheck AuthService::check_password_result(const std::string &password) {
     if (!ready_ || !enrolled_ || password.size() > 128)

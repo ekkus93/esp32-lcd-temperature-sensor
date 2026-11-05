@@ -21,7 +21,10 @@ class AuthService {
     const std::string &setup_secret() const {
         return setup_;
     }
-    bool enroll(const std::string &secret, const std::string &password, int64_t now_ms);
+    // `bad_format`: the owner code is malformed (length or characters); it is not counted as a
+    // guess and does not start a lockout. `denied`: wrong code, not allowed now, or storing failed.
+    enum class EnrollResult { enrolled, denied, bad_format };
+    EnrollResult enroll(const std::string &secret, const std::string &password, int64_t now_ms);
     // Login is split so the slow password check can run on a worker task instead of the HTTP
     // task. login_begin() asks the throttle (per client, one derive at a time); on `allow` the
     // caller must follow with login_complete() or login_abort().

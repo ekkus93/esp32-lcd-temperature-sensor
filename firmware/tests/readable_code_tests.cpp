@@ -80,5 +80,28 @@ int main() {
     CHECK(plan_setup_code(true, std::string(65, 'a')) == SetupCodeAction::create); // too long
     CHECK(plan_setup_code(true, std::string("ABCD\0EFGH23456789", 17)) ==
           SetupCodeAction::create); // embedded NUL
+
+    // Typed owner codes are normalised: case, spaces, hyphens and line breaks do not matter, but
+    // the characters the alphabet leaves out (0, 1, I, O) and a wrong length are rejected so the
+    // caller can say what is wrong instead of counting it as a guess.
+    {
+        const std::string good = "H5RB2WTDK7M4Q9XP";
+        CHECK(normalize_owner_code(good) == good);
+        CHECK(normalize_owner_code("h5rb2wtdk7m4q9xp") == good);
+        CHECK(normalize_owner_code("H5RB 2WTD K7M4 Q9XP") == good);
+        CHECK(normalize_owner_code("h5rb-2wtd-k7m4-q9xp") == good);
+        CHECK(normalize_owner_code(" H5RB2WTD\nK7M4Q9XP\r\n") == good);
+        CHECK(normalize_owner_code("H5RB2WTD\tK7M4Q9XP") == good);
+        CHECK(!normalize_owner_code(""));
+        CHECK(!normalize_owner_code("H5RB2WTDK7M4Q9X"));   // 15 characters
+        CHECK(!normalize_owner_code("H5RB2WTDK7M4Q9XPA")); // 17 characters
+        CHECK(!normalize_owner_code("H5RB2WTDK7M4Q9X0"));  // 0 is not in the alphabet
+        CHECK(!normalize_owner_code("H5RB2WTDK7M4Q9X1"));  // nor 1
+        CHECK(!normalize_owner_code("H5RB2WTDK7M4Q9XI"));  // nor I
+        CHECK(!normalize_owner_code("H5RB2WTDK7M4Q9XO"));  // nor O
+        CHECK(!normalize_owner_code("H5RB2WTDK7M4Q9X!"));
+        CHECK(!normalize_owner_code(std::string("H5RB2WTDK7M4Q9X\0P", 16)));
+        CHECK(!normalize_owner_code(std::string(500, 'A'))); // far too long, rejected cheaply
+    }
     std::cout << "PASS: readable setup codes and legacy hex detection\n";
 }

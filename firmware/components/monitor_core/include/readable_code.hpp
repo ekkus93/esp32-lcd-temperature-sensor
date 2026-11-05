@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <string>
 
 namespace monitor {
@@ -18,6 +19,12 @@ std::string make_readable_code(size_t length, const RandomFill &fill);
 bool is_readable_code(const std::string &code, size_t length);
 // The previous format: lowercase hex of the given number of characters.
 bool is_legacy_hex_secret(const std::string &secret, size_t length);
+
+// A typed owner code ready to compare: spaces, hyphens, tabs and line breaks removed and letters
+// upper-cased. Returns nothing if what remains is not exactly owner_setup_code_length characters
+// of the alphabet (which has no 0, 1, I or O), so the caller can report a malformed code instead
+// of counting it as a wrong guess.
+std::optional<std::string> normalize_owner_code(const std::string &typed);
 
 enum class SetupCodeAction { keep, rotate, create };
 // What to do with the stored one-time owner code while the device is not enrolled: keep a good

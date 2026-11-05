@@ -46,11 +46,54 @@ it('requires a device-specific secret for first enrollment', async () => {
       <div>Protected dashboard</div>
     </AuthGate>,
   );
-  await screen.findByLabelText(/One-time setup secret/);
+  const code = await screen.findByLabelText(/One-time owner code/);
+  // The owner code is typed from the LCD, so it is shown (not masked) with a hint about
+  // what is accepted; only the password being created is masked.
+  expect(code).toHaveAttribute('type', 'text');
+  expect(code).toHaveAttribute('autocapitalize', 'characters');
+  expect(screen.getByText(/spaces and dashes are fine/i)).toBeInTheDocument();
   expect(
     screen.getByLabelText(/Create administrator password/),
   ).toHaveAttribute('type', 'password');
   expect(screen.queryByText('Protected dashboard')).not.toBeInTheDocument();
+});
+it('sends the owner code as typed and shows the device message for a malformed one', async () => {
+  vi.mocked(fetch)
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ enrolled: false }),
+    } as Response)
+    .mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: async () => ({
+        error:
+          'The owner code is 16 characters from A-Z and 2-9 (no 0, 1, I or O); spaces and dashes are fine',
+      }),
+    } as Response);
+  render(
+    <AuthGate>
+      <div>Protected dashboard</div>
+    </AuthGate>,
+  );
+  fireEvent.change(await screen.findByLabelText(/One-time owner code/), {
+    target: { value: 'h5rb 2wtd k7m4 q9x0' },
+  });
+  fireEvent.change(screen.getByLabelText(/Create administrator password/), {
+    target: { value: 'correct horse battery' },
+  });
+  fireEvent.click(
+    screen.getByRole('button', { name: /set up|create|continue|save/i }),
+  );
+  expect(
+    await screen.findByText(/16 characters from A-Z and 2-9/),
+  ).toBeInTheDocument();
+  const enroll = vi
+    .mocked(fetch)
+    .mock.calls.find(([url]) => String(url).endsWith('/auth/enroll'));
+  expect(JSON.parse(String(enroll?.[1]?.body)).setup_secret).toBe(
+    'h5rb 2wtd k7m4 q9x0',
+  );
 });
 it('returns to login after session expiration', async () => {
   vi.mocked(fetch).mockResolvedValue({

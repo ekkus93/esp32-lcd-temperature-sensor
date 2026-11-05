@@ -472,9 +472,15 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
         if (!input)
             return error(r, "400 Bad Request", "Expected bounded JSON object");
         if (path == "/api/v1/auth/enroll") {
-            if (!wifi_->info().provisioning ||
-                !auth_->enroll(string(input.get(), "setup_secret"), string(input.get(), "password"),
-                               now()))
+            if (!wifi_->info().provisioning)
+                return error(r, "403 Forbidden", "Enrollment denied; retry after 5 seconds");
+            const auto enrolled = auth_->enroll(string(input.get(), "setup_secret"),
+                                                string(input.get(), "password"), now());
+            if (enrolled == AuthService::EnrollResult::bad_format)
+                return error(r, "400 Bad Request",
+                             "The owner code is 16 characters from A-Z and 2-9 (no 0, 1, I or O); "
+                             "spaces and dashes are fine");
+            if (enrolled != AuthService::EnrollResult::enrolled)
                 return error(r, "403 Forbidden", "Enrollment denied; retry after 5 seconds");
             httpd_resp_set_status(r, "201 Created");
             return httpd_resp_send(r, "{}", 2);

@@ -136,16 +136,24 @@ export default function AuthGate({ children }: { children: ReactNode }) {
                 {!state.enrolled && (
                   <>
                     <Typography>
-                      Use the device-specific setup secret from the LCD or
-                      physical USB setup file.
+                      Enter the owner code shown on the monitor's screen (or in
+                      the physical USB setup file).
                     </Typography>
                     <TextField
-                      label="One-time setup secret"
-                      type="password"
+                      label="One-time owner code"
+                      type="text"
                       autoComplete="one-time-code"
                       required
                       value={secret}
                       onChange={(e) => setSecret(e.target.value)}
+                      helperText="16 letters and digits, shown on the screen in two lines. Capitals don't matter and spaces and dashes are fine; there is no 0, 1, I or O."
+                      slotProps={{
+                        htmlInput: {
+                          autoCapitalize: 'characters',
+                          autoCorrect: 'off',
+                          spellCheck: false,
+                        },
+                      }}
                     />
                   </>
                 )}
