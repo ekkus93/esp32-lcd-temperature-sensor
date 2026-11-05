@@ -78,7 +78,7 @@ static void five_sensor_reconnect() {
 
     std::reverse(readings.begin(), readings.end());
     registry.sample(readings, 5 * sample_ms);
-    CHECK(registry.sensors().size() == max_sensors && registry.excess_count() == 0);
+    CHECK(registry.sensors().size() == max_sensors);
     for (const auto &sensor : registry.sensors()) {
         const auto serial = static_cast<unsigned>((sensor.rom >> 8) & 0xff);
         CHECK(serial >= 1 && serial <= max_sensors);
@@ -92,7 +92,7 @@ static void five_sensor_reconnect() {
     const auto sixth = rom_id(max_sensors + 1);
     readings.push_back({sixth, 24});
     registry.sample(readings, 6 * sample_ms);
-    CHECK(registry.sensors().size() == max_sensors && registry.excess_count() == 1);
+    CHECK(registry.sensors().size() == max_sensors);
     CHECK(std::none_of(registry.sensors().begin(), registry.sensors().end(),
                        [&](const Sensor &sensor) { return sensor.rom == sixth; }));
 }

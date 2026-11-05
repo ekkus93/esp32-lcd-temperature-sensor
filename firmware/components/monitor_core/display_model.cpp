@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <tuple>
 namespace monitor {
 void TrendCache::add(const Bucket &bucket) {
     if (!buckets_.empty() && (bucket.boot_id != buckets_.back().boot_id ||
@@ -55,7 +56,8 @@ std::array<DisplayRow, max_sensors> display_rows(const Registry &registry, bool 
     for (const auto &sensor : registry.sensors())
         ordered.push_back(&sensor);
     std::stable_sort(ordered.begin(), ordered.end(), [](const Sensor *a, const Sensor *b) {
-        return a->settings.order < b->settings.order;
+        // Equal positions are ordered by ROM so ties never depend on discovery order.
+        return std::tie(a->settings.order, a->rom) < std::tie(b->settings.order, b->rom);
     });
     for (size_t i = 0; i < rows.size(); ++i) {
         auto &row = rows[i];

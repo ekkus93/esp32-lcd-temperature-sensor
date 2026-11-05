@@ -18,6 +18,7 @@
 #include <memory>
 #include <sys/select.h>
 #include <sys/socket.h>
+#include <tuple>
 #include <vector>
 namespace monitor {
 namespace {
@@ -395,7 +396,7 @@ std::string HttpApi::snapshot() {
     auto *sensors = cJSON_AddArrayToObject(object.get(), "sensors");
     auto ordered = registry.sensors();
     std::stable_sort(ordered.begin(), ordered.end(), [](const Sensor &a, const Sensor &b) {
-        return a.settings.order < b.settings.order;
+        return std::tie(a.settings.order, a.rom) < std::tie(b.settings.order, b.rom);
     });
     for (const auto &sensor : ordered) {
         auto *s = cJSON_CreateObject();

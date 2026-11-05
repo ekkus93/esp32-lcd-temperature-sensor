@@ -155,13 +155,23 @@ int main() {
         fail_open = mode == 0;
         fail_set = mode == 1;
         fail_commit = mode == 2;
-        CHECK(service.save_or_restore(candidate, committed_registry) != ESP_OK &&
-              !service.writable());
+        CHECK(service.save_or_restore(candidate, committed_registry) != ESP_OK);
+        // A failed write is not permanent: the store stays writable so the next change retries.
+        CHECK(service.writable());
         CHECK(candidate.sensors()[0].settings.name == original_name);
         CHECK(durable == committed);
-        CHECK(service.save(candidate) == ESP_ERR_INVALID_STATE);
+        CHECK(service.save(candidate) == ESP_OK); // unchanged content: nothing to write
         CHECK(durable == committed);
         fail_open = fail_set = fail_commit = false;
+        {
+            auto retried = candidate;
+            auto retry_settings = retried.sensors()[0].settings;
+            retry_settings.name = "Saved on retry";
+            CHECK(retried.configure(retried.sensors()[0].rom, retry_settings));
+            CHECK(service.save(retried) == ESP_OK);
+            CHECK(durable != committed);
+        }
+        reset(committed, true);
         SettingsService recovered_service("test");
         Registry recovered_registry;
         CHECK(recovered_service.load(recovered_registry) == ESP_OK && recovered_service.writable());

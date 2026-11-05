@@ -51,18 +51,16 @@ esp_err_t SettingsService::save(const Registry &registry) {
         return ESP_OK;
     nvs_handle_t handle;
     auto result = nvs_open(namespace_, NVS_READWRITE, &handle);
-    if (result != ESP_OK) {
-        writable_ = false;
+    // A failed write leaves `writable_` alone: only damaged or unsupported stored data (found by
+    // load) blocks writing. The next settings change retries.
+    if (result != ESP_OK)
         return result;
-    }
     result = nvs_set_blob(handle, "sensors", bytes.data(), bytes.size());
     if (result == ESP_OK)
         result = nvs_commit(handle);
     nvs_close(handle);
     if (result == ESP_OK)
         previous_ = bytes;
-    else
-        writable_ = false;
     return result;
 }
 esp_err_t SettingsService::save_or_restore(Registry &candidate, const Registry &committed) {

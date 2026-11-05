@@ -12,10 +12,8 @@ bool Registry::discover(uint64_t rom) {
         return false;
     if (find(rom))
         return true;
-    if (sensors_.size() == max_sensors) {
-        ++excess_;
-        return false;
-    }
+    if (sensors_.size() == max_sensors)
+        return false; // overflow is reported by the probe scan, not here
     std::array<bool, max_sensors> used_orders{};
     for (const auto &existing : sensors_)
         if (existing.settings.order < used_orders.size())
@@ -102,7 +100,6 @@ void Registry::sample(const std::vector<Reading> &readings, int64_t now_ms, bool
             discovered.push_back(r.rom);
     std::sort(discovered.begin(), discovered.end());
     discovered.erase(std::unique(discovered.begin(), discovered.end()), discovered.end());
-    excess_ = 0;
     for (auto rom : discovered)
         discover(rom);
     for (auto &sensor : sensors_) {
@@ -116,9 +113,13 @@ void Registry::sample(const std::vector<Reading> &readings, int64_t now_ms, bool
 }
 void Registry::expire(int64_t now_ms) {
     for (auto &sensor : sensors_) {
+        // Only a sensor that still shows a measurement can go stale. A probe reporting errors
+        // (invalid), a disconnected one, one in a bus fault and one already stale keep their state,
+        // so the display copy does not flip between stale and invalid.
+        const bool has_value = sensor.state == State::normal || sensor.state == State::high ||
+                               sensor.state == State::low;
         if (sensor.settings.enabled && sensor.last_seen_ms &&
-            now_ms - *sensor.last_seen_ms > sample_ms * 3 && sensor.state != State::bus_fault &&
-            sensor.state != State::disconnected) {
+            now_ms - *sensor.last_seen_ms > sample_ms * 3 && has_value) {
             sensor.temperature.reset();
             transition(sensor, State::stale, now_ms);
             ++sequence_;
@@ -133,9 +134,6 @@ const std::vector<Event> &Registry::events() const {
 }
 uint64_t Registry::sequence() const {
     return sequence_;
-}
-unsigned Registry::excess_count() const {
-    return excess_;
 }
 bool Registry::bus_fault() const {
     return bus_fault_;

@@ -69,7 +69,7 @@ int main() {
         simulated_transport_readings.push_back(
             {rom, rom == lower_sorting_new_probe ? 30.0 : 20.0, true});
     registry.sample(simulated_transport_readings, sample_ms);
-    CHECK(registry.sensors().size() == max_sensors && registry.excess_count() == 0);
+    CHECK(registry.sensors().size() == max_sensors);
     for (const auto &sensor : registry.sensors())
         CHECK(sensor.temperature && *sensor.temperature == 20.0 && sensor.state == State::normal);
     for (unsigned rotation = 0; rotation < six.size(); ++rotation) {

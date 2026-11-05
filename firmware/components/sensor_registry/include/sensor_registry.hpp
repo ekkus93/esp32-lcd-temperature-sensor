@@ -18,7 +18,6 @@ class Registry {
     const std::vector<Sensor> &sensors() const;
     const std::vector<Event> &events() const;
     uint64_t sequence() const;
-    unsigned excess_count() const;
     bool bus_fault() const;
 
   private:
@@ -43,7 +42,6 @@ class Registry {
     std::vector<Event> events_;
     uint64_t sequence_ = 0;
     uint64_t event_sequence_ = 0;
-    unsigned excess_ = 0;
     bool bus_fault_ = false;
 };
 } // namespace monitor

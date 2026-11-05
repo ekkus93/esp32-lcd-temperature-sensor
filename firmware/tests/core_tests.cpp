@@ -40,7 +40,7 @@ void identity() {
     for (unsigned i = 3; i <= 6; ++i)
         registry.discover(rom(i));
     CHECK(registry.sensors().size() == 5);
-    CHECK(registry.excess_count() == 1);
+    CHECK(!registry.discover(rom(7))); // a sixth probe is not registered
     settings.low = 30;
     settings.high = 20;
     CHECK(!registry.configure(original, settings));
@@ -115,6 +115,35 @@ void invalid_and_faults() {
     CHECK(!expire_display_snapshot(display_snapshot, 16000));
     CHECK(expire_display_snapshot(display_snapshot, 16001));
     CHECK(display_snapshot.sensors()[0].state == State::stale);
+    // Expiring is idempotent: a sensor already stale is not touched or re-published, and one
+    // reporting persistent errors (invalid) is not relabelled stale by the display copy.
+    CHECK(!expire_display_snapshot(display_snapshot, 20000));
+    {
+        Registry erroring;
+        erroring.sample({{id, 24}}, 1000);
+        erroring.sample({{id, -127}}, 6000); // CRC/range errors: the sensor is invalid
+        const auto state = erroring.sensors()[0].state;
+        CHECK(state == State::invalid);
+        CHECK(!expire_display_snapshot(erroring, 60000));
+        CHECK(erroring.sensors()[0].state == State::invalid);
+    }
+    {
+        // Equal display positions are ordered by ROM, not by discovery order.
+        for (bool reversed : {false, true}) {
+            Registry tied;
+            const uint64_t low = rom(1), high = rom(2);
+            tied.sample(reversed ? std::vector<Reading>{{high, 20}, {low, 20}}
+                                 : std::vector<Reading>{{low, 20}, {high, 20}},
+                        1000);
+            for (const auto &sensor : tied.sensors()) {
+                auto settings = sensor.settings;
+                settings.order = 0;
+                CHECK(tied.configure(sensor.rom, settings));
+            }
+            const auto rows = display_rows(tied, false);
+            CHECK(rows[0].rom == std::min(low, high) && rows[1].rom == std::max(low, high));
+        }
+    }
     CHECK(!display_snapshot.sensors()[0].temperature);
     CHECK(fresh_owner.sensors()[0].state == State::normal);
     CHECK(fresh_owner.sensors()[0].temperature == 24);
