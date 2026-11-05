@@ -48,6 +48,7 @@ struct DisplayFrame {
 struct DisplayTaskContext {
     monitor::DisplayRuntime *display;
     monitor::HttpApi *api;
+    monitor::WifiService *wifi;
     SemaphoreHandle_t mutex;
     bool api_publish_pending = false;
     DisplayFrame frame;
@@ -59,6 +60,9 @@ void display_refresh_task(void *argument) {
     while (true) {
         if (xSemaphoreTake(context.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
             context.frame.status.button_progress = monitor::boot_hold_progress();
+            // Read directly so the setup screen appears within one 100 ms refresh of the AP
+            // opening, not at the next 5 s acquisition frame.
+            context.frame.provisioning = context.wifi && context.wifi->provisioning_open();
             const auto now_ms = esp_timer_get_time() / 1000;
             const auto uptime_ms = context.frame.uptime_ms +
                                    std::max<int64_t>(0, now_ms - context.frame.published_at_ms);
@@ -159,7 +163,7 @@ extern "C" void app_main() {
     monitor::DisplayRuntime display;
     if (!display.initialize())
         ESP_LOGE(tag, "LCD unavailable; sensor/network services continue without display");
-    DisplayTaskContext display_context{&display, &api, xSemaphoreCreateMutex(), false, {}};
+    DisplayTaskContext display_context{&display, &api, &wifi, xSemaphoreCreateMutex(), false, {}};
     const bool display_task_started = display.ready() && display_context.mutex &&
                                       xTaskCreate(display_refresh_task, "display_refresh", 6144,
                                                   &display_context, 3, nullptr) == pdPASS;

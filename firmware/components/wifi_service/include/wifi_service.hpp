@@ -38,6 +38,11 @@ class WifiService {
     const std::string &ap_ssid() const {
         return ap_ssid_;
     }
+    // True while the setup access point is open. Cheap and safe from any task, so the display can
+    // switch to the setup screen immediately instead of waiting for the next 5 s frame.
+    bool provisioning_open() const {
+        return ap_;
+    }
     const std::string &ap_password() const {
         return ap_password_;
     }
