@@ -169,9 +169,7 @@ int main(int argc, char **argv) {
         save("overview-wifi-clock-restored");
         // The read-only LCD must expose OTA verification/rollback status
         // without adding a third normal view or masking the Wi-Fi/logging line.
-        auto footer_text = [&] {
-            return std::string(lv_label_get_text(lv_obj_get_child(lv_screen_active(), 2)));
-        };
+        auto footer_text = [&] { return std::string(lv_label_get_text(view.footer_label())); };
         for (const char *state : {"new", "pending_verify"}) {
             status.ota_state = state;
             view.render(registry, cache, options, status, 19000);
@@ -374,10 +372,9 @@ int main(int argc, char **argv) {
         view.render(registry, cache, options, status, 3605000);
         CHECK(view.showing_trends());
         auto selected = [&]() {
-            auto *root = lv_screen_active();
             int index = -1;
             for (unsigned i = 0; i < max_sensors; ++i) {
-                auto *sensor_label = lv_obj_get_child(root, 3 + 5 * i);
+                auto *sensor_label = view.trends_label(i);
                 if (!lv_obj_is_hidden(sensor_label)) {
                     CHECK(index == -1);
                     index = int(i);
@@ -440,7 +437,7 @@ int main(int argc, char **argv) {
             view.render(registry, cache, options, status, 3607100);
         }
         lv_obj_update_layout(lv_screen_active());
-        auto *first_chart = lv_obj_get_child(lv_screen_active(), 6);
+        auto *first_chart = view.trends_chart(0);
         CHECK(lv_obj_get_width(first_chart) == 120 && lv_obj_get_height(first_chart) == 75);
         save("trends-compact-single-simulated-probe");
         view.render(registry, cache, options, status, 3610000);
@@ -458,8 +455,8 @@ int main(int argc, char **argv) {
         Registry empty;
         view.render(empty, cache, options, status, 3730000);
         CHECK(view.showing_trends() && selected() == 0);
-        CHECK(lv_obj_is_hidden(lv_obj_get_child(lv_screen_active(), 6)));
-        CHECK(!lv_obj_is_hidden(lv_obj_get_child(lv_screen_active(), 7)));
+        CHECK(lv_obj_is_hidden(view.trends_chart(0)));
+        CHECK(!lv_obj_is_hidden(view.trends_status(0)));
         view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP");
         const auto first_page = visible_text(lv_screen_active());
         save("provisioning-compact-wifi");

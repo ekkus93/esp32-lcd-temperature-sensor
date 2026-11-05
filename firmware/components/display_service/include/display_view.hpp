@@ -20,6 +20,20 @@ class DisplayView {
     bool showing_trends() const {
         return showing_trends_;
     }
+    // Handles to individual widgets, so tests can find them by role instead of by the order they
+    // were created in.
+    lv_obj_t *footer_label() const {
+        return showing_trends_ ? trends_.footer : overview_.footer;
+    }
+    lv_obj_t *trends_label(size_t sensor) const {
+        return trends_.labels[sensor];
+    }
+    lv_obj_t *trends_chart(size_t sensor) const {
+        return trends_.charts[sensor];
+    }
+    lv_obj_t *trends_status(size_t sensor) const {
+        return trends_.states[sensor];
+    }
 
   private:
     struct Screen {
