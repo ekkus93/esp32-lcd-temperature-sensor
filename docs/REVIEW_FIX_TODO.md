@@ -79,7 +79,7 @@
 
 ## Phase R7 — Public read-only access (feature, §12)
 
-- [ ] **R07-01** Route policy table from §12.1 implemented as one access function in `http_api.cpp`, with host-testable rules (D1-D3).
+- [x] **R07-01** Route policy table from §12.1 implemented as one access function in `http_api.cpp`, with host-testable rules (D1-D3). Done (host test for the table, build for the wiring; not run on the board): `route_access(method, path)` in `monitor_core` is the single access table (open / owner / unknown) with `route_access_tests`; `HttpApi::handle` uses it, returns 404 for any route not in the table (so no handler is reachable by accident) and 401 for owner routes without a session/CSRF. Anonymous `GET /settings` already omits `ntp_server` (D3). The WebSocket stays owner-only until R07-03 and the web app still shows its sign-in gate until R07-05, so the public reads are only reachable by direct API calls for now.
 - [ ] **R07-02** Public `GET /settings` response without owner-only fields; `auth/state` reports `signed_in`; contracts, `API.md` and generated types updated with the version decision (§12.2).
 - [ ] **R07-03** Public WebSocket upgrade (Origin still checked) with the 8-client cap and a reserved owner slot (§12.1, §12.4).
 - [ ] **R07-04** Per-client rate limits: history 1/s, export 1 per 30 s, 2 concurrent history queries, `429` with `Retry-After` (§12.4). Host tests.

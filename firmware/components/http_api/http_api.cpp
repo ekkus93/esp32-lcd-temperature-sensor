@@ -10,6 +10,7 @@
 #include "lwip/sockets.h"
 #include "ota_service.hpp"
 #include "retirement_policy.hpp"
+#include "route_access.hpp"
 #include "web_assets.h"
 #include <algorithm>
 #include <cerrno>
@@ -524,8 +525,20 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
         return ESP_OK; // the worker answers on the async copy
     }
     if (api) {
-        auto s = session(r, r->method != HTTP_GET);
-        if (!s)
+        // One place decides who may call what (route_access.hpp). A route that is not in the
+        // table is a 404 for everyone, so no handler below is reachable by accident.
+        const char *method_name = r->method == HTTP_GET      ? "GET"
+                                  : r->method == HTTP_POST   ? "POST"
+                                  : r->method == HTTP_PATCH  ? "PATCH"
+                                  : r->method == HTTP_DELETE ? "DELETE"
+                                                             : "";
+        const auto access = route_access(method_name, path);
+        if (access == RouteAccess::unknown)
+            return error(r, "404 Not Found", "Unknown API route");
+        // Owner routes need a session (and, for changes, the CSRF token). Open routes work
+        // without one; a signed-in owner is still recognised so owner-only fields can be added.
+        const auto s = session(r, access == RouteAccess::owner && r->method != HTTP_GET);
+        if (access == RouteAccess::owner && !s)
             return error(r, "401 Unauthorized", "Administrator session required");
         if (path == "/api/v1/clock" && r->method == HTTP_GET) {
             const auto status = clock_sync_diagnostics();
@@ -689,7 +702,9 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
             cJSON_AddNumberToObject(output.get(), "trends_seconds", options.trends_seconds);
             cJSON_AddNumberToObject(output.get(), "lookback_minutes", options.lookback_minutes);
             cJSON_AddStringToObject(output.get(), "timezone", options.timezone.c_str());
-            cJSON_AddStringToObject(output.get(), "ntp_server", options.ntp_server.c_str());
+            // The NTP server is the owner's: anonymous readers get the display fields only.
+            if (s)
+                cJSON_AddStringToObject(output.get(), "ntp_server", options.ntp_server.c_str());
             return json(r, output.get());
         }
         if (path == "/api/v1/wifi/scan" && r->method == HTTP_POST) {
