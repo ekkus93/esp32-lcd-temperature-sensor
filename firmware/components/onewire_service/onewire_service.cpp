@@ -46,6 +46,7 @@ std::vector<Reading> OneWireService::read(int64_t now_ms, const std::vector<uint
             onewire_del_device_iter(iterator);
             scan.capped = enumerated == 16 && result == ESP_OK;
             scan.ended_normally = result == ESP_ERR_NOT_FOUND;
+            scan.crc_error = result == ESP_ERR_INVALID_CRC;
         }
         if (!policy_.apply_scan(scan, now_ms, managed))
             return readings;

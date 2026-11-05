@@ -245,5 +245,29 @@ int main() {
             (event.rom == 0 ? bus_events : sensor_events)++;
         CHECK(bus_events == 1 && sensor_events == 0);
     }
+
+    // One bad ROM CRC during the search is a glitch: keep reading the known probes, rescan in 5 s
+    // and do not report a bus fault. The same error twice in a row is a real problem.
+    {
+        ScanPolicy policy;
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2)}), 0, none));
+        ScanInput glitch;
+        glitch.observed = {rom(1)};
+        glitch.crc_error = true;
+        CHECK(policy.apply_scan(glitch, 30000, none)); // reads go on
+        CHECK(!policy.fault() && policy.roms().size() == 2 && !policy.status().complete);
+        CHECK(policy.scan_due(35000) && !policy.scan_due(34999));
+        // A clean scan afterwards forgets the glitch.
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2)}), 35000, none));
+        CHECK(policy.status().complete && !policy.fault());
+        CHECK(policy.apply_scan(glitch, 65000, none)); // a later single glitch is again tolerated
+        CHECK(!policy.fault());
+        // Two in a row: a fault, no reads this cycle.
+        CHECK(!policy.apply_scan(glitch, 70000, none));
+        CHECK(policy.fault() && policy.roms().size() == 2);
+        // Recovery as soon as the search works again.
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2)}), 75000, none));
+        CHECK(!policy.fault());
+    }
     std::cout << "PASS: scan policy reproduces the 1-Wire service's scan and fault decisions\n";
 }

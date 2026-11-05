@@ -11,6 +11,7 @@ struct ScanInput {
     std::vector<uint64_t> observed; // raw ROMs returned, valid or not
     bool ended_normally = false;    // the driver reported "no more devices"
     bool capped = false;            // the 16-device bound was reached with the search unfinished
+    bool crc_error = false;         // a ROM failed its CRC during the search (a bus glitch)
 };
 
 // Decides when to rescan the bus, which ROMs to read and when the shared bus is faulty. It holds
@@ -48,6 +49,8 @@ class ScanPolicy {
     std::vector<uint64_t> roms_;
     // A smaller-than-expected scan waiting for a second scan to agree with it.
     std::optional<std::vector<uint64_t>> suspect_;
+    // The previous scan hit a ROM CRC error; a second one in a row is a real fault.
+    bool crc_error_pending_ = false;
     int64_t next_scan_ = 0;
     // Set while scans find no device at all although several probes are being read; kept across
     // read cycles so the fault does not flicker between rescans.

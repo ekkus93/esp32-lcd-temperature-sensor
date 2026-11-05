@@ -22,6 +22,7 @@ bool ScanPolicy::apply_scan(const ScanInput &input, int64_t now_ms,
     next_scan_ = now_ms + scan_interval_ms;
     if (!input.iterator_created) {
         suspect_.reset();
+        crc_error_pending_ = false;
         status_ = probe_scan_status(0, false, false);
         fault_ = bus_fault_detected(false, true, roms_.size(), 0);
         next_scan_ = now_ms + retry_interval_ms;
@@ -30,6 +31,20 @@ bool ScanPolicy::apply_scan(const ScanInput &input, int64_t now_ms,
     const auto discovery =
         collect_probe_discovery(input.observed, input.ended_normally, input.capped);
     status_ = discovery.status;
+    if (input.crc_error) {
+        // One corrupted ROM during the search is a glitch: keep reading the probes already known
+        // and search again soon. The same error twice in a row is a real fault.
+        suspect_.reset();
+        next_scan_ = now_ms + retry_interval_ms;
+        if (crc_error_pending_) {
+            fault_ = true;
+            return false;
+        }
+        crc_error_pending_ = true;
+        status_.complete = false;
+        return true;
+    }
+    crc_error_pending_ = false;
     if (status_.complete) {
         bool removal_confirmed = false;
         if (discovery.roms.empty() && roms_.size() >= shared_bus_probe_count) {
