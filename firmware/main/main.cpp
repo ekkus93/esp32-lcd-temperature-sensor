@@ -86,7 +86,6 @@ void display_refresh_task(void *argument) {
 }
 } // namespace
 
-int run_core_tests();
 extern "C" void app_main() {
     const char *tag = "monitor";
 #ifdef CONFIG_MONITOR_SIMULATION
@@ -94,8 +93,6 @@ extern "C" void app_main() {
 #else
     constexpr bool simulated = false;
 #endif
-    run_core_tests();
-    ESP_LOGI(tag, "SELFTEST PASS core behavior");
     esp_err_t nvs = nvs_flash_init();
     // Preserve existing NVS on corruption/schema mismatch; report and keep running.
     if (nvs != ESP_OK)

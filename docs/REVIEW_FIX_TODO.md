@@ -99,7 +99,7 @@
 
 ## Phase R9 — Build, docs and release (P3)
 
-- [ ] **R09-01** Remove the host test suite from the firmware image; keep non-fatal on-device self-tests reported in status (§4.2).
+- [x] **R09-01** Remove the host test suite from the firmware image; keep non-fatal on-device self-tests reported in status (§4.2). Done (build; the host suite still runs under ctest): `tests/core_tests.cpp` is no longer compiled into the firmware and `main()` no longer calls it or logs "SELFTEST PASS core behavior", so a failing host check can no longer exit before NVS starts, and the image is about 36 KB smaller (2,083,232 to 2,047,024 bytes). The only on-device self-test left is the PBKDF2 known-answer check in `AuthService::initialize()`, which fails closed (authentication unavailable) instead of crashing.
 - [ ] **R09-02** Remove or use the `espressif/ds18b20` dependency (§4.3).
 - [ ] **R09-03** `verify.sh` discovers Python tests; CI runs the leak checker and checks generated contract types are current (§4.3).
 - [ ] **R09-04** Auth internals: dedicated notification index, safe cross-task read of the setup secret and enrolled flag, `AuthService` host tests behind an NVS/KDF seam (§6.4).
