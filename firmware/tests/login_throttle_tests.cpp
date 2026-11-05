@@ -1,4 +1,5 @@
 #include "login_throttle.hpp"
+#include <array>
 #include <cstdlib>
 #include <iostream>
 using namespace monitor;
@@ -91,6 +92,30 @@ int main() {
         CHECK(throttle.begin(owner, 0).gate == LoginGate::allow);
         throttle.abort(owner);
         CHECK(throttle.begin(owner, 0).gate == LoginGate::allow);
+    }
+
+    // A client is identified by its address only, never by the source port, and an IPv4 peer
+    // reported as an IPv4-mapped IPv6 address is the same client as the plain IPv4 address.
+    {
+        const uint32_t v4 = 0x4140400a; // as read from sockaddr_in.sin_addr (network byte order)
+        std::array<uint8_t, 16> mapped{};
+        mapped[10] = 0xff;
+        mapped[11] = 0xff;
+        mapped[12] = 0x0a;
+        mapped[13] = 0x40;
+        mapped[14] = 0x40;
+        mapped[15] = 0x41;
+        CHECK(client_identity_ipv6(mapped.data()) == v4);
+        std::array<uint8_t, 16> global_a{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+                                         0,    0,    0,    0,    0, 0, 0, 1};
+        std::array<uint8_t, 16> global_b = global_a;
+        global_b[15] = 2;
+        CHECK(client_identity_ipv6(global_a.data()) == client_identity_ipv6(global_a.data()));
+        CHECK(client_identity_ipv6(global_a.data()) != client_identity_ipv6(global_b.data()));
+        CHECK(client_identity_ipv6(global_a.data()) != 0);
+        std::array<uint8_t, 16> v4_other = mapped;
+        v4_other[15] = 0x42;
+        CHECK(client_identity_ipv6(v4_other.data()) != client_identity_ipv6(mapped.data()));
     }
     std::cout << "PASS: login throttle is per client, single-flight and ignores derive failures\n";
 }

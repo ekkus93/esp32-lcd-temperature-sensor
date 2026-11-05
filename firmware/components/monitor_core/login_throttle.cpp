@@ -1,5 +1,6 @@
 #include "login_throttle.hpp"
 #include <algorithm>
+#include <cstring>
 
 namespace monitor {
 namespace {
@@ -9,6 +10,21 @@ constexpr int64_t kdf_error_retry_ms = 2000;
 constexpr int64_t first_backoff_ms = 5000;
 constexpr int64_t max_backoff_ms = 60000;
 } // namespace
+
+uint32_t client_identity_ipv6(const uint8_t *address16) {
+    bool mapped = address16[10] == 0xff && address16[11] == 0xff;
+    for (int i = 0; i < 10 && mapped; ++i)
+        mapped = address16[i] == 0;
+    if (mapped) {
+        uint32_t address = 0;
+        std::memcpy(&address, address16 + 12, sizeof(address));
+        return address;
+    }
+    uint32_t hash = 2166136261u;
+    for (int i = 0; i < 16; ++i)
+        hash = (hash ^ address16[i]) * 16777619u;
+    return hash ? hash : 1;
+}
 
 LoginThrottle::Client *LoginThrottle::find(uint32_t client) {
     for (auto &entry : clients_)

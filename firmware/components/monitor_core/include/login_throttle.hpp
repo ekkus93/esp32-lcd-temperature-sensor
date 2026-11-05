@@ -4,6 +4,11 @@
 
 namespace monitor {
 enum class LoginGate { allow, busy, locked };
+
+// Identifies a client by its network address alone (never the source port, which changes with
+// every connection). An IPv4-mapped IPv6 address yields the same value as the plain IPv4 address
+// (the 32 bits as read from sockaddr_in.sin_addr). Takes the 16 bytes of an IPv6 address.
+uint32_t client_identity_ipv6(const uint8_t *address16);
 enum class LoginOutcome { verified, wrong_password, kdf_error };
 
 // Decides whether a login attempt may start. The password check is a deliberately slow key

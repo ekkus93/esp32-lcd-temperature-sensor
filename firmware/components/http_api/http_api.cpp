@@ -6,6 +6,7 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "history_csv.hpp"
+#include "login_throttle.hpp"
 #include "lwip/sockets.h"
 #include "ota_service.hpp"
 #include "retirement_policy.hpp"
@@ -108,6 +109,7 @@ std::string header(httpd_req_t *r, const char *name, size_t limit = 512) {
     return text.data();
 }
 // A stable identifier for the peer, used to keep one client's failed logins from affecting others.
+// Only the address counts: the source port changes with every connection.
 uint32_t client_id(httpd_req_t *r) {
     const int fd = httpd_req_to_sockfd(r);
     sockaddr_storage address{};
@@ -116,10 +118,9 @@ uint32_t client_id(httpd_req_t *r) {
         return 0;
     if (address.ss_family == AF_INET)
         return reinterpret_cast<sockaddr_in *>(&address)->sin_addr.s_addr;
-    uint32_t hash = 2166136261u; // IPv6 or unknown: hash the address bytes
-    for (socklen_t i = 0; i < length; ++i)
-        hash = (hash ^ reinterpret_cast<uint8_t *>(&address)[i]) * 16777619u;
-    return hash;
+    if (address.ss_family == AF_INET6)
+        return client_identity_ipv6(reinterpret_cast<sockaddr_in6 *>(&address)->sin6_addr.s6_addr);
+    return 0;
 }
 esp_err_t error(httpd_req_t *r, const char *status, const char *message) {
     httpd_resp_set_status(r, status);
