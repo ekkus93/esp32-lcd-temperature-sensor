@@ -232,3 +232,31 @@ it('loads history again once the clock synchronizes', async () => {
     expect(fetchMock.mock.calls.length).toBeGreaterThan(before),
   );
 });
+
+it('exposes the selected range and history errors to assistive technology', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockRejectedValue(new TypeError('Failed to fetch')),
+  );
+  render(
+    <HistoryView snapshot={parseSnapshot(empty)} unit="C" timezone={null} />,
+  );
+  // The selected range is announced as pressed; the others are not.
+  expect(screen.getByRole('button', { name: '24h' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  expect(screen.getByRole('button', { name: '1h' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  fireEvent.click(screen.getByRole('button', { name: '7d' }));
+  expect(screen.getByRole('button', { name: '7d' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  // A failed load is an alert, not a silent line of text.
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Could not reach the device',
+  );
+});

@@ -8,6 +8,7 @@ vi.mock('./features/HistoryView', () => ({
   ),
 }));
 beforeEach(() => {
+  localStorage.clear();
   history.replaceState({}, '', '/');
   vi.stubGlobal('matchMedia', () => ({ matches: false }));
   vi.stubGlobal(
@@ -429,4 +430,29 @@ it('shows an error and retries when the display settings cannot be loaded', asyn
   expect(
     screen.queryByText(/Display settings could not be loaded/),
   ).not.toBeInTheDocument();
+});
+it('remembers the chosen theme across reloads', async () => {
+  const first = render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: 'Toggle dark theme' }));
+  expect(
+    screen.getByRole('button', { name: 'Toggle dark theme' }),
+  ).toHaveTextContent('Light theme');
+  first.unmount();
+  render(<App />);
+  expect(
+    screen.getByRole('button', { name: 'Toggle dark theme' }),
+  ).toHaveTextContent('Light theme');
+});
+it('announces a shared sensor bus fault as an alert', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ...empty, bus_fault: true }),
+    }),
+  );
+  render(<App />);
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    /Shared sensor bus fault/,
+  );
 });

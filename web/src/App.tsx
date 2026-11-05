@@ -44,9 +44,24 @@ export default function App() {
   const [path, setPath] = useState(location.pathname);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState('Connecting to device…');
-  const [dark, setDark] = useState(
-    () => matchMedia?.('(prefers-color-scheme: dark)').matches ?? false,
-  );
+  const [dark, setDarkState] = useState(() => {
+    // A choice made with the toggle is remembered; otherwise follow the system setting.
+    try {
+      const saved = localStorage.getItem('theme');
+      if (saved === 'dark' || saved === 'light') return saved === 'dark';
+    } catch {
+      // Storage can be blocked (private windows); the toggle still works for this visit.
+    }
+    return matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+  });
+  const setDark = (next: boolean) => {
+    setDarkState(next);
+    try {
+      localStorage.setItem('theme', next ? 'dark' : 'light');
+    } catch {
+      // Not remembered, still applied.
+    }
+  };
   const [unit, setUnit] = useState<'C' | 'F'>('F');
   const [timezone, setTimezone] = useState<string | null>(null);
   const [probeScan, setProbeScan] = useState<ProbeScanStatus | null>(null);

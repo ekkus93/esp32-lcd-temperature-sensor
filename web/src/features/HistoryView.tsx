@@ -134,6 +134,7 @@ export default function HistoryView({
               key={range.label}
               label={range.label}
               color={hours === range.hours ? 'primary' : 'default'}
+              aria-pressed={hours === range.hours}
               onClick={() => setHours(range.hours)}
             />
           ))}
