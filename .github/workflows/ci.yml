@@ -77,13 +77,15 @@ jobs:
           ./tools/check-sdk.sh
           (cd firmware && idf.py build)
 
-      - name: Check the release image reads the sensor bus
+      - name: Check the release image configuration
         shell: bash
         run: |
           set -euo pipefail
           # A clean build resolves its configuration from sdkconfig.defaults. The normal image must
           # read the DS18B20 bus; a missing option would leave every probe permanently unread.
           grep -qx 'CONFIG_MONITOR_SENSOR_BUS=y' firmware/sdkconfig
+          # A hung task must panic and reset so a pending OTA image can roll back.
+          grep -qx 'CONFIG_ESP_TASK_WDT_PANIC=y' firmware/sdkconfig
 
       - name: Run full host, display, web and firmware verification
         shell: bash

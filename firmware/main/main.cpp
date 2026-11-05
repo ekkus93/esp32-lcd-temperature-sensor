@@ -346,7 +346,14 @@ extern "C" void app_main() {
                 health.authentication_started = auth_started;
                 health.http_server_started = http_started;
                 health.sampling_initialized = bus_status == ESP_OK;
-                if (!monitor::ota_boot_health_ready(health)) {
+                const auto action = monitor::ota_boot_decision(health, esp_timer_get_time() / 1000);
+                if (action == monitor::OtaBootAction::roll_back) {
+                    ESP_LOGE(tag,
+                             "OTA image never became healthy; rolling back to the previous one");
+                    // Returns only if there is no previous valid image to go back to.
+                    esp_ota_mark_app_invalid_rollback_and_reboot();
+                    ESP_LOGE(tag, "Rollback unavailable; the image stays pending");
+                } else if (action == monitor::OtaBootAction::wait) {
                     if (healthy_cycles == 2)
                         ESP_LOGE(tag, "OTA startup services incomplete; image remains pending");
                 } else {

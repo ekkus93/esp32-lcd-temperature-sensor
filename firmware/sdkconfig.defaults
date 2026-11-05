@@ -20,3 +20,5 @@ CONFIG_LV_FONT_MONTSERRAT_24=y
 # The normal image reads the DS18B20 bus on GPIO4. Bare-board tests without a probe and
 # pull-up use sdkconfig.bareboard on top of this file.
 CONFIG_MONITOR_SENSOR_BUS=y
+# A hung task must reset the board so a pending OTA image rolls back instead of staying stuck.
+CONFIG_ESP_TASK_WDT_PANIC=y
