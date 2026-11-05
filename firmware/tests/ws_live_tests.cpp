@@ -91,7 +91,7 @@ int64_t esp_timer_get_time() {
 }
 
 int main() {
-    monitor::WsLive live;
+    monitor::WsLive live(4, 0);
     assert(live.schedule()); // Unconfigured instance does not enqueue work.
     assert(queued_count == 0);
     monitor::AuthService auth;
@@ -241,7 +241,7 @@ int main() {
     // slots between five-second broadcasts. A fifth valid subscriber can
     // replace the expired one immediately, without evicting healthy peers.
     fake_now_us = 1000000;
-    monitor::WsLive admission;
+    monitor::WsLive admission(4, 0);
     admission.configure(reinterpret_cast<httpd_handle_t>(1), auth, [&] { return payload; });
     std::array<std::array<int, 2>, 5> admission_peers{};
     for (auto &pair : admission_peers)
@@ -273,7 +273,7 @@ int main() {
     // A failed nonblocking send can leave a partial RFC 6455 frame. If
     // httpd refuses to close the socket, quarantine it: even after TCP
     // backpressure clears, never send another frame on that stream.
-    monitor::WsLive quarantine;
+    monitor::WsLive quarantine(4, 0);
     quarantine.configure(reinterpret_cast<httpd_handle_t>(1), auth, [&] { return payload; });
     std::array<std::array<int, 2>, 2> quarantine_peers{};
     for (auto &pair : quarantine_peers) {
@@ -324,7 +324,7 @@ int main() {
     // Expired sessions must also be evicted without waiting for the first
     // nonempty snapshot, while an authorized subscriber remains connected.
     fake_now_us = 1000000;
-    monitor::WsLive empty_snapshot;
+    monitor::WsLive empty_snapshot(4, 0);
     empty_snapshot.configure(reinterpret_cast<httpd_handle_t>(1), auth,
                              [&] { return dynamic_payload; });
     std::array<std::array<int, 2>, 2> empty_peers{};
@@ -359,7 +359,7 @@ int main() {
     // without postponing expired-session cleanup; multiple healthy peers
     // must still share one snapshot per broadcast.
     int snapshot_calls = 0;
-    monitor::WsLive lazy_snapshot;
+    monitor::WsLive lazy_snapshot(4, 0);
     lazy_snapshot.configure(reinterpret_cast<httpd_handle_t>(1), auth, [&] {
         ++snapshot_calls;
         return payload;
@@ -392,7 +392,7 @@ int main() {
     // A descriptor can disappear from the HTTP server's WebSocket registry
     // without an explicit WsLive close callback. Reclaim the stale slot and
     // require a fresh authenticated admission if that descriptor is reused.
-    monitor::WsLive stale_registration;
+    monitor::WsLive stale_registration(4, 0);
     stale_registration.configure(reinterpret_cast<httpd_handle_t>(1), auth,
                                  [&] { return payload; });
     int stale_pair[2]{};
@@ -412,6 +412,44 @@ int main() {
     drain(stale_pair[1], payload);
     close(stale_pair[0]);
     close(stale_pair[1]);
+
+    // Public viewers: anyone may subscribe without a session; one slot stays free for the owner.
+    {
+        fake_now_us = 1000000;
+        closed_fds.clear();
+        fail_close = false;
+        monitor::WsLive open_live; // default: 6 clients, 1 reserved for a signed-in owner
+        open_live.configure(reinterpret_cast<httpd_handle_t>(1), auth, [&] { return payload; });
+        std::array<std::array<int, 2>, 7> open_peers{};
+        for (auto &pair : open_peers) {
+            assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pair.data()) == 0);
+            add_websocket(pair[0]);
+        }
+        for (size_t i = 0; i < 5; ++i)
+            assert(open_live.add_client(open_peers[i][0], "")); // anonymous
+        // The sixth anonymous viewer is refused: the last slot belongs to the owner.
+        assert(!open_live.add_client(open_peers[5][0], ""));
+        // The owner still gets in, even with every public slot taken.
+        assert(open_live.add_client(open_peers[5][0], "valid"));
+        // Nobody else fits now, public or owner.
+        assert(!open_live.add_client(open_peers[6][0], "valid"));
+        assert(!open_live.add_client(open_peers[6][0], ""));
+        // An invalid or expired session is still refused; it does not fall back to public.
+        assert(!open_live.add_client(open_peers[6][0], "expired"));
+        // Broadcasts reach anonymous viewers, and session sweeps never close them.
+        fake_now_us = 5000000;
+        assert(open_live.schedule());
+        for (size_t i = 0; i < 6; ++i) {
+            assert(!was_closed(open_peers[i][0]));
+            drain(open_peers[i][1], payload);
+        }
+        for (auto &pair : open_peers) {
+            websocket_fds.erase(std::remove(websocket_fds.begin(), websocket_fds.end(), pair[0]),
+                                websocket_fds.end());
+            close(pair[0]);
+            close(pair[1]);
+        }
+    }
 
     for (auto &pair : admission_peers) {
         close(pair[0]);

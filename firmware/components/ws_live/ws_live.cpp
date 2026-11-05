@@ -16,7 +16,9 @@ bool WsLive::add_client(int fd, const std::string &token) {
     // The HTTP pre-handshake authenticated this token, but the session can
     // expire or be revoked before admission runs. Never reserve a slot for
     // an invalid session, even when a slot is currently available.
-    if (!server_ || !auth_ || fd < 0 || !auth_->authorize(token, esp_timer_get_time() / 1000))
+    const bool owner = !token.empty();
+    if (!server_ || !auth_ || fd < 0 ||
+        (owner && !auth_->authorize(token, esp_timer_get_time() / 1000)))
         return false;
     Client *slot = nullptr;
     for (auto &client : clients_) {
@@ -35,13 +37,24 @@ bool WsLive::add_client(int fd, const std::string &token) {
                       httpd_ws_get_fd_info(server_, client.fd) != HTTPD_WS_CLIENT_WEBSOCKET))
             slot = &client;
     }
-    if (!slot && auth_) {
+    if (slot && !owner) {
+        // A viewer may not take the slots kept for the owner.
+        size_t occupied = 0;
+        for (const auto &client : clients_)
+            if (&client != slot && client.fd >= 0 &&
+                httpd_ws_get_fd_info(server_, client.fd) == HTTPD_WS_CLIENT_WEBSOCKET)
+                ++occupied;
+        if (occupied + 1 + owner_reserve_ > clients_.size())
+            return false;
+    }
+    if (!slot && owner) {
         // An expired or logged-out administrator session must not reserve a
         // live-client slot until the next periodic broadcast. Close it before
         // admitting a newly authenticated subscriber.
         const auto now_ms = esp_timer_get_time() / 1000;
         for (auto &client : clients_) {
-            if (auth_->authorize(client.token, now_ms))
+            // Viewers have no session to expire.
+            if (client.token.empty() || auth_->authorize(client.token, now_ms))
                 continue;
             // Do not overwrite a still-open unauthorized session if the
             // HTTP server refuses the close request. Retry on next admission.
@@ -127,7 +140,7 @@ void WsLive::broadcast(void *context) {
                 client = Client{};
             continue;
         }
-        if (!self.auth_->authorize(client.token, now_ms)) {
+        if (!client.token.empty() && !self.auth_->authorize(client.token, now_ms)) {
             httpd_sess_trigger_close(self.server_, fd);
             continue;
         }

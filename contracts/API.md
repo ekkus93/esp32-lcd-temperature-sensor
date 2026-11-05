@@ -61,8 +61,9 @@ CSV export streams original five-minute buckets and does not use this reducer.
 
 `WS /live` has no per-client queue. Every sample is one complete snapshot frame, sent without
 blocking; a client whose socket cannot take the whole frame at once is closed and must reconnect,
-and the web client does so with backoff and a fresh REST resync. Four live sessions are admitted;
-further clients are refused. Clients are never sent a partial or queued backlog of older frames.
+and the web client does so with backoff and a fresh REST resync. The live stream is public: six clients are admitted, and the last slot is kept for a
+signed-in owner so viewers cannot lock the owner out; further clients are refused. The upgrade still
+requires the device's own `Origin` and `Host`. Clients are never sent a partial or queued backlog of older frames.
 
 `POST /ota` checks that the image's application descriptor names this product (`project_name`)
 before writing anything to the inactive slot; a different product is refused with `422`. This is a

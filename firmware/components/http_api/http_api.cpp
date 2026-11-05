@@ -302,7 +302,7 @@ bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &histor
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.uri_match_fn = httpd_uri_match_wildcard;
     config.max_uri_handlers = 12;
-    config.max_open_sockets = 6;
+    config.max_open_sockets = 8; // six live clients (one reserved for the owner) plus requests
     config.lru_purge_enable = true;
     config.stack_size = 16384;
     config.core_id = 1; // Keep HTTP/KDF work off the CPU0 acquisition task.
@@ -434,13 +434,15 @@ esp_err_t HttpApi::dispatch(httpd_req_t *request) {
 }
 esp_err_t HttpApi::ws_pre(httpd_req_t *r) {
     auto &self = *static_cast<HttpApi *>(r->user_ctx);
+    // Live readings are public, but the upgrade still needs the device's own Origin so another
+    // site's page cannot read the stream. A session, when present, is kept (for the owner slot).
     auto session = self.session(r, false);
-    if (!self.origin(r, true) || !session) {
+    if (!self.origin(r, true)) {
         error(r, "403 Forbidden", "WebSocket authorization failed");
         return ESP_FAIL;
     }
     const int fd = httpd_req_to_sockfd(r);
-    if (!self.ws_live_.add_client(fd, session->token)) {
+    if (!self.ws_live_.add_client(fd, session ? session->token : std::string{})) {
         error(r, "503 Service Unavailable", "Socket limit");
         return ESP_FAIL;
     }
