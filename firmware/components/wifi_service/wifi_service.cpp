@@ -77,7 +77,9 @@ esp_err_t WifiService::start(const std::string &hostname) {
         } else {
             // The name resolves from here on; the browsable service entry below is a bonus.
             mdns_ready_ = true;
-            result = mdns_service_add(nullptr, "_http", "_tcp", 80, nullptr, 0);
+            // Network browsers list the device with these details.
+            mdns_txt_item_t txt[] = {{"path", "/"}, {"model", "temperature-monitor"}};
+            result = mdns_service_add(nullptr, "_http", "_tcp", 80, txt, 2);
             if (result != ESP_OK)
                 ESP_LOGW("wifi_control", "mDNS HTTP service advertisement unavailable: %s",
                          esp_err_to_name(result));

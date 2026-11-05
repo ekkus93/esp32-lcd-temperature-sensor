@@ -417,6 +417,11 @@ std::string HttpApi::snapshot() {
     auto *wifi = cJSON_AddObjectToObject(object.get(), "wifi");
     auto network = wifi_->info();
     cJSON_AddStringToObject(wifi, "state", network.state.c_str());
+    // The name mDNS is really using (it changes after a conflict); null when mDNS is unavailable.
+    if (const auto name = wifi_->mdns_hostname(); !name.empty())
+        cJSON_AddStringToObject(wifi, "mdns_hostname", name.c_str());
+    else
+        cJSON_AddNullToObject(wifi, "mdns_hostname");
     auto *history = cJSON_AddObjectToObject(object.get(), "logging");
     cJSON_AddBoolToObject(history, "healthy", logging);
     cJSON_AddNumberToObject(history, "interval_seconds", 300);

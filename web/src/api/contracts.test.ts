@@ -144,3 +144,27 @@ it('reads display settings from the public response and from the owner response'
     'Invalid device settings response',
   );
 });
+
+it('reports the mDNS name in the snapshot, or null when mDNS is unavailable', () => {
+  const withName = {
+    ...empty,
+    wifi: { state: 'connected', mdns_hostname: 'temperature-monitor-2' },
+  };
+  expect(parseSnapshot(withName).wifi.mdns_hostname).toBe(
+    'temperature-monitor-2',
+  );
+  expect(
+    parseSnapshot({ ...empty, wifi: { state: 'offline', mdns_hostname: null } })
+      .wifi.mdns_hostname,
+  ).toBeNull();
+  // The field is always present, and must be a valid single label.
+  expect(() => parseSnapshot({ ...empty, wifi: { state: 'offline' } })).toThrow(
+    'Invalid device snapshot',
+  );
+  expect(() =>
+    parseSnapshot({
+      ...empty,
+      wifi: { state: 'offline', mdns_hostname: 'Bad Name.local' },
+    }),
+  ).toThrow('Invalid device snapshot');
+});

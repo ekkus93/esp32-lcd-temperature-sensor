@@ -7,7 +7,7 @@ export const empty = {
   sensors: [],
   bus_fault: false,
   clock: { utc: null, synchronized: false },
-  wifi: { state: 'offline' },
+  wifi: { state: 'offline', mdns_hostname: null },
   firmware: { version: '0.1.0', partition: 'ota_0', ota_state: 'valid' },
   logging: {
     healthy: false,

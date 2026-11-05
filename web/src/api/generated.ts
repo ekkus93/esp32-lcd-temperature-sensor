@@ -21,6 +21,7 @@ export interface Snapshot {
   };
   wifi: {
     state: 'offline' | 'connecting' | 'connected' | 'setup';
+    mdns_hostname: string | null;
   };
   logging: {
     healthy: boolean;

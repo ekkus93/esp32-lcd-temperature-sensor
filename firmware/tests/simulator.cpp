@@ -17,7 +17,8 @@ int main(int argc, char **argv) {
     registry.sample(readings, 0);
     std::cout << "{\"version\":1,\"boot_id\":\"simulator\",\"sequence\":1,\"simulated\":true,"
                  "\"uptime_ms\":0,\"bus_fault\":false,"
-                 "\"clock\":{\"utc\":null,\"synchronized\":false},\"wifi\":{\"state\":\"offline\"},"
+                 "\"clock\":{\"utc\":null,\"synchronized\":false},\"wifi\":{\"state\":\"offline\","
+                 "\"mdns_hostname\":null},"
                  "\"firmware\":{\"version\":\"0.1.0\",\"partition\":\"ota_0\","
                  "\"ota_state\":\"valid\"},"
                  "\"logging\":{\"healthy\":false,\"interval_seconds\":300,"

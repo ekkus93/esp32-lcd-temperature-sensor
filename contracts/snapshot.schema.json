@@ -60,10 +60,14 @@
     "wifi": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["state"],
+      "required": ["state", "mdns_hostname"],
       "properties": {
         "state": {
           "enum": ["offline", "connecting", "connected", "setup"]
+        },
+        "mdns_hostname": {
+          "type": ["string", "null"],
+          "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
         }
       }
     },
