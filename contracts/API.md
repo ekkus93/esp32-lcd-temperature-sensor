@@ -61,6 +61,11 @@ blocking; a client whose socket cannot take the whole frame at once is closed an
 and the web client does so with backoff and a fresh REST resync. Four live sessions are admitted;
 further clients are refused. Clients are never sent a partial or queued backlog of older frames.
 
+`POST /ota` checks that the image's application descriptor names this product (`project_name`)
+before writing anything to the inactive slot; a different product is refused with `422`. This is a
+sanity check, not authentication: images are not signed and secure boot is out of scope, so
+anyone with an administrator session can install any image built for this project.
+
 JSON request bodies are limited to 2,048 bytes and five seconds of total receive
 time. Incomplete or timed-out connections are closed; the time spent hashing a
 password and OTA upload handling has separate limits.

@@ -5,6 +5,7 @@
 #include "esp_timer.h"
 #include "nvs.h"
 #include "nvs_flash.h"
+#include "ota_image_check.hpp"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -165,7 +166,7 @@ esp_err_t handle_ota_upload(httpd_req_t *request) {
         return response(request, "409 Conflict", "An update is already in progress");
     UploadGuard guard;
 
-    if (request->content_len < static_cast<int>(sizeof(esp_image_header_t)))
+    if (request->content_len < static_cast<int>(ota_check_prefix_bytes))
         return response(request, "400 Bad Request", "Firmware image is empty or truncated");
     size_t content_type_length = httpd_req_get_hdr_value_len(request, "Content-Type");
     if (content_type_length != strlen("application/octet-stream"))
@@ -182,13 +183,33 @@ esp_err_t handle_ota_upload(httpd_req_t *request) {
     if (!create_reboot_timer())
         return response(request, "503 Service Unavailable", "Could not schedule update restart");
 
-    esp_ota_handle_t handle = 0;
-    if (esp_ota_begin(partition, request->content_len, &handle) != ESP_OK)
-        return response(request, "503 Service Unavailable", "Could not start firmware update");
-
+    // Read the start of the image and check it names this product before anything is written to
+    // the OTA slot. (A sanity check, not authentication: images are not signed.)
     std::array<uint8_t, 1024> chunk{};
     size_t received = 0;
     const int64_t upload_started_us = esp_timer_get_time();
+    size_t prefix = 0;
+    while (prefix < ota_check_prefix_bytes) {
+        if (esp_timer_get_time() - upload_started_us > 120000000)
+            return response(request, "408 Request Timeout", "Firmware upload exceeded 120 seconds");
+        const int count = httpd_req_recv(request, reinterpret_cast<char *>(chunk.data()) + prefix,
+                                         ota_check_prefix_bytes - prefix);
+        if (count <= 0)
+            return response(request, "400 Bad Request", "Firmware upload was interrupted");
+        prefix += static_cast<size_t>(count);
+    }
+    if (!ota_image_matches_project(chunk.data(), prefix, esp_app_get_description()->project_name))
+        return response(request, "422 Unprocessable Content",
+                        "Firmware image is not for this product");
+
+    esp_ota_handle_t handle = 0;
+    if (esp_ota_begin(partition, request->content_len, &handle) != ESP_OK)
+        return response(request, "503 Service Unavailable", "Could not start firmware update");
+    if (esp_ota_write(handle, chunk.data(), prefix) != ESP_OK) {
+        esp_ota_abort(handle);
+        return response(request, "400 Bad Request", "Firmware upload was interrupted");
+    }
+    received = prefix;
     while (received < static_cast<size_t>(request->content_len)) {
         if (esp_timer_get_time() - upload_started_us > 120000000) {
             esp_ota_abort(handle);

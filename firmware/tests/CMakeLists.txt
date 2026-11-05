@@ -179,3 +179,8 @@ add_executable(storage_error_limiter_tests storage_error_limiter_tests.cpp)
 target_link_libraries(storage_error_limiter_tests PRIVATE monitor_core)
 target_compile_options(storage_error_limiter_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_test(NAME storage_error_limiter COMMAND storage_error_limiter_tests)
+
+add_executable(ota_image_check_tests ota_image_check_tests.cpp)
+target_include_directories(ota_image_check_tests PRIVATE ../components/ota_service/include)
+target_compile_options(ota_image_check_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
+add_test(NAME ota_image_check COMMAND ota_image_check_tests)
