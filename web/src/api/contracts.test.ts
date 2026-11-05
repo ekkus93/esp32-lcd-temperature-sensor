@@ -118,6 +118,7 @@ it('reads display settings from the public response and from the owner response'
     trends_seconds: 10,
     lookback_minutes: 60,
     timezone: 'America/Los_Angeles',
+    hostname: 'temperature-monitor',
   };
   // Anonymous: no etag, revision or NTP server.
   body = display;
@@ -132,6 +133,7 @@ it('reads display settings from the public response and from the owner response'
     revision: 1,
     writable: true,
     ntp_server: 'pool.ntp.org',
+    hostname: 'temperature-monitor',
   };
   expect(await getDisplaySettings()).toEqual({
     units: 'F',

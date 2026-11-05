@@ -23,4 +23,5 @@ export interface DeviceSettings {
     | 'Asia/Tokyo'
     | 'Australia/Sydney';
   ntp_server: string;
+  hostname: string;
 }

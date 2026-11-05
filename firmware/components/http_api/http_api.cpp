@@ -641,7 +641,7 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                     }
                     keys.push_back(key);
                     if (key == "units" || key == "display_mode" || key == "timezone" ||
-                        key == "ntp_server") {
+                        key == "ntp_server" || key == "hostname") {
                         if (!cJSON_IsString(field)) {
                             valid = false;
                             break;
@@ -661,6 +661,8 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                             options.extended = value == "extended";
                         } else if (key == "timezone")
                             options.timezone = value;
+                        else if (key == "hostname")
+                            options.hostname = value;
                         else
                             options.ntp_server = value;
                     } else if (key == "overview_seconds" || key == "trends_seconds" ||
@@ -711,6 +713,7 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
             cJSON_AddNumberToObject(output.get(), "trends_seconds", options.trends_seconds);
             cJSON_AddNumberToObject(output.get(), "lookback_minutes", options.lookback_minutes);
             cJSON_AddStringToObject(output.get(), "timezone", options.timezone.c_str());
+            cJSON_AddStringToObject(output.get(), "hostname", options.hostname.c_str());
             // The NTP server is the owner's: anonymous readers get the display fields only.
             if (s)
                 cJSON_AddStringToObject(output.get(), "ntp_server", options.ntp_server.c_str());

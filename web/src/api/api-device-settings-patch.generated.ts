@@ -19,4 +19,5 @@ export interface DeviceSettingsPatch {
     | 'Asia/Tokyo'
     | 'Australia/Sydney';
   ntp_server?: string;
+  hostname?: string;
 }

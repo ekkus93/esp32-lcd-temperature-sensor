@@ -218,6 +218,7 @@ it('applies a saved timezone to History without reloading the app', async () => 
     lookback_minutes: 60,
     timezone: 'UTC',
     ntp_server: 'pool.ntp.org',
+    hostname: 'temperature-monitor',
   };
   vi.stubGlobal(
     'fetch',
@@ -412,6 +413,7 @@ it('shows an error and retries when the display settings cannot be loaded', asyn
     lookback_minutes: 60,
     timezone: 'UTC',
     ntp_server: 'pool.ntp.org',
+    hostname: 'temperature-monitor',
   };
   let settingsCalls = 0;
   vi.stubGlobal(
@@ -491,6 +493,7 @@ function stubDevice(options: { signedIn: boolean }) {
     lookback_minutes: 60,
     timezone: 'UTC',
     ntp_server: 'pool.ntp.org',
+    hostname: 'temperature-monitor',
   };
   const calls: string[] = [];
   vi.stubGlobal(

@@ -18,9 +18,17 @@ const char *timezone_rule(const std::string &id) {
             return rule.second;
     return nullptr;
 }
+bool valid_hostname(const std::string &name) {
+    if (name.empty() || name.size() > 63 || name.front() == '-' || name.back() == '-')
+        return false;
+    for (unsigned char c : name)
+        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-'))
+            return false;
+    return true;
+}
 bool valid_device_options(const DeviceOptions &o) {
-    if (!valid_display_options(o) || !timezone_rule(o.timezone) || o.ntp_server.empty() ||
-        o.ntp_server.size() > 253)
+    if (!valid_display_options(o) || !timezone_rule(o.timezone) || !valid_hostname(o.hostname) ||
+        o.ntp_server.empty() || o.ntp_server.size() > 253)
         return false;
     unsigned label = 0;
     bool hyphen = false;
@@ -56,9 +64,9 @@ std::string encode_device_options(const DeviceOptions &o) {
         return {};
     std::ostringstream out;
     out.imbue(std::locale::classic());
-    out << "TMD1 " << o.fahrenheit << ' ' << o.extended << ' ' << o.overview_seconds << ' '
+    out << "TMD2 " << o.fahrenheit << ' ' << o.extended << ' ' << o.overview_seconds << ' '
         << o.trends_seconds << ' ' << o.lookback_minutes << ' ' << std::quoted(o.timezone) << ' '
-        << std::quoted(o.ntp_server) << '\n';
+        << std::quoted(o.ntp_server) << ' ' << std::quoted(o.hostname) << '\n';
     auto data = out.str();
     return data + std::to_string(checksum(data));
 }
@@ -80,8 +88,13 @@ std::optional<DeviceOptions> decode_device_options(const std::string &bytes) {
     DeviceOptions o;
     std::string magic;
     if (!(in >> magic >> o.fahrenheit >> o.extended >> o.overview_seconds >> o.trends_seconds >>
-          o.lookback_minutes >> std::quoted(o.timezone) >> std::quoted(o.ntp_server)) ||
-        magic != "TMD1")
+          o.lookback_minutes >> std::quoted(o.timezone) >> std::quoted(o.ntp_server)))
+        return std::nullopt;
+    // TMD1 (before the hostname existed) loads with the default hostname; TMD2 adds it.
+    if (magic == "TMD2") {
+        if (!(in >> std::quoted(o.hostname)))
+            return std::nullopt;
+    } else if (magic != "TMD1")
         return std::nullopt;
     in >> std::ws;
     if (!in.eof() || !valid_device_options(o))

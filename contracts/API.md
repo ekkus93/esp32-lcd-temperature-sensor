@@ -8,7 +8,7 @@ IDs are lowercase 16-character hexadecimal ROM bytes in wire order, never list
 indexes. Reads are public and changes need the owner: see `firmware/components/monitor_core/route_access.cpp`
 for the single access table. `GET /auth/state` returns `{enrolled, signed_in, csrf?}`; `csrf` appears only
 when signed in. No schema version was bumped for `signed_in` or the public settings schema: the only client
-is the web app embedded in the same firmware image, so client and device cannot differ. History queries reject uppercase hex in `rom_id` and `boot_id`, and a `rom_id` given twice, with `400`. Unknown temperatures and UTC are `null`, not zero or fabricated time.
+is the web app embedded in the same firmware image, so client and device cannot differ. Device settings carry a `hostname` (one lowercase RFC 1123 label, default `temperature-monitor`): it is public, can be changed by the owner, and the device is reachable as `http://<hostname>.local`. The settings record moved from `TMD1` to `TMD2` (a `TMD1` record still loads with the default hostname); as with `signed_in`, no schema version was bumped because the embedded web app is the only client. History queries reject uppercase hex in `rom_id` and `boot_id`, and a `rom_id` given twice, with `400`. Unknown temperatures and UTC are `null`, not zero or fabricated time.
 After editing a schema, regenerate checked TypeScript declarations with
 `npm --prefix web run contract:generate`.
 

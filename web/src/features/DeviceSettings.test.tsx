@@ -14,6 +14,7 @@ const settings = {
   lookback_minutes: 60,
   timezone: 'UTC',
   ntp_server: 'pool.ntp.org',
+  hostname: 'temperature-monitor',
 };
 afterEach(() => vi.unstubAllGlobals());
 it('saves device preferences with an update precondition and applies shared settings', async () => {

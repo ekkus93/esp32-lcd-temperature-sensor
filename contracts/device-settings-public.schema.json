@@ -11,7 +11,8 @@
     "overview_seconds",
     "trends_seconds",
     "lookback_minutes",
-    "timezone"
+    "timezone",
+    "hostname"
   ],
   "properties": {
     "schema_version": {
@@ -48,6 +49,7 @@
         "Asia/Tokyo",
         "Australia/Sydney"
       ]
-    }
+    },
+    "hostname": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$" }
   }
 }

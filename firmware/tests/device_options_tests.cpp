@@ -39,7 +39,7 @@ int main() {
         CHECK(!decode_device_options(bytes.substr(0, i)));
     }
     auto newer = bytes;
-    newer[3] = '2';
+    newer[3] = '3'; // a future format this firmware does not know
     CHECK(!decode_device_options(newer));
     for (const auto &server :
          {"http://time.example.org", "-bad.example", "bad-.example", "bad..example", "a b", ""}) {
@@ -52,6 +52,49 @@ int main() {
     options.timezone = "UTC";
     options.overview_seconds = 301;
     CHECK(!valid_device_options(options));
+    // The hostname is one lowercase RFC 1123 label and defaults to "temperature-monitor".
+    {
+        DeviceOptions named;
+        CHECK(named.hostname == "temperature-monitor");
+        for (const char *good : {"temperature-monitor", "a", "freezer-1", "x9", "0abc",
+                                 "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz0123456789a"})
+            CHECK(valid_hostname(good));
+        // 64 characters, empty, edges, uppercase, dots, underscores, spaces, non-ASCII.
+        for (const char *bad :
+             {"", "-a", "a-", "-", "Freezer", "A", "a.b", "a_b", "a b", "temperature-monitor.local",
+              "caf\xc3\xa9", "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz0123456789ab"}) {
+            CHECK(!valid_hostname(bad));
+            auto bad_options = named;
+            bad_options.hostname = bad;
+            CHECK(!valid_device_options(bad_options));
+        }
+        named.hostname = "freezer-1";
+        const auto round_trip = decode_device_options(encode_device_options(named));
+        CHECK(round_trip && round_trip->hostname == "freezer-1");
+        CHECK(encode_device_options(named).rfind("TMD2 ", 0) == 0);
+    }
+    // A saved TMD1 record (before the hostname existed) still loads, with the default hostname,
+    // and every other saved choice is kept.
+    {
+        const std::string legacy_body =
+            "TMD1 0 1 30 15 20 \"Europe/Berlin\" \"time.example.org\"\n";
+        uint32_t sum = 2166136261u;
+        for (unsigned char c : legacy_body) {
+            sum ^= c;
+            sum *= 16777619u;
+        }
+        const auto migrated = decode_device_options(legacy_body + std::to_string(sum));
+        CHECK(migrated);
+        CHECK(!migrated->fahrenheit && migrated->extended && migrated->overview_seconds == 30 &&
+              migrated->trends_seconds == 15 && migrated->lookback_minutes == 20 &&
+              migrated->timezone == "Europe/Berlin" && migrated->ntp_server == "time.example.org");
+        CHECK(migrated->hostname == "temperature-monitor");
+        // Re-saving writes the new format.
+        CHECK(encode_device_options(*migrated).rfind("TMD2 ", 0) == 0);
+        // A damaged TMD1 record is still refused.
+        auto damaged = legacy_body + std::to_string(sum + 1);
+        CHECK(!decode_device_options(damaged));
+    }
     // Verify DST using libc under the same explicit POSIX rules sent to newlib.
     struct ZoneCase {
         const char *id;

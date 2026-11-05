@@ -19,4 +19,5 @@ export interface PublicDeviceSettings {
     | 'Europe/Berlin'
     | 'Asia/Tokyo'
     | 'Australia/Sydney';
+  hostname: string;
 }

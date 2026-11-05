@@ -90,7 +90,7 @@
 
 ## Phase R8 — mDNS (feature, §13)
 
-- [ ] **R08-01** `hostname` device setting with RFC 1123 validation; settings record `TMD2` with `TMD1` migration; schemas and version decision updated (§13.1, §13.2). Host tests.
+- [x] **R08-01** `hostname` device setting with RFC 1123 validation; settings record `TMD2` with `TMD1` migration; schemas and version decision updated (§13.1, §13.2). Host tests. Done (host tests; wiring built, not run on the board): `hostname` device setting (`valid_hostname`: one lowercase RFC 1123 label, 1-63, no leading/trailing hyphen, default `temperature-monitor`); the settings record is now `TMD2` and a `TMD1` record loads with the default hostname and every other saved choice kept (tested, a damaged `TMD1` still refused); `GET`/`PATCH /settings` carry it; the three settings schemas, generated types, simulator and `API.md` updated, with the no-version-bump decision recorded (embedded client). Renaming does not yet re-register mDNS (R08-02).
 - [ ] **R08-02** Rename re-registers mDNS without reboot and updates the Host allow-list; active name read back after conflicts (§13.1, D4).
 - [ ] **R08-03** Advertise `_http._tcp` with TXT `path=/` and `model=temperature-monitor`; `GET /status` includes `mdns_hostname`; mDNS failure reported, IP access unaffected (§13.1).
 - [ ] **R08-04** Show `http://<name>.local` in web Settings and on the LCD setup screen once the station is connected (§13.1). Display and web tests.

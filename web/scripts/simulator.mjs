@@ -113,6 +113,7 @@ const server = http.createServer((req, res) => {
         lookback_minutes: 60,
         timezone: 'America/Los_Angeles',
         ntp_server: 'pool.ntp.org',
+        hostname: 'temperature-monitor',
       }),
     );
   else if (req.url === '/api/v1/status') res.end(JSON.stringify(snapshot));
