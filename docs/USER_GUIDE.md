@@ -24,8 +24,8 @@ seconds per device, so a refused request just needs a moment before you retry.
 
 Open **Sensors** and warm one probe while watching its live value to match it
 to a stable ROM address. Set a name and optional short LCD label, enable or
-disable monitoring, and choose display order. Calibration adds a fixed Celsius
-offset. Low/high alarm thresholds can be independently left blank. Hysteresis
+disable monitoring, and choose display order. Calibration adds a fixed offset
+(entered in the unit you selected, stored in Celsius). Low/high alarm thresholds can be independently left blank. Hysteresis
 sets the return margin, persistence sets how long a condition must remain before
 an alert changes, and the disconnect switch controls that probe's disconnect
 alerts. Save commits settings before applying them. The editor confirms success
@@ -88,10 +88,22 @@ unknown until synchronization succeeds. Settings reports the last successful
 NTP sync in UTC and its age from the monotonic clock; before the first sync it
 states that the time is unknown rather than inferring freshness from wall time.
 
-The physical LCD is currently disabled and has not passed panel/electrical
-acceptance. Display preferences can be stored and viewed in Settings, but do not
-imply that the LCD is active. The browser is read-only with respect to sensor
+**The LCD** is a read-only display. Readings are shown in the unit you selected with the other
+unit beside them (for example `68.0 °F` and `20.0 °C`), so you never have to convert. In Extended
+mode it alternates Overview and Trends; a footer reports Wi-Fi, history logging problems (`Log ERR`)
+and a shared sensor-bus fault. While the setup window is open the screen alternates the Wi-Fi setup
+page, the owner-code page and the normal readings. Holding the BOOT button shows a progress bar.
+Whether the panel itself has passed its physical acceptance checks is tracked in
+[`LCD_BENCH_CHECKLIST.md`](LCD_BENCH_CHECKLIST.md). The browser is read-only with respect to sensor
 measurements; it does not acknowledge or clear active alarms.
+
+**Finding the device on your network.** Besides its IP address, the device answers to
+`http://temperature-monitor.local` (the **Network name** in Settings, which you can change; it must
+be one lowercase word with letters, digits and hyphens). Settings shows the address in use and the
+setup screen offers it once the device is on your Wi-Fi. If another device already uses the name, the
+monitor takes the next free one (for example `temperature-monitor-2`) and Settings shows the name it
+really got. Some systems cannot resolve `.local` names (Android before version 12, and Linux without
+Avahi or nss-mdns); use the IP address there.
 
 ## Firmware updates and security
 

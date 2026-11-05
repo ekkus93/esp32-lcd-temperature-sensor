@@ -92,13 +92,35 @@ images are not signed and secure boot is out of scope.
 
 ## Development implementation evidence
 
-The current firmware implements HTTP/SameSite/HttpOnly sessions, a unique WPA2
-setup password, a random 256-bit one-time bootstrap secret, and PBKDF2-HMAC-SHA256
-with 100,000 iterations and a 128-bit random salt. A known-answer check runs at
-startup. The measured KDF cost on the current 160 MHz S3 is approximately 14.7–14.8
-seconds; login/enrollment show a waiting state. Failed login cooldown begins
-**after** hashing completes and increases up to 60 seconds, so expensive failures
-cannot continuously occupy the HTTP task. Sampling runs separately.
+The current firmware implements HTTP/SameSite/HttpOnly sessions, a random per-device WPA2 setup
+key, a random one-time owner code, and a PBKDF2-HMAC-SHA256 password verifier (100,000 iterations,
+128-bit random salt). A known-answer check of the key derivation runs at startup and fails closed
+(authentication unavailable) rather than crashing.
+
+**Setup secrets are short on purpose, because they are typed by hand from the LCD:**
+
+- **Wi-Fi setup key:** 12 characters from a 32-symbol alphabet without `0`, `1`, `I` and `O`:
+  60 bits. It protects the setup access point, which is only open for a limited time after a BOOT
+  hold (and for ten minutes after a failed Wi-Fi attempt), not permanently. Anyone who captures a
+  join handshake while the access point is open could try keys offline; 60 random bits make that
+  expensive, not impossible for a determined attacker with large resources, which is why the window
+  is short.
+- **Owner code:** 16 characters from the same alphabet: 80 bits, one time, shown on the LCD and
+  over USB. What is typed is normalised (case, spaces and dashes are ignored); a malformed entry is
+  reported as such and is not counted as a guess, a wrong one starts a five-second spacing before
+  the next attempt, and enrollment only works while the setup window is open. Once an owner exists
+  the code is erased. An older 256-bit code still stored on a device keeps working exactly as
+  typed until the next start replaces it with the shorter format.
+- **Why not longer:** a 32-character code cannot realistically be read from a 1.8-inch screen and
+  typed on a phone. The limits above (physical BOOT hold, closing window, spacing between guesses,
+  one-time use) are what protect it.
+
+**Login:** a wrong password makes that client wait 5, 10, 20, 40 and then 60 seconds, per client
+address, so one address cannot lock the owner out from another; only one password check runs at a
+time and a refused attempt answers `429` with `Retry-After`. The password check is deliberately slow:
+about 14.7 seconds was measured on the 160 MHz ESP32-S3 earlier, and a login on 2026-11-05 took 30.7
+seconds, so the sign-in screen shows a waiting state and the check runs on its own task so sampling
+and the other pages keep working. Passwords are 12 to 128 characters.
 
 Physical recovery requires the explicit USB command
 `RESET_ADMIN_CREDENTIALS CONFIRM`. It removes only administrator verifier/bootstrap
