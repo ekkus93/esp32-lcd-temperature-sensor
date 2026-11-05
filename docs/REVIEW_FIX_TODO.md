@@ -68,7 +68,7 @@
 
 ## Phase R6 — Web application (P2/P3)
 
-- [ ] **R06-01** Failed resync keeps live values shown as stale (§8.2).
+- [x] **R06-01** Failed resync keeps live values shown as stale (§8.2). Done (web tests): a failed REST resync no longer raises the stale banner while the socket is open and delivering; when the connection really drops, readings stay on screen dimmed with a Stale chip instead of turning into dashes. Two live tests (healthy-socket resync failure, failed first load) and one App test.
 - [ ] **R06-02** `request()` checks status before parsing; readable errors; 401 still opens sign-in (§8.2).
 - [ ] **R06-03** Empty display position gives a field error (§8.2).
 - [ ] **R06-04** `temperature()` unit argument required; failed `getSettings` shows an error and retries (§8.2).

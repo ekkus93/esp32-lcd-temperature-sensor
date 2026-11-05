@@ -233,8 +233,12 @@ export default function App() {
                   <Card key={s.rom_id}>
                     <CardContent>
                       <Typography variant="subtitle1">{s.name}</Typography>
-                      <Typography className="reading" variant="h3">
-                        {error ? '—' : temperature(s.temperature_c, unit)}
+                      <Typography
+                        className="reading"
+                        variant="h3"
+                        sx={{ opacity: error ? 0.5 : 1 }}
+                      >
+                        {temperature(s.temperature_c, unit)}
                       </Typography>
                       <Chip
                         size="small"

@@ -47,7 +47,12 @@ export function subscribeLive(
       const next = await getSnapshot(request.signal);
       if (!stopped) accept(next, true, baseline);
     } catch (e) {
-      if (!stopped)
+      // A failed resync is only a problem when live data is not arriving either. While the
+      // socket is open and recent, the values on screen are current: do not mark them stale.
+      const liveIsHealthy =
+        socket?.readyState === WebSocket.OPEN &&
+        Date.now() - lastMessage < 15000;
+      if (!stopped && !liveIsHealthy)
         onError(e instanceof Error ? e.message : 'Live connection lost');
     } finally {
       clearTimeout(timeout);

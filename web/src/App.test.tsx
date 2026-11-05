@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import App from './App';
 import { empty } from './api/fixtures';
@@ -316,4 +316,51 @@ it('explains unavailable storage without implying healthy logging', async () => 
       /Storage capacity is unavailable until the history filesystem mounts/,
     ),
   ).toBeInTheDocument();
+});
+it('keeps the last readings visible, marked stale, when the live connection drops', async () => {
+  const sockets: { onclose: (() => void) | null }[] = [];
+  class FakeSocket {
+    onopen: (() => void) | null = null;
+    onmessage: ((e: { data: unknown }) => void) | null = null;
+    onclose: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    readyState = 0;
+    constructor() {
+      sockets.push(this);
+    }
+    close() {
+      this.onclose?.();
+    }
+  }
+  vi.stubGlobal('WebSocket', FakeSocket);
+  const snapshot = {
+    ...empty,
+    uptime_ms: 10000,
+    sensors: [
+      {
+        rom_id: '2801000000000029',
+        name: 'Freezer',
+        state: 'normal',
+        temperature_c: -18.5,
+        last_seen_ms: 5000,
+        enabled: true,
+        order: 0,
+      },
+    ],
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({ ok: true, json: async () => snapshot }),
+  );
+  render(<App />);
+  expect(await screen.findByText('-1.3 °F')).toBeInTheDocument();
+  await act(async () => {
+    sockets[0].onclose?.();
+  });
+  expect(
+    await screen.findByText(/Live connection lost; readings are stale/),
+  ).toBeInTheDocument();
+  // The reading stays on screen, flagged stale, instead of turning into a dash.
+  expect(screen.getByText('-1.3 °F')).toBeInTheDocument();
+  expect(screen.getByText('Stale')).toBeInTheDocument();
 });

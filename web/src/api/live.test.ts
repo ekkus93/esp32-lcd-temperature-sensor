@@ -7,11 +7,14 @@ class FakeSocket {
   onmessage: ((e: { data: unknown }) => void) | null = null;
   onclose: (() => void) | null = null;
   onerror: (() => void) | null = null;
+  static OPEN = 1;
+  readyState = 0;
   closeCalls = 0;
   constructor() {
     FakeSocket.instances.push(this);
   }
   open() {
+    this.readyState = FakeSocket.OPEN;
     this.onopen?.();
   }
   close() {
@@ -151,4 +154,27 @@ it('rejects snapshots from an already retired boot', async () => {
     data: JSON.stringify({ ...empty, boot_id: 'first', sequence: 999 }),
   });
   expect(receive.mock.calls.at(-1)![0].boot_id).toBe('second');
+});
+it('keeps showing live values when a resync fails while the socket is healthy', async () => {
+  const receive = vi.fn();
+  const error = vi.fn();
+  stop = subscribeLive(receive, error);
+  await vi.advanceTimersByTimeAsync(1);
+  const socket = FakeSocket.instances[0];
+  socket.open();
+  socket.onmessage?.({ data: JSON.stringify({ ...empty, sequence: 1 }) });
+  error.mockClear();
+  vi.mocked(fetch).mockRejectedValue(new Error('Network down'));
+  // A gap asks for a REST resync, which fails; live data is still arriving, so nothing is stale.
+  socket.onmessage?.({ data: JSON.stringify({ ...empty, sequence: 9 }) });
+  await vi.advanceTimersByTimeAsync(50);
+  expect(fetch).toHaveBeenCalledTimes(2); // the resync really ran (and failed)
+  expect(error).not.toHaveBeenCalled();
+});
+it('reports a failed first load when no live data has arrived', async () => {
+  const error = vi.fn();
+  vi.mocked(fetch).mockRejectedValue(new Error('Network down'));
+  stop = subscribeLive(vi.fn(), error);
+  await vi.advanceTimersByTimeAsync(1);
+  expect(error).toHaveBeenCalledWith('Network down');
 });
