@@ -12,7 +12,14 @@ class HistoryStore {
                           std::size_t segment_bytes = 32 * 1024);
     bool recover();
     bool append(const Bucket &bucket);
-    bool visit(const std::function<bool(const Bucket &)> &visitor) const;
+    // Completed segments that fail validation are skipped, not fatal; `skipped` (optional)
+    // receives how many this visit passed over. A damaged active segment still fails the visit.
+    bool visit(const std::function<bool(const Bucket &)> &visitor,
+               std::size_t *skipped = nullptr) const;
+    // Damaged completed segments found by the last recover(); they are kept on disk untouched.
+    std::size_t skipped_segments() const {
+        return skipped_segments_;
+    }
     std::size_t bytes() const;
 
   private:
@@ -22,6 +29,9 @@ class HistoryStore {
     unsigned active_ = 0;
     // No writes before first successful recovery or after a failed append/recovery.
     bool append_ready_ = false;
+    // The last append failed on I/O (not on an integrity check), so the next one may try again.
+    bool retry_after_error_ = false;
+    std::size_t skipped_segments_ = 0;
     // Detect deletion of the active segment after a successful recovery/write.
     bool active_segment_exists_ = false;
     // Recovered/committed byte count of the active segment (including rollover).

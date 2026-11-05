@@ -302,6 +302,7 @@ bool HistoryStore::recover() {
     active_size_ = 0;
     active_fingerprint_ = 14695981039346656037ull;
     sealed_segments_.clear();
+    skipped_segments_ = 0;
     if (mkdir(directory_.c_str(), 0700) != 0) {
         struct stat info {};
         if (stat(directory_.c_str(), &info) != 0 || !S_ISDIR(info.st_mode))
@@ -333,60 +334,67 @@ bool HistoryStore::recover() {
         if (input.bad())
             return recovery_failure(__LINE__);
         if (good != file_size(path(number))) {
-            // Only the active tail may be repaired. Never alter completed segments.
-            if (number != active_)
-                return recovery_failure(__LINE__);
-            input.clear();
-            input.seekg(static_cast<std::streamoff>(good));
-            std::array<char, 8> header{};
-            input.read(header.data(), header.size());
-            // Only a prefix of a recognized TMH1/TMH2 header can be
-            // truncated as an interrupted append. Preserve unknown magic,
-            // future schema versions and impossible record lengths, including
-            // prefixes shorter than a complete eight-byte header.
-            const auto header_bytes = input.gcount();
-            if (input.bad())
-                return recovery_failure(__LINE__);
-            const auto remaining = file_size(path(number)) - good;
-            if (!header_bytes ||
-                std::memcmp(header.data(), "TMH", std::min<std::streamsize>(3, header_bytes)) != 0)
-                return recovery_failure(__LINE__);
-            if (header_bytes >= 4 && header[3] != '1' && header[3] != '2')
-                return recovery_failure(__LINE__);
-            if (header_bytes >= 5 && header[4] != (header[3] == '1' ? 1 : 2))
-                return recovery_failure(__LINE__);
-            if (header_bytes >= 6 && header[5] != 0)
-                return recovery_failure(__LINE__);
-            // A complete but CRC-damaged final record is not an interrupted
-            // append. A partial record must declare a valid size greater than
-            // its currently persisted bytes.
-            if (header_bytes == 8) {
-                const size_t low = static_cast<uint8_t>(header[6]);
-                const size_t high = static_cast<uint8_t>(header[7]);
-                const size_t declared = low | (high << 8);
-                if (declared < 40 || declared > max_history_record_bytes || remaining >= declared)
+            // Only the active tail may be repaired. A damaged completed segment is never
+            // altered: it is kept on disk, reported, skipped by readers, and removed by normal
+            // retention when it becomes the oldest. It does not make the rest of the history
+            // unusable.
+            if (number != active_) {
+                ++skipped_segments_;
+                input.clear();
+            } else {
+                input.clear();
+                input.seekg(static_cast<std::streamoff>(good));
+                std::array<char, 8> header{};
+                input.read(header.data(), header.size());
+                // Only a prefix of a recognized TMH1/TMH2 header can be
+                // truncated as an interrupted append. Preserve unknown magic,
+                // future schema versions and impossible record lengths, including
+                // prefixes shorter than a complete eight-byte header.
+                const auto header_bytes = input.gcount();
+                if (input.bad())
                     return recovery_failure(__LINE__);
-            }
-            // Refuse to truncate an interior corrupt record if later valid data exists.
-            input.clear();
-            input.seekg(static_cast<std::streamoff>(good + 1));
-            std::vector<uint8_t> tail((std::istreambuf_iterator<char>(input)), {});
-            if (input.bad())
-                return recovery_failure(__LINE__);
-            for (std::size_t offset = 0; offset + 40 <= tail.size(); ++offset) {
-                if (std::memcmp(tail.data() + offset, "TMH", 3) != 0)
-                    continue;
-                size_t length = uint16_t(tail[offset + 6]) | (uint16_t(tail[offset + 7]) << 8);
-                if (length >= 40 && length <= max_history_record_bytes &&
-                    offset + length <= tail.size()) {
-                    std::vector<uint8_t> candidate(tail.begin() + offset,
-                                                   tail.begin() + offset + length);
-                    if (decode_bucket(candidate))
+                const auto remaining = file_size(path(number)) - good;
+                if (!header_bytes || std::memcmp(header.data(), "TMH",
+                                                 std::min<std::streamsize>(3, header_bytes)) != 0)
+                    return recovery_failure(__LINE__);
+                if (header_bytes >= 4 && header[3] != '1' && header[3] != '2')
+                    return recovery_failure(__LINE__);
+                if (header_bytes >= 5 && header[4] != (header[3] == '1' ? 1 : 2))
+                    return recovery_failure(__LINE__);
+                if (header_bytes >= 6 && header[5] != 0)
+                    return recovery_failure(__LINE__);
+                // A complete but CRC-damaged final record is not an interrupted
+                // append. A partial record must declare a valid size greater than
+                // its currently persisted bytes.
+                if (header_bytes == 8) {
+                    const size_t low = static_cast<uint8_t>(header[6]);
+                    const size_t high = static_cast<uint8_t>(header[7]);
+                    const size_t declared = low | (high << 8);
+                    if (declared < 40 || declared > max_history_record_bytes ||
+                        remaining >= declared)
                         return recovery_failure(__LINE__);
                 }
+                // Refuse to truncate an interior corrupt record if later valid data exists.
+                input.clear();
+                input.seekg(static_cast<std::streamoff>(good + 1));
+                std::vector<uint8_t> tail((std::istreambuf_iterator<char>(input)), {});
+                if (input.bad())
+                    return recovery_failure(__LINE__);
+                for (std::size_t offset = 0; offset + 40 <= tail.size(); ++offset) {
+                    if (std::memcmp(tail.data() + offset, "TMH", 3) != 0)
+                        continue;
+                    size_t length = uint16_t(tail[offset + 6]) | (uint16_t(tail[offset + 7]) << 8);
+                    if (length >= 40 && length <= max_history_record_bytes &&
+                        offset + length <= tail.size()) {
+                        std::vector<uint8_t> candidate(tail.begin() + offset,
+                                                       tail.begin() + offset + length);
+                        if (decode_bucket(candidate))
+                            return recovery_failure(__LINE__);
+                    }
+                }
+                if (truncate(path(number).c_str(), good) != 0)
+                    return recovery_failure(__LINE__);
             }
-            if (truncate(path(number).c_str(), good) != 0)
-                return recovery_failure(__LINE__);
         }
         // Seal completed segments as well as the active one. A later append
         // must never evict an older segment changed since this recovery.
@@ -451,6 +459,7 @@ bool HistoryStore::recover() {
     }
     sealed_segments_ = std::move(recovered_seals);
     append_ready_ = true;
+    retry_after_error_ = false;
     return true;
 }
 std::size_t HistoryStore::bytes() const {
@@ -460,7 +469,10 @@ std::size_t HistoryStore::bytes() const {
     return total;
 }
 bool HistoryStore::append(const Bucket &bucket) {
-    if (!append_ready_)
+    // A failed write (ENOSPC, flush or fsync error, open failure) is retried on the next bucket
+    // after a full revalidation, which also trims any partial record. Integrity failures (a
+    // replaced or edited segment) stay disabled until an explicit recover().
+    if (!append_ready_ && (!retry_after_error_ || !recover()))
         return false;
     if (!safe_history_directory(directory_)) {
         append_ready_ = false;
@@ -574,6 +586,7 @@ bool HistoryStore::append(const Bucket &bucket) {
     const int fd = open(path(active_).c_str(), flags, 0600);
     if (fd < 0) {
         append_ready_ = false;
+        retry_after_error_ = true;
         return false;
     }
     struct stat opened {};
@@ -600,6 +613,7 @@ bool HistoryStore::append(const Bucket &bucket) {
     if (!output) {
         close(fd);
         append_ready_ = false;
+        retry_after_error_ = true;
         return false;
     }
     bool ok = std::fwrite(data.data(), 1, data.size(), output) == data.size();
@@ -611,6 +625,7 @@ bool HistoryStore::append(const Bucket &bucket) {
         ok = false;
     if (!ok) {
         append_ready_ = false;
+        retry_after_error_ = true;
         return false;
     }
 #ifndef ESP_PLATFORM
@@ -689,7 +704,10 @@ bool HistoryStore::append(const Bucket &bucket) {
     }
     return true;
 }
-bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) const {
+bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor,
+                         std::size_t *skipped) const {
+    if (skipped)
+        *skipped = 0;
     if (!safe_history_directory(directory_))
         return false;
     struct stat initial_directory {};
@@ -733,7 +751,8 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
     // paginated query must not report success if later retained records are
     // malformed, even when the requested page is already full.
     bool deliver = true;
-    for (auto number : segments()) {
+    const auto retained = segments();
+    for (auto number : retained) {
         // The directory can be replaced while a visitor processes a prior
         // segment. Recheck before following the next segment pathname.
         if (!same_history_directory(directory_, initial_directory) ||
@@ -759,6 +778,22 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
         snapshot.inode = static_cast<uint64_t>(initial_segment.st_ino);
 #endif
         verified.push_back(snapshot);
+        // A damaged completed segment is skipped whole and reported; the active segment's damage
+        // still fails the visit.
+        if (number != retained.back()) {
+            std::istringstream probe(content, std::ios::binary);
+            std::size_t probe_good = 0;
+            while (next(probe))
+                probe_good = static_cast<std::size_t>(probe.tellg());
+            if (probe_good != initial_size) {
+                if (skipped)
+                    ++*skipped;
+                if (!same_history_directory(directory_, initial_directory) ||
+                    !same_history_segment(path(number), initial_segment))
+                    return false;
+                continue;
+            }
+        }
         // Records are delivered from the validated in-memory copy. A callback that replaces or
         // edits the file therefore cannot splice unvalidated data into the result, and no
         // filesystem lookup is needed per record (on the device that made queries take seconds).

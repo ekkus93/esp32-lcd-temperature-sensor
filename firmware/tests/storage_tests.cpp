@@ -233,8 +233,38 @@ int main() {
         corrupt.put('X');
     }
     auto size = std::filesystem::file_size(old);
-    CHECK(!store.recover());
+    // The damaged completed segment is kept untouched, reported and skipped; the rest of the
+    // history stays usable and appends keep working.
+    CHECK(store.recover());
+    CHECK(store.skipped_segments() == 1);
     CHECK(std::filesystem::file_size(old) == size);
+    {
+        std::size_t skipped = 0;
+        unsigned delivered = 0;
+        CHECK(store.visit(
+            [&](const Bucket &) {
+                ++delivered;
+                return true;
+            },
+            &skipped));
+        CHECK(skipped == 1);
+        CHECK(delivered > 0);
+    }
+    CHECK(store.append(bucket));
+    // (Normal retention may now remove the damaged segment once it is the oldest.)
+    // A transient I/O failure does not disable appends for good: the next bucket retries.
+    {
+        std::filesystem::path active_path;
+        for (const auto &entry : std::filesystem::directory_iterator(directory))
+            if (entry.path().extension() == ".tmh" && entry.path() > active_path)
+                active_path = entry.path();
+        std::filesystem::permissions(active_path, std::filesystem::perms::owner_read);
+        CHECK(!store.append(bucket));
+        std::filesystem::permissions(active_path, std::filesystem::perms::owner_read |
+                                                      std::filesystem::perms::owner_write);
+        CHECK(store.append(bucket));
+        CHECK(store.append(bucket));
+    }
     std::filesystem::remove_all(directory);
     CHECK(std::filesystem::create_directory(directory));
     auto future = data;
@@ -781,8 +811,7 @@ int main() {
         return true;
     }));
     CHECK(retained_count == 4 && retained_first == 0);
-    CHECK(!eviction_store.append(bucket)); // A failed write latches the writer.
-    CHECK(eviction_store.recover());
+    // A failed write no longer latches the writer: the next bucket revalidates and retries.
     CHECK(eviction_store.append(bucket));
     CHECK(eviction_store.bytes() <= 4 * data.size());
     retained_count = 0;
@@ -859,7 +888,8 @@ int main() {
 
     // An ENOSPC/flush failure may leave an incomplete record. Even if the
     // underlying path becomes writable again, a writer must not append to
-    // potentially torn data until recovery has inspected the segment.
+    // potentially torn data until recovery has inspected the segment; the append that follows
+    // a failed write performs that recovery itself.
     char retry_directory[] = "/tmp/monitor-retry-XXXXXX";
     CHECK(mkdtemp(retry_directory));
     HistoryStore retry_store(retry_directory, 1024, 512);
@@ -870,8 +900,7 @@ int main() {
     bucket.start_uptime_ms += 300000;
     with_file_limit(retry_bytes, [&] { CHECK(!retry_store.append(bucket)); });
     CHECK(std::filesystem::file_size(retry_path) == retry_bytes);
-    CHECK(!retry_store.append(bucket)); // Fail closed until successful recover().
-    CHECK(retry_store.recover());
+    // The next append runs recover() first (inspecting and trimming any torn tail), then writes.
     CHECK(retry_store.append(bucket));
     unsigned retry_rows = 0;
     CHECK(retry_store.visit([&](const Bucket &) {
