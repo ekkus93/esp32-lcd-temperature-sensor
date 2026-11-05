@@ -257,7 +257,7 @@ Unknown routes stay `404`; owner routes without a session stay `401`. Public `GE
 - A 401 from an owner route opens sign-in instead of a dead page.
 
 ### 12.4 Load protection
-- At most 6 WebSocket clients (owner sessions keep a reserved slot; the server's open-socket limit is 8; the figure was 8 in the first draft and is held at 6 until memory is measured on the board), up to 2 concurrent history queries, and per-client limits: 1 history query per second and 1 CSV export per 30 s; excess returns `429` with `Retry-After`.
+- At most 4 WebSocket clients (three viewers; owner sessions keep a reserved slot) with the server's open-socket limit at 6. The first draft said 8; 6 clients with 8 sockets was tried and measured on the board (free internal memory fell to 15 KB under load, against 29.6 KB with 4 clients), so the figure stays at 4 until memory is made available, up to 2 concurrent history queries, and per-client limits: 1 history query per second and 1 CSV export per 30 s; excess returns `429` with `Retry-After`.
 - Public requests never block the sensor loop or the display task (§7.2).
 
 ### 12.5 Tests and acceptance

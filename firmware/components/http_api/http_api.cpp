@@ -326,7 +326,10 @@ bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &histor
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.uri_match_fn = httpd_uri_match_wildcard;
     config.max_uri_handlers = 12;
-    config.max_open_sockets = 8; // six live clients (one reserved for the owner) plus requests
+    // Four live clients (one reserved for the owner) plus two for requests. More sockets cost
+    // internal heap: with six clients and eight sockets the free internal memory fell to 15 KB
+    // under load on the board (docs/validation/device-public-access-2026-11-05.md).
+    config.max_open_sockets = 6;
     config.lru_purge_enable = true;
     config.stack_size = 16384;
     config.core_id = 1; // Keep HTTP/KDF work off the CPU0 acquisition task.

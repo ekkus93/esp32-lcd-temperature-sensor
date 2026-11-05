@@ -39,3 +39,27 @@ tokens are recorded.
 - **Concurrency:** the check of repeated public history requests not stalling the dashboard was not
   done.
 - **Wi-Fi/mDNS:** not part of this pass.
+
+## Addendum: memory under load, and the client cap (2026-11-05, later)
+
+The free internal memory (`internal_min` in the console's `HEALTH` lines, which the board reports only
+over USB) was measured while driving load from the laptop. The board resets whenever the serial port
+is opened, so each run starts from a fresh boot; **no run showed a reset after boot.**
+
+| Run (commit) | Load | Lowest free internal memory |
+| --- | --- | --- |
+| Six-client build (`11911fc`) | idle after boot | 40,144 bytes |
+| same | 5 anonymous viewers connected | 35,016 |
+| same | + 2 REST pollers | 34,632 |
+| same | + owner login (the password check) | 27,124 |
+| same | + owner WebSocket as the sixth client, + one history query | 27,124 |
+| same | everything at once: login, 2 REST pollers at 5 requests/s, history every 1.1 s, a CSV export, 5 viewers and the owner's socket | **15,032** |
+| same | the same overlapping load with no viewers | 33,384 |
+| same | the same with 5 viewers (no owner socket) | 24,960 |
+| Four-client build (cap 4, 6 sockets) | idle after boot | 39,872 |
+| same | the same overlapping load with 3 viewers and the owner's socket; a fifth client refused with `503` | **29,628** |
+
+Each WebSocket client costs roughly 1.5 to 2 KB of internal memory under load, and the password check
+about 7.5 KB while it runs. The earlier floor of about 40 KB (documented in the single-probe record) was
+measured with at most four clients and six sockets, so the cap went back to those figures: four
+clients (three viewers plus the owner's reserved slot) and six sockets.

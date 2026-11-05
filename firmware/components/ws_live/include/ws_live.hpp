@@ -14,7 +14,7 @@ class WsLive {
     // Live readings are public: a client without a session is admitted as a viewer. `capacity`
     // slots exist in total and `owner_reserve` of them are kept for a signed-in owner, so a crowd
     // of viewers can never lock the owner out.
-    explicit WsLive(size_t capacity = 6, size_t owner_reserve = 1)
+    explicit WsLive(size_t capacity = 4, size_t owner_reserve = 1)
         : clients_(capacity), owner_reserve_(owner_reserve) {}
     void configure(httpd_handle_t server, AuthService &auth, std::function<std::string()> snapshot);
     // An empty `token` is an anonymous viewer; a non-empty one must be a valid session.

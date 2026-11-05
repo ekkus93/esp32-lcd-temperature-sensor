@@ -418,28 +418,28 @@ int main() {
         fake_now_us = 1000000;
         closed_fds.clear();
         fail_close = false;
-        monitor::WsLive open_live; // default: 6 clients, 1 reserved for a signed-in owner
+        monitor::WsLive open_live; // default: 4 clients, 1 reserved for a signed-in owner
         open_live.configure(reinterpret_cast<httpd_handle_t>(1), auth, [&] { return payload; });
-        std::array<std::array<int, 2>, 7> open_peers{};
+        std::array<std::array<int, 2>, 5> open_peers{};
         for (auto &pair : open_peers) {
             assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pair.data()) == 0);
             add_websocket(pair[0]);
         }
-        for (size_t i = 0; i < 5; ++i)
+        for (size_t i = 0; i < 3; ++i)
             assert(open_live.add_client(open_peers[i][0], "")); // anonymous
-        // The sixth anonymous viewer is refused: the last slot belongs to the owner.
-        assert(!open_live.add_client(open_peers[5][0], ""));
+        // The fourth anonymous viewer is refused: the last slot belongs to the owner.
+        assert(!open_live.add_client(open_peers[3][0], ""));
         // The owner still gets in, even with every public slot taken.
-        assert(open_live.add_client(open_peers[5][0], "valid"));
+        assert(open_live.add_client(open_peers[3][0], "valid"));
         // Nobody else fits now, public or owner.
-        assert(!open_live.add_client(open_peers[6][0], "valid"));
-        assert(!open_live.add_client(open_peers[6][0], ""));
+        assert(!open_live.add_client(open_peers[4][0], "valid"));
+        assert(!open_live.add_client(open_peers[4][0], ""));
         // An invalid or expired session is still refused; it does not fall back to public.
-        assert(!open_live.add_client(open_peers[6][0], "expired"));
+        assert(!open_live.add_client(open_peers[4][0], "expired"));
         // Broadcasts reach anonymous viewers, and session sweeps never close them.
         fake_now_us = 5000000;
         assert(open_live.schedule());
-        for (size_t i = 0; i < 6; ++i) {
+        for (size_t i = 0; i < 4; ++i) {
             assert(!was_closed(open_peers[i][0]));
             drain(open_peers[i][1], payload);
         }

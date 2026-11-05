@@ -61,8 +61,8 @@ CSV export streams original five-minute buckets and does not use this reducer.
 
 `WS /live` has no per-client queue. Every sample is one complete snapshot frame, sent without
 blocking; a client whose socket cannot take the whole frame at once is closed and must reconnect,
-and the web client does so with backoff and a fresh REST resync. The live stream is public: six clients are admitted, and the last slot is kept for a
-signed-in owner so viewers cannot lock the owner out; further clients are refused. The upgrade still
+and the web client does so with backoff and a fresh REST resync. The live stream is public: four clients are admitted (three viewers and one slot kept for a
+signed-in owner, so viewers cannot lock the owner out); further clients are refused. The upgrade still
 requires the device's own `Origin` and `Host`. Clients are never sent a partial or queued backlog of older frames.
 
 History is public and therefore rate limited per client address: one `GET /history` per second and one

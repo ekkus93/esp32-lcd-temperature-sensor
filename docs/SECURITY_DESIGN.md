@@ -49,7 +49,7 @@ history; only changing things needs the password.
   a route that is not listed is a 404 for everyone.
 - **Load protection:** public history is limited to one query per second and one
   CSV export per 30 seconds per client address, with `429` and `Retry-After`
-  beyond that. The live stream admits six clients and keeps one slot for a
+  beyond that. The live stream admits four clients (three viewers) and keeps one slot for a
   signed-in owner, so a crowd of viewers cannot lock the owner out. The upgrade
   still requires the device's own `Origin`, which stops another website's page
   from reading the stream in a visitor's browser.
