@@ -282,9 +282,11 @@ Today the firmware registers `temperature-monitor.local` and an `_http._tcp` ser
 - Host tests: hostname validation, TMD1→TMD2 migration, Host allow-list follows the active name.
 - Device tests: resolve and open `http://temperature-monitor.local` from Linux, Windows, macOS/iOS and Android (note that Android before 12 and Linux without Avahi/nss-mdns may not resolve `.local`); rename and re-resolve without reboot; two devices on one network get distinct names.
 
-## 14. Open decisions (owner)
+## 14. Owner decisions
 
-| ID | Decision | Proposed default |
+Confirmed by the owner on 2026-11-05: D1 to D7 are all accepted as proposed below.
+
+| ID | Decision | Decided |
 | --- | --- | --- |
 | D1 | Is CSV export public, or owner-only? | Public, rate-limited |
 | D2 | Are alert history and sensor ROM IDs public? | Yes |
