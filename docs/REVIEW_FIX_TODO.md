@@ -61,7 +61,7 @@
 ## Phase R5 — API and contract (P2)
 
 - [x] **R05-01** `PATCH /settings` and `PATCH /sensors/{rom}` reject `{}` (§7.6). API test. Done (build only): both PATCH handlers return 400 for `{}`. The HTTP layer has no host harness, so the 400 is not exercised by a test yet; add it to the on-board batch (R03-08 pass).
-- [ ] **R05-02** History query ROM rules (lowercase, no duplicates) enforced or documented (§7.6). Host test.
+- [x] **R05-02** History query ROM rules (lowercase, no duplicates) enforced or documented (§7.6). Host test. Done (host): the history query parser rejects uppercase hex in `rom_id`/`boot_id` and duplicate `rom_id`; `contracts/API.md` states it. Tests use a literal ROM with hex letters so the check cannot pass vacuously.
 - [ ] **R05-03** cJSON allocation failure sets `truncated`; receive override removed on stop; mutex freed on start failure (§7.6).
 - [ ] **R05-04** WebSocket backpressure documented or a one-frame slot added; T07-08 wording corrected (§7.6).
 - [ ] **R05-05** OTA upload checks `project_name` before writing; docs say signing and secure boot are out of scope (§6.5).

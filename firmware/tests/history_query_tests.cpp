@@ -1,6 +1,7 @@
 #include "fake_bus.hpp"
 #include "history_query.hpp"
 #include "monitor_types.hpp"
+#include <cctype>
 #include <cstdlib>
 #include <iostream>
 using namespace monitor;
@@ -23,6 +24,20 @@ int main() {
     CHECK(!parse_history_query("from=0&to=86400000&rom_id=0000000000000000"));
     CHECK(!parse_history_query("from=0&to=86400000&rom_id=not-a-rom-id"));
     CHECK(!parse_history_query("from=0&from=1&to=86400000"));
+    {
+        // ROM ids are lowercase hex, as everywhere else in the API, and each appears once.
+        auto upper = rom_hex(rom);
+        for (auto &c : upper)
+            c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        if (upper != rom_hex(rom))
+            CHECK(!parse_history_query("from=0&to=86400000&rom_id=" + upper));
+        CHECK(!parse_history_query("from=0&to=86400000&rom_id=" + rom_hex(rom) +
+                                   "&rom_id=" + rom_hex(rom)));
+        CHECK(parse_history_query("from=0&to=86400000&rom_id=" + rom_hex(rom)));
+        // A literal that contains hex letters, so the check cannot pass vacuously.
+        CHECK(parse_history_query("from=0&to=86400000&rom_id=284d086700000009"));
+        CHECK(!parse_history_query("from=0&to=86400000&rom_id=284D086700000009"));
+    }
     CHECK(!parse_history_query("from=0&to=86400000&max_points=513"));
     CHECK(!parse_history_query("from=0&to=86400000&unknown=1"));
     CHECK(!parse_history_query(std::string(257, 'x')));

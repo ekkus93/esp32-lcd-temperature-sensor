@@ -5,7 +5,7 @@ Snapshot, settings, sensor, history, alert, network and authentication-state
 responses are validated against the shared schemas before typed UI use. API
 temperatures are always numeric Celsius; convert to Fahrenheit only for presentation. Sensor
 IDs are lowercase 16-character hexadecimal ROM bytes in wire order, never list
-indexes. Unknown temperatures and UTC are `null`, not zero or fabricated time.
+indexes. History queries reject uppercase hex in `rom_id` and `boot_id`, and a `rom_id` given twice, with `400`. Unknown temperatures and UTC are `null`, not zero or fabricated time.
 After editing a schema, regenerate checked TypeScript declarations with
 `npm --prefix web run contract:generate`.
 

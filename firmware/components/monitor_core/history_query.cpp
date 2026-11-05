@@ -21,6 +21,10 @@ std::optional<HistoryQuery> parse_history_query(std::string_view text, bool *has
         if (key != "rom_id" && std::find(keys.begin(), keys.end(), key) != keys.end())
             return std::nullopt;
         keys.push_back(key);
+        // Hex identifiers are lowercase, like every other identifier in the API.
+        if ((key == "boot_id" || key == "rom_id") &&
+            std::any_of(value.begin(), value.end(), [](char c) { return c >= 'A' && c <= 'F'; }))
+            return std::nullopt;
         uint64_t number = 0;
         const int base = key == "boot_id" || key == "rom_id" ? 16 : 10;
         auto parsed = std::from_chars(value.data(), value.data() + value.size(), number, base);
@@ -40,6 +44,8 @@ std::optional<HistoryQuery> parse_history_query(std::string_view text, bool *has
             uint64_t rom = 0;
             for (unsigned i = 0; i < 8; ++i)
                 rom |= ((number >> (8 * i)) & 0xff) << (8 * (7 - i));
+            if (std::find(query.roms.begin(), query.roms.end(), rom) != query.roms.end())
+                return std::nullopt;
             query.roms.push_back(rom);
         } else
             return std::nullopt;
