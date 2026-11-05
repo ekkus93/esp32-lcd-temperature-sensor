@@ -62,3 +62,14 @@ WebSocket clients, 120 s): before 35 requests, p50 9.4 s, p95 27.5 s; after 625 
 0.49 s, p95 0.88 s, max 5.4 s; same boot id and no reset. One of the four WebSocket clients was closed
 by the server in each run (three still open), consistent with the four-slot client limit; not investigated here.
 Not measured: CSV export at full retention (about 3 MiB of history, weeks of data).
+
+## Calibrated probe history (R01-07, first half)
+
+The connected probe (Sensor 4) was given a 0.1 °C calibration offset at 13:20:59 UTC and left for about 18
+minutes. Four five-minute buckets were stored for it (the last two complete 60-sample buckets: average 20.108 and
+20.092 °C with minimum 20.038/19.975 and maximum 20.163), the logging status stayed healthy with no
+`storage_error` journal event, and the journal held only Wi-Fi and clock events. The offset was then restored to 0.
+Limit: the readings varied by a few 0.0625 °C steps, so this is not the exact case of sixty identical samples that
+used to break the encoder; that case is covered by the `aggregator_calibration` host test.
+Not done: briefly unplugging the sensor bus to check a single bus-fault event and recovery of a probe held above its
+limit (needs the owner to disconnect the bus).
