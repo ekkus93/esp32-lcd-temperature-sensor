@@ -26,7 +26,7 @@
 
 ## Phase R2 — Recovery and stalls (P1)
 
-- [ ] **R02-01** USB recovery console and BOOT service start even when auth failed to initialise; console reset recovers a corrupt auth store without touching history or Wi-Fi (§6.1). Host tests for the auth-load policy.
+- [x] **R02-01** USB recovery console and BOOT service start even when auth failed to initialise; console reset recovers a corrupt auth store without touching history or Wi-Fi (§6.1). Done (host and build only): `start_provisioning_controls` now runs whenever the Wi-Fi stack is up; the existing `RESET_ADMIN_CREDENTIALS CONFIRM` only erases the auth keys and restarts; a missing, oversized or damaged one-time code is replaced instead of failing startup (`plan_setup_code`, host-tested in `readable_code`); a wrong-size verifier blob still stops auth and is the case the console recovers. Not yet exercised on the board: a corrupt-store recovery needs a deliberate NVS corruption and is part of the hardware pass. `./tools/verify.sh` green; firmware builds.
 - [ ] **R02-02** OTA health-gate timeout: a pending image that hasn't passed in 120 s marks itself invalid and reboots; enable task-watchdog panic (§6.2). Host test with a fake clock.
 - [ ] **R02-03** Password derive off the HTTP task; one derive at a time with `429` for overlaps; per-client lockout with a global cap; KDF failures don't count as wrong passwords (§6.3). Host tests for the lockout policy.
 - [ ] **R02-04** Event store recovers a leftover `events.bin.tmp`; change `storage_tests.cpp:940-966` to require recovery (§7.1).
