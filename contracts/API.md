@@ -56,6 +56,11 @@ for the active boot. It allocates no more than 512 time groups with five sensor
 cells each (2,560 returned points); omitted gaps or points set `truncated`.
 CSV export streams original five-minute buckets and does not use this reducer.
 
+`WS /live` has no per-client queue. Every sample is one complete snapshot frame, sent without
+blocking; a client whose socket cannot take the whole frame at once is closed and must reconnect,
+and the web client does so with backoff and a fresh REST resync. Four live sessions are admitted;
+further clients are refused. Clients are never sent a partial or queued backlog of older frames.
+
 JSON request bodies are limited to 2,048 bytes and five seconds of total receive
 time. Incomplete or timed-out connections are closed; the time spent hashing a
 password and OTA upload handling has separate limits.

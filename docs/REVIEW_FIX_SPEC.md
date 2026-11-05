@@ -186,6 +186,7 @@ One corrupt completed segment no longer makes all history unavailable: it is ski
 - cJSON allocation failures in history responses set `truncated` instead of silently dropping points (`http_api.cpp:706-748`).
 - The receive override at `http_api.cpp:61` is removed on stop; `HistoryService::start` frees its mutex when queue creation fails (`history_service.cpp:33-46`).
 - WebSocket backpressure: document that a client is closed on `EAGAIN` (T07-08's "bounded per-client queues" wording is corrected), or add a one-frame per-client slot.
+  - **Chosen:** documented in `contracts/API.md` (no queue; a client that cannot take a whole frame is closed). The T07-08 wording in `docs/TODO.md` is corrected under R09-08 with owner approval.
 
 ## 8. Web application
 
