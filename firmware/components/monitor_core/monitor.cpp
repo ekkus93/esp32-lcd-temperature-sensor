@@ -17,10 +17,15 @@ std::optional<Bucket> Aggregator::add(const Registry &registry, int64_t now_ms,
                     std::abs((*utc - *anchor_utc_) * 1000 - (now_ms - anchor_ms_)) > 2000));
     if (start_ && (now_ms >= deadline_ || clock_change)) {
         finished = Bucket{boot_id_, *start_, utc_, {}};
-        for (const auto &a : accumulators_)
-            finished->sensors.push_back({a.rom, a.count ? a.sum / a.count : 0, a.minimum, a.maximum,
-                                         a.count, partial_ || clock_change || a.count < 60, a.name,
+        for (const auto &a : accumulators_) {
+            // The mean of equal values can land one rounding step outside [min, max] in double
+            // arithmetic (common once a calibration offset is added), and the history encoder
+            // rejects such a record, so the finished average is held inside the observed range.
+            const double average = a.count ? std::clamp(a.sum / a.count, a.minimum, a.maximum) : 0;
+            finished->sensors.push_back({a.rom, average, a.minimum, a.maximum, a.count,
+                                         partial_ || clock_change || a.count < 60, a.name,
                                          a.state_flags});
+        }
         start_.reset();
         accumulators_.clear();
     }
