@@ -75,6 +75,8 @@ int main(int argc, char **argv) {
             registry.sample(fake_readings(count), 0);
             view.render(registry, cache, options, status, 0);
             save("overview-" + std::to_string(count));
+            // The large Overview has no lookback window to describe: no "Past N min" there.
+            CHECK(visible_text(lv_screen_active()).find("Past") == std::string::npos);
         }
         {
             // DS18B20 extremes must fit the same 7-character value field in both scales.

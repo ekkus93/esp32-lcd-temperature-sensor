@@ -319,11 +319,18 @@ bool DisplayRuntime::initialize() {
     }
 #if CONFIG_MONITOR_LCD_FLUSH_DIAG
     {
+        // This replaces esp_lvgl_port 2.9.0's transfer-done callback, which only calls
+        // lv_display_flush_ready(); flush_diag_done does the same after timestamping. If a port
+        // upgrade makes its callback do more, this diagnostic would diverge from it.
         const esp_lcd_panel_io_callbacks_t callbacks = {.on_color_trans_done = flush_diag_done};
-        esp_lcd_panel_io_register_event_callbacks(panel_io_, &callbacks, display_);
-        lv_display_add_event_cb(display_, flush_diag_start_event, LV_EVENT_FLUSH_START, nullptr);
-        lv_display_add_event_cb(display_, flush_diag_invalidate_event, LV_EVENT_INVALIDATE_AREA,
-                                nullptr);
+        if (esp_lcd_panel_io_register_event_callbacks(panel_io_, &callbacks, display_) != ESP_OK) {
+            ESP_LOGW(tag, "Flush diagnostic callback not installed; the port's own is kept");
+        } else {
+            lv_display_add_event_cb(display_, flush_diag_start_event, LV_EVENT_FLUSH_START,
+                                    nullptr);
+            lv_display_add_event_cb(display_, flush_diag_invalidate_event, LV_EVENT_INVALIDATE_AREA,
+                                    nullptr);
+        }
     }
 #endif
     if (!lvgl_port_lock(1000)) {
@@ -418,6 +425,9 @@ void DisplayRuntime::deinitialize() {
             lv_obj_delete(diagnostic_screen_);
             diagnostic_screen_ = nullptr;
         }
+        // ~DisplayView needs another screen active: it deletes the screens it created.
+        if (view_ && display_)
+            lv_screen_load(lv_obj_create(nullptr));
         view_.reset();
         if (display_) {
             lvgl_port_remove_disp(display_);

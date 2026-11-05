@@ -31,6 +31,8 @@ class DisplayView {
     static constexpr size_t setup_slot_count = 11;
     lv_obj_t *setup_ = nullptr;
     std::array<lv_obj_t *, setup_slot_count> setup_slots_{};
+    // Decided once from the display resolution when the view is built.
+    bool compact_ = false;
     DisplayCycle cycle_;
     DisplayOptions options_;
     bool configured_ = false, showing_trends_ = false;

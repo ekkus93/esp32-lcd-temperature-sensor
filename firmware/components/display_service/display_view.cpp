@@ -57,7 +57,8 @@ uint32_t color(State state) {
 }
 } // namespace
 DisplayView::DisplayView() {
-    const bool compact = lv_display_get_horizontal_resolution(nullptr) <= 128;
+    compact_ = lv_display_get_horizontal_resolution(nullptr) <= 128;
+    const bool compact = compact_;
     for (auto *s : {&overview_, &trends_}) {
         s->root = screen();
         text(label(s->root, compact ? 2 : 10, compact ? 0 : 10, compact ? 76 : 160,
@@ -83,8 +84,9 @@ DisplayView::DisplayView() {
                         : (s == &overview_ ? &lv_font_montserrat_24 : &lv_font_montserrat_14));
             lv_obj_set_style_text_align(s->values[i], LV_TEXT_ALIGN_RIGHT, 0);
             if (s == &overview_) {
-                // The same reading in the other unit, under the main value; hidden unless the
-                // row has a numeric reading, so it never meets the status text on the left.
+                // The same reading in the other unit, under the main value; hidden unless the row
+                // has a numeric reading. A HIGH or LOW row shows both on one line: that works
+                // because the status text is short and left-aligned.
                 s->alts[i] = label(s->root, compact ? 60 : 114, top + (compact ? 12 : 26),
                                    compact ? 66 : 116,
                                    compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
@@ -188,7 +190,7 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
         cycle_.configure(options.extended, options.overview_seconds, options.trends_seconds, now);
     options_ = options;
     const auto rows = display_rows(registry, options.fahrenheit);
-    const bool compact = lv_display_get_horizontal_resolution(nullptr) <= 128;
+    const bool compact = compact_;
     const bool next_trends = cycle_.trends(now);
     if (compact && configured_ && showing_trends_ && next_trends && now >= last_render_ms_ &&
         now - last_render_ms_ <= int64_t(options.trends_seconds) * 1000)
@@ -270,28 +272,33 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
         urgent = "OTA VERIFYING";
     else if (status.ota_state == "invalid" || status.ota_state == "aborted")
         urgent = "OTA ROLLBACK";
-    std::string footer =
-        "Wi-Fi " + status.wifi + (status.logging ? " | Log OK" : " | Log ERR") + "\n" +
-        (urgent.empty() ? "Past " + std::to_string(options.lookback_minutes) + " min" : urgent);
-    if (compact) {
+    const std::string status_line =
+        "Wi-Fi " + status.wifi + (status.logging ? " | Log OK" : " | Log ERR");
+    // The Overview has no lookback window to describe, so on the large screen its second line
+    // appears only for an urgent condition; the Trends screen shows "Past N min" otherwise.
+    std::string overview_footer, trends_footer;
+    if (compact_) {
         // One line only: an urgent condition, else a logging failure (it must be visible on the
-        // small screen), else the Wi-Fi state.
-        if (!urgent.empty())
-            footer = urgent;
-        else if (!status.logging)
-            footer = "Log ERR";
-        else
-            footer = "Wi-Fi " + status.wifi;
+        // small screen), else the Wi-Fi state. Trends shows its lookback and chart position
+        // instead of the Wi-Fi state when nothing needs attention.
+        overview_footer = !urgent.empty()   ? urgent
+                          : !status.logging ? "Log ERR"
+                                            : "Wi-Fi " + status.wifi;
+        trends_footer = overview_footer.rfind("Wi-Fi ", 0) == 0
+                            ? std::to_string(options.lookback_minutes) + "m  " +
+                                  std::to_string(compact_position + 1) + "/" +
+                                  std::to_string(std::max<size_t>(compact_count, 1))
+                            : overview_footer;
+    } else {
+        overview_footer = urgent.empty() ? status_line : status_line + "\n" + urgent;
+        trends_footer =
+            status_line + "\n" +
+            (urgent.empty() ? "Past " + std::to_string(options.lookback_minutes) + " min" : urgent);
     }
-    for (auto *s : {&overview_, &trends_}) {
-        text(s->time, clock);
-        if (compact && s == &trends_ && footer.rfind("Wi-Fi ", 0) == 0)
-            text(s->footer, std::to_string(options.lookback_minutes) + "m  " +
-                                std::to_string(compact_position + 1) + "/" +
-                                std::to_string(std::max<size_t>(compact_count, 1)));
-        else
-            text(s->footer, footer);
-    }
+    text(overview_.time, clock);
+    text(trends_.time, clock);
+    text(overview_.footer, overview_footer);
+    text(trends_.footer, trends_footer);
     showing_trends_ = next_trends;
     auto *desired = showing_trends_ ? trends_.root : overview_.root;
     if (lv_screen_active() != desired)
@@ -299,7 +306,7 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
 }
 void DisplayView::provisioning(const std::string &ssid, const std::string &wifi_key,
                                const std::string &owner_code, bool owner_page_requested) {
-    const bool compact = lv_display_get_horizontal_resolution(nullptr) <= 128;
+    const bool compact = compact_;
     const bool has_owner_code = !owner_code.empty();
     // The compact screen alternates between the Wi-Fi page and the owner-code page, but only when
     // there is an owner code to show (an enrolled device has none).
