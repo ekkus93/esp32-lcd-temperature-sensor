@@ -12,6 +12,72 @@ const count = process.argv[2] ?? '5';
 const csvHeader = execFileSync(binary, ['--csv-header'], { encoding: 'utf8' });
 let snapshot = JSON.parse(execFileSync(binary, [count], { encoding: 'utf8' }));
 if (!validate(snapshot)) throw new Error(JSON.stringify(validate.errors));
+// Two hours of five-minute buckets per probe with a slow drift, so charts have something to draw.
+function simulatedHistory() {
+  const points = [];
+  const bucketMs = 300000;
+  snapshot.sensors.forEach((sensor, index) => {
+    for (let bucket = 0; bucket < 24; bucket++) {
+      const average = 4 + index + 0.5 * Math.sin((bucket + index) / 3);
+      points.push({
+        boot_id: snapshot.boot_id,
+        rom_id: sensor.rom_id,
+        start_ms: bucket * bucketMs,
+        end_ms: (bucket + 1) * bucketMs,
+        utc_seconds: null,
+        average_c: Number(average.toFixed(3)),
+        minimum_c: Number((average - 0.3).toFixed(3)),
+        maximum_c: Number((average + 0.3).toFixed(3)),
+        count: 60,
+        partial: false,
+      });
+    }
+  });
+  return {
+    schema_version: 1,
+    simulated: true,
+    truncated: false,
+    time_basis: 'uptime',
+    points,
+    gaps: [],
+  };
+}
+function simulatedAlerts() {
+  const first = snapshot.sensors[0];
+  return {
+    active: [],
+    events: first
+      ? [
+          {
+            sequence: 1,
+            boot_id: snapshot.boot_id,
+            kind: 'sensor_state',
+            rom_id: first.rom_id,
+            previous: 'normal',
+            state: 'high',
+            uptime_ms: 600000,
+            utc_seconds: null,
+            detail: 0,
+          },
+          {
+            sequence: 2,
+            boot_id: snapshot.boot_id,
+            kind: 'sensor_state',
+            rom_id: first.rom_id,
+            previous: 'high',
+            state: 'normal',
+            uptime_ms: 900000,
+            utc_seconds: null,
+            detail: 0,
+          },
+        ]
+      : [],
+    next_after: first ? 2 : 0,
+    has_more: false,
+    oldest_available: first ? 1 : null,
+    event_log_healthy: true,
+  };
+}
 const start = Date.now();
 const server = http.createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json');
@@ -35,7 +101,7 @@ const server = http.createServer((req, res) => {
         etag: 'simulator-settings',
         revision: 0,
         writable: false,
-        units: 'C',
+        units: 'F',
         display_mode: 'basic',
         overview_seconds: 20,
         trends_seconds: 10,
@@ -74,27 +140,9 @@ const server = http.createServer((req, res) => {
     );
     res.end(csvHeader);
   } else if (req.url.startsWith('/api/v1/history?'))
-    res.end(
-      JSON.stringify({
-        schema_version: 1,
-        simulated: true,
-        truncated: false,
-        time_basis: 'uptime',
-        points: [],
-        gaps: [],
-      }),
-    );
+    res.end(JSON.stringify(simulatedHistory()));
   else if (req.url.startsWith('/api/v1/alerts?'))
-    res.end(
-      JSON.stringify({
-        active: [],
-        events: [],
-        next_after: 0,
-        has_more: false,
-        oldest_available: null,
-        event_log_healthy: true,
-      }),
-    );
+    res.end(JSON.stringify(simulatedAlerts()));
   else if (req.url === '/api/v1/sensors/storage')
     res.end(
       JSON.stringify({
@@ -107,9 +155,10 @@ const server = http.createServer((req, res) => {
     res.end(
       JSON.stringify({
         schema_version: 1,
-        enabled: true,
-        complete: true,
-        discovered_count: snapshot.sensors.length,
+        // As on the device: simulation builds do not scan a physical bus.
+        enabled: false,
+        complete: false,
+        discovered_count: 0,
         overflow: false,
       }),
     );

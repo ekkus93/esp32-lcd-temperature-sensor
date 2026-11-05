@@ -124,6 +124,25 @@ try {
       `${path}: ${JSON.stringify(validate.errors)}`,
     );
   }
+  // The simulator must serve what a real device does by default, and real-looking data, so the
+  // web app is exercised against more than empty lists.
+  const json = async (path) =>
+    (await fetch(`http://127.0.0.1:${port}${path}`)).json();
+  assert.equal((await json("/api/v1/settings")).units, "F", "default unit");
+  assert.equal(
+    (await json("/api/v1/probe-scan")).enabled,
+    false,
+    "simulation builds report probe scanning as disabled",
+  );
+  const history = await json("/api/v1/history?from=0&to=3600000");
+  assert.ok(history.points.length >= 5, "simulated history has points");
+  assert.ok(
+    new Set(history.points.map((point) => point.rom_id)).size >= 2,
+    "simulated history covers several probes",
+  );
+  const alerts = await json("/api/v1/alerts?after=0&limit=50");
+  assert.ok(alerts.events.length >= 1, "simulated alert history is not empty");
+  assert.notEqual(alerts.oldest_available, null);
   const socket = await connect();
   const first = await nextMessage(socket);
   assert.equal(first.binary, false);

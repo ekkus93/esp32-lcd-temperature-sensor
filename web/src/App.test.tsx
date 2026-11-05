@@ -7,7 +7,17 @@ vi.mock('./features/HistoryView', () => ({
     <div>Selected zone: {timezone ?? 'not loaded'}</div>
   ),
 }));
+// jsdom's own WebSocket would try a real connection; tests use an inert one unless they drive it.
+class InertSocket {
+  onopen: (() => void) | null = null;
+  onmessage: ((e: { data: unknown }) => void) | null = null;
+  onclose: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  readyState = 0;
+  close() {}
+}
 beforeEach(() => {
+  vi.stubGlobal('WebSocket', InertSocket);
   localStorage.clear();
   history.replaceState({}, '', '/');
   vi.stubGlobal('matchMedia', () => ({ matches: false }));
