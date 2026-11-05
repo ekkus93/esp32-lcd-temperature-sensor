@@ -65,6 +65,10 @@ and the web client does so with backoff and a fresh REST resync. The live stream
 signed-in owner so viewers cannot lock the owner out; further clients are refused. The upgrade still
 requires the device's own `Origin` and `Host`. Clients are never sent a partial or queued backlog of older frames.
 
+History is public and therefore rate limited per client address: one `GET /history` per second and one
+`GET /history/export` per 30 seconds, and at most two history-type requests running at once. A refused
+request returns `429` with a `Retry-After` header (seconds) and costs the client nothing.
+
 `POST /ota` checks that the image's application descriptor names this product (`project_name`)
 before writing anything to the inactive slot; a different product is refused with `422`. This is a
 sanity check, not authentication: images are not signed and secure boot is out of scope, so

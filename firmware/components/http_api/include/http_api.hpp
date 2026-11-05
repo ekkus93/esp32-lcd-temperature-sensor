@@ -6,6 +6,7 @@
 #include "freertos/semphr.h"
 #include "history_service.hpp"
 #include "monitor.hpp"
+#include "public_limiter.hpp"
 #include "wifi_service.hpp"
 #include "ws_live.hpp"
 #include <optional>
@@ -51,6 +52,8 @@ class HttpApi {
         uint32_t client;
     };
     QueueHandle_t login_queue_ = nullptr;
+    // Touched only from the HTTP server task.
+    PublicLimiter limiter_;
     std::atomic<uint64_t> sent_generation_{0}, published_generation_{0};
     uint64_t consumed_generation_ = 0;
     Registry registry_;

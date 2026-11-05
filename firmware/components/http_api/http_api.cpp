@@ -9,6 +9,7 @@
 #include "login_throttle.hpp"
 #include "lwip/sockets.h"
 #include "ota_service.hpp"
+#include "public_limiter.hpp"
 #include "retirement_policy.hpp"
 #include "route_access.hpp"
 #include "web_assets.h"
@@ -753,10 +754,30 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
             if (!parsed_query)
                 return error(r, "400 Bad Request", "Invalid history bounds or selector");
             const auto &query = *parsed_query;
-            if (path == "/api/v1/history/export") {
-                if (has_max_points)
-                    return error(r, "400 Bad Request",
-                                 "CSV exports full five-minute records; omit max_points");
+            const bool exporting = path == "/api/v1/history/export";
+            if (exporting && has_max_points)
+                return error(r, "400 Bad Request",
+                             "CSV exports full five-minute records; omit max_points");
+            // History is public, so it is rate limited per client (one query per second, one
+            // export per 30 s, two at a time overall); a refused request says when to retry.
+            const auto kind = exporting ? PublicRequest::export_csv : PublicRequest::history;
+            const auto allowed = limiter_.begin(kind, client_id(r), now());
+            if (!allowed.allow) {
+                char retry[24];
+                std::snprintf(retry, sizeof(retry), "%lld",
+                              static_cast<long long>(
+                                  std::max<int64_t>(1, (allowed.retry_after_ms + 999) / 1000)));
+                httpd_resp_set_hdr(r, "Retry-After", retry);
+                return error(r, "429 Too Many Requests", "Too many history requests; retry later");
+            }
+            struct Finish {
+                PublicLimiter &limiter;
+                PublicRequest kind;
+                ~Finish() {
+                    limiter.finish(kind);
+                }
+            } finish{limiter_, kind};
+            if (exporting) {
                 bool started = false;
                 auto start = [&]() {
                     if (started)
