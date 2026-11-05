@@ -41,9 +41,23 @@ std::optional<Event> AlertService::update(Sensor &sensor, const Reading *reading
         sensor.state = sensor.state_before_fault.value_or(State::invalid);
     }
     sensor.state_before_fault.reset();
+    // A probe that browned out after Convert T answers exactly 85.0 (its power-on value) with a
+    // valid CRC. That is believed at once only if the previous reading was within 10 degrees of
+    // it; otherwise it is discarded for one cycle and accepted only if the next reading is also
+    // exactly 85.0.
+    const bool was_unconfirmed = sensor.unconfirmed_power_on_value;
+    sensor.unconfirmed_power_on_value = false;
+    bool power_on_suspect = false;
+    if (reading && reading->conversion_complete && reading->celsius && *reading->celsius == 85.0) {
+        const bool near_previous =
+            sensor.temperature &&
+            std::abs((*sensor.temperature - sensor.settings.calibration) - 85.0) <= 10.0;
+        power_on_suspect = !near_previous && !was_unconfirmed;
+        sensor.unconfirmed_power_on_value = power_on_suspect;
+    }
     const bool valid = reading && reading->conversion_complete && reading->celsius &&
                        std::isfinite(*reading->celsius) && *reading->celsius >= -55 &&
-                       *reading->celsius <= 125;
+                       *reading->celsius <= 125 && !power_on_suspect;
     if (!valid) {
         sensor.temperature.reset();
         sensor.pending_since.reset();

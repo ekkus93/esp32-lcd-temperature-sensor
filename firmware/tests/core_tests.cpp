@@ -96,7 +96,9 @@ void invalid_and_faults() {
     registry.sample({{id, 85, false}}, 0);
     CHECK(!registry.sensors()[0].temperature);
     registry.sample({{id, 85, true}}, 5000);
-    CHECK(registry.sensors()[0].temperature == 85);
+    CHECK(!registry.sensors()[0].temperature); // the power-on value is not believed at once
+    registry.sample({{id, 85, true}}, 7500);
+    CHECK(registry.sensors()[0].temperature == 85); // a second 85.0 in a row is believed
     registry.sample({{id, -127}}, 10000);
     CHECK(!registry.sensors()[0].temperature);
     registry.sample({}, 15000);
