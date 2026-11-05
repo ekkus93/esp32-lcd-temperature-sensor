@@ -20,6 +20,17 @@ struct DeriveRequest {
     bool result = false;
 };
 
+// Holds a mutex for one short operation.
+struct Guard {
+    explicit Guard(SemaphoreHandle_t mutex) : mutex_(mutex) {
+        xSemaphoreTake(mutex_, portMAX_DELAY);
+    }
+    ~Guard() {
+        xSemaphoreGive(mutex_);
+    }
+    SemaphoreHandle_t mutex_;
+};
+
 void derive_worker(void *context) {
     auto &request = *static_cast<DeriveRequest *>(context);
     psa_key_derivation_operation_t op = PSA_KEY_DERIVATION_OPERATION_INIT;
@@ -77,6 +88,12 @@ esp_err_t store_new_setup_code(nvs_handle_t handle, std::string &code) {
 }
 } // namespace
 esp_err_t AuthService::initialize() {
+    if (!mutex_)
+        mutex_ = xSemaphoreCreateMutex();
+    if (!kdf_mutex_)
+        kdf_mutex_ = xSemaphoreCreateMutex();
+    if (!mutex_ || !kdf_mutex_)
+        return ESP_ERR_NO_MEM;
     if (psa_crypto_init() != PSA_SUCCESS)
         return ESP_FAIL;
     std::array<uint8_t, 16> test_salt{};
@@ -144,13 +161,17 @@ bool AuthService::derive(const std::string &password, const std::array<uint8_t, 
     DeriveRequest request{&password, &salt, &out, iterations, xTaskGetCurrentTaskHandle()};
     // The HTTP task is pinned to core 1. A priority-0 worker shares that core
     // with IDLE1, while higher-priority network tasks can still preempt it.
+    // Only one derivation at a time: each needs a large stack and working memory.
+    xSemaphoreTake(kdf_mutex_, portMAX_DELAY);
     TaskHandle_t worker = nullptr;
     if (xTaskCreatePinnedToCore(derive_worker, "password_kdf", 8192, &request, tskIDLE_PRIORITY,
                                 &worker, 1) != pdPASS) {
         ESP_LOGE("auth", "Could not start password KDF worker");
+        xSemaphoreGive(kdf_mutex_);
         return false;
     }
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    xSemaphoreGive(kdf_mutex_);
     if (!request.result)
         ESP_LOGE("auth", "Password KDF unavailable");
     if (iterations > 1)
@@ -184,6 +205,7 @@ bool AuthService::save_password(const std::string &password) {
         hash_ = hash;
         enrolled_ = true;
         setup_.clear();
+        Guard guard(mutex_);
         sessions_.clear();
     }
     return ok;
@@ -199,37 +221,57 @@ bool AuthService::enroll(const std::string &secret, const std::string &password,
         next_login_ = now_ms;
     return ok;
 }
-bool AuthService::check_password(const std::string &password) {
+AuthService::PasswordCheck AuthService::check_password_result(const std::string &password) {
     if (!ready_ || !enrolled_ || password.size() > 128)
-        return false;
+        return PasswordCheck::mismatch;
     std::array<uint8_t, 32> candidate{};
     if (!derive(password, salt_, candidate))
-        return false;
+        return PasswordCheck::kdf_failed;
     volatile unsigned diff = 0;
     for (size_t i = 0; i < hash_.size(); ++i)
         diff = diff | (candidate[i] ^ hash_[i]);
     std::fill(candidate.begin(), candidate.end(), 0);
-    return diff == 0;
+    return diff == 0 ? PasswordCheck::match : PasswordCheck::mismatch;
 }
-Session *AuthService::login(const std::string &password, int64_t now_ms) {
-    if (now_ms < next_login_)
-        return nullptr;
-    next_login_ = now_ms + 5000;
+LoginThrottle::Decision AuthService::login_begin(uint32_t client, int64_t now_ms) {
+    Guard guard(mutex_);
+    return throttle_.begin(client, now_ms);
+}
+void AuthService::login_abort(uint32_t client) {
+    Guard guard(mutex_);
+    throttle_.abort(client);
+}
+std::optional<Session> AuthService::login_complete(const std::string &password, uint32_t client,
+                                                   int64_t now_ms) {
     const auto started = esp_timer_get_time() / 1000;
-    if (!check_password(password)) {
-        const auto completed = now_ms + (esp_timer_get_time() / 1000 - started);
-        next_login_ = completed + std::min<int64_t>(60000, 5000LL << std::min(failures_++, 4u));
-        return nullptr;
+    const auto check = check_password_result(password); // slow; no lock held
+    std::string token, csrf;
+    LoginOutcome outcome = check == PasswordCheck::match        ? LoginOutcome::verified
+                           : check == PasswordCheck::kdf_failed ? LoginOutcome::kdf_error
+                                                                : LoginOutcome::wrong_password;
+    if (outcome == LoginOutcome::verified) {
+        token = secure_token(32);
+        csrf = secure_token(24);
+        if (token.empty() || csrf.empty())
+            outcome = LoginOutcome::kdf_error; // no entropy: a device failure, not a bad password
     }
-    failures_ = 0;
-    next_login_ = now_ms + (esp_timer_get_time() / 1000 - started) + 500;
-    return sessions_.create(secure_token(32), secure_token(24),
-                            now_ms + (esp_timer_get_time() / 1000 - started));
+    const auto finished_ms = now_ms + (esp_timer_get_time() / 1000 - started);
+    Guard guard(mutex_);
+    throttle_.finish(client, outcome, finished_ms);
+    if (outcome != LoginOutcome::verified)
+        return std::nullopt;
+    if (auto *session = sessions_.create(token, csrf, finished_ms))
+        return *session;
+    return std::nullopt;
 }
-Session *AuthService::authorize(const std::string &token, int64_t now_ms) {
-    return sessions_.authorize(token, now_ms);
+std::optional<Session> AuthService::authorize(const std::string &token, int64_t now_ms) {
+    Guard guard(mutex_);
+    if (auto *session = sessions_.authorize(token, now_ms))
+        return *session;
+    return std::nullopt;
 }
 void AuthService::logout(const std::string &token) {
+    Guard guard(mutex_);
     sessions_.logout(token);
 }
 

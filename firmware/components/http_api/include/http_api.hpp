@@ -8,6 +8,7 @@
 #include "monitor.hpp"
 #include "wifi_service.hpp"
 #include "ws_live.hpp"
+#include <optional>
 #include <string>
 namespace monitor {
 class HttpApi {
@@ -26,10 +27,12 @@ class HttpApi {
     static esp_err_t dispatch(httpd_req_t *request);
     static esp_err_t live(httpd_req_t *request);
     static esp_err_t ws_pre(httpd_req_t *request);
+    // Runs password checks off the HTTP task so a (slow) login never stalls other requests.
+    static void login_worker(void *context);
     esp_err_t handle(httpd_req_t *request);
     std::string snapshot();
     bool origin(httpd_req_t *request, bool require_origin);
-    Session *session(httpd_req_t *request, bool csrf);
+    std::optional<Session> session(httpd_req_t *request, bool csrf);
     AuthService *auth_ = nullptr;
     WifiService *wifi_ = nullptr;
     HistoryService *history_ = nullptr;
@@ -42,6 +45,12 @@ class HttpApi {
         bool retire;
     };
     QueueHandle_t updates_ = nullptr;
+    struct LoginJob {
+        httpd_req_t *request; // async copy, completed by the worker
+        std::string password;
+        uint32_t client;
+    };
+    QueueHandle_t login_queue_ = nullptr;
     std::atomic<uint64_t> sent_generation_{0}, published_generation_{0};
     uint64_t consumed_generation_ = 0;
     Registry registry_;

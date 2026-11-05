@@ -6,6 +6,7 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "history_csv.hpp"
+#include "lwip/sockets.h"
 #include "ota_service.hpp"
 #include "retirement_policy.hpp"
 #include "web_assets.h"
@@ -105,6 +106,20 @@ std::string header(httpd_req_t *r, const char *name, size_t limit = 512) {
     if (httpd_req_get_hdr_value_str(r, name, text.data(), text.size()) != ESP_OK)
         return {};
     return text.data();
+}
+// A stable identifier for the peer, used to keep one client's failed logins from affecting others.
+uint32_t client_id(httpd_req_t *r) {
+    const int fd = httpd_req_to_sockfd(r);
+    sockaddr_storage address{};
+    socklen_t length = sizeof(address);
+    if (fd < 0 || getpeername(fd, reinterpret_cast<sockaddr *>(&address), &length) != 0)
+        return 0;
+    if (address.ss_family == AF_INET)
+        return reinterpret_cast<sockaddr_in *>(&address)->sin_addr.s_addr;
+    uint32_t hash = 2166136261u; // IPv6 or unknown: hash the address bytes
+    for (socklen_t i = 0; i < length; ++i)
+        hash = (hash ^ reinterpret_cast<uint8_t *>(&address)[i]) * 16777619u;
+    return hash;
 }
 esp_err_t error(httpd_req_t *r, const char *status, const char *message) {
     httpd_resp_set_status(r, status);
@@ -220,11 +235,34 @@ bool HttpApi::origin(httpd_req_t *r, bool required) {
     auto source = header(r, "Origin", 256);
     return source.empty() ? !required : source == "http://" + host;
 }
-Session *HttpApi::session(httpd_req_t *r, bool csrf) {
-    auto *value = auth_->authorize(cookie(r), now());
+std::optional<Session> HttpApi::session(httpd_req_t *r, bool csrf) {
+    auto value = auth_->authorize(cookie(r), now());
     if (value && csrf && !constant_equal(header(r, "X-CSRF-Token", 128), value->csrf))
-        return nullptr;
+        return std::nullopt;
     return value;
+}
+void HttpApi::login_worker(void *context) {
+    auto &self = *static_cast<HttpApi *>(context);
+    for (;;) {
+        LoginJob *job = nullptr;
+        if (xQueueReceive(self.login_queue_, &job, portMAX_DELAY) != pdTRUE || !job)
+            continue;
+        const auto session = self.auth_->login_complete(job->password, job->client, now());
+        std::fill(job->password.begin(), job->password.end(), '\0');
+        if (!session) {
+            httpd_resp_set_hdr(job->request, "Retry-After", "5");
+            error(job->request, "401 Unauthorized", "Login denied; retry after 5 seconds");
+        } else {
+            std::string value = "tm_session=" + session->token +
+                                "; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600";
+            httpd_resp_set_hdr(job->request, "Set-Cookie", value.c_str());
+            Json object(cJSON_CreateObject(), cJSON_Delete);
+            cJSON_AddStringToObject(object.get(), "csrf", session->csrf.c_str());
+            json(job->request, object.get());
+        }
+        httpd_req_async_handler_complete(job->request);
+        delete job;
+    }
 }
 bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &history,
                     DeviceSettingsService &settings, uint64_t id, bool simulated,
@@ -240,7 +278,10 @@ bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &histor
     boot_id_ = text;
     mutex_ = xSemaphoreCreateMutex();
     updates_ = xQueueCreate(4, sizeof(SensorUpdate *));
-    if (!mutex_ || !updates_)
+    login_queue_ = xQueueCreate(1, sizeof(LoginJob *)); // the throttle allows one derive at a time
+    if (!mutex_ || !updates_ || !login_queue_)
+        return false;
+    if (xTaskCreatePinnedToCore(login_worker, "login", 6144, this, 4, nullptr, 1) != pdPASS)
         return false;
     cJSON_Hooks hooks{};
     hooks.malloc_fn = [](size_t size) -> void * {
@@ -384,7 +425,7 @@ esp_err_t HttpApi::dispatch(httpd_req_t *request) {
 }
 esp_err_t HttpApi::ws_pre(httpd_req_t *r) {
     auto &self = *static_cast<HttpApi *>(r->user_ctx);
-    auto *session = self.session(r, false);
+    auto session = self.session(r, false);
     if (!self.origin(r, true) || !session) {
         error(r, "403 Forbidden", "WebSocket authorization failed");
         return ESP_FAIL;
@@ -421,7 +462,7 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
     if (path == "/api/v1/auth/state" && r->method == HTTP_GET) {
         Json object(cJSON_CreateObject(), cJSON_Delete);
         cJSON_AddBoolToObject(object.get(), "enrolled", auth_->enrolled());
-        if (auto *s = session(r, false))
+        if (auto s = session(r, false))
             cJSON_AddStringToObject(object.get(), "csrf", s->csrf.c_str());
         return json(r, object.get());
     }
@@ -437,18 +478,39 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
             httpd_resp_set_status(r, "201 Created");
             return httpd_resp_send(r, "{}", 2);
         }
-        auto *s = auth_->login(string(input.get(), "password"), now());
-        if (!s)
-            return error(r, "401 Unauthorized", "Login denied; retry after 5 seconds");
-        std::string value =
-            "tm_session=" + s->token + "; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600";
-        httpd_resp_set_hdr(r, "Set-Cookie", value.c_str());
-        Json object(cJSON_CreateObject(), cJSON_Delete);
-        cJSON_AddStringToObject(object.get(), "csrf", s->csrf.c_str());
-        return json(r, object.get());
+        // Login: the slow password check runs on a worker so other requests keep being served.
+        std::string password = string(input.get(), "password");
+        const uint32_t client = client_id(r);
+        const auto decision = auth_->login_begin(client, now());
+        if (decision.gate != LoginGate::allow) {
+            char retry[24];
+            std::snprintf(retry, sizeof(retry), "%lld",
+                          static_cast<long long>(
+                              std::max<int64_t>(1, (decision.retry_after_ms + 999) / 1000)));
+            httpd_resp_set_hdr(r, "Retry-After", retry);
+            return error(r, "429 Too Many Requests",
+                         decision.gate == LoginGate::busy
+                             ? "Another login is being checked; retry shortly"
+                             : "Too many failed logins; retry later");
+        }
+        auto *job = new (std::nothrow) LoginJob{nullptr, std::move(password), client};
+        httpd_req_t *copy = nullptr;
+        if (!job || httpd_req_async_handler_begin(r, &copy) != ESP_OK) {
+            delete job;
+            auth_->login_abort(client);
+            return error(r, "503 Service Unavailable", "Login unavailable; retry shortly");
+        }
+        job->request = copy;
+        if (!login_queue_ || xQueueSend(login_queue_, &job, 0) != pdTRUE) {
+            httpd_req_async_handler_complete(copy);
+            delete job;
+            auth_->login_abort(client);
+            return error(r, "503 Service Unavailable", "Login unavailable; retry shortly");
+        }
+        return ESP_OK; // the worker answers on the async copy
     }
     if (api) {
-        auto *s = session(r, r->method != HTTP_GET);
+        auto s = session(r, r->method != HTTP_GET);
         if (!s)
             return error(r, "401 Unauthorized", "Administrator session required");
         if (path == "/api/v1/clock" && r->method == HTTP_GET) {
