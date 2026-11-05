@@ -114,8 +114,8 @@ DisplayView::DisplayView() {
                     chart = s->charts[0];
                 } else {
                     chart = lv_chart_create(s->root);
-                    lv_obj_set_pos(chart, large_trend ? 38 : 12, large_trend ? 40 : top + 21);
-                    lv_obj_set_size(chart, large_trend ? 86 : 141, large_trend ? 46 : 23);
+                    lv_obj_set_pos(chart, large_trend ? 38 : 12, large_trend ? 16 : top + 21);
+                    lv_obj_set_size(chart, large_trend ? 86 : 141, large_trend ? 50 : 23);
                     lv_obj_set_style_bg_opa(chart, LV_OPA_TRANSP, 0);
                     lv_obj_set_style_border_width(chart, 0, 0);
                     lv_obj_set_style_pad_all(chart, 0, 0);
@@ -131,14 +131,14 @@ DisplayView::DisplayView() {
                     chart, lv_color_hex(large_trend ? line_colors[i] : 0x9be3c4),
                     LV_CHART_AXIS_PRIMARY_Y);
                 if (large_trend) {
-                    // The legend: probe names in their line colours, two columns under the chart.
-                    s->legend[i] = label(s->root, i < 3 ? 2 : 64, 102 + 13 * (i < 3 ? i : i - 3),
-                                         i < 3 ? 62 : 62, &font_charter_regular_12);
+                    // The legend: probe names in their line colours, one column under the chart.
+                    s->legend[i] =
+                        label(s->root, 2, 82 + 12 * int(i), 124, &font_charter_regular_12);
                     lv_label_set_long_mode(s->legend[i], LV_LABEL_LONG_CLIP);
                     lv_obj_set_style_text_color(s->legend[i], lv_color_hex(line_colors[i]), 0);
                     if (i == 0) {
                         for (auto *axis : {&s->axis_max[0], &s->axis_min[0]}) {
-                            *axis = label(s->root, 0, axis == &s->axis_max[0] ? 40 : 72, 36,
+                            *axis = label(s->root, 0, axis == &s->axis_max[0] ? 16 : 52, 36,
                                           &font_charter_regular_12);
                             lv_obj_set_style_text_align(*axis, LV_TEXT_ALIGN_RIGHT, 0);
                             lv_obj_set_style_text_color(*axis, lv_color_hex(setup_muted), 0);
@@ -147,15 +147,18 @@ DisplayView::DisplayView() {
                 }
                 if (!large_trend || i == 0) {
                     s->no_data[i] =
-                        label(s->root, large_trend ? 4 : 12, large_trend ? 56 : top + 24,
+                        label(s->root, large_trend ? 4 : 12, large_trend ? 36 : top + 24,
                               large_trend ? 120 : 141, &font_charter_regular_12);
                     text(s->no_data[i], "NO DATA");
                 }
             }
         }
         if (compact && s == &trends_) {
-            s->axis_from = label(s->root, 38, 87, 43, &font_charter_regular_12);
-            s->axis_now = label(s->root, 81, 87, 43, &font_charter_regular_12);
+            s->axis_from = label(s->root, 38, 67, 43, &font_charter_regular_12);
+            s->axis_now = label(s->root, 81, 67, 43, &font_charter_regular_12);
+            // Five legend rows end at y=142, so the Trends footer sits below them.
+            lv_obj_set_y(s->footer, 147);
+            lv_obj_set_height(s->footer, 13);
             lv_obj_set_style_text_align(s->axis_now, LV_TEXT_ALIGN_RIGHT, 0);
             for (auto *axis : {s->axis_from, s->axis_now})
                 lv_obj_set_style_text_color(axis, lv_color_hex(setup_muted), 0);

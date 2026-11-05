@@ -402,6 +402,19 @@ int main(int argc, char **argv) {
         for (unsigned i = 0; i < max_sensors; ++i)
             CHECK(lv_obj_is_hidden(view.trends_label(i))); // no per-probe header any more
         {
+            // The legend is one column (every entry at the same x, one below the other) and ends
+            // above the footer.
+            lv_obj_update_layout(lv_screen_active());
+            for (unsigned i = 0; i < max_sensors; ++i) {
+                CHECK(lv_obj_get_x(view.trends_legend(i)) == lv_obj_get_x(view.trends_legend(0)));
+                if (i)
+                    CHECK(lv_obj_get_y(view.trends_legend(i)) >
+                          lv_obj_get_y(view.trends_legend(i - 1)));
+            }
+            CHECK(lv_obj_get_y(view.trends_legend(4)) + lv_obj_get_height(view.trends_legend(4)) <=
+                  lv_obj_get_y(view.footer_label()));
+        }
+        {
             // Repeated renders of unchanged data while Trends is shown must not repaint.
             unsigned trend_invalidations = 0;
             lv_display_add_event_cb(
@@ -461,7 +474,7 @@ int main(int argc, char **argv) {
         }
         lv_obj_update_layout(lv_screen_active());
         auto *first_chart = view.trends_chart(0);
-        CHECK(lv_obj_get_width(first_chart) == 86 && lv_obj_get_height(first_chart) == 46);
+        CHECK(lv_obj_get_width(first_chart) == 86 && lv_obj_get_height(first_chart) == 50);
         {
             // Fonts by role: serif (Charter) for every piece of text on the Overview and Trends
             // screens; the Wi-Fi icon is a symbol and stays in Montserrat.
