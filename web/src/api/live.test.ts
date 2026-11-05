@@ -7,10 +7,15 @@ class FakeSocket {
   onmessage: ((e: { data: unknown }) => void) | null = null;
   onclose: (() => void) | null = null;
   onerror: (() => void) | null = null;
+  closeCalls = 0;
   constructor() {
     FakeSocket.instances.push(this);
   }
+  open() {
+    this.onopen?.();
+  }
   close() {
+    this.closeCalls += 1;
     this.onclose?.();
   }
 }
@@ -51,6 +56,43 @@ it('reconnects after close and stops all retries when unsubscribed', async () =>
   stop();
   await vi.advanceTimersByTimeAsync(60000);
   expect(FakeSocket.instances).toHaveLength(2);
+});
+it('gives a reconnecting socket its own handshake time after a silent period', async () => {
+  const error = vi.fn();
+  const receive = vi.fn();
+  stop = subscribeLive(receive, error);
+  const first = FakeSocket.instances[0];
+  first.open();
+  // The device goes quiet; the heartbeat closes the stale socket and a retry starts.
+  await vi.advanceTimersByTimeAsync(16000);
+  expect(first.closeCalls).toBe(1);
+  await vi.advanceTimersByTimeAsync(2000);
+  const second = FakeSocket.instances[1];
+  expect(second).toBeDefined();
+  // The new socket is still connecting. It must not be killed by the old silence.
+  const timeouts = () =>
+    error.mock.calls.filter(([m]) => String(m).includes('timed out')).length;
+  const before = timeouts();
+  await vi.advanceTimersByTimeAsync(8000);
+  expect(second.closeCalls).toBe(0);
+  expect(FakeSocket.instances).toHaveLength(2);
+  expect(timeouts()).toBe(before); // and the stale banner is not re-raised every second
+  // It finally opens and starts delivering data: normal operation resumes.
+  second.open();
+  second.onmessage?.({ data: JSON.stringify({ ...empty, sequence: 3 }) });
+  await vi.advanceTimersByTimeAsync(5000);
+  expect(second.closeCalls).toBe(0);
+  expect(receive).toHaveBeenCalledWith(
+    expect.objectContaining({ sequence: 3 }),
+  );
+});
+it('closes a socket that never finishes connecting after the silence limit', async () => {
+  stop = subscribeLive(vi.fn(), vi.fn());
+  const only = FakeSocket.instances[0];
+  await vi.advanceTimersByTimeAsync(14000);
+  expect(only.closeCalls).toBe(0);
+  await vi.advanceTimersByTimeAsync(3000);
+  expect(only.closeCalls).toBe(1);
 });
 it('marks silent connections stale', async () => {
   const error = vi.fn();

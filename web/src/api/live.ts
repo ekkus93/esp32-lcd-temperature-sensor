@@ -60,6 +60,9 @@ export function subscribeLive(
     const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const current = new WebSocket(`${scheme}//${location.host}/api/v1/live`);
     socket = current;
+    // A new attempt gets its own silence window. Otherwise the heartbeat would judge it by the
+    // previous socket's last message and close it while it is still connecting.
+    lastMessage = Date.now();
     let retryScheduled = false;
     current.onopen = () => {
       if (stopped || socket !== current) return;
