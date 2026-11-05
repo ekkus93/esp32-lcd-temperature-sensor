@@ -21,14 +21,26 @@ std::optional<Event> AlertService::update(Sensor &sensor, const Reading *reading
     if (!sensor.settings.enabled) {
         sensor.temperature.reset();
         sensor.pending_since.reset();
+        sensor.state_before_fault.reset();
         return transition(sensor, State::disabled, now_ms);
     }
     if (bus_fault) {
+        // Remember what the sensor was doing so the alarm picks up where it left off. Entering
+        // the fault is silent for the sensor; the registry records the bus-level event once.
+        if (sensor.state != State::bus_fault)
+            sensor.state_before_fault = sensor.state;
         sensor.state = State::bus_fault;
         sensor.temperature.reset();
         sensor.pending_since.reset();
         return std::nullopt;
     }
+    if (sensor.state == State::bus_fault) {
+        // The fault cleared: resume from the state before it, so a sensor still beyond its limit
+        // stays in alarm (no new persistence wait, no duplicate event) and one that is back
+        // within limits produces the normal clearing event.
+        sensor.state = sensor.state_before_fault.value_or(State::invalid);
+    }
+    sensor.state_before_fault.reset();
     const bool valid = reading && reading->conversion_complete && reading->celsius &&
                        std::isfinite(*reading->celsius) && *reading->celsius >= -55 &&
                        *reading->celsius <= 125;

@@ -53,6 +53,9 @@ struct Sensor {
     unsigned failures = 0;
     State pending = State::normal;
     std::optional<int64_t> pending_since;
+    // The state a sensor was in when a bus fault began, restored when the fault clears so an
+    // alarm episode (and its persistence and hysteresis) is not split by the fault.
+    std::optional<State> state_before_fault;
 };
 struct Reading {
     uint64_t rom;
