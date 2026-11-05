@@ -961,13 +961,51 @@ int main() {
         std::string preserved((std::istreambuf_iterator<char>(in)), {});
         CHECK(preserved == "preserve-this-file");
     }
-    CHECK(std::filesystem::remove(compact_temp));
     CHECK(!compact_journal.append(compact_third)); // Failure latches writer.
+    // Recovery clears the stale temporary path itself (removing the link, never its target), so
+    // a leftover from an interrupted compaction cannot disable the journal for good.
     CHECK(compact_journal.recover());
+    CHECK(!std::filesystem::is_symlink(compact_temp) && !std::filesystem::exists(compact_temp));
+    {
+        std::ifstream in(compact_target, std::ios::binary);
+        std::string preserved((std::istreambuf_iterator<char>(in)), {});
+        CHECK(preserved == "preserve-this-file");
+    }
     CHECK(compact_journal.append(compact_third));
     const auto compact_page = compact_journal.page(0, 50);
     CHECK(compact_page.available && compact_page.events.size() == 2);
     CHECK(compact_page.events[0].sequence == 2 && compact_page.events[1].sequence == 3);
+
+    // A power cut during compaction leaves a partly written temporary file next to an intact
+    // journal. The next boot must remove it and keep appending, including the compaction that
+    // the full journal needs, instead of failing on the exclusive create forever.
+    {
+        const std::string cut_path = std::string(event_directory) + "/powercut.bin";
+        const std::string cut_temp = cut_path + ".tmp";
+        EventStore before_cut(cut_path, 2 * event_record_bytes);
+        CHECK(before_cut.recover());
+        auto first = event;
+        CHECK(before_cut.append(first));
+        auto second = event;
+        second.uptime_ms += 2000;
+        CHECK(before_cut.append(second));
+        {
+            std::ofstream out(cut_temp, std::ios::binary);
+            out << std::string(event_record_bytes / 2 + 3, 'x'); // a torn partial copy
+            CHECK(out.good());
+        }
+        EventStore after_cut(cut_path, 2 * event_record_bytes);
+        CHECK(after_cut.recover());
+        CHECK(!std::filesystem::exists(cut_temp));
+        CHECK(after_cut.page(0, 50).events.size() == 2);
+        auto third = second;
+        third.uptime_ms += 2000;
+        CHECK(after_cut.append(third)); // the compaction the full journal needs succeeds
+        const auto page = after_cut.page(0, 50);
+        CHECK(page.available && page.events.size() == 2);
+        CHECK(page.events[0].sequence == 2 && page.events[1].sequence == 3);
+        CHECK(!std::filesystem::exists(cut_temp));
+    }
 
     EventStore journal(event_path, 4 * event_record_bytes);
     CHECK(!journal.append(event)); // No implicit sequence reset on construction.

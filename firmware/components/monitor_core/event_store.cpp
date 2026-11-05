@@ -212,6 +212,19 @@ bool EventStore::recover() {
 #endif
     if (max_bytes_ < 2 * event_record_bytes)
         return recovery_failure(__LINE__);
+    // Compaction writes a temporary file and renames it over the journal, creating it exclusively.
+    // A leftover from an interrupted compaction would make every later compaction fail and, once
+    // the journal fills, switch event logging off for good. The journal itself is untouched until
+    // that rename, so the leftover is simply discarded. unlink() removes a symlink without
+    // following it, so an unrelated file it points to is never touched.
+    {
+        const std::string stale_temporary = path_ + ".tmp";
+        if (unlink(stale_temporary.c_str()) != 0 && errno != ENOENT) {
+#ifdef ESP_PLATFORM
+            ESP_LOGW("event_store", "could not remove stale compaction file errno=%d", errno);
+#endif
+        }
+    }
     // A failed read is not proof that the journal is absent. In particular,
     // fopen("wb") here would destroy a writeable but unreadable journal.
     // Refuse symlinks/directories and only create a genuinely missing file.
