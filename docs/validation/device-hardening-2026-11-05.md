@@ -43,3 +43,22 @@ On an idle board with only 188 KB of history stored, `GET /history?...&max_point
 took about 9 s and the slowest about 27 s, because these queries run on the single HTTP task. The cost
 does not depend on the amount of data, so it is mostly fixed per-query overhead; this is the problem R02-05
 addresses and it must be fixed before history becomes public.
+
+## History query fix (R02-05) — measured on the board
+
+Cause: `HistoryStore::visit` did a directory and a segment filesystem lookup after every record and
+read each segment about four times. Fix: read each 32 KiB segment once into memory, validate it and
+deliver records from that snapshot; add a 3 s query budget that marks the answer truncated.
+
+Same board and test machine, idle board (about 188 KB of history):
+
+| Request | Before | After |
+| --- | --- | --- |
+| `GET /history?...&max_points=512` | 10.3 s | 0.34 s, then 0.61 s |
+| `GET /history/export` | 9.5 s | 0.64 s |
+
+Heavy authenticated load (three HTTP workers over status, sensors, alerts, history and CSV export plus four
+WebSocket clients, 120 s): before 35 requests, p50 9.4 s, p95 27.5 s; after 625 requests, all 200, p50
+0.49 s, p95 0.88 s, max 5.4 s; same boot id and no reset. One of the four WebSocket clients was closed
+by the server in each run (three still open), consistent with the four-slot client limit; not investigated here.
+Not measured: CSV export at full retention (about 3 MiB of history, weeks of data).

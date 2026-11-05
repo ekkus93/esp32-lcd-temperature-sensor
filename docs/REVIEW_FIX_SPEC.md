@@ -161,9 +161,13 @@ The upload checks the image's `esp_app_desc_t.project_name` against this firmwar
 `event_store.cpp:408` creates `events.bin.tmp` exclusively and `recover()` never removes a leftover. Recovery deletes or completes a stale temporary file at mount. The existing test that locks in the failing behaviour (`storage_tests.cpp:940-966`) is changed to require recovery.
 
 ### 7.2 History queries and export stall the server (P1)
-- Each `/history` request reads every segment about four times (`history.cpp:732-762`), roughly 12 MiB of flash at full retention, on the HTTP task with the history mutex held and no deadline.
-- **Required:** one validation pass per segment per query, a per-segment time range kept in RAM so segments outside the query are skipped, a query deadline (for example 3 s) that returns `truncated: true`, and the mutex released between segments. CSV export streams in larger chunks and has a deadline per chunk, so a full-retention export completes; if it cannot, the response says so.
-- **Tests:** host profile at full retention measuring reads per query; device measurement recorded.
+- **Problem:** every `/history` request took about 10 s on the device even with only 188 KB of history, on the single HTTP task with the history mutex held and no deadline. The cost was per record, not per byte: `HistoryStore::visit` did a directory lookup and a segment lookup after every record (each a slow LittleFS call) and read each segment about four times.
+- **Done (R02-05):**
+  - Each segment is read once into memory (segments are 32 KiB), validated, and its records are delivered from that snapshot. A file replaced during a callback cannot splice data into the result, and the visit is still reported as failed; no per-record filesystem checks remain.
+  - `HistoryService::query` has a 3 s budget; past it delivery stops and the answer is `truncated`.
+  - Measured on the board: bounded history 10.3 s to 0.34-0.61 s, CSV export 9.5 s to 0.64 s, and the heavy authenticated load median 9.4 s to 0.49 s (625 requests, all 200).
+- **Not done, deliberately:** a per-segment time index and releasing the mutex between segments. At the measured cost they are not needed yet; revisit if full-retention measurements (R02-09) show slow queries. CSV export at full retention (about 3 MiB of history) is still unmeasured.
+- **Tests:** host tests cover snapshot delivery under a mid-visit file replacement; latency is recorded under `docs/validation/`.
 
 ### 7.3 Event flooding (P2)
 `storage_error` events are limited to one per state change plus one reminder per hour while the fault persists (`history_service.cpp:201-216`). This joins the per-sensor limit in §3.7 so the journal keeps alarm history for weeks.
