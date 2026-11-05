@@ -26,7 +26,8 @@ struct ScannedNetwork {
 };
 class WifiService {
   public:
-    esp_err_t start();
+    // `hostname` is the mDNS name to answer to (without ".local").
+    esp_err_t start(const std::string &hostname);
     bool connect(const std::string &ssid, const std::string &password);
     bool provision();
     bool candidate_busy() const {
@@ -35,6 +36,11 @@ class WifiService {
     NetworkInfo info() const;
     bool scan();
     bool scan_results(std::vector<ScannedNetwork> &networks, bool &scanning);
+    // Change the mDNS name without a reboot. Returns false when mDNS is unavailable.
+    bool mdns_rename(const std::string &hostname);
+    // The name mDNS is really using, which differs from the setting after a conflict with another
+    // device (the stack then appends "-2"); empty when mDNS is unavailable.
+    std::string mdns_hostname() const;
     const std::string &ap_ssid() const {
         return ap_ssid_;
     }
@@ -66,6 +72,7 @@ class WifiService {
     int64_t next_scan_ = 0; // serialized HTTP caller
     std::atomic<int> state_{0};
     std::atomic<bool> ap_{false};
+    std::atomic<bool> mdns_ready_{false};
     std::atomic<uint32_t> ip_{0};
     std::atomic<bool> candidate_pending_{false}, saved_credentials_{false};
     std::atomic<int> attempt_{0};

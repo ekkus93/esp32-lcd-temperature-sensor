@@ -22,7 +22,7 @@ namespace monitor {
 namespace {
 enum { got_ip = 1, disconnected = 2, candidate = 3, open_ap = 4, start_scan = 5, scan_done = 6 };
 }
-esp_err_t WifiService::start() {
+esp_err_t WifiService::start(const std::string &hostname) {
     auto result = esp_netif_init();
     if (result != ESP_OK)
         return result;
@@ -66,20 +66,23 @@ esp_err_t WifiService::start() {
         ESP_LOGW("wifi_control", "mDNS unavailable (%s); use the device IP",
                  esp_err_to_name(result));
     } else {
-        result = mdns_hostname_set("temperature-monitor");
+        result = mdns_hostname_set(hostname.c_str());
         if (result == ESP_OK)
             result = mdns_instance_name_set("ESP32 Temperature Monitor");
         if (result != ESP_OK) {
             ESP_LOGW("wifi_control", "mDNS hostname unavailable (%s); use the device IP",
                      esp_err_to_name(result));
             mdns_free();
+            mdns_ready_ = false;
         } else {
+            // The name resolves from here on; the browsable service entry below is a bonus.
+            mdns_ready_ = true;
             result = mdns_service_add(nullptr, "_http", "_tcp", 80, nullptr, 0);
             if (result != ESP_OK)
                 ESP_LOGW("wifi_control", "mDNS HTTP service advertisement unavailable: %s",
                          esp_err_to_name(result));
             else
-                ESP_LOGI("wifi_control", "mDNS available at http://temperature-monitor.local");
+                ESP_LOGI("wifi_control", "mDNS available at http://%s.local", hostname.c_str());
         }
     }
     // RF is now active, supplying hardware entropy for per-device provisioning secrets.
@@ -237,6 +240,23 @@ bool WifiService::scan_results(std::vector<ScannedNetwork> &networks, bool &scan
     scanning = scanning_.load();
     xSemaphoreGive(scan_mutex_);
     return true;
+}
+bool WifiService::mdns_rename(const std::string &hostname) {
+    if (!mdns_ready_)
+        return false;
+    const auto result = mdns_hostname_set(hostname.c_str());
+    if (result != ESP_OK)
+        ESP_LOGW("wifi_control", "mDNS rename to %s failed: %s", hostname.c_str(),
+                 esp_err_to_name(result));
+    else
+        ESP_LOGI("wifi_control", "mDNS now http://%s.local", hostname.c_str());
+    return result == ESP_OK;
+}
+std::string WifiService::mdns_hostname() const {
+    if (!mdns_ready_)
+        return {};
+    char name[MDNS_NAME_BUF_LEN]{};
+    return mdns_hostname_get(name) == ESP_OK ? std::string(name) : std::string{};
 }
 NetworkInfo WifiService::info() const {
     static const char *states[] = {"offline", "connecting", "connected"};

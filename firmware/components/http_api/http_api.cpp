@@ -6,6 +6,7 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "history_csv.hpp"
+#include "host_rules.hpp"
 #include "login_throttle.hpp"
 #include "lwip/sockets.h"
 #include "ota_service.hpp"
@@ -235,15 +236,28 @@ std::string cookie(httpd_req_t *r) {
 } // namespace
 bool HttpApi::origin(httpd_req_t *r, bool required) {
     auto host = header(r, "Host", 128);
-    auto address = wifi_->info().ip;
-    bool allowed =
-        host == "192.168.4.1" || host == "192.168.4.1:80" || host == "temperature-monitor.local" ||
-        host == "temperature-monitor.local:80" ||
-        (!address.empty() && address != "0.0.0.0" && (host == address || host == address + ":80"));
-    if (!allowed)
+    HostRules rules;
+    rules.station_ip = wifi_->info().ip;
+    {
+        std::lock_guard<std::mutex> lock(host_mutex_);
+        rules.configured_name = hostname_;
+    }
+    // After a name conflict mDNS runs under another name; accept that one too.
+    rules.active_name = wifi_->mdns_hostname();
+    if (!host_allowed(host, rules))
         return false;
     auto source = header(r, "Origin", 256);
     return source.empty() ? !required : source == "http://" + host;
+}
+void HttpApi::apply_hostname(const std::string &name) {
+    {
+        std::lock_guard<std::mutex> lock(host_mutex_);
+        if (hostname_ == name)
+            return;
+        hostname_ = name;
+    }
+    // Rename without a reboot; existing sessions are unaffected.
+    wifi_->mdns_rename(name);
 }
 std::optional<Session> HttpApi::session(httpd_req_t *r, bool csrf) {
     auto value = auth_->authorize(cookie(r), now());
@@ -283,6 +297,15 @@ bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &histor
     wifi_ = &wifi;
     history_ = &history;
     settings_ = &settings;
+    {
+        DeviceOptions options;
+        uint64_t revision = 0;
+        bool writable = false;
+        if (settings.get(options, revision, writable)) {
+            std::lock_guard<std::mutex> lock(host_mutex_);
+            hostname_ = options.hostname;
+        }
+    }
     char text[17];
     std::snprintf(text, sizeof(text), "%016llx", static_cast<unsigned long long>(id));
     boot_id_ = text;
@@ -690,6 +713,7 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                     return error(r, "400 Bad Request", "Invalid device settings");
                 if (settings_->save(options, revision) != ESP_OK)
                     return error(r, "503 Service Unavailable", "Settings could not be committed");
+                apply_hostname(options.hostname);
                 if (!configure_clock(options))
                     return error(r, "503 Service Unavailable",
                                  "Settings saved; clock configuration unavailable");

@@ -131,7 +131,7 @@ extern "C" void app_main() {
         ESP_LOGE(tag, "History worker unavailable");
     monitor::WifiService wifi;
     bool prior_clock_synced = false;
-    auto network_status = wifi.start();
+    auto network_status = wifi.start(device_options.hostname);
     monitor::AuthService auth;
     monitor::HttpApi api;
     bool auth_started = false;

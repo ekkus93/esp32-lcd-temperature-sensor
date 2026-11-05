@@ -9,6 +9,7 @@
 #include "public_limiter.hpp"
 #include "wifi_service.hpp"
 #include "ws_live.hpp"
+#include <mutex>
 #include <optional>
 #include <string>
 namespace monitor {
@@ -54,6 +55,10 @@ class HttpApi {
     QueueHandle_t login_queue_ = nullptr;
     // Touched only from the HTTP server task.
     PublicLimiter limiter_;
+    // The configured hostname (the Host allow-list follows it); changed by a settings update.
+    std::mutex host_mutex_;
+    std::string hostname_ = "temperature-monitor";
+    void apply_hostname(const std::string &name);
     std::atomic<uint64_t> sent_generation_{0}, published_generation_{0};
     uint64_t consumed_generation_ = 0;
     Registry registry_;
