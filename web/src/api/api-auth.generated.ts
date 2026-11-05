@@ -6,5 +6,6 @@
 
 export interface AuthState {
   enrolled: boolean;
+  signed_in: boolean;
   csrf?: string;
 }

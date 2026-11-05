@@ -91,6 +91,8 @@ const server = http.createServer((req, res) => {
     res.end(
       JSON.stringify({
         enrolled: true,
+        // The read-only simulator behaves as a signed-in owner so every screen can be viewed.
+        signed_in: true,
         csrf: 'simulator-csrf-token-000000000000',
       }),
     );

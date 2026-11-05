@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { getAlerts } from './alerts';
 import { authState } from './auth';
+import { getDisplaySettings } from './settings';
 import { networkProgress, wifiScan } from './network';
 import { parseSnapshot } from './client';
 import { empty } from './fixtures';
@@ -18,9 +19,14 @@ beforeEach(() => {
 });
 
 it('validates enrollment and session state from the device contract', async () => {
-  body = { enrolled: true, csrf: 'a'.repeat(48) };
+  body = { enrolled: true, signed_in: true, csrf: 'a'.repeat(48) };
   expect(await authState()).toEqual(body);
-  body = { enrolled: true, csrf: 3 };
+  // An anonymous visitor is told they are not signed in and gets no CSRF token.
+  body = { enrolled: true, signed_in: false };
+  expect(await authState()).toEqual(body);
+  body = { enrolled: true };
+  await expect(authState()).rejects.toThrow('Invalid authentication state');
+  body = { enrolled: true, signed_in: true, csrf: 3 };
   await expect(authState()).rejects.toThrow('Invalid authentication state');
 });
 
@@ -101,4 +107,38 @@ it('validates Wi-Fi status and bounded scan results', async () => {
     networks: [{ ssid: 'Example', rssi: -42, channel: 15, secure: true }],
   };
   await expect(wifiScan()).rejects.toThrow('Invalid network scan response');
+});
+
+it('reads display settings from the public response and from the owner response', async () => {
+  const display = {
+    schema_version: 1,
+    units: 'F',
+    display_mode: 'basic',
+    overview_seconds: 20,
+    trends_seconds: 10,
+    lookback_minutes: 60,
+    timezone: 'America/Los_Angeles',
+  };
+  // Anonymous: no etag, revision or NTP server.
+  body = display;
+  expect(await getDisplaySettings()).toEqual({
+    units: 'F',
+    timezone: 'America/Los_Angeles',
+  });
+  // Signed in: the full owner response carries the same display fields.
+  body = {
+    ...display,
+    etag: '"b:settings:1"',
+    revision: 1,
+    writable: true,
+    ntp_server: 'pool.ntp.org',
+  };
+  expect(await getDisplaySettings()).toEqual({
+    units: 'F',
+    timezone: 'America/Los_Angeles',
+  });
+  body = { ...display, units: 'K' };
+  await expect(getDisplaySettings()).rejects.toThrow(
+    'Invalid device settings response',
+  );
 });

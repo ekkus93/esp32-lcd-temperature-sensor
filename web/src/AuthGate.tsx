@@ -46,7 +46,10 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     void Promise.resolve().then(checkAuthState);
     const expired = () => {
       setCsrf('');
-      setState((old) => ({ enrolled: old?.enrolled ?? true }));
+      setState((old) => ({
+        enrolled: old?.enrolled ?? true,
+        signed_in: false,
+      }));
       setError('Session expired. Please sign in.');
     };
     addEventListener('auth-required', expired);
@@ -71,7 +74,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
         password,
       });
       setCsrf(result.csrf);
-      setState({ enrolled: true, csrf: result.csrf });
+      setState({ enrolled: true, signed_in: true, csrf: result.csrf });
       setPassword('');
       setSecret('');
     } catch (e) {

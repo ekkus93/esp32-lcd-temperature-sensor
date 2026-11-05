@@ -19,7 +19,7 @@ import {
   createTheme,
 } from '@mui/material';
 import { temperature } from './api/client';
-import { getSettings } from './api/settings';
+import { getDisplaySettings } from './api/settings';
 import { getProbeScan, type ProbeScanStatus } from './api/probe-scan';
 import { subscribeLive } from './api/live';
 import type { Snapshot } from './api/generated';
@@ -78,7 +78,7 @@ export default function App() {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let attempt = 0;
     const load = () => {
-      getSettings()
+      getDisplaySettings()
         .then((settings) => {
           if (!active) return;
           applySettings(settings.units, settings.timezone);

@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:temperature-monitor:device-settings-public:1",
+  "title": "PublicDeviceSettings",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "units",
+    "display_mode",
+    "overview_seconds",
+    "trends_seconds",
+    "lookback_minutes",
+    "timezone"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "units": {
+      "enum": ["C", "F"]
+    },
+    "display_mode": {
+      "enum": ["basic", "extended"]
+    },
+    "overview_seconds": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 300
+    },
+    "trends_seconds": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 300
+    },
+    "lookback_minutes": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 1440
+    },
+    "timezone": {
+      "enum": [
+        "UTC",
+        "America/Los_Angeles",
+        "America/New_York",
+        "Europe/London",
+        "Europe/Berlin",
+        "Asia/Tokyo",
+        "Australia/Sydney"
+      ]
+    }
+  }
+}

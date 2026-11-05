@@ -101,6 +101,7 @@ try {
   assert.equal(authState.status, 200);
   const auth = await authState.json();
   assert.equal(auth.enrolled, true);
+  assert.equal(typeof auth.signed_in, "boolean");
   assert.match(auth.csrf, /^[a-z0-9-]{32,64}$/);
   const statusResponse = await fetch(`http://127.0.0.1:${port}/api/v1/status`);
   assert.equal(statusResponse.status, 200);

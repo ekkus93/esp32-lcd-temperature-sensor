@@ -19,6 +19,10 @@ const files = [
   ['sensor-retire.schema.json', 'api-sensor-retire.generated.ts'],
   ['device-settings.schema.json', 'api-device-settings.generated.ts'],
   [
+    'device-settings-public.schema.json',
+    'api-device-settings-public.generated.ts',
+  ],
+  [
     'device-settings-patch.schema.json',
     'api-device-settings-patch.generated.ts',
   ],

@@ -4,9 +4,18 @@
   "title": "AuthState",
   "type": "object",
   "additionalProperties": false,
-  "required": ["enrolled"],
+  "required": ["enrolled", "signed_in"],
   "properties": {
-    "enrolled": { "type": "boolean" },
-    "csrf": { "type": "string", "minLength": 32, "maxLength": 64 }
+    "enrolled": {
+      "type": "boolean"
+    },
+    "signed_in": {
+      "type": "boolean"
+    },
+    "csrf": {
+      "type": "string",
+      "minLength": 32,
+      "maxLength": 64
+    }
   }
 }

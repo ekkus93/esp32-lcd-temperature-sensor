@@ -13,7 +13,7 @@ it('gates the app until an administrator signs in', async () => {
   vi.mocked(fetch)
     .mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ enrolled: true }),
+      json: async () => ({ enrolled: true, signed_in: false }),
     } as Response)
     .mockResolvedValueOnce({
       ok: true,
@@ -39,7 +39,7 @@ it('gates the app until an administrator signs in', async () => {
 it('requires a device-specific secret for first enrollment', async () => {
   vi.mocked(fetch).mockResolvedValue({
     ok: true,
-    json: async () => ({ enrolled: false }),
+    json: async () => ({ enrolled: false, signed_in: false }),
   } as Response);
   render(
     <AuthGate>
@@ -61,7 +61,7 @@ it('sends the owner code as typed and shows the device message for a malformed o
   vi.mocked(fetch)
     .mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ enrolled: false }),
+      json: async () => ({ enrolled: false, signed_in: false }),
     } as Response)
     .mockResolvedValueOnce({
       ok: false,
@@ -98,7 +98,11 @@ it('sends the owner code as typed and shows the device message for a malformed o
 it('returns to login after session expiration', async () => {
   vi.mocked(fetch).mockResolvedValue({
     ok: true,
-    json: async () => ({ enrolled: true, csrf: 'a'.repeat(48) }),
+    json: async () => ({
+      enrolled: true,
+      signed_in: true,
+      csrf: 'a'.repeat(48),
+    }),
   } as Response);
   render(
     <AuthGate>
@@ -121,7 +125,7 @@ it('allows retrying an initial authentication-state connection failure', async (
     .mockRejectedValueOnce(new TypeError('Failed to fetch'))
     .mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ enrolled: true }),
+      json: async () => ({ enrolled: true, signed_in: false }),
     } as Response);
   render(
     <AuthGate>
@@ -158,7 +162,7 @@ it('ignores an authentication response that arrives after unmount', async () => 
   await act(async () => {
     resolveRequest({
       ok: true,
-      json: async () => ({ enrolled: true }),
+      json: async () => ({ enrolled: true, signed_in: false }),
     } as Response);
   });
   expect(fetch).toHaveBeenCalledTimes(1);

@@ -471,8 +471,10 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
     if (path == "/api/v1/auth/state" && r->method == HTTP_GET) {
         Json object(cJSON_CreateObject(), cJSON_Delete);
         cJSON_AddBoolToObject(object.get(), "enrolled", auth_->enrolled());
-        if (auto s = session(r, false))
-            cJSON_AddStringToObject(object.get(), "csrf", s->csrf.c_str());
+        const auto signed_in = session(r, false);
+        cJSON_AddBoolToObject(object.get(), "signed_in", signed_in.has_value());
+        if (signed_in)
+            cJSON_AddStringToObject(object.get(), "csrf", signed_in->csrf.c_str());
         return json(r, object.get());
     }
     if ((path == "/api/v1/auth/enroll" || path == "/api/v1/auth/login") && r->method == HTTP_POST) {
@@ -692,9 +694,13 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
             }
             Json output(cJSON_CreateObject(), cJSON_Delete);
             cJSON_AddNumberToObject(output.get(), "schema_version", 1);
-            cJSON_AddStringToObject(output.get(), "etag", etag().c_str());
-            cJSON_AddNumberToObject(output.get(), "revision", revision);
-            cJSON_AddBoolToObject(output.get(), "writable", writable);
+            // Owner-only fields (etag, revision, writable, ntp_server) are left out of the public
+            // response (device-settings-public.schema.json); a signed-in owner gets them all.
+            if (s) {
+                cJSON_AddStringToObject(output.get(), "etag", etag().c_str());
+                cJSON_AddNumberToObject(output.get(), "revision", revision);
+                cJSON_AddBoolToObject(output.get(), "writable", writable);
+            }
             cJSON_AddStringToObject(output.get(), "units", options.fahrenheit ? "F" : "C");
             cJSON_AddStringToObject(output.get(), "display_mode",
                                     options.extended ? "extended" : "basic");
