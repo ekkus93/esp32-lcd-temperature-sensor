@@ -6,6 +6,7 @@
 #include "history.hpp"
 #include "history_query.hpp"
 #include <atomic>
+#include <mutex>
 namespace monitor {
 struct HistoryStorageInfo {
     size_t total_bytes = 0;
@@ -37,5 +38,9 @@ class HistoryService {
     QueueHandle_t event_queue_ = nullptr;
     std::atomic<bool> healthy_{false};
     std::atomic<bool> event_healthy_{false};
+    // Last storage figures that were read successfully; reported when the history mutex is busy
+    // (a long query) so Settings does not flip to "storage unavailable" for a moment.
+    std::mutex info_mutex_;
+    HistoryStorageInfo last_info_;
 };
 } // namespace monitor

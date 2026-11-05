@@ -164,8 +164,13 @@ bool HistoryService::visit(const HistoryQuery &query,
 }
 HistoryStorageInfo HistoryService::storage_info() {
     HistoryStorageInfo info{};
-    if (!mutex_ || xSemaphoreTake(mutex_, pdMS_TO_TICKS(500)) != pdTRUE)
+    if (!mutex_)
         return info;
+    if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(500)) != pdTRUE) {
+        // Busy, not broken: keep the last known figures.
+        std::lock_guard<std::mutex> lock(info_mutex_);
+        return last_info_;
+    }
     if (store_ && healthy_.load()) {
         info.available =
             esp_littlefs_info("history", &info.total_bytes, &info.used_bytes) == ESP_OK;
@@ -174,7 +179,9 @@ HistoryStorageInfo HistoryService::storage_info() {
     }
     xSemaphoreGive(mutex_);
     if (!info.available)
-        return {};
+        info = {};
+    std::lock_guard<std::mutex> lock(info_mutex_);
+    last_info_ = info;
     return info;
 }
 void HistoryService::worker(void *context) {
@@ -226,8 +233,7 @@ void HistoryService::worker(void *context) {
                 xSemaphoreTake(self.mutex_, portMAX_DELAY);
                 const bool recorded = events_usable && event_store.append(failure);
                 xSemaphoreGive(self.mutex_);
-                if (!recorded)
-                    self.event_healthy_ = false;
+                self.event_healthy_ = recorded;
             }
             delete bucket;
         }
@@ -236,10 +242,10 @@ void HistoryService::worker(void *context) {
             xSemaphoreTake(self.mutex_, portMAX_DELAY);
             const bool ok = events_usable && event_store.append(*event);
             xSemaphoreGive(self.mutex_);
-            if (!ok) {
-                self.event_healthy_ = false;
+            // The flag follows the latest write, so it recovers once the journal writes again.
+            self.event_healthy_ = ok;
+            if (!ok)
                 ESP_LOGE("history", "Event journal write failed");
-            }
             delete event;
         }
     }
