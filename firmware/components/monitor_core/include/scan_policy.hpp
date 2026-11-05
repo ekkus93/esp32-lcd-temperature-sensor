@@ -49,6 +49,10 @@ class ScanPolicy {
     // A smaller-than-expected scan waiting for a second scan to agree with it.
     std::optional<std::vector<uint64_t>> suspect_;
     int64_t next_scan_ = 0;
+    // Set while scans find no device at all although several probes are being read; kept across
+    // read cycles so the fault does not flicker between rescans.
+    bool no_presence_ = false;
+    int64_t no_presence_since_ = 0;
     bool fault_ = false;
     ProbeScanStatus status_{};
 };

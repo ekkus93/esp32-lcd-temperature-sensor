@@ -1,4 +1,5 @@
 #include "scan_policy.hpp"
+#include "sensor_registry.hpp"
 #include <array>
 #include <cstdlib>
 #include <iostream>
@@ -164,6 +165,85 @@ int main() {
         for (auto id : policy.roms())
             has_five = has_five || id == rom(5);
         CHECK(has_five);
+    }
+
+    // No device answers at all while several probes are being read: one shared-bus fault, the old
+    // read list is kept, and it is rechecked every 5 s (no flicker between rescans).
+    {
+        ScanPolicy policy;
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2), rom(3)}), 0, none));
+        CHECK(!policy.apply_scan(complete_scan({}), 30000, none));
+        CHECK(policy.fault() && policy.roms().size() == 3 && !policy.status().complete);
+        CHECK(!policy.scan_due(34999) && policy.scan_due(35000));
+        CHECK(policy.begin_cycle(false) && policy.fault()); // still faulty between rescans
+        // The probes come back: the fault clears and everything is read again.
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2), rom(3)}), 35000, none));
+        CHECK(!policy.fault() && policy.status().complete && policy.roms().size() == 3);
+        CHECK(policy.begin_cycle(false) && !policy.fault());
+    }
+
+    // Empty scans that never end are believed after five minutes: the probes really are gone.
+    {
+        ScanPolicy policy;
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2)}), 0, none));
+        int64_t now = 30000;
+        for (; now < 30000 + 300000; now += 5000) {
+            CHECK(!policy.apply_scan(complete_scan({}), now, none));
+            CHECK(policy.fault() && policy.roms().size() == 2);
+        }
+        CHECK(policy.apply_scan(complete_scan({}), now, none));
+        CHECK(!policy.fault() && !policy.has_probes() && policy.status().complete);
+        CHECK(policy.begin_cycle(false) && !policy.fault());
+    }
+
+    // A single known probe that disappears is just a missing probe: confirmed by a second scan,
+    // never a bus fault.
+    {
+        ScanPolicy policy;
+        CHECK(policy.apply_scan(complete_scan({rom(1)}), 0, none));
+        CHECK(policy.apply_scan(complete_scan({}), 30000, none));
+        CHECK(!policy.fault() && policy.has_probes() && !policy.status().complete);
+        CHECK(policy.apply_scan(complete_scan({}), 35000, none));
+        CHECK(!policy.fault() && !policy.has_probes() && policy.status().complete);
+    }
+
+    // Reads that work again also end a no-presence fault.
+    {
+        ScanPolicy policy;
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2)}), 0, none));
+        CHECK(!policy.apply_scan(complete_scan({}), 30000, none));
+        CHECK(policy.fault());
+        policy.finish_reads(31000, 2, false);
+        CHECK(!policy.fault());
+        CHECK(policy.begin_cycle(false) && !policy.fault());
+    }
+
+    // End to end with the registry: all probes vanishing is one bus-level event and no sensor
+    // ever reaches `disconnected`.
+    {
+        Registry registry;
+        ScanPolicy policy;
+        const std::vector<uint64_t> ids{rom(1), rom(2), rom(3)};
+        std::vector<Reading> readings;
+        for (auto id : ids)
+            readings.push_back({id, 20});
+        registry.sample(readings, 0);
+        CHECK(policy.apply_scan(complete_scan(ids), 0, none));
+        int64_t now = 5000;
+        for (int cycle = 0; cycle < 6; ++cycle, now += 5000) {
+            CHECK(policy.begin_cycle(false));
+            if (policy.scan_due(now))
+                CHECK(!policy.apply_scan(complete_scan({}), now, none));
+            else if (policy.has_probes())
+                policy.transaction_failed(now); // the bus reset finds nobody on the wire
+            registry.sample({}, now, policy.fault());
+            for (const auto &sensor : registry.sensors())
+                CHECK(sensor.state == State::bus_fault);
+        }
+        size_t bus_events = 0, sensor_events = 0;
+        for (const auto &event : registry.events())
+            (event.rom == 0 ? bus_events : sensor_events)++;
+        CHECK(bus_events == 1 && sensor_events == 0);
     }
     std::cout << "PASS: scan policy reproduces the 1-Wire service's scan and fault decisions\n";
 }
