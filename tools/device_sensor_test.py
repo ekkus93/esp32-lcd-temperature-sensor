@@ -68,6 +68,12 @@ try:
 
     def get(path):
         response = call(path, headers=headers)
+        # History is rate limited per client (one query per second); wait and ask again.
+        for _ in range(3):
+            if response['status'] != 429:
+                break
+            time.sleep(1.1)
+            response = call(path, headers=headers)
         check(response['status'] == 200, 'read ' + path)
         return json.loads(response['body'])
 
@@ -196,9 +202,9 @@ try:
         check(not get('/history?from=0&to=1000000&boot_id=0000000000000000')['points'],
               'unknown boot never borrows another boot history')
         export_path = '/history/export?from=0&to=' + str(snapshot['uptime_ms'] + 300000) + '&boot_id=' + snapshot['boot_id']
-        check(call(export_path)['status'] == 401, 'CSV export requires an administrator session')
-        exported = call(export_path, headers=headers)
-        check(exported['status'] == 200, 'streamed five-minute CSV export')
+        # CSV export is public (one per 30 seconds per client), so no session is sent.
+        exported = call(export_path)
+        check(exported['status'] == 200, 'streamed five-minute CSV export without a session')
         rows = list(csv.DictReader(io.StringIO(exported['body'])))
         check(rows and all(row['simulated']=='1' and row['units']=='C' and row['timestamp_quality']=='boot_uptime'
               and row['utc_seconds']=='' for row in rows), 'CSV identifies simulation and unknown UTC without inventing time')

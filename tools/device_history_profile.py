@@ -112,6 +112,11 @@ def main():
                             measurement['storage_used_bytes'] = storage_bytes
                         measurements[kind].append(measurement)
                     connection.close()
+                    # History and export are rate limited per client (1 per second and 1 per
+                    # 30 seconds); stay just under so the profile measures work, not refusals.
+                    pause = {'history': 1.05, 'export': 30.5}.get(kind, 0)
+                    if pause:
+                        stop.wait(pause)
                 except Exception as error:
                     with lock:
                         errors.append(f'{kind}: {type(error).__name__}')

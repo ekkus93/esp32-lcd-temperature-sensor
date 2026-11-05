@@ -218,7 +218,7 @@ try {
     "PASS: simulator API contracts, live snapshots, four-client limit, slow-client cutoff, read-only rejection, and 30 reconnects",
   );
 } catch (error) {
-  console.error(error instanceof Error ? error.message : error);
+  console.error(error instanceof Error ? error.stack : error);
   console.error(output);
   process.exitCode = 1;
 } finally {

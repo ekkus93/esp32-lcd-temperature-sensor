@@ -82,6 +82,9 @@ const start = Date.now();
 const server = http.createServer((req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'no-store');
+  // One request per connection: a client that reuses an idle keep-alive socket just as the server
+  // times it out gets "socket hang up", which made the live test flaky on a busy machine.
+  res.setHeader('Connection', 'close');
   if (req.method !== 'GET') {
     res.writeHead(501);
     res.end('{"error":"Read-only host simulator"}');

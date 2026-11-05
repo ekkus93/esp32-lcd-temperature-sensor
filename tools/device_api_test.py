@@ -167,7 +167,7 @@ try:
     check(bool(script),'hashed application script in HTML')
     asset=call(script[1].decode(),headers={'Accept-Encoding':'gzip'},headers_only=True)
     check(asset['status']==200 and asset.get('content_encoding')=='gzip','hashed JavaScript served without SPA fallback')
-    check(call('/api/v1/status')['status']==401,'anonymous status rejected')
+    check(call('/api/v1/status')['status']==200,'anonymous status readable (public readings)')
     check(call('/api/v1/auth/state',headers={'Host':'attacker.invalid'})['status']==403,'forged Host rejected')
     state = json.loads(call('/api/v1/auth/state')['body'])
     if not state['enrolled']:
@@ -195,6 +195,47 @@ try:
     csrf = json.loads(result['body'])['csrf']
     authorized = {**origin,'Cookie':cookie,'X-CSRF-Token':csrf}
     check(call('/api/v1/status',headers=authorized)['status']==200,'authenticated snapshot')
+    # Access matrix (spec section 12.1): reads are public, changes and the Wi-Fi details are the
+    # owner's. Destructive owner routes (factory reset, OTA with a real image) are deliberately not
+    # sent anonymously here: the host route-table test covers them without risking the board.
+    anonymous = dict(origin)
+    rom = '2800000000000000'
+    public_reads = ['/api/v1/status','/api/v1/alerts?after=0&limit=5','/api/v1/sensors',
+                    '/api/v1/sensors/storage','/api/v1/probe-scan','/api/v1/clock','/api/v1/settings']
+    for route in public_reads:
+        check(call(route,headers=anonymous)['status']==200,'anonymous GET '+route.split('?')[0]+' is public')
+    public_settings = json.loads(call('/api/v1/settings',headers=anonymous)['body'])
+    check(all(key not in public_settings for key in ('ntp_server','etag','revision','writable')),
+          'anonymous settings omit owner-only fields')
+    owner_settings = json.loads(call('/api/v1/settings',headers=authorized)['body'])
+    check('ntp_server' in owner_settings and 'etag' in owner_settings,'owner settings include owner-only fields')
+    check(json.loads(call('/api/v1/auth/state',headers=anonymous)['body']).get('signed_in') is False,
+          'anonymous auth state reports signed_in false')
+    check(json.loads(call('/api/v1/auth/state',headers={**origin,'Cookie':cookie})['body']).get('signed_in') is True,
+          'session auth state reports signed_in true')
+    owner_routes = [('GET','/api/v1/wifi/status'),('GET','/api/v1/wifi/scan'),('POST','/api/v1/wifi/scan'),
+                    ('POST','/api/v1/wifi/provisioning'),('POST','/api/v1/wifi/connect'),
+                    ('POST','/api/v1/system/reboot'),('POST','/api/v1/auth/logout'),
+                    ('POST','/api/v1/auth/password'),('PATCH','/api/v1/settings'),
+                    ('PATCH','/api/v1/sensors/'+rom),('DELETE','/api/v1/sensors/'+rom)]
+    for method,route in owner_routes:
+        body = {'units':'C'} if route.endswith('/settings') else ({} if method in ('POST','PATCH') else None)
+        check(call(route,method,body,anonymous)['status']==401,f'anonymous {method} {route} needs the owner')
+    for method,route in [('PATCH','/api/v1/settings'),('POST','/api/v1/system/reboot'),('POST','/api/v1/auth/logout')]:
+        body = {'units':'C'} if route.endswith('/settings') else None
+        check(call(route,method,body,{**origin,'Cookie':cookie})['status']==401,
+              f'{method} {route} with a session but no CSRF token is rejected')
+    check(call('/api/v1/no-such-route',headers=anonymous)['status']==404,'unknown route is 404 anonymously')
+    check(call('/api/v1/no-such-route',headers=authorized)['status']==404,'unknown route is 404 when signed in')
+    check(call('/api/v1/settings','PATCH',{},authorized)['status']==400,'empty settings PATCH rejected')
+    # History is public but rate limited per client: a second query within a second gets 429.
+    history_query='/api/v1/history?from=0&to=3600000&max_points=24'
+    first = call(history_query,headers=anonymous)
+    check(first['status'] in (200,503),'anonymous history query answered (HTTP %s)' % first['status'])
+    second = call(history_query,headers=anonymous)
+    check(second['status']==429,'second history query within one second is rate limited')
+    time.sleep(1.1)
+    check(call(history_query,headers=anonymous)['status'] in (200,503),'history available again after the interval')
     check(call('/api/v1/ota','POST','',origin)['status']==401,'anonymous OTA upload rejected')
     check(call('/api/v1/ota','POST','',{**origin,'Cookie':cookie})['status']==401,
           'OTA upload requires CSRF authorization')
@@ -249,7 +290,9 @@ try:
               and progress['saved_credentials'] is False and progress['error'],
               'failed association leaves setup available and prior credentials unchanged')
     upgrade={'Upgrade':'websocket','Connection':'Upgrade','Sec-WebSocket-Version':'13','Sec-WebSocket-Key':'dGhlIHNhbXBsZSBub25jZQ==',**origin}
-    check(call('/api/v1/live',headers=upgrade)['status']==403,'anonymous WebSocket upgrade rejected')
+    check(call('/api/v1/live',headers=upgrade)['status']==101,'anonymous WebSocket upgrade accepted (public readings)')
+    check(call('/api/v1/live',headers={**upgrade,'Origin':'http://attacker.invalid'})['status']==403,
+          'anonymous WebSocket with a forged Origin rejected')
     check(call('/api/v1/live',headers={**upgrade,'Cookie':cookie})['status']==101,'authenticated WebSocket upgrade')
     check(call('/api/v1/live',headers={**upgrade,'Cookie':cookie,'Origin':'http://attacker.invalid'})['status']==403,'forged WebSocket Origin rejected')
     live = websocket_frames({**origin,'Cookie':cookie}, count=3)
