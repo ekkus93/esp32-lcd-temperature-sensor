@@ -38,7 +38,7 @@
 
 ## Phase R3 — Setup mode, LCD and owner code (P1/P2)
 
-- [ ] **R03-01** Every AP opening has a deadline; a failed candidate closes the AP after 10 minutes once the station is back; unprovisioned devices keep the AP (§5.1). Host tests of `WifiApWindow`.
+- [x] **R03-01** Every AP opening has a deadline; a failed candidate closes the AP after 10 minutes once the station is back; unprovisioned devices keep the AP (§5.1). Done (host and build): `WifiApWindow::candidate_failed()` gives a failed candidate a 10-minute window that closes only when the saved network is connected again and no attempt is running, never shortens BOOT recovery, and replaces an earlier handoff timer; the service calls it when a candidate times out. New cases in `wifi_ap_window` failed before the method existed. An unprovisioned device never connects, so its AP simply stays open. `./tools/verify.sh` green; firmware builds. Not yet exercised on the board (R03-08).
 - [ ] **R03-02** While the AP is open, the LCD alternates setup and Overview every 10 s; alerts stay visible (§5.1, D6). Display test.
 - [ ] **R03-03** Compact footer shows `Log ERR` with priority over the Wi-Fi state (§5.2). Display test.
 - [ ] **R03-04** `Hold BOOT NN%` takes priority over `BUS FAULT` (§5.3). Display test.
