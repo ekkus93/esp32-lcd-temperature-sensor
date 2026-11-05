@@ -9,8 +9,16 @@ The Dashboard shows each discovered probe by its saved label, current value,
 state, ROM address, and age of the last valid reading. It supports up to five
 probes. An empty position is not an alarm. A shared-bus fault means readings
 from the bus are unavailable; a single disconnected probe is shown separately.
-Temperature units are selected in Settings. Sensor calibration and alarm limits
-are always configured in Celsius.
+Temperature units are selected in Settings (new devices start in Fahrenheit).
+Sensor calibration and alarm limits are entered in the unit you selected and
+stored in Celsius.
+
+**Who can see what.** Anyone who can reach the device can open the Dashboard,
+History and Alerts without a password. Changing anything needs the
+administrator password: the Sensors page and the settings controls show a
+sign-in box until you sign in, and **Sign in** / **Sign out** sit at the top of
+the page. History is limited to one query per second and one CSV export per 30
+seconds per device, so a refused request just needs a moment before you retry.
 
 ## Identify and configure probes
 
