@@ -4,9 +4,9 @@ cd "$(dirname "$0")/.."
 cmake -S firmware/tests -B .build/host -G Ninja
 cmake --build .build/host
 ctest --test-dir .build/host --output-on-failure
-python3 -m unittest discover -s tools/tests -p "test_sensor_hardware_report.py"
-python3 -m unittest discover -s tools/tests -p "test_device_history_profile.py"
-python3 -m unittest discover -s tools/tests -p "test_release_provenance.py"
+python3 -m unittest discover -s tools/tests -p "test_*.py"
+python3 tools/check-secret-leaks.py
+tools/check-contracts.sh
 npm --prefix web run test:simulator
 if [[ -d firmware/managed_components/lvgl__lvgl ]]; then
   cmake -S firmware/display_tests -B .build/display -G Ninja

@@ -47,6 +47,13 @@ jobs:
       - name: Build web assets for firmware embedding
         run: npm --prefix web run build
 
+      - name: Check for leaked secrets and out-of-date generated contract types
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/check-secret-leaks.py
+          ./tools/check-contracts.sh
+
       - name: Cache pinned ESP-IDF toolchain
         id: idf-cache
         uses: actions/cache@v4
