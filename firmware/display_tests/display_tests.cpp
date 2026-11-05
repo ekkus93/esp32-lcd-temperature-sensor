@@ -336,10 +336,25 @@ int main(int argc, char **argv) {
                 return text.find(needle) != std::string::npos;
             };
             auto text = footer_of(healthy_registry, footer_status);
-            CHECK(has(text, "Wi-Fi connected") && !has(text, "Log ERR"));
+            // Wi-Fi is an icon beside the time now, not footer text.
+            auto wifi_color = [&] {
+                return lv_color_to_u32(
+                           lv_obj_get_style_text_color(view.wifi_icon(), LV_PART_MAIN)) &
+                       0xffffff;
+            };
+            CHECK(!has(text, "Wi-Fi") && !has(text, "Log ERR") && has(text, LV_SYMBOL_WIFI));
+            CHECK(wifi_color() == 0x9be3c4); // connected
+            footer_status.wifi = "connecting";
+            footer_of(healthy_registry, footer_status);
+            CHECK(wifi_color() == 0xffd583);
+            footer_status.wifi = "offline";
+            footer_of(healthy_registry, footer_status);
+            CHECK(wifi_color() == 0xff7a7a);
+            save("overview-compact-wifi-icon-offline");
+            footer_status.wifi = "connected";
             footer_status.logging = false;
             text = footer_of(healthy_registry, footer_status);
-            CHECK(has(text, "Log ERR") && !has(text, "Wi-Fi connected"));
+            CHECK(has(text, "Log ERR") && !has(text, "Wi-Fi"));
             // Each faulty sensor row also says BUS FAULT, so the footer's own text is found by
             // counting occurrences.
             auto count = [](const std::string &haystack, const std::string &needle) {
@@ -363,7 +378,7 @@ int main(int argc, char **argv) {
             CHECK(has(text, "OTA VERIFYING"));
             footer_status.ota_state.clear();
             text = footer_of(healthy_registry, footer_status);
-            CHECK(has(text, "Wi-Fi connected"));
+            CHECK(!has(text, "Wi-Fi") && !has(text, "OTA") && !has(text, "Log ERR"));
         }
         options.extended = true;
         options.overview_seconds = 5;

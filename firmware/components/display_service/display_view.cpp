@@ -65,8 +65,11 @@ DisplayView::DisplayView() {
                          compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
         text(s->title, s == &overview_ ? (compact ? "Temps" : "Temp Monitor")
                                        : (compact ? "Trends" : "Temperature trends"));
-        s->time = label(s->root, compact ? 82 : 183, compact ? 0 : 10, compact ? 44 : 50,
+        // On the compact screen the time makes room for a Wi-Fi icon at the right edge.
+        s->time = label(s->root, compact ? 72 : 183, compact ? 0 : 10, compact ? 38 : 50,
                         compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
+        if (compact)
+            s->wifi = label(s->root, 112, 0, 14, &lv_font_montserrat_12);
         s->footer = label(s->root, compact ? 2 : 10, compact ? 141 : 281, compact ? 124 : 225,
                           compact ? &lv_font_montserrat_12 : &lv_font_montserrat_14);
         lv_obj_set_height(s->footer, compact ? 19 : 38);
@@ -319,10 +322,9 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
         // One line only: an urgent condition, else a logging failure (it must be visible on the
         // small screen), else the Wi-Fi state. Trends shows its lookback and chart position
         // instead of the Wi-Fi state when nothing needs attention.
-        overview_footer = !urgent.empty()   ? urgent
-                          : !status.logging ? "Log ERR"
-                                            : "Wi-Fi " + status.wifi;
-        trends_footer = overview_footer.rfind("Wi-Fi ", 0) == 0
+        // The Wi-Fi state is the icon beside the time, so the footer is empty when all is well.
+        overview_footer = !urgent.empty() ? urgent : !status.logging ? "Log ERR" : "";
+        trends_footer = overview_footer.empty()
                             ? std::to_string(options.lookback_minutes) + "m  " +
                                   std::to_string(compact_position + 1) + "/" +
                                   std::to_string(std::max<size_t>(compact_count, 1))
@@ -332,6 +334,16 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
         trends_footer =
             status_line + "\n" +
             (urgent.empty() ? "Past " + std::to_string(options.lookback_minutes) + " min" : urgent);
+    }
+    if (compact_) {
+        // Green: connected. Amber: connecting. Red: not connected (offline or setup only).
+        const uint32_t wifi_color = status.wifi == "connected"    ? 0x9be3c4
+                                    : status.wifi == "connecting" ? 0xffd583
+                                                                  : 0xff7a7a;
+        for (auto *screen : {&overview_, &trends_}) {
+            text(screen->wifi, LV_SYMBOL_WIFI);
+            text_color(screen->wifi, wifi_color);
+        }
     }
     text(overview_.time, clock);
     text(trends_.time, clock);

@@ -22,6 +22,9 @@ class DisplayView {
     }
     // Handles to individual widgets, so tests can find them by role instead of by the order they
     // were created in.
+    lv_obj_t *wifi_icon() const {
+        return showing_trends_ ? trends_.wifi : overview_.wifi;
+    }
     lv_obj_t *footer_label() const {
         return showing_trends_ ? trends_.footer : overview_.footer;
     }
@@ -41,6 +44,8 @@ class DisplayView {
   private:
     struct Screen {
         lv_obj_t *root, *time, *footer, *title = nullptr;
+        // Compact screens: Wi-Fi state as an icon beside the time (colour tells the state).
+        lv_obj_t *wifi = nullptr;
         // Compact Trends only: highest and lowest value on each chart, and the time axis ends.
         lv_obj_t *axis_from = nullptr, *axis_now = nullptr;
         std::array<lv_obj_t *, 5> axis_max{}, axis_min{};
