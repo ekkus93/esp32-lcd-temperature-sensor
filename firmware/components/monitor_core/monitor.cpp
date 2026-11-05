@@ -40,7 +40,10 @@ std::optional<Bucket> Aggregator::add(const Registry &registry, int64_t now_ms,
                 next_utc_boundary_ = aligned_utc + 300;
                 const auto duration = bucket_ms - (*utc % 300) * 1000;
                 deadline_ = now_ms + duration;
-                partial_ = duration != bucket_ms;
+                // The window starts with the first sample at or after the UTC boundary, up to one
+                // sample interval late. That is still a full window; only a larger shortfall (a
+                // restart or a clock sync in the middle of a window) makes it partial.
+                partial_ = duration <= bucket_ms - sample_ms;
             } else {
                 // A backward step or forward step within the same UTC window
                 // would otherwise give two records the same five-minute key.

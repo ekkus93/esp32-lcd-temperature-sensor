@@ -306,6 +306,35 @@ void bucket_alignment() {
     CHECK(aligned && aligned->utc_seconds == 1800000000 && aligned->sensors[0].count == 59 &&
           aligned->sensors[0].partial);
 
+    // A window that starts a few seconds after its UTC boundary (the first sample at or after it)
+    // is still a full window: it is not "partial" unless a whole sample interval was missed. The
+    // stored history and the LCD trends both ignore partial buckets, so calling every bucket
+    // partial hid all of them.
+    for (int64_t offset_seconds : {0, 1, 3, 4}) {
+        Aggregator on_time(80);
+        std::vector<Bucket> done;
+        for (int64_t now = 0; now <= 900000; now += sample_ms) {
+            registry.sample({{id, 22}}, now);
+            if (auto bucket = on_time.add(registry, now, 1800000000 + offset_seconds + now / 1000))
+                done.push_back(*bucket);
+        }
+        CHECK(done.size() >= 2);
+        for (const auto &bucket : done)
+            CHECK(bucket.sensors[0].count == 60 && !bucket.sensors[0].partial);
+    }
+    // Missing a whole sample interval (5 s) or more at the start does make a window partial.
+    {
+        Aggregator late(81);
+        registry.sample({{id, 22}}, 0);
+        CHECK(!late.add(registry, 0, 1800000006));
+        std::optional<Bucket> bucket;
+        for (int64_t now = sample_ms; now <= 300000 && !bucket; now += sample_ms) {
+            registry.sample({{id, 22}}, now);
+            bucket = late.add(registry, now, 1800000006 + now / 1000);
+        }
+        CHECK(bucket && bucket->sensors[0].partial);
+    }
+
     Aggregator before_restart(73);
     for (int64_t now = 0; now < 10000; now += sample_ms) {
         registry.sample({{id, 30}}, now);
