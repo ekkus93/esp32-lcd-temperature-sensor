@@ -659,7 +659,8 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                         break;
                     }
                 }
-                if (!valid || !valid_device_options(options))
+                // The schema requires at least one property (minProperties: 1).
+                if (!valid || keys.empty() || !valid_device_options(options))
                     return error(r, "400 Bad Request", "Invalid device settings");
                 if (settings_->save(options, revision) != ESP_OK)
                     return error(r, "503 Service Unavailable", "Settings could not be committed");
@@ -1081,7 +1082,7 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                         break;
                     }
                 }
-                if (!valid || !valid_settings(settings))
+                if (!valid || keys.empty() || !valid_settings(settings))
                     return error(r, "400 Bad Request", "Invalid sensor settings");
                 const uint64_t generation = sent_generation_.load() + 1;
                 auto *update =

@@ -60,7 +60,7 @@
 
 ## Phase R5 — API and contract (P2)
 
-- [ ] **R05-01** `PATCH /settings` and `PATCH /sensors/{rom}` reject `{}` (§7.6). API test.
+- [x] **R05-01** `PATCH /settings` and `PATCH /sensors/{rom}` reject `{}` (§7.6). API test. Done (build only): both PATCH handlers return 400 for `{}`. The HTTP layer has no host harness, so the 400 is not exercised by a test yet; add it to the on-board batch (R03-08 pass).
 - [ ] **R05-02** History query ROM rules (lowercase, no duplicates) enforced or documented (§7.6). Host test.
 - [ ] **R05-03** cJSON allocation failure sets `truncated`; receive override removed on stop; mutex freed on start failure (§7.6).
 - [ ] **R05-04** WebSocket backpressure documented or a one-frame slot added; T07-08 wording corrected (§7.6).
