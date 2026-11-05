@@ -237,6 +237,13 @@ int main(int argc, char **argv) {
                   "H5RB2WTD\nK7M4Q9XP"})
                 CHECK(text.find(expected) != std::string::npos);
         }
+        // Once the device is also on the home network, its name is offered as an alternative.
+        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP", false,
+                          "temperature-monitor.local");
+        save("provisioning-simulation-only-local-name");
+        CHECK(visible_text(lv_screen_active()).find("or temperature-monitor.local") !=
+              std::string::npos);
+        CHECK(visible_text(lv_screen_active()).find("192.168.4.1") != std::string::npos);
         view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "");
         save("provisioning-enrolled-simulation-only");
         CHECK(visible_text(lv_screen_active()).find("owner code") == std::string::npos);
@@ -456,6 +463,25 @@ int main(int argc, char **argv) {
         view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP");
         const auto first_page = visible_text(lv_screen_active());
         save("provisioning-compact-wifi");
+        {
+            // With a name to offer, the compact page shows it under the setup address.
+            view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP", false,
+                              "temperature-monitor.local");
+            const auto named = visible_text(lv_screen_active());
+            save("provisioning-compact-wifi-local-name");
+            for (const char *expected : {"192.168.4.1", "or temperature-monitor.local",
+                                         "2  Open in a browser", "K7M4Q9XP2WTD"})
+                CHECK(named.find(expected) != std::string::npos);
+            // A short name fits on one line as well.
+            view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP", false,
+                              "freezer.local");
+            save("provisioning-compact-wifi-local-name-short");
+            CHECK(visible_text(lv_screen_active()).find("or freezer.local") != std::string::npos);
+            // Without a name the page returns to its normal layout, page marker included.
+            view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP");
+            const auto plain = visible_text(lv_screen_active());
+            CHECK(plain.find("or ") == std::string::npos && plain.find("1/2") != std::string::npos);
+        }
         view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP", true);
         const auto second_page = visible_text(lv_screen_active());
         save("provisioning-compact-owner-code");

@@ -365,6 +365,16 @@ function Shell() {
                     {snapshot?.firmware.ota_state ?? 'unknown'}
                   </Typography>
                   <Typography>
+                    {snapshot?.wifi.mdns_hostname ? (
+                      <>
+                        Network name:{' '}
+                        <strong>{`http://${snapshot.wifi.mdns_hostname}.local`}</strong>
+                      </>
+                    ) : (
+                      'Network name unavailable: use the device address.'
+                    )}
+                  </Typography>
+                  <Typography>
                     Five-minute history:{' '}
                     {snapshot?.logging.healthy ? 'available' : 'unavailable'}
                   </Typography>

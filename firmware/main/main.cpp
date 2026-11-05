@@ -43,6 +43,8 @@ struct DisplayFrame {
     bool logging = false, synchronized = false;
     std::string utc;
     std::string ssid, wifi_key, owner_code;
+    // "<name>.local" while the station is connected and mDNS is up; shown on the setup screen.
+    std::string local_name;
 };
 
 struct DisplayTaskContext {
@@ -73,10 +75,10 @@ void display_refresh_task(void *argument) {
                                      context.frame.logging, context.frame.synchronized,
                                      context.frame.utc))
                 context.api_publish_pending = false;
-            context.display->update(context.frame.registry, context.frame.trend_cache,
-                                    context.frame.options, context.frame.status, uptime_ms,
-                                    context.frame.provisioning, context.frame.ssid,
-                                    context.frame.wifi_key, context.frame.owner_code);
+            context.display->update(
+                context.frame.registry, context.frame.trend_cache, context.frame.options,
+                context.frame.status, uptime_ms, context.frame.provisioning, context.frame.ssid,
+                context.frame.wifi_key, context.frame.owner_code, context.frame.local_name);
             xSemaphoreGive(context.mutex);
         }
         vTaskDelayUntil(&wake, pdMS_TO_TICKS(100));
@@ -304,6 +306,10 @@ extern "C" void app_main() {
             monitor::DeviceOptions options;
             device_settings.get(options, device_revision, device_writable);
             const auto network = wifi.info();
+            std::string local_name;
+            if (network.state == "connected")
+                if (const auto name = wifi.mdns_hostname(); !name.empty())
+                    local_name = name + ".local";
             monitor::DisplayStatus display_status;
             display_status.wifi = network.state;
             display_status.local_time = simulated ? "" : monitor::local_time_text();
@@ -327,12 +333,13 @@ extern "C" void app_main() {
                     display_context.frame.ssid = wifi.ap_ssid();
                     display_context.frame.wifi_key = wifi.ap_password();
                     display_context.frame.owner_code = auth.setup_secret();
+                    display_context.frame.local_name = local_name;
                     xSemaphoreGive(display_context.mutex);
                 }
             } else {
                 display.update(registry, trend_cache, options, display_status, sampled_at,
                                network.provisioning, wifi.ap_ssid(), wifi.ap_password(),
-                               auth.setup_secret());
+                               auth.setup_secret(), local_name);
             }
         }
         if (!simulated && !ota_boot_checked && ++healthy_cycles >= 2) {

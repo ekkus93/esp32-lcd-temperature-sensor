@@ -634,3 +634,28 @@ it('signs out from the app bar and returns to public reading', async () => {
   // Public data keeps showing.
   expect(screen.getByText('No probes detected')).toBeInTheDocument();
 });
+
+it('shows the network name in the public Settings diagnostics, or says it is unavailable', async () => {
+  const named = {
+    ...empty,
+    wifi: { state: 'connected', mdns_hostname: 'garage-2' },
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({ ok: true, json: async () => named }),
+  );
+  const first = render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+  expect(await screen.findByText('http://garage-2.local')).toBeInTheDocument();
+  first.unmount();
+  history.replaceState({}, '', '/');
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({ ok: true, json: async () => empty }),
+  );
+  render(<App />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+  expect(
+    await screen.findByText(/Network name unavailable/),
+  ).toBeInTheDocument();
+});

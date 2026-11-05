@@ -305,7 +305,8 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
         lv_screen_load(desired);
 }
 void DisplayView::provisioning(const std::string &ssid, const std::string &wifi_key,
-                               const std::string &owner_code, bool owner_page_requested) {
+                               const std::string &owner_code, bool owner_page_requested,
+                               const std::string &local_name) {
     const bool compact = compact_;
     const bool has_owner_code = !owner_code.empty();
     // The compact screen alternates between the Wi-Fi page and the owner-code page, but only when
@@ -341,11 +342,23 @@ void DisplayView::provisioning(const std::string &ssid, const std::string &wifi_
         set(3, "Password");
         set(4, wifi_key);
         set(5, "2  Open in a browser");
-        set(6, "192.168.4.1");
+        // With a name to show, the compact page gives the address block more room: the heading
+        // moves up and the address and name share one small-font label that wraps at hyphens.
+        const bool compact_with_name = compact && !local_name.empty();
+        lv_obj_set_y(setup_slots_[5], compact_with_name ? 104 : 106);
+        lv_obj_set_y(setup_slots_[6], compact_with_name ? 118 : 121);
+        lv_obj_set_height(setup_slots_[6], compact_with_name ? 42 : 18);
+        lv_obj_set_style_text_font(
+            setup_slots_[6],
+            compact_with_name ? &lv_font_montserrat_12
+                              : (compact ? &lv_font_montserrat_14 : &lv_font_montserrat_24),
+            0);
+        set(6, compact_with_name ? "192.168.4.1\nor " + local_name : "192.168.4.1");
         set(7, compact ? "" : "3  One-time owner code");
         set(8, compact ? "" : two_lines(owner_code));
         set(10, "");
-        set(9, compact && has_owner_code ? "1/2" : "");
+        set(9, compact ? (has_owner_code && local_name.empty() ? "1/2" : "")
+                       : (local_name.empty() ? "" : "or " + local_name));
         if (!compact && !has_owner_code)
             set(7, "");
     }

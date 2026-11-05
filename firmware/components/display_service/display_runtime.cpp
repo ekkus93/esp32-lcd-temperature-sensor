@@ -370,7 +370,8 @@ bool DisplayRuntime::initialize() {
 void DisplayRuntime::update(const Registry &registry, const TrendCache &cache,
                             const DisplayOptions &options, const DisplayStatus &status,
                             int64_t uptime_ms, bool provisioning, const std::string &ssid,
-                            const std::string &wifi_key, const std::string &owner_code) {
+                            const std::string &wifi_key, const std::string &owner_code,
+                            const std::string &local_name) {
 #if CONFIG_MONITOR_LCD_FLUSH_DIAG
     if (ready())
         flush_diag_log(uptime_ms);
@@ -393,6 +394,7 @@ void DisplayRuntime::update(const Registry &registry, const TrendCache &cache,
     (void)ssid;
     (void)wifi_key;
     (void)owner_code;
+    (void)local_name;
     lvgl_port_unlock();
     return;
 #else
@@ -402,7 +404,8 @@ void DisplayRuntime::update(const Registry &registry, const TrendCache &cache,
                                  ? setup_phase(uptime_ms, width <= 128, !owner_code.empty())
                                  : SetupPhase::readings;
     if (phase != SetupPhase::readings)
-        view_->provisioning(ssid, wifi_key, owner_code, phase == SetupPhase::owner_code);
+        view_->provisioning(ssid, wifi_key, owner_code, phase == SetupPhase::owner_code,
+                            local_name);
     else {
         const bool previous_trends = view_->showing_trends();
         view_->render(registry, cache, options, status, uptime_ms);

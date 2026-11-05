@@ -130,3 +130,80 @@ it('shows an honest unknown clock state and a UTC sync age after synchronization
     ),
   ).toBeInTheDocument();
 });
+
+it('renames the device network name, lowercased, and sends it with the other settings', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({ ok: true, json: async () => settings }),
+  );
+  render(<DeviceSettings onApplied={vi.fn()} />);
+  const field = await screen.findByLabelText(/Network name/);
+  expect(field).toHaveValue('temperature-monitor');
+  fireEvent.change(field, { target: { value: 'Garage-1' } });
+  expect(field).toHaveValue('garage-1');
+  vi.mocked(fetch).mockResolvedValueOnce({
+    ok: true,
+    json: async () => ({
+      ...settings,
+      hostname: 'garage-1',
+      revision: 2,
+      etag: '"test:settings:2"',
+    }),
+  } as Response);
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Save device preferences' }),
+  );
+  await screen.findByText('Device preferences saved.');
+  const last = vi.mocked(fetch).mock.calls.at(-1)!;
+  expect(JSON.parse(last[1]?.body as string)).toMatchObject({
+    hostname: 'garage-1',
+  });
+});
+
+it.each(['-bad', 'bad-', 'has space', 'under_score', 'a.b'])(
+  'rejects the network name "%s" before sending anything',
+  async (value) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => settings }),
+    );
+    render(<DeviceSettings onApplied={vi.fn()} />);
+    fireEvent.change(await screen.findByLabelText(/Network name/), {
+      target: { value },
+    });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Save device preferences' }),
+    );
+    expect(
+      await screen.findByText(
+        /Use 1 to 63 lowercase letters, digits or hyphens/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.every(([, options]) => options?.method !== 'PATCH'),
+    ).toBe(true);
+  },
+);
+
+// An empty name is stopped by the browser's own required-field check.
+it('does not send an empty network name', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({ ok: true, json: async () => settings }),
+  );
+  render(<DeviceSettings onApplied={vi.fn()} />);
+  fireEvent.change(await screen.findByLabelText(/Network name/), {
+    target: { value: '' },
+  });
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Save device preferences' }),
+  );
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(
+    vi
+      .mocked(fetch)
+      .mock.calls.every(([, options]) => options?.method !== 'PATCH'),
+  ).toBe(true);
+});

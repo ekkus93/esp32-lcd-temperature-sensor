@@ -36,10 +36,18 @@ function Editor({
   );
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [hostnameError, setHostnameError] = useState('');
   const readOnly = busy || !draft.writable;
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setMessage('');
+    if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(draft.hostname)) {
+      setHostnameError(
+        'Use 1 to 63 lowercase letters, digits or hyphens, not starting or ending with a hyphen.',
+      );
+      return;
+    }
+    setHostnameError('');
     const values = durationFields.map((key) => Number(numbers[key]));
     if (values.some((value) => !Number.isInteger(value))) {
       setMessage('Enter whole-number durations.');
@@ -156,6 +164,29 @@ function Editor({
           onChange={(e) => setDraft({ ...draft, ntp_server: e.target.value })}
           helperText="Hostname or IP address; UTC stays unknown until synchronization succeeds."
           slotProps={{ htmlInput: { maxLength: 253 } }}
+        />
+        <TextField
+          label="Network name"
+          required
+          disabled={readOnly}
+          value={draft.hostname}
+          // Names are lowercase letters, digits and hyphens, so typing capitals just lowercases.
+          onChange={(e) =>
+            setDraft({ ...draft, hostname: e.target.value.toLowerCase() })
+          }
+          error={hostnameError !== ''}
+          helperText={
+            hostnameError ||
+            `Reach this device at http://${draft.hostname || '…'}.local on your network.`
+          }
+          slotProps={{
+            htmlInput: {
+              maxLength: 63,
+              autoCapitalize: 'none',
+              spellCheck: false,
+            },
+            input: { endAdornment: <span>.local</span> },
+          }}
         />
         <Button type="submit" variant="contained" disabled={readOnly}>
           Save device preferences
