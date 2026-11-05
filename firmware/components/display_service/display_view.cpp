@@ -305,10 +305,11 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
                 low = std::min(low, chart_low_[i]);
                 high = std::max(high, chart_high_[i]);
             }
-            // Legend: the probe's name in its line colour; muted when it has no line to show.
+            // Legend: the probe's name, always in the colour of its line (also before it has data,
+            // so the colour can be matched as soon as the line appears).
             lv_obj_set_hidden(trends_.legend[i], rows[i].rom == 0);
             text(trends_.legend[i], rows[i].label);
-            text_color(trends_.legend[i], plotted ? line_colors[i] : setup_muted);
+            text_color(trends_.legend[i], line_colors[i]);
             // The per-probe header and status used on the large screen are not shown here.
             lv_obj_set_hidden(trends_.labels[i], true);
             lv_obj_set_hidden(trends_.values[i], true);

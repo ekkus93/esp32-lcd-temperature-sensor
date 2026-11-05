@@ -76,7 +76,7 @@ On the compact 1.8-inch LCD, Trends draws every probe as a line of its own colou
 with a shared scale: the highest and lowest value are printed at the left, the time span
 (`-60m` to `now`, following the lookback setting) under it, and the unit in the title. Under the
 graph a legend names each colour (sky blue, amber, coral, lilac, mint, in probe order). A probe with
-no history yet is listed in grey and has no line. With only the Overview and Trends screens, nothing
+no history yet is still listed in its colour but has no line. With only the Overview and Trends screens, nothing
 rotates any more.
 
 New devices default to the `America/Los_Angeles` timezone, including daylight

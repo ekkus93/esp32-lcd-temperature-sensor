@@ -438,6 +438,11 @@ int main(int argc, char **argv) {
             view.render(healthy, no_history, options, status, 3606000);
             lv_refr_now(display);
             CHECK(view.showing_trends());
+            // With no history yet the probe is still listed in its own line colour (sky blue).
+            CHECK(!lv_obj_is_hidden(view.trends_legend(0)));
+            CHECK(
+                (lv_color_to_u32(lv_obj_get_style_text_color(view.trends_legend(0), LV_PART_MAIN)) &
+                 0xffffff) == 0x7fc8ff);
             no_data_invalidations = 0;
             lv_obj_invalidate(lv_screen_active()); // the counter must be able to see repaints
             CHECK(no_data_invalidations > 0);
