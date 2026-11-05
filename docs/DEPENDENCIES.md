@@ -10,7 +10,6 @@ Physical LCD/sensor behavior is still unverified.
 | --- | --- | --- |
 | ESP-IDF / esp_lcd | v6.1 | Apache-2.0 |
 | espressif/onewire_bus | 1.1.2 | Apache-2.0 |
-| espressif/ds18b20 | 0.4.0 | Apache-2.0 |
 | espressif/esp_lvgl_port | 2.9.0 | Apache-2.0 |
 | lvgl/lvgl | 9.6.0~1 | MIT |
 | joltwallet/littlefs | 1.23.1 | MIT (port), BSD-3-Clause (LittleFS) |
