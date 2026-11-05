@@ -25,6 +25,9 @@ namespace {
 using Json = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>;
 std::atomic<int> body_deadline_socket{-1};
 std::atomic<int64_t> body_deadline_us{0};
+int plain_recv(httpd_handle_t, int socket, char *buffer, size_t length, int flags) {
+    return recv(socket, buffer, length, flags);
+}
 int deadline_recv(httpd_handle_t, int socket, char *buffer, size_t length, int flags) {
     const auto deadline = body_deadline_us.load();
     if (socket != body_deadline_socket.load() || deadline == 0)
@@ -71,6 +74,9 @@ class BodyReceiveDeadline {
         if (valid_) {
             body_deadline_us.store(0);
             body_deadline_socket.store(-1);
+            // Give the connection its ordinary receive function back; the deadline override must
+            // not outlive the request on a kept-alive socket.
+            httpd_sess_set_recv_override(server_, socket_, plain_recv);
         }
         if (valid_ && close_socket_)
             shutdown(socket_, SHUT_RDWR);
@@ -773,26 +779,36 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
             cJSON_AddBoolToObject(output.get(), "simulated", simulated_);
             cJSON_AddBoolToObject(output.get(), "truncated", truncated);
             cJSON_AddStringToObject(output.get(), "time_basis", query.boot_id ? "uptime" : "utc");
+            // An allocation failure while building the answer is reported as `truncated`, not
+            // hidden by silently dropping rows.
+            bool allocation_failed = false;
             auto *items = cJSON_AddArrayToObject(output.get(), "points");
+            if (!items)
+                return error(r, "503 Service Unavailable", "History response memory unavailable");
             for (const auto &point : points) {
                 auto *item = cJSON_CreateObject();
                 char boot[17];
                 std::snprintf(boot, sizeof(boot), "%016llx",
                               static_cast<unsigned long long>(point.boot_id));
-                cJSON_AddStringToObject(item, "boot_id", boot);
-                cJSON_AddStringToObject(item, "rom_id", rom_hex(point.rom).c_str());
-                cJSON_AddNumberToObject(item, "start_ms", point.start_ms);
-                cJSON_AddNumberToObject(item, "end_ms", point.end_ms);
-                if (point.utc_seconds)
-                    cJSON_AddNumberToObject(item, "utc_seconds", *point.utc_seconds);
-                else
-                    cJSON_AddNullToObject(item, "utc_seconds");
-                cJSON_AddNumberToObject(item, "average_c", point.average);
-                cJSON_AddNumberToObject(item, "minimum_c", point.minimum);
-                cJSON_AddNumberToObject(item, "maximum_c", point.maximum);
-                cJSON_AddNumberToObject(item, "count", point.count);
-                cJSON_AddBoolToObject(item, "partial", point.partial);
-                cJSON_AddItemToArray(items, item);
+                bool built = item && cJSON_AddStringToObject(item, "boot_id", boot) &&
+                             cJSON_AddStringToObject(item, "rom_id", rom_hex(point.rom).c_str()) &&
+                             cJSON_AddNumberToObject(item, "start_ms", point.start_ms) &&
+                             cJSON_AddNumberToObject(item, "end_ms", point.end_ms) &&
+                             (point.utc_seconds
+                                  ? cJSON_AddNumberToObject(item, "utc_seconds", *point.utc_seconds)
+                                  : cJSON_AddNullToObject(item, "utc_seconds")) &&
+                             cJSON_AddNumberToObject(item, "average_c", point.average) &&
+                             cJSON_AddNumberToObject(item, "minimum_c", point.minimum) &&
+                             cJSON_AddNumberToObject(item, "maximum_c", point.maximum) &&
+                             cJSON_AddNumberToObject(item, "count", point.count) &&
+                             cJSON_AddBoolToObject(item, "partial", point.partial) &&
+                             cJSON_AddItemToArray(items, item);
+                if (!built) {
+                    if (item)
+                        cJSON_Delete(item);
+                    allocation_failed = true;
+                    break;
+                }
             }
             auto *gaps = cJSON_AddArrayToObject(output.get(), "gaps");
             for (const auto &gap : history_gaps(points))
@@ -811,12 +827,22 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                 char boot[17];
                 std::snprintf(boot, sizeof(boot), "%016llx",
                               static_cast<unsigned long long>(gap.boot_id));
-                cJSON_AddStringToObject(item, "boot_id", boot);
-                cJSON_AddStringToObject(item, "rom_id", rom_hex(gap.rom).c_str());
-                cJSON_AddNumberToObject(item, "start_ms", gap.start_ms);
-                cJSON_AddNumberToObject(item, "end_ms", gap.end_ms);
-                cJSON_AddItemToArray(gaps, item);
+                const bool built =
+                    item && gaps && cJSON_AddStringToObject(item, "boot_id", boot) &&
+                    cJSON_AddStringToObject(item, "rom_id", rom_hex(gap.rom).c_str()) &&
+                    cJSON_AddNumberToObject(item, "start_ms", gap.start_ms) &&
+                    cJSON_AddNumberToObject(item, "end_ms", gap.end_ms) &&
+                    cJSON_AddItemToArray(gaps, item);
+                if (!built) {
+                    if (item)
+                        cJSON_Delete(item);
+                    allocation_failed = true;
+                    break;
+                }
             }
+            if (allocation_failed)
+                cJSON_SetBoolValue(cJSON_GetObjectItemCaseSensitive(output.get(), "truncated"),
+                                   true);
             return json(r, output.get());
         }
         if ((path == "/api/v1/sensors" || path == "/api/v1/alerts" ||

@@ -43,6 +43,8 @@ bool HistoryService::start(bool simulated, uint64_t boot_id) {
             vQueueDelete(event_queue_);
         queue_ = nullptr;
         event_queue_ = nullptr;
+        vSemaphoreDelete(mutex_);
+        mutex_ = nullptr;
         return false;
     }
     if (xTaskCreate(worker, "history", 12288, this, 1, nullptr) != pdPASS) {
@@ -50,6 +52,8 @@ bool HistoryService::start(bool simulated, uint64_t boot_id) {
         vQueueDelete(event_queue_);
         queue_ = nullptr;
         event_queue_ = nullptr;
+        vSemaphoreDelete(mutex_);
+        mutex_ = nullptr;
         return false;
     }
     return true;
