@@ -1,0 +1,112 @@
+#include "scan_policy.hpp"
+#include <array>
+#include <cstdlib>
+#include <iostream>
+using namespace monitor;
+#define CHECK(expr)                                                                                \
+    do {                                                                                           \
+        if (!(expr)) {                                                                             \
+            std::cerr << __LINE__ << ": " #expr << '\n';                                           \
+            std::exit(1);                                                                          \
+        }                                                                                          \
+    } while (false)
+namespace {
+uint64_t rom(uint8_t serial) {
+    std::array<uint8_t, 7> bytes{0x28, serial, 2, 3, 4, 5, 6};
+    uint64_t value = 0;
+    for (unsigned i = 0; i < bytes.size(); ++i)
+        value |= uint64_t(bytes[i]) << (8 * i);
+    return value | (uint64_t(crc8(bytes.data(), bytes.size())) << 56);
+}
+ScanInput complete_scan(std::vector<uint64_t> roms) {
+    ScanInput input;
+    input.observed = std::move(roms);
+    input.ended_normally = true;
+    return input;
+}
+} // namespace
+int main() {
+    const std::vector<uint64_t> none;
+
+    // The data line stuck low is a fault and stops the cycle.
+    {
+        ScanPolicy policy;
+        CHECK(!policy.begin_cycle(true) && policy.fault());
+        CHECK(policy.begin_cycle(false) && !policy.fault());
+    }
+
+    // A complete scan selects the probes to read, managed ones first, and rescans in 30 s.
+    {
+        ScanPolicy policy;
+        CHECK(policy.begin_cycle(false) && policy.scan_due(0));
+        CHECK(policy.apply_scan(complete_scan({rom(3), rom(1), rom(2)}), 0, {rom(2)}));
+        CHECK(policy.has_probes() && policy.roms().size() == 3 && policy.roms()[0] == rom(2));
+        CHECK(policy.status().complete && policy.status().discovered_count == 3);
+        CHECK(!policy.fault());
+        CHECK(!policy.scan_due(29999) && policy.scan_due(30000));
+    }
+
+    // An empty complete scan is accepted as "no probes": nothing to read, no fault.
+    {
+        ScanPolicy policy;
+        CHECK(policy.apply_scan(complete_scan({}), 0, none));
+        CHECK(!policy.has_probes() && policy.status().complete && !policy.fault());
+    }
+
+    // A search that cannot start is a shared-bus fault and is retried in 5 s.
+    {
+        ScanPolicy policy;
+        ScanInput failed;
+        failed.iterator_created = false;
+        CHECK(!policy.apply_scan(failed, 100, none));
+        CHECK(policy.fault() && !policy.status().complete);
+        CHECK(!policy.scan_due(4999 + 100) && policy.scan_due(5000 + 100));
+    }
+
+    // An incomplete, uncapped search (an error mid-way) is a fault with no reads, retried in 5 s.
+    {
+        ScanPolicy policy;
+        CHECK(policy.apply_scan(complete_scan({rom(1)}), 0, none));
+        ScanInput broken;
+        broken.observed = {rom(1)};
+        CHECK(!policy.apply_scan(broken, 30000, none));
+        CHECK(policy.fault() && !policy.status().complete);
+        CHECK(policy.roms().size() == 1); // the previous read list is kept
+        CHECK(policy.scan_due(35000));
+    }
+
+    // A capped search (more than 16 devices) keeps reading the known probes plus new ones.
+    {
+        ScanPolicy policy;
+        CHECK(policy.apply_scan(complete_scan({rom(1)}), 0, none));
+        ScanInput capped;
+        capped.capped = true;
+        for (uint8_t serial = 2; serial < 20; ++serial)
+            capped.observed.push_back(rom(serial));
+        CHECK(policy.apply_scan(capped, 30000, {rom(1)}));
+        CHECK(!policy.status().complete && policy.roms().size() == max_sensors);
+        CHECK(policy.roms()[0] == rom(1) && !policy.fault());
+        CHECK(policy.scan_due(35000));
+    }
+
+    // A failed bus reset, Convert T write or completion check is a fault and schedules a rescan.
+    {
+        ScanPolicy policy;
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2)}), 0, none));
+        policy.transaction_failed(1000);
+        CHECK(policy.fault() && policy.scan_due(6000) && !policy.scan_due(5999));
+    }
+
+    // After the reads: no probe answering is one shared-bus fault; a single failed probe is not.
+    {
+        ScanPolicy policy;
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2)}), 0, none));
+        policy.finish_reads(1000, 0, true);
+        CHECK(policy.fault() && policy.scan_due(6000));
+        policy.finish_reads(2000, 1, true);
+        CHECK(!policy.fault() && policy.scan_due(7000)); // missing value: rescan soon
+        policy.finish_reads(3000, 2, false);
+        CHECK(!policy.fault());
+    }
+    std::cout << "PASS: scan policy reproduces the 1-Wire service's scan and fault decisions\n";
+}

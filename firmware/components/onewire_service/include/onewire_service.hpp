@@ -2,17 +2,19 @@
 #include "esp_err.h"
 #include "monitor.hpp"
 #include "onewire_bus.h"
-#include "probe_discovery.hpp"
+#include "scan_policy.hpp"
 namespace monitor {
+// Talks to the 1-Wire driver. When to rescan, which ROMs to read and when the bus is faulty are
+// decided by ScanPolicy, which has host tests.
 class OneWireService {
   public:
     esp_err_t initialize();
     std::vector<Reading> read(int64_t now_ms, const std::vector<uint64_t> &managed);
     ProbeScanStatus scan_status() const {
-        return scan_status_;
+        return policy_.status();
     }
     bool fault() const {
-        return fault_;
+        return policy_.fault();
     }
     bool enabled() const {
         return bus_ != nullptr;
@@ -20,9 +22,6 @@ class OneWireService {
 
   private:
     onewire_bus_handle_t bus_ = nullptr;
-    std::vector<uint64_t> roms_;
-    int64_t next_scan_ = 0;
-    bool fault_ = false;
-    ProbeScanStatus scan_status_{};
+    ScanPolicy policy_;
 };
 } // namespace monitor

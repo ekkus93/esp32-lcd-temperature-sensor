@@ -23,70 +23,52 @@ std::vector<Reading> OneWireService::read(int64_t now_ms, const std::vector<uint
     if (!bus_)
         return readings;
     const bool line_low = gpio_get_level(static_cast<gpio_num_t>(PIN_ONEWIRE_DATA)) == 0;
-    fault_ = bus_fault_detected(line_low, false, 0, 0);
-    if (fault_)
+    if (!policy_.begin_cycle(line_low))
         return readings;
-    if (now_ms >= next_scan_) {
-        next_scan_ = now_ms + 30000;
+    if (policy_.scan_due(now_ms)) {
+        ScanInput scan;
         onewire_device_iter_handle_t iterator = nullptr;
         if (onewire_new_device_iter(bus_, &iterator) != ESP_OK) {
-            scan_status_ = probe_scan_status(0, false, false);
-            fault_ = bus_fault_detected(false, true, roms_.size(), 0);
-            next_scan_ = now_ms + 5000;
-            return readings;
-        }
-        std::vector<uint64_t> observed;
-        onewire_device_t device{};
-        esp_err_t result = ESP_OK;
-        // Bound enumeration, including unexpected families and excess devices.
-        unsigned enumerated = 0;
-        for (; enumerated < 16; ++enumerated) {
-            result = onewire_device_iter_get_next(iterator, &device);
-            if (result != ESP_OK)
-                break;
-            observed.push_back(device.address);
-        }
-        onewire_del_device_iter(iterator);
-        const bool enumeration_capped = enumerated == 16 && result == ESP_OK;
-        const bool iterator_complete = result == ESP_ERR_NOT_FOUND;
-        auto discovery = collect_probe_discovery(observed, iterator_complete, enumeration_capped);
-        scan_status_ = discovery.status;
-        if (scan_status_.complete)
-            roms_ = select_probe_reads(discovery.roms, managed);
-        else {
-            next_scan_ = now_ms + 5000;
-            if (!enumeration_capped) {
-                fault_ = bus_fault_detected(false, true, roms_.size(), 0);
-                return readings;
+            scan.iterator_created = false;
+        } else {
+            onewire_device_t device{};
+            esp_err_t result = ESP_OK;
+            // Bound enumeration, including unexpected families and excess devices.
+            unsigned enumerated = 0;
+            for (; enumerated < 16; ++enumerated) {
+                result = onewire_device_iter_get_next(iterator, &device);
+                if (result != ESP_OK)
+                    break;
+                scan.observed.push_back(device.address);
             }
-            auto candidates = discovery.roms;
-            candidates.insert(candidates.end(), roms_.begin(), roms_.end());
-            roms_ = select_probe_reads(candidates, managed);
+            onewire_del_device_iter(iterator);
+            scan.capped = enumerated == 16 && result == ESP_OK;
+            scan.ended_normally = result == ESP_ERR_NOT_FOUND;
         }
+        if (!policy_.apply_scan(scan, now_ms, managed))
+            return readings;
     }
-    if (roms_.empty())
+    if (!policy_.has_probes())
         return readings;
     if (onewire_bus_reset(bus_) != ESP_OK) {
-        fault_ = bus_fault_detected(false, true, roms_.size(), 0);
-        next_scan_ = now_ms + 5000;
+        policy_.transaction_failed(now_ms);
         return readings;
     }
     const uint8_t convert[] = {0xcc, 0x44}; // SKIP ROM, broadcast Convert T.
     if (onewire_bus_write_bytes(bus_, convert, sizeof(convert)) != ESP_OK) {
-        fault_ = bus_fault_detected(false, true, roms_.size(), 0);
-        next_scan_ = now_ms + 5000;
+        policy_.transaction_failed(now_ms);
         return readings;
     }
     vTaskDelay(pdMS_TO_TICKS(750)); // This dedicated acquisition task yields to Wi-Fi/UI.
     // A released bit after the worst-case 12-bit interval confirms conversion completion.
     uint8_t complete = 0;
     if (onewire_bus_read_bit(bus_, &complete) != ESP_OK || !complete) {
-        fault_ = bus_fault_detected(false, true, roms_.size(), 0);
-        next_scan_ = now_ms + 5000;
+        policy_.transaction_failed(now_ms);
         return readings;
     }
     std::size_t completed_transactions = 0;
-    for (auto rom : roms_) {
+    bool any_value_missing = false;
+    for (auto rom : policy_.roms()) {
         std::optional<double> value;
         bool transaction_complete = false;
         if (onewire_bus_reset(bus_) == ESP_OK) {
@@ -104,14 +86,9 @@ std::vector<Reading> OneWireService::read(int64_t now_ms, const std::vector<uint
         }
         completed_transactions += transaction_complete;
         readings.push_back({rom, value, true});
-        if (!value)
-            next_scan_ = now_ms + 5000;
+        any_value_missing = any_value_missing || !value;
     }
-    // No addressed scratchpad transaction completed: all expected probes failed
-    // together, so report one shared-bus fault instead of five sensor failures.
-    if (roms_.size() && !completed_transactions)
-        next_scan_ = now_ms + 5000;
-    fault_ = bus_fault_detected(false, false, roms_.size(), completed_transactions);
+    policy_.finish_reads(now_ms, completed_transactions, any_value_missing);
     return readings;
 }
 } // namespace monitor
