@@ -148,5 +148,87 @@ it('visibly shades missing intervals in the selected history series', async () =
   );
   expect(
     await screen.findByRole('img', { name: /Probe 0029 five-minute/ }),
-  ).toContainHTML('Missing data: 600000–1200000');
+  ).toContainHTML('Missing data: 10 min to 20 min since boot (10 min missing)');
+});
+
+const twoFarPoints = (rom: string) => ({
+  schema_version: 1,
+  simulated: false,
+  truncated: false,
+  time_basis: 'uptime',
+  points: [0, 3000000].map((start) => ({
+    boot_id: '0123456789abcdef',
+    rom_id: rom,
+    start_ms: start,
+    end_ms: start + 300000,
+    utc_seconds: null,
+    average_c: 4,
+    minimum_c: 3,
+    maximum_c: 5,
+    count: 60,
+    partial: false,
+  })),
+  gaps: [],
+});
+
+it('explains a zoomed view that contains no data', async () => {
+  const rom = '2801000000000029';
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => twoFarPoints(rom) }),
+  );
+  render(
+    <HistoryView
+      snapshot={parseSnapshot({ ...empty, uptime_ms: 7200000 })}
+      unit="C"
+      timezone={null}
+    />,
+  );
+  await screen.findByRole('img', { name: /Probe 0029/ });
+  expect(screen.queryByText(/No data in this zoomed view/)).toBeNull();
+  for (let i = 0; i < 3; i++)
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+  expect(
+    await screen.findByText(
+      'No data in this zoomed view. Zoom out, or use Earlier and Later.',
+    ),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Reset zoom' }));
+  expect(screen.queryByText(/No data in this zoomed view/)).toBeNull();
+});
+
+it('loads history again once the clock synchronizes', async () => {
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => twoFarPoints('2801000000000029'),
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  const unsynchronized = parseSnapshot(empty);
+  const synchronized = parseSnapshot({
+    ...empty,
+    clock: { utc: '2026-11-05T17:00:00Z', synchronized: true },
+  });
+  const view = render(
+    <HistoryView snapshot={unsynchronized} unit="C" timezone={null} />,
+  );
+  await screen.findByRole('img', { name: /Probe 0029/ });
+  const before = fetchMock.mock.calls.length;
+  // A new snapshot with the same sync state does not reload.
+  view.rerender(
+    <HistoryView
+      snapshot={{ ...unsynchronized, sequence: 5 }}
+      unit="C"
+      timezone={null}
+    />,
+  );
+  expect(fetchMock.mock.calls.length).toBe(before);
+  // The first clock sync changes the time basis, so history is requested again.
+  view.rerender(
+    <HistoryView snapshot={synchronized} unit="C" timezone={null} />,
+  );
+  await vi.waitFor(() =>
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(before),
+  );
 });

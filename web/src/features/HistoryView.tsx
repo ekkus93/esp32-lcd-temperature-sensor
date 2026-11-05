@@ -25,6 +25,21 @@ const ranges = [
   { label: '7d', hours: 168 },
   { label: '30d', hours: 720 },
 ];
+function minutes(ms: number) {
+  return `${Math.round(ms / 60000)} min`;
+}
+// A readable description of a missing interval, in the same basis as the chart.
+function gapText(
+  start: number,
+  end: number,
+  basis: string,
+  timezone: string | null,
+) {
+  const missing = `${minutes(end - start)} missing`;
+  return basis === 'utc'
+    ? `${formatDeviceTime(start, timezone)} to ${formatDeviceTime(end, timezone)} (${missing})`
+    : `${minutes(start)} to ${minutes(end)} since boot (${missing})`;
+}
 export default function HistoryView({
   snapshot,
   unit,
@@ -55,7 +70,9 @@ export default function HistoryView({
   } | null>(null);
   // Load on entry/range/reboot, not every live five-second snapshot.
   const boot = snapshot.boot_id;
-  const key = `${boot}:${hours}:${refresh}`;
+  // The clock syncing changes the time basis of the answer (elapsed vs. UTC), so it reloads too.
+  const synced = snapshot.clock.synchronized;
+  const key = `${boot}:${synced}:${hours}:${refresh}`;
   const result = loaded?.key === key ? loaded.value : null;
   const error = failure?.key === key ? failure.message : '';
   const exportUrl = historyExportUrl(snapshot, hours);
@@ -106,7 +123,7 @@ export default function HistoryView({
     };
     // A new snapshot only changes the query when the user refreshes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boot, hours, refresh, key]);
+  }, [boot, synced, hours, refresh, key]);
   return (
     <Card>
       <CardContent>
@@ -206,6 +223,19 @@ export default function HistoryView({
             {!result.points.length && (
               <Typography>No history available in this range.</Typography>
             )}
+            {result.points.length > 0 &&
+              viewport.scale > 1 &&
+              !result.points.some(
+                (point) =>
+                  selectedRoms.includes(point.rom_id) &&
+                  point.end_ms > viewFrom &&
+                  point.start_ms < viewTo,
+              ) && (
+                <Typography>
+                  No data in this zoomed view. Zoom out, or use Earlier and
+                  Later.
+                </Typography>
+              )}
             {series.length > 0 && (
               <FormGroup row aria-label="History sensor series">
                 {series.map((rom) => {
@@ -291,7 +321,13 @@ export default function HistoryView({
                             opacity=".08"
                           >
                             <title>
-                              Missing data: {gap.start_ms}–{gap.end_ms}
+                              Missing data:{' '}
+                              {gapText(
+                                gap.start_ms,
+                                gap.end_ms,
+                                result.time_basis,
+                                timezone,
+                              )}
                             </title>
                           </rect>
                         ))}
