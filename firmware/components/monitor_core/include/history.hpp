@@ -6,6 +6,15 @@ constexpr size_t max_history_record_bytes = 335;
 // All integer fields are encoded little-endian; no native struct padding is persisted.
 std::vector<uint8_t> encode_bucket(const Bucket &bucket);
 std::optional<Bucket> decode_bucket(const std::vector<uint8_t> &bytes);
+// File-identity checks. The store can be pointed at an ordinary host directory (the host tests do),
+// where another process could swap or replace a segment file between two operations. Behind
+// `#ifndef ESP_PLATFORM` it therefore also remembers each file's device and inode (and the
+// directory's, and the active segment's) and refuses to continue when they change. These checks are
+// compiled for the host only: the device build does not include them, and there the same file is
+// protected by the size and content-fingerprint checks that run in both builds (`segment_has_size`,
+// `unchanged_segment_contents`), which is enough because the firmware is the only user of the
+// history partition. Anything that matters for the device must therefore be covered by the
+// size/fingerprint checks, not by the identity ones.
 class HistoryStore {
   public:
     explicit HistoryStore(std::string directory, std::size_t max_bytes = 3 * 1024 * 1024,
