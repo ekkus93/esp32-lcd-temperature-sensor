@@ -51,7 +51,7 @@ The two new features (§12 public read access, §13 mDNS) are P1 for the owner a
 - **Problem:** the pinned onewire driver returns `ESP_ERR_NOT_FOUND` both at the true end of a search and when no device answers mid-search (`onewire_device.c:57-59, 81-83`). `onewire_service.cpp:48` counts both as complete, so dropped probes are removed from the read list, are no longer read, and become `disconnected` after 15 s although present. The same path turns "all probes vanished" into one disconnect per sensor (SPEC table row 297 wants a bus fault).
 - **Required:**
   - A scan that finds fewer probes than the registry has enabled and recently seen is treated as *suspect*, not complete: keep reading the previous ROM list, rescan within 5 s, and accept the smaller set only after two consecutive scans agree.
-  - No presence pulse while enabled sensors are expected is a bus-level fault (one event), not N disconnects.
+  - A scan that finds no device at all while two or more probes are being read is a bus-level fault (one event), not N disconnects. The read list is kept so reading resumes the moment the bus does, and the fault is rechecked every 5 s. Empty scans that persist for 5 minutes are believed (the probes have really been removed) and the sensors then become `disconnected`. With only one probe being read, an empty scan is that probe being unplugged: it is confirmed by a second scan and shown as `disconnected`, never as a bus fault.
   - The scan-and-fallback decision moves into a pure, host-testable function (see §4.4).
 - **Tests:** host tests with a fake iterator: mid-search drop, two agreeing smaller scans, all-missing, recovery.
 
