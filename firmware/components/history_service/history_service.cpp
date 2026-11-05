@@ -86,7 +86,16 @@ bool HistoryService::query(const HistoryQuery &query, std::vector<HistoryPoint> 
     }
     HistoryReducer reducer(query);
     unsigned visited = 0;
+    // A query runs on the single HTTP task with the history mutex held, so it gets a time budget:
+    // past it, delivery stops and the answer is marked truncated instead of holding up the server.
+    constexpr int64_t query_budget_us = 3000000;
+    const int64_t deadline_us = esp_timer_get_time() + query_budget_us;
+    bool timed_out = false;
     bool ok = store_ && store_->visit([&](const Bucket &bucket) {
+        if (esp_timer_get_time() > deadline_us) {
+            timed_out = true;
+            return false;
+        }
         reducer.add(bucket);
         if (++visited % 32 == 0)
             vTaskDelay(1);
@@ -95,10 +104,12 @@ bool HistoryService::query(const HistoryQuery &query, std::vector<HistoryPoint> 
     xSemaphoreGive(mutex_);
     if (!ok)
         ESP_LOGE("history", "History query storage iteration failed");
+    if (timed_out)
+        ESP_LOGW("history", "History query stopped at its time budget; answer is truncated");
     if (ok) {
         points = reducer.finish();
         gaps = reducer.gaps();
-        truncated = reducer.truncated();
+        truncated = reducer.truncated() || timed_out;
     }
     return ok;
 }

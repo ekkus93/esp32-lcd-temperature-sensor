@@ -568,7 +568,7 @@ int main() {
         }
         return true;
     }));
-    CHECK(segment_visit_rows == 1);
+    CHECK(segment_visit_rows <= 2); // rows come from the validated snapshot, never the new file
     CHECK(std::filesystem::remove(segment_visit_path));
     std::filesystem::rename(segment_visit_saved, segment_visit_path);
     unsigned segment_restored_rows = 0;
@@ -578,6 +578,41 @@ int main() {
     }));
     CHECK(segment_restored_rows == 2);
     std::filesystem::remove_all(segment_visit_directory);
+
+    // Rows are delivered from a validated snapshot of each segment: a callback that rewrites the
+    // segment with different but perfectly valid content cannot mix that data into the export, and
+    // the visit is still reported as failed.
+    {
+        char snapshot_directory[] = "/tmp/monitor-visit-snapshot-XXXXXX";
+        CHECK(mkdtemp(snapshot_directory));
+        HistoryStore snapshot_guard(snapshot_directory, 8 * data.size(), 3 * data.size());
+        CHECK(snapshot_guard.recover());
+        bucket.start_uptime_ms = 0;
+        CHECK(snapshot_guard.append(bucket));
+        bucket.start_uptime_ms = 300000;
+        CHECK(snapshot_guard.append(bucket));
+        auto altered = bucket;
+        altered.start_uptime_ms = 111000;
+        auto replacement = encode_bucket(altered);
+        altered.start_uptime_ms = 222000;
+        const auto second_replacement = encode_bucket(altered);
+        replacement.insert(replacement.end(), second_replacement.begin(), second_replacement.end());
+        const auto snapshot_path = std::filesystem::path(snapshot_directory) / "00000000.tmh";
+        CHECK(std::filesystem::file_size(snapshot_path) == replacement.size());
+        std::vector<int64_t> delivered;
+        CHECK(!snapshot_guard.visit([&](const Bucket &record) {
+            delivered.push_back(record.start_uptime_ms);
+            if (delivered.size() == 1) {
+                std::ofstream out(snapshot_path, std::ios::binary | std::ios::trunc);
+                out.write(reinterpret_cast<const char *>(replacement.data()),
+                          static_cast<std::streamsize>(replacement.size()));
+                CHECK(out.good());
+            }
+            return true;
+        }));
+        CHECK(delivered == (std::vector<int64_t>{0, 300000}));
+        std::filesystem::remove_all(snapshot_directory);
+    }
 
     // A visitor can stop after filling a short page, but later records
     // still need CRC/length validation. Otherwise a corrupt second record

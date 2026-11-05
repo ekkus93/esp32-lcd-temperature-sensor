@@ -134,6 +134,26 @@ bool segment_fingerprint(const std::string &path, std::size_t expected_bytes, ui
     result = fingerprint;
     return true;
 }
+// Reads a whole segment once into memory (segments are small, 32 KiB by default) and returns its
+// fingerprint, so a query validates and parses the same bytes with a single pass over the file.
+bool read_segment_snapshot(const std::string &path, std::size_t expected_bytes, std::string &out,
+                           uint64_t &fingerprint) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input)
+        return false;
+    out.assign(expected_bytes, '\0');
+    input.read(out.data(), static_cast<std::streamsize>(expected_bytes));
+    if (input.gcount() != static_cast<std::streamsize>(expected_bytes) || input.bad() ||
+        input.peek() != std::char_traits<char>::eof())
+        return false;
+    uint64_t value = 14695981039346656037ull;
+    for (unsigned char byte : out) {
+        value ^= byte;
+        value *= 1099511628211ull;
+    }
+    fingerprint = value;
+    return true;
+}
 bool unchanged_segment_contents(const std::string &path, std::size_t size,
                                 uint64_t expected_fingerprint) {
     uint64_t actual_fingerprint = 0;
@@ -729,7 +749,8 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
             return false;
         const auto initial_size = static_cast<std::size_t>(initial_segment.st_size);
         uint64_t initial_fingerprint = 0;
-        if (!segment_fingerprint(path(number), initial_size, initial_fingerprint) ||
+        std::string content;
+        if (!read_segment_snapshot(path(number), initial_size, content, initial_fingerprint) ||
             !segment_has_size(path(number), initial_size))
             return false;
         VerifiedSegment snapshot{number, initial_size, initial_fingerprint};
@@ -738,25 +759,22 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor) con
         snapshot.inode = static_cast<uint64_t>(initial_segment.st_ino);
 #endif
         verified.push_back(snapshot);
-        std::ifstream input(path(number), std::ios::binary);
-        if (!input)
-            return false;
+        // Records are delivered from the validated in-memory copy. A callback that replaces or
+        // edits the file therefore cannot splice unvalidated data into the result, and no
+        // filesystem lookup is needed per record (on the device that made queries take seconds).
+        std::istringstream input(content, std::ios::binary);
         std::size_t good = 0;
         while (auto bucket = next(input)) {
             good = static_cast<std::size_t>(input.tellg());
             if (deliver && !visitor(*bucket))
                 deliver = false;
-            if (!same_history_directory(directory_, initial_directory) ||
-                !same_history_segment(path(number), initial_segment))
-                return false;
         }
-        // A callback may replace the parent directory or the active file even
-        // on the final record. Never report a successful mixed-file export.
+        // The file or its directory may have been replaced during the callbacks. The delivered
+        // rows are still the validated ones, but such a visit is never reported as successful.
         if (!same_history_directory(directory_, initial_directory) ||
-            !same_history_segment(path(number), initial_segment) ||
-            !unchanged_segment_contents(path(number), initial_size, initial_fingerprint))
+            !same_history_segment(path(number), initial_segment))
             return false;
-        if (input.bad() || good != file_size(path(number)))
+        if (input.bad() || good != initial_size)
             return false;
     }
     return unchanged_visited();
