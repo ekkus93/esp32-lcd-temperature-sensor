@@ -109,9 +109,14 @@ python tools/device_smoke.py --port /dev/ttyACM0 --seconds 20
 
 Run with the activated IDF Python environment. The test checks repeated health
 samples, cadence, zero fabricated probes, heap availability and panic output.
-Physical sensor acquisition is disabled by default. Enable it with
-`idf.py menuconfig` only after connecting the powered bus and one external
-4.7 kΩ pull-up. The normal firmware initializes the ST7789 SPI/LVGL runtime on
+Physical sensor acquisition is enabled in the normal image
+(`CONFIG_MONITOR_SENSOR_BUS=y` in `sdkconfig.defaults`): connect the powered bus
+and one external 4.7 kΩ pull-up first, otherwise the LCD shows a bus fault or
+disconnected probes. For bare-board tests with no probe fitted, build with the
+extra defaults file in a separate build directory and sdkconfig:
+`idf.py -B build-bareboard -D SDKCONFIG=sdkconfig.bareboard.resolved -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.bareboard" build`.
+A build with the bus compiled out shows saved probes as disabled (OFF) and raises
+no disconnect alarms. The normal firmware initializes the ST7789 SPI/LVGL runtime on
 SCLK 12, MOSI 11, CS 10, DC 9 and RST 14 when the LCD is attached. It never
 drives GPIO15; leave the backlight unconnected until its electrical behavior is
 verified. Set `CONFIG_MONITOR_LCD_TEST_PATTERN=y` for color bars/corner markers

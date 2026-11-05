@@ -17,8 +17,8 @@ std::optional<Event> AlertService::transition(Sensor &sensor, State state, int64
 }
 
 std::optional<Event> AlertService::update(Sensor &sensor, const Reading *reading, bool bus_fault,
-                                          int64_t now_ms) const {
-    if (!sensor.settings.enabled) {
+                                          int64_t now_ms, bool monitored) const {
+    if (!sensor.settings.enabled || !monitored) {
         sensor.temperature.reset();
         sensor.pending_since.reset();
         sensor.state_before_fault.reset();

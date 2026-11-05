@@ -77,6 +77,14 @@ jobs:
           ./tools/check-sdk.sh
           (cd firmware && idf.py build)
 
+      - name: Check the release image reads the sensor bus
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A clean build resolves its configuration from sdkconfig.defaults. The normal image must
+          # read the DS18B20 bus; a missing option would leave every probe permanently unread.
+          grep -qx 'CONFIG_MONITOR_SENSOR_BUS=y' firmware/sdkconfig
+
       - name: Run full host, display, web and firmware verification
         shell: bash
         run: |

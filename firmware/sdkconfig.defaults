@@ -17,3 +17,6 @@ CONFIG_LWIP_MAX_SOCKETS=16
 CONFIG_LWIP_SO_RCVBUF=y
 CONFIG_LV_FONT_MONTSERRAT_12=y
 CONFIG_LV_FONT_MONTSERRAT_24=y
+# The normal image reads the DS18B20 bus on GPIO4. Bare-board tests without a probe and
+# pull-up use sdkconfig.bareboard on top of this file.
+CONFIG_MONITOR_SENSOR_BUS=y

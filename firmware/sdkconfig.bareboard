@@ -1,0 +1,5 @@
+# Overlay for bare-board tests with no probe and no pull-up fitted. Use it as an extra defaults
+# file in a separate build directory and sdkconfig, for example:
+#   idf.py -B build-bareboard -D SDKCONFIG=sdkconfig.bareboard.resolved \
+#     -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.bareboard" build
+CONFIG_MONITOR_SENSOR_BUS=n

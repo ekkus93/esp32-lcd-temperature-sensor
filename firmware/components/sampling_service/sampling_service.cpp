@@ -24,4 +24,8 @@ bool SamplingService::fault() const {
 bool SamplingService::enabled() const {
     return !simulated_ && bus_.enabled();
 }
+
+bool SamplingService::monitored() const {
+    return simulated_ || bus_.enabled() || bus_.init_failed();
+}
 } // namespace monitor

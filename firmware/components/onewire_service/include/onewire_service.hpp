@@ -14,14 +14,20 @@ class OneWireService {
         return policy_.status();
     }
     bool fault() const {
-        return policy_.fault();
+        return init_failed_ || policy_.fault();
     }
     bool enabled() const {
         return bus_ != nullptr;
     }
+    // True if the driver was meant to run but could not start; that is a bus fault, whereas a
+    // build with the bus compiled out simply cannot read probes.
+    bool init_failed() const {
+        return init_failed_;
+    }
 
   private:
     onewire_bus_handle_t bus_ = nullptr;
+    bool init_failed_ = false;
     ScanPolicy policy_;
 };
 } // namespace monitor

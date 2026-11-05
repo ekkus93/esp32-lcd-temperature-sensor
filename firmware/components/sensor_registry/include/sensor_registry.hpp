@@ -10,7 +10,10 @@ class Registry {
     bool retire(uint64_t rom);
     bool configure(uint64_t rom, const Settings &settings,
                    std::optional<int64_t> now_ms = std::nullopt);
-    void sample(const std::vector<Reading> &readings, int64_t now_ms, bool bus_fault = false);
+    // `monitored` is false when this build cannot read probes at all (the sensor bus is compiled
+    // out): saved probes then show as disabled instead of raising disconnect alarms.
+    void sample(const std::vector<Reading> &readings, int64_t now_ms, bool bus_fault = false,
+                bool monitored = true);
     void expire(int64_t now_ms);
     const std::vector<Sensor> &sensors() const;
     const std::vector<Event> &events() const;

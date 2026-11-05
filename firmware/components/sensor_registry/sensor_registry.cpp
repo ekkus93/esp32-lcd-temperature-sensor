@@ -75,7 +75,8 @@ void Registry::transition(Sensor &sensor, State state, int64_t now_ms) {
     if (auto transition = alerts_.transition(sensor, state, now_ms))
         record(*transition);
 }
-void Registry::sample(const std::vector<Reading> &readings, int64_t now_ms, bool fault) {
+void Registry::sample(const std::vector<Reading> &readings, int64_t now_ms, bool fault,
+                      bool monitored) {
     ++sequence_;
     if (fault != bus_fault_)
         event(0, bus_fault_ ? State::bus_fault : State::normal,
@@ -95,7 +96,7 @@ void Registry::sample(const std::vector<Reading> &readings, int64_t now_ms, bool
         const auto it = std::find_if(readings.begin(), readings.end(),
                                      [&](const Reading &r) { return r.rom == sensor.rom; });
         auto generated =
-            alerts_.update(sensor, it == readings.end() ? nullptr : &*it, fault, now_ms);
+            alerts_.update(sensor, it == readings.end() ? nullptr : &*it, fault, now_ms, monitored);
         if (generated)
             record(*generated);
     }

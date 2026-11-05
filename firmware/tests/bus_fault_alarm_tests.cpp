@@ -144,5 +144,32 @@ int main() {
         registry.sample({{id, 35}}, now + sample_ms, false);
         CHECK(sensor(registry).state == State::disabled);
     }
+
+    // A build with the sensor bus compiled out cannot read any probe. Saved probes must show as
+    // disabled (OFF), never as disconnected, and must raise no alarm.
+    {
+        auto registry = limited_registry(id);
+        registry.sample({{id, 20}}, 0);
+        const auto before = registry.events().size();
+        for (int i = 1; i <= 6; ++i)
+            registry.sample({}, i * sample_ms, false, false);
+        CHECK(sensor(registry).state == State::disabled);
+        CHECK(!sensor(registry).temperature);
+        CHECK(registry.events().size() == before);
+        // When readings return (the bus is enabled again) the probe resumes normally.
+        registry.sample({{id, 20}}, 7 * sample_ms, false, true);
+        CHECK(sensor(registry).state == State::normal);
+        CHECK(registry.events().size() == before);
+    }
+
+    // An unmonitored cycle during a bus fault clears the remembered pre-fault state.
+    {
+        auto registry = limited_registry(id);
+        auto now = sample_until(registry, id, 35, State::high, 0);
+        registry.sample({}, now, true);
+        registry.sample({}, now + sample_ms, false, false);
+        CHECK(sensor(registry).state == State::disabled);
+        CHECK(!sensor(registry).state_before_fault);
+    }
     std::cout << "PASS: alarms survive a bus fault without duplicate events or new persistence\n";
 }

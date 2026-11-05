@@ -13,7 +13,9 @@ esp_err_t OneWireService::initialize() {
     config.bus_gpio_num = PIN_ONEWIRE_DATA;
     onewire_bus_rmt_config_t rmt = {};
     rmt.max_rx_bytes = 10;
-    return onewire_new_bus_rmt(&config, &rmt, &bus_);
+    const esp_err_t result = onewire_new_bus_rmt(&config, &rmt, &bus_);
+    init_failed_ = result != ESP_OK;
+    return result;
 #else
     return ESP_OK;
 #endif

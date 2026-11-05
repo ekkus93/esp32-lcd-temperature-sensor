@@ -224,7 +224,7 @@ extern "C" void app_main() {
         if (sampling.enabled())
             sensor_diagnostics.observe(readings, sampling.fault(), read_ended_ms - read_started_ms);
         auto sampled_at = simulated ? int64_t(simulated_tick * 5000) : read_ended_ms;
-        registry.sample(readings, sampled_at, sampling.fault());
+        registry.sample(readings, sampled_at, sampling.fault(), sampling.monitored());
         for (const auto &event : registry.events()) {
             if (event.sequence <= last_event_sequence)
                 continue;
@@ -364,21 +364,21 @@ extern "C" void app_main() {
             const auto psram_free = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
             const auto psram_min = heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM);
             const auto stack_min = uxTaskGetStackHighWaterMark(nullptr);
-            ESP_LOGI(
-                tag,
-                "HEALTH uptime_ms=%lld sensors=%u bus=%s clock=%s history=%d heap=%u "
-                "internal_free=%u internal_min=%u internal_largest=%u psram_free=%u "
-                "psram_min=%u main_stack_min=%u",
-                static_cast<long long>(now), static_cast<unsigned>(registry.sensors().size()),
-                simulated
-                    ? "SIMULATED"
-                    : (sampling.enabled() ? (sampling.fault() ? "fault" : "ready") : "disabled"),
-                simulated ? "simulated"
-                          : (monitor::clock_synchronized() ? "synchronized" : "unsynchronized"),
-                int(history.healthy()), static_cast<unsigned>(esp_get_free_heap_size()),
-                static_cast<unsigned>(internal_free), static_cast<unsigned>(internal_min),
-                static_cast<unsigned>(internal_largest), static_cast<unsigned>(psram_free),
-                static_cast<unsigned>(psram_min), static_cast<unsigned>(stack_min));
+            ESP_LOGI(tag,
+                     "HEALTH uptime_ms=%lld sensors=%u bus=%s clock=%s history=%d heap=%u "
+                     "internal_free=%u internal_min=%u internal_largest=%u psram_free=%u "
+                     "psram_min=%u main_stack_min=%u",
+                     static_cast<long long>(now), static_cast<unsigned>(registry.sensors().size()),
+                     simulated ? "SIMULATED"
+                               : (sampling.enabled() ? (sampling.fault() ? "fault" : "ready")
+                                                     : (sampling.fault() ? "fault" : "disabled")),
+                     simulated
+                         ? "simulated"
+                         : (monitor::clock_synchronized() ? "synchronized" : "unsynchronized"),
+                     int(history.healthy()), static_cast<unsigned>(esp_get_free_heap_size()),
+                     static_cast<unsigned>(internal_free), static_cast<unsigned>(internal_min),
+                     static_cast<unsigned>(internal_largest), static_cast<unsigned>(psram_free),
+                     static_cast<unsigned>(psram_min), static_cast<unsigned>(stack_min));
             // Numeric-only physical-bus evidence. Never log ROM IDs,
             // credentials, network names or fabricated simulated readings.
             if (sampling.enabled()) {
