@@ -16,7 +16,9 @@ struct DeriveRequest {
     const std::array<uint8_t, 16> *salt;
     std::array<uint8_t, 32> *out;
     uint32_t iterations;
-    TaskHandle_t caller;
+    // Given once when the worker is done. It belongs to this request alone, so nothing else that
+    // notifies the waiting task (or a stray notification) can release the wait early.
+    SemaphoreHandle_t done;
     bool result = false;
 };
 
@@ -49,11 +51,15 @@ void derive_worker(void *context) {
         status = psa_key_derivation_output_bytes(&op, request.out->data(), request.out->size());
     psa_key_derivation_abort(&op);
     request.result = status == PSA_SUCCESS;
-    xTaskNotifyGive(request.caller);
+    xSemaphoreGive(request.done);
     vTaskDelete(nullptr);
 }
 } // namespace
 
+std::string AuthService::setup_secret() const {
+    Guard guard(mutex_);
+    return setup_;
+}
 std::string secure_token(size_t size) {
     if (size > 64)
         return {};
@@ -157,8 +163,10 @@ esp_err_t AuthService::initialize() {
 }
 bool AuthService::derive(const std::string &password, const std::array<uint8_t, 16> &salt,
                          std::array<uint8_t, 32> &out, uint32_t iterations) {
-    auto started = esp_timer_get_time();
-    DeriveRequest request{&password, &salt, &out, iterations, xTaskGetCurrentTaskHandle()};
+    [[maybe_unused]] const auto started = esp_timer_get_time(); // only used by the timing log
+    DeriveRequest request{&password, &salt, &out, iterations, xSemaphoreCreateBinary()};
+    if (!request.done)
+        return false;
     // The HTTP task is pinned to core 1. A priority-0 worker shares that core
     // with IDLE1, while higher-priority network tasks can still preempt it.
     // Only one derivation at a time: each needs a large stack and working memory.
@@ -168,10 +176,12 @@ bool AuthService::derive(const std::string &password, const std::array<uint8_t, 
                                 &worker, 1) != pdPASS) {
         ESP_LOGE("auth", "Could not start password KDF worker");
         xSemaphoreGive(kdf_mutex_);
+        vSemaphoreDelete(request.done);
         return false;
     }
-    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    xSemaphoreTake(request.done, portMAX_DELAY);
     xSemaphoreGive(kdf_mutex_);
+    vSemaphoreDelete(request.done);
     if (!request.result)
         ESP_LOGE("auth", "Password KDF unavailable");
     if (iterations > 1)
@@ -201,46 +211,65 @@ bool AuthService::save_password(const std::string &password) {
     }
     nvs_close(handle);
     if (ok) {
+        Guard guard(mutex_);
         salt_ = salt;
         hash_ = hash;
-        enrolled_ = true;
         setup_.clear();
-        Guard guard(mutex_);
+        enrolled_ = true;
         sessions_.clear();
     }
     return ok;
 }
 AuthService::EnrollResult AuthService::enroll(const std::string &secret,
                                               const std::string &password, int64_t now_ms) {
-    if (!ready_ || enrolled_ || now_ms < next_login_)
-        return EnrollResult::denied;
+    std::string setup;
+    {
+        Guard guard(mutex_);
+        if (!ready_ || enrolled_ || now_ms < next_login_)
+            return EnrollResult::denied;
+        setup = setup_;
+    }
     // A code in the current format is compared after normalising what was typed (case, spaces,
     // hyphens). A malformed one is reported as such and is not a guess; the old 64-character hex
     // code, if still stored, is compared exactly.
     std::string candidate = secret;
-    if (is_readable_code(setup_, owner_setup_code_length)) {
+    if (is_readable_code(setup, owner_setup_code_length)) {
         const auto normalized = normalize_owner_code(secret);
         if (!normalized)
             return EnrollResult::bad_format;
         candidate = *normalized;
     }
-    next_login_ = now_ms + 5000;
-    if (!constant_equal(candidate, setup_))
+    {
+        Guard guard(mutex_);
+        next_login_ = now_ms + 5000;
+    }
+    if (!constant_equal(candidate, setup))
         return EnrollResult::denied;
     const bool ok = save_password(password);
-    if (ok)
+    if (ok) {
+        Guard guard(mutex_);
         next_login_ = now_ms;
+    }
     return ok ? EnrollResult::enrolled : EnrollResult::denied;
 }
 AuthService::PasswordCheck AuthService::check_password_result(const std::string &password) {
     if (!ready_ || !enrolled_ || password.size() > 128)
         return PasswordCheck::mismatch;
+    // Work on copies: the slow derive must not hold the lock, and the stored verifier can be
+    // replaced by a password change on another task while it runs.
+    std::array<uint8_t, 16> salt{};
+    std::array<uint8_t, 32> stored{};
+    {
+        Guard guard(mutex_);
+        salt = salt_;
+        stored = hash_;
+    }
     std::array<uint8_t, 32> candidate{};
-    if (!derive(password, salt_, candidate))
+    if (!derive(password, salt, candidate))
         return PasswordCheck::kdf_failed;
     volatile unsigned diff = 0;
-    for (size_t i = 0; i < hash_.size(); ++i)
-        diff = diff | (candidate[i] ^ hash_[i]);
+    for (size_t i = 0; i < stored.size(); ++i)
+        diff = diff | (candidate[i] ^ stored[i]);
     std::fill(candidate.begin(), candidate.end(), 0);
     return diff == 0 ? PasswordCheck::match : PasswordCheck::mismatch;
 }
@@ -288,10 +317,16 @@ void AuthService::logout(const std::string &token) {
 
 bool AuthService::change_password(const std::string &token, const std::string &old_password,
                                   const std::string &new_password, int64_t now_ms) {
-    if (!authorize(token, now_ms) || now_ms < next_login_)
+    if (!authorize(token, now_ms))
         return false;
+    {
+        Guard guard(mutex_);
+        if (now_ms < next_login_)
+            return false;
+    }
     const auto started = esp_timer_get_time() / 1000;
     bool ok = check_password(old_password) && save_password(new_password);
+    Guard guard(mutex_);
     next_login_ = now_ms + (esp_timer_get_time() / 1000 - started) + (ok ? 500 : 5000);
     return ok;
 }

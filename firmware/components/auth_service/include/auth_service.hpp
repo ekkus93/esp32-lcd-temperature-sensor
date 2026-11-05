@@ -5,6 +5,7 @@
 #include "login_throttle.hpp"
 #include "sessions.hpp"
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -15,12 +16,12 @@ std::string readable_secret(size_t length);
 class AuthService {
   public:
     esp_err_t initialize(); // Call after radio start so hardware entropy is available.
+    // Safe from any task: `enrolled_` is atomic and the owner code is copied under the lock (the
+    // HTTP task clears it when the owner enrolls).
     bool enrolled() const {
-        return enrolled_;
+        return enrolled_.load();
     }
-    const std::string &setup_secret() const {
-        return setup_;
-    }
+    std::string setup_secret() const;
     // `bad_format`: the owner code is malformed (length or characters); it is not counted as a
     // guess and does not start a lockout. `denied`: wrong code, not allowed now, or storing failed.
     enum class EnrollResult { enrolled, denied, bad_format };
@@ -48,8 +49,10 @@ class AuthService {
     bool check_password(const std::string &password) {
         return check_password_result(password) == PasswordCheck::match;
     }
-    bool enrolled_ = false;
-    bool ready_ = false;
+    std::atomic<bool> enrolled_{false};
+    std::atomic<bool> ready_{false};
+    // setup_, salt_, hash_ and next_login_ are read and written by different tasks (HTTP, the
+    // login worker, display): they are only touched under mutex_.
     std::string setup_;
     std::array<uint8_t, 16> salt_{};
     std::array<uint8_t, 32> hash_{};

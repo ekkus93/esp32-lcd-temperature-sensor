@@ -199,3 +199,10 @@ add_executable(host_rules_tests host_rules_tests.cpp)
 target_link_libraries(host_rules_tests PRIVATE monitor_core)
 target_compile_options(host_rules_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_test(NAME host_rules COMMAND host_rules_tests)
+
+# The real AuthService on the host: FreeRTOS, NVS and PSA come from auth_mocks (a real PBKDF2 inside).
+add_executable(auth_service_tests auth_service_tests.cpp ../components/auth_service/auth_service.cpp auth_mocks/auth_mocks.cpp)
+target_include_directories(auth_service_tests PRIVATE auth_mocks ../components/auth_service/include)
+target_link_libraries(auth_service_tests PRIVATE monitor_core Threads::Threads)
+target_compile_options(auth_service_tests PRIVATE -Wall -Wextra -Werror -Wpedantic -O2)
+add_test(NAME auth_service COMMAND auth_service_tests)
