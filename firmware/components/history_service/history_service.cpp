@@ -5,6 +5,7 @@
 #include "esp_timer.h"
 #include "freertos/task.h"
 #include "history_mount_policy.hpp"
+#include "storage_error_limiter.hpp"
 #include <algorithm>
 #include <array>
 #include <new>
@@ -205,6 +206,7 @@ void HistoryService::worker(void *context) {
     ESP_LOGI("history", "mount=%s healthy=%d; nonblank data never auto-formatted",
              esp_err_to_name(mounted), int(self.healthy_.load()));
     ESP_LOGI("history", "event_log_healthy=%d", int(self.event_healthy_.load()));
+    StorageErrorLimiter error_limiter;
     while (true) {
         Bucket *bucket = nullptr;
         if (xQueueReceive(self.queue_, &bucket, pdMS_TO_TICKS(100)) == pdTRUE && bucket) {
@@ -212,11 +214,13 @@ void HistoryService::worker(void *context) {
             bool ok = usable && store.append(*bucket);
             xSemaphoreGive(self.mutex_);
             self.healthy_ = ok;
-            if (!ok) {
+            const int64_t now_ms = esp_timer_get_time() / 1000;
+            if (!ok)
                 ESP_LOGE("history", "Aggregate write unavailable; acquisition continues");
+            if (error_limiter.should_record(ok, now_ms)) {
                 JournalEvent failure{};
                 failure.boot_id = self.boot_id_;
-                failure.uptime_ms = esp_timer_get_time() / 1000;
+                failure.uptime_ms = now_ms;
                 failure.kind = EventKind::storage_error;
                 failure.detail = 1;
                 xSemaphoreTake(self.mutex_, portMAX_DELAY);
