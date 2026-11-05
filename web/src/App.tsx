@@ -319,7 +319,7 @@ export default function App() {
           )}
           {index === 2 && (
             <Suspense fallback={<Typography>Loading sensors…</Typography>}>
-              <SensorsView />
+              <SensorsView unit={unit} />
             </Suspense>
           )}
           {index === 3 && (

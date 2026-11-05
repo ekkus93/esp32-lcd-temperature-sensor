@@ -35,7 +35,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 it('submits ROM-keyed settings including negative calibration and disabled state', async () => {
-  render(<SensorsView />);
+  render(<SensorsView unit="C" />);
   fireEvent.change(await screen.findByLabelText(/Sensor name/), {
     target: { value: 'Freezer' },
   });
@@ -61,6 +61,66 @@ it('submits ROM-keyed settings including negative calibration and disabled state
   });
   expect(JSON.parse(last[1]?.body as string)).not.toHaveProperty('rom_id');
 });
+const limited = { ...sensor, low_c: 2, high_c: 8, calibration_c: 0.5 };
+function stubLimited() {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation(async (input: RequestInfo | URL) => ({
+      ok: true,
+      json: async () =>
+        String(input).endsWith('/sensors/storage')
+          ? { schema_version: 1, state: 'ready', writable: true }
+          : [limited],
+    })),
+  );
+}
+it('shows thresholds and calibration in Fahrenheit and stores Celsius', async () => {
+  stubLimited();
+  render(<SensorsView unit="F" />);
+  // Absolute temperatures convert with the 32 degree offset; differences do not.
+  expect(await screen.findByLabelText(/Low threshold/)).toHaveValue(35.6);
+  expect(screen.getByLabelText(/Low threshold \(°F\)/)).toBeInTheDocument();
+  expect(screen.getByLabelText(/High threshold/)).toHaveValue(46.4);
+  expect(screen.getByLabelText(/Calibration offset \(°F\)/)).toHaveValue(0.9);
+  expect(screen.getByLabelText(/Hysteresis \(°F\)/)).toHaveValue(0.9);
+  fireEvent.change(screen.getByLabelText(/High threshold/), {
+    target: { value: '50' },
+  });
+  fireEvent.change(screen.getByLabelText(/Calibration offset/), {
+    target: { value: '1.8' },
+  });
+  vi.mocked(fetch).mockResolvedValueOnce({
+    ok: true,
+    json: async () => ({ status: 'queued' }),
+  } as Response);
+  fireEvent.click(screen.getByRole('button', { name: 'Save sensor settings' }));
+  await screen.findByText(
+    'Update queued. It applies with the next measurement cycle.',
+  );
+  const body = JSON.parse(
+    vi.mocked(fetch).mock.calls.at(-1)![1]?.body as string,
+  );
+  expect(body.high_c).toBeCloseTo(10, 6); // 50 °F
+  expect(body.calibration_c).toBeCloseTo(1, 6); // a 1.8 °F difference is 1 °C
+  // Fields the user did not touch are sent exactly as stored, with no conversion round trip.
+  expect(body.low_c).toBe(2);
+  expect(body.hysteresis_c).toBe(0.5);
+});
+it('keeps Celsius entry exact when the configured unit is Celsius', async () => {
+  stubLimited();
+  render(<SensorsView unit="C" />);
+  expect(await screen.findByLabelText(/Low threshold \(°C\)/)).toHaveValue(2);
+  expect(screen.getByLabelText(/Calibration offset \(°C\)/)).toHaveValue(0.5);
+});
+it('rejects reversed thresholds entered in Fahrenheit', async () => {
+  stubLimited();
+  render(<SensorsView unit="F" />);
+  fireEvent.change(await screen.findByLabelText(/Low threshold/), {
+    target: { value: '60' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Save sensor settings' }));
+  await screen.findByText('Low threshold must be below high threshold.');
+});
 it('explains the empty managed-sensor list', async () => {
   vi.stubGlobal(
     'fetch',
@@ -72,7 +132,7 @@ it('explains the empty managed-sensor list', async () => {
           : [],
     })),
   );
-  render(<SensorsView />);
+  render(<SensorsView unit="C" />);
   expect(
     await screen.findByText(
       'No sensors discovered. Unused positions do not cause alarms.',
@@ -97,7 +157,7 @@ it('renders all five sensor editors with maximum-length names', async () => {
           : sensors,
     })),
   );
-  render(<SensorsView />);
+  render(<SensorsView unit="C" />);
   const editors = await screen.findAllByLabelText(/Sensor name/);
   expect(editors).toHaveLength(5);
   expect(editors.map((editor) => (editor as HTMLInputElement).value)).toEqual(
@@ -105,7 +165,7 @@ it('renders all five sensor editors with maximum-length names', async () => {
   );
 });
 it('rejects reversed thresholds before sending an update', async () => {
-  render(<SensorsView />);
+  render(<SensorsView unit="C" />);
   await screen.findByLabelText(/Sensor name/);
   fireEvent.change(screen.getByLabelText(/Low threshold/), {
     target: { value: '30' },
@@ -125,7 +185,7 @@ it('rejects reversed thresholds before sending an update', async () => {
 it.each(['', 'abc'])(
   'rejects display position "%s" with a field error and sends nothing',
   async (value) => {
-    render(<SensorsView />);
+    render(<SensorsView unit="C" />);
     const field = await screen.findByLabelText(/Display position/);
     fireEvent.change(field, { target: { value } });
     fireEvent.click(
@@ -145,7 +205,7 @@ it.each(['', 'abc'])(
 it.each(['0', '6', '2.5'])(
   'does not send display position "%s"',
   async (value) => {
-    render(<SensorsView />);
+    render(<SensorsView unit="C" />);
     const field = await screen.findByLabelText(/Display position/);
     fireEvent.change(field, { target: { value } });
     fireEvent.click(
@@ -160,7 +220,7 @@ it.each(['0', '6', '2.5'])(
   },
 );
 it('sends the chosen display position as a zero-based order', async () => {
-  render(<SensorsView />);
+  render(<SensorsView unit="C" />);
   fireEvent.change(await screen.findByLabelText(/Display position/), {
     target: { value: '3' },
   });
@@ -180,7 +240,7 @@ it('rejects malformed configuration payloads without rendering an unsafe editor'
     ok: true,
     json: async () => [{ ...sensor, rom_id: 'not-a-rom' }],
   } as Response);
-  render(<SensorsView />);
+  render(<SensorsView unit="C" />);
   await screen.findByText('Invalid sensor configuration response');
   expect(
     screen.queryByRole('button', { name: 'Save sensor settings' }),
@@ -198,7 +258,7 @@ it('disables sensor edits when persistent storage is read-only', async () => {
           : [sensor],
     })),
   );
-  render(<SensorsView />);
+  render(<SensorsView unit="C" />);
   expect(
     await screen.findByText(
       /stored configuration could not be safely opened or saved/,
@@ -235,7 +295,7 @@ it('requires confirmation and queues retirement with the current sensor ETag', a
         },
       ),
   );
-  render(<SensorsView />);
+  render(<SensorsView unit="C" />);
   fireEvent.click(
     await screen.findByRole('button', { name: 'Retire disconnected probe' }),
   );
@@ -263,7 +323,7 @@ it('does not submit retirement when its confirmation is cancelled', async () => 
           : [{ ...sensor, state: 'disconnected' }],
     })),
   );
-  render(<SensorsView />);
+  render(<SensorsView unit="C" />);
   fireEvent.click(
     await screen.findByRole('button', { name: 'Retire disconnected probe' }),
   );

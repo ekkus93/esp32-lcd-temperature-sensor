@@ -24,23 +24,44 @@ const numericFields = [
   'low_c',
   'high_c',
 ] as const;
-function numericText(sensor: SensorConfiguration) {
+type NumericKey = (typeof numericFields)[number];
+type Unit = 'C' | 'F';
+// Limits and thresholds are absolute temperatures; calibration and hysteresis are differences,
+// which scale by 1.8 but do not take the 32 degree offset. The device always stores Celsius.
+const absolute = (key: NumericKey) => key === 'low_c' || key === 'high_c';
+const temperatureField = (key: NumericKey) => key !== 'persistence_seconds';
+function toDisplay(key: NumericKey, celsius: number, unit: Unit) {
+  if (unit === 'C' || !temperatureField(key)) return celsius;
+  return Number((celsius * 1.8 + (absolute(key) ? 32 : 0)).toFixed(2));
+}
+function toCelsius(key: NumericKey, shown: number, unit: Unit) {
+  if (unit === 'C' || !temperatureField(key)) return shown;
+  return (shown - (absolute(key) ? 32 : 0)) / 1.8;
+}
+function numericText(sensor: SensorConfiguration, unit: Unit) {
   return Object.fromEntries(
-    numericFields.map((key) => [key, String(sensor[key] ?? '')]),
-  ) as Record<(typeof numericFields)[number], string>;
+    numericFields.map((key) => {
+      const value = sensor[key];
+      return [key, value === null ? '' : String(toDisplay(key, value, unit))];
+    }),
+  ) as Record<NumericKey, string>;
 }
 function SensorEditor({
   sensor,
+  unit,
   writable,
   onUnavailable,
   onRetired,
 }: {
   sensor: SensorConfiguration;
+  unit: Unit;
   writable: boolean;
   onUnavailable: () => void;
   onRetired: (id: string) => void;
 }) {
-  const [numbers, setNumbers] = useState(() => numericText(sensor));
+  const [numbers, setNumbers] = useState(() => numericText(sensor, unit));
+  // Only fields the user edited are converted back; the rest are sent exactly as stored.
+  const [edited, setEdited] = useState<Set<NumericKey>>(new Set());
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -80,7 +101,9 @@ function SensorEditor({
         setMessage('Enter valid numeric settings.');
         setBusy(false);
         return;
-      } else parsed[key] = Number(value);
+      } else if (edited.has(key))
+        parsed[key] = toCelsius(key, Number(value), unit);
+      else Object.assign(parsed, { [key]: sensor[key] });
     }
     if (
       parsed.low_c !== null &&
@@ -118,7 +141,8 @@ function SensorEditor({
             );
           } else {
             setDraft(updated);
-            setNumbers(numericText(updated));
+            setNumbers(numericText(updated, unit));
+            setEdited(new Set());
             setPositionText(String(updated.order + 1));
             setMessage('Settings committed and applied.');
           }
@@ -182,8 +206,13 @@ function SensorEditor({
       setBusy(false);
     }
   }
-  const numeric = (key: (typeof numericFields)[number], value: string) =>
+  const numeric = (key: NumericKey, value: string) => {
     setNumbers({ ...numbers, [key]: value });
+    setEdited(new Set(edited).add(key));
+  };
+  const u = `°${unit}`;
+  const limit = (key: NumericKey, celsius: number) =>
+    toDisplay(key, celsius, unit);
   return (
     <Card>
       <CardContent>
@@ -236,34 +265,58 @@ function SensorEditor({
                 slotProps={{ htmlInput: { min: 1, max: 5, step: 1 } }}
               />
               <TextField
-                label="Calibration offset (°C)"
+                label={`Calibration offset (${u})`}
                 type="number"
                 value={numbers.calibration_c}
                 onChange={(e) => numeric('calibration_c', e.target.value)}
-                slotProps={{ htmlInput: { min: -20, max: 20, step: 0.01 } }}
+                slotProps={{
+                  htmlInput: {
+                    min: limit('calibration_c', -20),
+                    max: limit('calibration_c', 20),
+                    step: 0.01,
+                  },
+                }}
               />
               <TextField
-                label="Low threshold (°C)"
+                label={`Low threshold (${u})`}
                 type="number"
                 value={numbers.low_c}
                 onChange={(e) => numeric('low_c', e.target.value)}
                 helperText="Leave empty to disable this threshold"
-                slotProps={{ htmlInput: { min: -55, max: 125, step: 0.1 } }}
+                slotProps={{
+                  htmlInput: {
+                    min: limit('low_c', -55),
+                    max: limit('low_c', 125),
+                    step: 0.1,
+                  },
+                }}
               />
               <TextField
-                label="High threshold (°C)"
+                label={`High threshold (${u})`}
                 type="number"
                 value={numbers.high_c}
                 onChange={(e) => numeric('high_c', e.target.value)}
                 helperText="Leave empty to disable this threshold"
-                slotProps={{ htmlInput: { min: -55, max: 125, step: 0.1 } }}
+                slotProps={{
+                  htmlInput: {
+                    min: limit('low_c', -55),
+                    max: limit('low_c', 125),
+                    step: 0.1,
+                  },
+                }}
               />
               <TextField
-                label="Hysteresis (°C)"
+                label={`Hysteresis (${u})`}
                 type="number"
                 value={numbers.hysteresis_c}
                 onChange={(e) => numeric('hysteresis_c', e.target.value)}
-                slotProps={{ htmlInput: { min: 0, max: 20, step: 0.1 } }}
+                slotProps={{
+                  htmlInput: {
+                    min: 0,
+                    max: limit('hysteresis_c', 20),
+                    step: 0.1,
+                  },
+                }}
               />
               <TextField
                 label="Alert persistence (seconds)"
@@ -306,7 +359,7 @@ function SensorEditor({
     </Card>
   );
 }
-export default function SensorsView() {
+export default function SensorsView({ unit }: { unit: Unit }) {
   const [sensors, setSensors] = useState<SensorConfiguration[] | null>(null);
   const [writable, setWritable] = useState<boolean | null>(null);
   const [error, setError] = useState('');
@@ -370,6 +423,7 @@ export default function SensorsView() {
         <SensorEditor
           key={`${sensor.rom_id}-${refresh}`}
           sensor={sensor}
+          unit={unit}
           writable={writable === true}
           onUnavailable={() => setWritable(false)}
           onRetired={(id) => {
