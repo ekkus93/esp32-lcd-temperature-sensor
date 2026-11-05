@@ -117,8 +117,8 @@ it('returns to login after session expiration', async () => {
 
 it('allows retrying an initial authentication-state connection failure', async () => {
   vi.mocked(fetch)
-    .mockRejectedValueOnce(new Error('Device unavailable'))
-    .mockRejectedValueOnce(new Error('Device is still offline'))
+    .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    .mockRejectedValueOnce(new TypeError('Failed to fetch'))
     .mockResolvedValueOnce({
       ok: true,
       json: async () => ({ enrolled: true }),
@@ -128,10 +128,12 @@ it('allows retrying an initial authentication-state connection failure', async (
       <div>Protected dashboard</div>
     </AuthGate>,
   );
-  expect(await screen.findByText('Device unavailable')).toBeInTheDocument();
+  expect(
+    await screen.findByText('Could not reach the device'),
+  ).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Retry connection' }));
   expect(
-    await screen.findByText('Device is still offline'),
+    await screen.findByText('Could not reach the device'),
   ).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Retry connection' }));
   expect(await screen.findByRole('button', { name: 'Sign in' })).toBeEnabled();
