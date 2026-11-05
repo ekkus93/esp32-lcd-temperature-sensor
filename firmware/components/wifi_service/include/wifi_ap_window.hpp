@@ -12,6 +12,14 @@ class WifiApWindow {
         candidate_handoff_ = false;
         reconnect_pending_ = false;
     }
+    // A candidate network could not be joined. Setup stays reachable so the owner can try again,
+    // but only for ten minutes and only until the saved network is connected again; an open
+    // setup screen must never stay up indefinitely.
+    void candidate_failed(int64_t now_ms) {
+        candidate_deadline_ms_ = now_ms + 600000;
+        candidate_handoff_ = false;
+        reconnect_pending_ = false;
+    }
     void candidate_connected(int64_t now_ms) {
         candidate_deadline_ms_ = now_ms + 30000;
         candidate_handoff_ = true;

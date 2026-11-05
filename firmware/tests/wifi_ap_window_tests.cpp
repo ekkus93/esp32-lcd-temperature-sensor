@@ -93,5 +93,39 @@ int main() {
     assert(!ap.should_close(11631999, false, true));
     assert(ap.should_close(11632000, false, true));
 
+    // A failed candidate leaves setup open for ten minutes, then closes it once the saved
+    // network is connected again. It never closes while the station is offline, and not while
+    // another attempt is running.
+    {
+        monitor::WifiApWindow failed;
+        failed.candidate_started();
+        failed.candidate_failed(10000000);
+        assert(!failed.should_close(10599999, false, true));
+        assert(!failed.should_close(10600000, false, false)); // the saved network is still down
+        assert(!failed.should_close(10600000, true, true));   // another attempt is running
+        assert(failed.should_close(10600000, false, true));
+        assert(!failed.should_close(10600001, false, true)); // the window is consumed
+    }
+
+    // BOOT recovery is not shortened by a failed candidate, and a failure does not shorten it.
+    {
+        monitor::WifiApWindow failed;
+        failed.manual_open(20000100);
+        failed.candidate_started();
+        failed.candidate_failed(20000000);
+        assert(!failed.should_close(20600050, false, true));
+        assert(failed.should_close(20600100, false, true));
+    }
+
+    // A failure after an earlier successful handoff timer starts a fresh failure window.
+    {
+        monitor::WifiApWindow failed;
+        failed.candidate_connected(30000000);
+        failed.station_disconnected();
+        failed.candidate_started();
+        failed.candidate_failed(30100000);
+        assert(!failed.should_close(30699999, false, true));
+        assert(failed.should_close(30700000, false, true));
+    }
     std::cout << "wifi AP deadline: independent BOOT and handoff windows PASS\n";
 }

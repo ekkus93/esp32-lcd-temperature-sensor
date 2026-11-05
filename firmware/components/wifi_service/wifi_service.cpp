@@ -433,6 +433,7 @@ void WifiService::worker(void *context) {
             candidate_start = 0;
             self.attempt_ = 3;
             self.ip_ = 0;
+            ap_window.candidate_failed(now);
             esp_wifi_disconnect();
             std::memset(&proposed, 0, sizeof(proposed));
             if (self.saved_ssid_[0])
