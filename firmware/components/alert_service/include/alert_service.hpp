@@ -10,5 +10,8 @@ class AlertService {
     std::optional<Event> update(Sensor &sensor, const Reading *reading, bool bus_fault,
                                 int64_t now_ms, bool monitored = true) const;
     std::optional<Event> transition(Sensor &sensor, State state, int64_t now_ms) const;
+
+  private:
+    void set_state(Sensor &sensor, State state) const;
 };
 } // namespace monitor

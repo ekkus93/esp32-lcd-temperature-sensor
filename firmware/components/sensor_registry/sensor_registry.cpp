@@ -66,6 +66,19 @@ void Registry::event(uint64_t rom, State previous, State state, int64_t now_ms) 
     record({0, rom, previous, state, now_ms});
 }
 void Registry::record(Event event) {
+    const auto same = std::find_if(recorded_.begin(), recorded_.end(), [&](const Recorded &r) {
+        return r.rom == event.rom && r.previous == event.previous && r.state == event.state;
+    });
+    if (same != recorded_.end()) {
+        if (event.uptime_ms >= same->uptime_ms &&
+            event.uptime_ms - same->uptime_ms < journal_repeat_ms)
+            return;
+        same->uptime_ms = event.uptime_ms;
+    } else {
+        if (recorded_.size() == max_recorded)
+            recorded_.erase(recorded_.begin());
+        recorded_.push_back({event.rom, event.previous, event.state, event.uptime_ms});
+    }
     if (events_.size() == 128)
         events_.erase(events_.begin());
     event.sequence = ++event_sequence_;

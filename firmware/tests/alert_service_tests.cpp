@@ -150,9 +150,51 @@ int main() {
         registry.sample({{id, 20}}, (i * 2 + 1) * sample_ms);
     }
     const auto &events = registry.events();
-    CHECK(events.size() == 128);
-    CHECK(events.front().sequence == 273 && events.back().sequence == 400);
+    // A flapping sensor (persistence 0) used to write 400 events. Identical transitions are now
+    // journaled at most once per 60 s per sensor; the live state still follows every sample.
+    // 2,000 s of flapping at 10 s per cycle: at most 34 windows, two transitions each.
+    CHECK(events.size() <= 70);
+    CHECK(events.size() >= 2);
+    CHECK(registry.sensors().front().state == State::normal);
     for (std::size_t i = 1; i < events.size(); ++i)
         CHECK(events[i].sequence == events[i - 1].sequence + 1);
+    {
+        // Throttling is per sensor and per identical transition: a different transition, or the
+        // same one after 60 s, is journaled; the live state is never throttled.
+        Registry r;
+        const auto a = rom_id();
+        CHECK(r.discover(a));
+        auto s2 = r.sensors().front().settings;
+        s2.low = 10;
+        s2.high = 30;
+        s2.persistence_ms = 0;
+        CHECK(r.configure(a, s2));
+        r.sample({{a, 35}}, 0);
+        CHECK(r.events().size() == 1);
+        r.sample({{a, 20}}, 5000);
+        r.sample({{a, 35}}, 10000);
+        CHECK(r.events().size() == 3); // invalid->high, high->normal, normal->high
+        // The same two transitions again inside 60 s are not journaled; the state is current.
+        r.sample({{a, 20}}, 15000);
+        CHECK(r.sensors().front().state == State::normal);
+        r.sample({{a, 35}}, 20000);
+        CHECK(r.sensors().front().state == State::high);
+        CHECK(r.events().size() == 3);
+        // After the window both are journaled again.
+        r.sample({{a, 20}}, 70000);
+        r.sample({{a, 35}}, 75000);
+        CHECK(r.events().size() == 5);
+    }
+    {
+        // No registered sensor is ever State::unassigned; that value is a display-slot value.
+        Registry r;
+        const auto a = rom_id();
+        CHECK(r.discover(a));
+        CHECK(r.sensors().front().state != State::unassigned);
+        r.sample({}, 5000);
+        r.expire(100000);
+        for (const auto &sensor : r.sensors())
+            CHECK(sensor.state != State::unassigned);
+    }
     std::cout << "PASS: alert hysteresis, recovery, bounded event burst and bus/disable states\n";
 }

@@ -2,6 +2,11 @@
 #include <cmath>
 
 namespace monitor {
+// The only place a sensor's state is written. `transition` adds the journal decision on top.
+void AlertService::set_state(Sensor &sensor, State state) const {
+    sensor.state = state;
+}
+
 std::optional<Event> AlertService::transition(Sensor &sensor, State state, int64_t now_ms) const {
     if (sensor.state == state)
         return std::nullopt;
@@ -9,7 +14,7 @@ std::optional<Event> AlertService::transition(Sensor &sensor, State state, int64
     const auto is_alert = [](State value) {
         return value == State::high || value == State::low || value == State::disconnected;
     };
-    sensor.state = state;
+    set_state(sensor, state);
     if ((is_alert(previous) || is_alert(state)) &&
         (state != State::disconnected || sensor.settings.disconnect_alert))
         return Event{0, sensor.rom, previous, state, now_ms};
@@ -29,7 +34,7 @@ std::optional<Event> AlertService::update(Sensor &sensor, const Reading *reading
         // the fault is silent for the sensor; the registry records the bus-level event once.
         if (sensor.state != State::bus_fault)
             sensor.state_before_fault = sensor.state;
-        sensor.state = State::bus_fault;
+        set_state(sensor, State::bus_fault);
         sensor.temperature.reset();
         sensor.pending_since.reset();
         return std::nullopt;
@@ -38,7 +43,7 @@ std::optional<Event> AlertService::update(Sensor &sensor, const Reading *reading
         // The fault cleared: resume from the state before it, so a sensor still beyond its limit
         // stays in alarm (no new persistence wait, no duplicate event) and one that is back
         // within limits produces the normal clearing event.
-        sensor.state = sensor.state_before_fault.value_or(State::invalid);
+        set_state(sensor, sensor.state_before_fault.value_or(State::invalid));
     }
     sensor.state_before_fault.reset();
     // A probe that browned out after Convert T answers exactly 85.0 (its power-on value) with a

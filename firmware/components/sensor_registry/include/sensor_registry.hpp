@@ -26,6 +26,18 @@ class Registry {
     void transition(Sensor &sensor, State state, int64_t now_ms);
     void record(Event event);
     void event(uint64_t rom, State previous, State state, int64_t now_ms);
+    struct Recorded {
+        uint64_t rom;
+        State previous;
+        State state;
+        int64_t uptime_ms;
+    };
+    // The last journaled transition of each kind; an identical one inside this window is not
+    // journaled again (the live state still changes), so a flapping sensor cannot flush weeks of
+    // alarm history out of the 128-entry journal.
+    static constexpr int64_t journal_repeat_ms = 60000;
+    static constexpr std::size_t max_recorded = 32;
+    std::vector<Recorded> recorded_;
     AlertService alerts_;
     std::vector<Sensor> sensors_;
     std::vector<Event> events_;

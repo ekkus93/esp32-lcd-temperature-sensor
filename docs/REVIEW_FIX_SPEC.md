@@ -69,6 +69,7 @@ The two new features (§12 public read access, §13 mDNS) are P1 for the owner a
 ### 3.7 Duplicate events and state authority (P2)
 - **Problem:** state changes happen in several places (`AlertService::transition`, the direct write above, `Registry::sample`, `Registry::expire`, `Registry::configure`). A flapping sensor with `persistence_ms=0` can emit 400 events (asserted by `alert_service_tests.cpp:150-160`).
 - **Required:** all per-sensor state changes go through one function. Repeated identical transitions for one sensor are limited to one per 60 s in the event journal (the live snapshot still shows the current state). `State::unassigned` is either assigned to sensors as specified or removed from the sensor state set and kept as a display-slot value only.
+- **Built:** `AlertService::set_state` is the only writer of a sensor's state; `Registry::record` journals an identical (sensor, previous, state) transition at most once per 60 s. `State::unassigned` stays in the enum and the contracts (so no schema change) as a display-slot value only: no registered sensor is ever in it (tested).
 
 ## 4. Build, configuration and test structure
 
