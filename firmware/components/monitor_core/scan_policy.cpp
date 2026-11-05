@@ -1,5 +1,6 @@
 #include "scan_policy.hpp"
 #include "probe_discovery.hpp"
+#include <algorithm>
 
 namespace monitor {
 namespace {
@@ -16,6 +17,7 @@ bool ScanPolicy::apply_scan(const ScanInput &input, int64_t now_ms,
                             const std::vector<uint64_t> &managed) {
     next_scan_ = now_ms + scan_interval_ms;
     if (!input.iterator_created) {
+        suspect_.reset();
         status_ = probe_scan_status(0, false, false);
         fault_ = bus_fault_detected(false, true, roms_.size(), 0);
         next_scan_ = now_ms + retry_interval_ms;
@@ -25,9 +27,24 @@ bool ScanPolicy::apply_scan(const ScanInput &input, int64_t now_ms,
         collect_probe_discovery(input.observed, input.ended_normally, input.capped);
     status_ = discovery.status;
     if (status_.complete) {
+        // The driver ends a search with the same "no more devices" for a real end and for a glitch
+        // mid-search, so a scan that lost a probe being read is only believed once a second scan
+        // agrees. Until then the old list keeps being read and nothing can be retired on it.
+        const bool lost_a_probe = std::any_of(roms_.begin(), roms_.end(), [&](uint64_t rom) {
+            return std::find(discovery.roms.begin(), discovery.roms.end(), rom) ==
+                   discovery.roms.end();
+        });
+        if (lost_a_probe && !(suspect_ && *suspect_ == discovery.roms)) {
+            suspect_ = discovery.roms;
+            status_.complete = false;
+            next_scan_ = now_ms + retry_interval_ms;
+            return true;
+        }
+        suspect_.reset();
         roms_ = select_probe_reads(discovery.roms, managed);
         return true;
     }
+    suspect_.reset();
     next_scan_ = now_ms + retry_interval_ms;
     if (!input.capped) {
         fault_ = bus_fault_detected(false, true, roms_.size(), 0);

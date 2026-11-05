@@ -1,6 +1,7 @@
 #pragma once
 #include "monitor_types.hpp"
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 namespace monitor {
@@ -45,6 +46,8 @@ class ScanPolicy {
 
   private:
     std::vector<uint64_t> roms_;
+    // A smaller-than-expected scan waiting for a second scan to agree with it.
+    std::optional<std::vector<uint64_t>> suspect_;
     int64_t next_scan_ = 0;
     bool fault_ = false;
     ProbeScanStatus status_{};

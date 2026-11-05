@@ -108,5 +108,62 @@ int main() {
         policy.finish_reads(3000, 2, false);
         CHECK(!policy.fault());
     }
+
+    // A scan that finds fewer probes than are being read is suspect (the driver reports the
+    // same "no more devices" for a glitch mid-search): keep reading the old list, report the
+    // scan as incomplete so nothing can be retired on it, and rescan within 5 s.
+    {
+        ScanPolicy policy;
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2), rom(3)}), 0, none));
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(3)}), 30000, none));
+        CHECK(policy.roms().size() == 3);
+        CHECK(!policy.status().complete && !policy.fault());
+        CHECK(!policy.scan_due(34999) && policy.scan_due(35000));
+        // A second scan that agrees accepts the smaller set.
+        CHECK(policy.apply_scan(complete_scan({rom(3), rom(1)}), 35000, none));
+        CHECK(policy.roms().size() == 2 && policy.status().complete);
+        CHECK(policy.status().discovered_count == 2);
+        CHECK(!policy.scan_due(64999) && policy.scan_due(65000));
+    }
+
+    // If the second scan finds everything again, the glitch is forgotten and the next smaller
+    // scan has to be confirmed all over again.
+    {
+        ScanPolicy policy;
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2), rom(3)}), 0, none));
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(3)}), 30000, none));
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2), rom(3)}), 35000, none));
+        CHECK(policy.roms().size() == 3 && policy.status().complete);
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(3)}), 65000, none));
+        CHECK(policy.roms().size() == 3 && !policy.status().complete);
+    }
+
+    // A second scan that is smaller in a different way is still suspect.
+    {
+        ScanPolicy policy;
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2), rom(3)}), 0, none));
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(3)}), 30000, none));
+        CHECK(policy.apply_scan(complete_scan({rom(1)}), 35000, none));
+        CHECK(policy.roms().size() == 3 && !policy.status().complete);
+        CHECK(policy.apply_scan(complete_scan({rom(1)}), 40000, none));
+        CHECK(policy.roms().size() == 1 && policy.status().complete);
+    }
+
+    // More probes than before are accepted immediately; a replacement (one gone, one new) is
+    // suspect until confirmed.
+    {
+        ScanPolicy policy;
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2)}), 0, none));
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2), rom(4)}), 30000, none));
+        CHECK(policy.roms().size() == 3 && policy.status().complete);
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2), rom(5)}), 60000, none));
+        CHECK(policy.roms().size() == 3 && !policy.status().complete);
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2), rom(5)}), 65000, none));
+        CHECK(policy.status().complete && policy.roms().size() == 3);
+        bool has_five = false;
+        for (auto id : policy.roms())
+            has_five = has_five || id == rom(5);
+        CHECK(has_five);
+    }
     std::cout << "PASS: scan policy reproduces the 1-Wire service's scan and fault decisions\n";
 }
