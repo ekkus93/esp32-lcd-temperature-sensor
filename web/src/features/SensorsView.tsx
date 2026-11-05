@@ -49,6 +49,9 @@ function SensorEditor({
     };
   }, []);
   const [draft, setDraft] = useState(sensor);
+  // Kept as text so an empty field is an error, not position 0 (order -1).
+  const [positionText, setPositionText] = useState(String(sensor.order + 1));
+  const [positionError, setPositionError] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   async function submit(event: React.FormEvent) {
@@ -56,6 +59,19 @@ function SensorEditor({
     setMessage('');
     setBusy(true);
     const parsed = { ...draft };
+    const position = Number(positionText);
+    if (
+      positionText.trim() === '' ||
+      !Number.isInteger(position) ||
+      position < 1 ||
+      position > 5
+    ) {
+      setPositionError('Enter a whole number from 1 to 5.');
+      setBusy(false);
+      return;
+    }
+    setPositionError('');
+    parsed.order = position - 1;
     for (const key of numericFields) {
       const value = numbers[key];
       if (value === '' && (key === 'low_c' || key === 'high_c'))
@@ -103,6 +119,7 @@ function SensorEditor({
           } else {
             setDraft(updated);
             setNumbers(numericText(updated));
+            setPositionText(String(updated.order + 1));
             setMessage('Settings committed and applied.');
           }
           resolved = true;
@@ -212,10 +229,10 @@ function SensorEditor({
               <TextField
                 label="Display position"
                 type="number"
-                value={draft.order + 1}
-                onChange={(e) =>
-                  setDraft({ ...draft, order: Number(e.target.value) - 1 })
-                }
+                value={positionText}
+                onChange={(e) => setPositionText(e.target.value)}
+                error={positionError !== ''}
+                helperText={positionError}
                 slotProps={{ htmlInput: { min: 1, max: 5, step: 1 } }}
               />
               <TextField

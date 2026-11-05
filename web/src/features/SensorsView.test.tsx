@@ -122,6 +122,59 @@ it('rejects reversed thresholds before sending an update', async () => {
       .mock.calls.every(([, options]) => options?.method !== 'PATCH'),
   ).toBe(true);
 });
+it.each(['', 'abc'])(
+  'rejects display position "%s" with a field error and sends nothing',
+  async (value) => {
+    render(<SensorsView />);
+    const field = await screen.findByLabelText(/Display position/);
+    fireEvent.change(field, { target: { value } });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Save sensor settings' }),
+    );
+    expect(
+      await screen.findByText('Enter a whole number from 1 to 5.'),
+    ).toBeInTheDocument();
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.every(([, options]) => options?.method !== 'PATCH'),
+    ).toBe(true);
+  },
+);
+// Out-of-range and fractional positions are stopped by the browser's own min/max/step check.
+it.each(['0', '6', '2.5'])(
+  'does not send display position "%s"',
+  async (value) => {
+    render(<SensorsView />);
+    const field = await screen.findByLabelText(/Display position/);
+    fireEvent.change(field, { target: { value } });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Save sensor settings' }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(
+      vi
+        .mocked(fetch)
+        .mock.calls.every(([, options]) => options?.method !== 'PATCH'),
+    ).toBe(true);
+  },
+);
+it('sends the chosen display position as a zero-based order', async () => {
+  render(<SensorsView />);
+  fireEvent.change(await screen.findByLabelText(/Display position/), {
+    target: { value: '3' },
+  });
+  vi.mocked(fetch).mockResolvedValueOnce({
+    ok: true,
+    json: async () => ({ status: 'queued' }),
+  } as Response);
+  fireEvent.click(screen.getByRole('button', { name: 'Save sensor settings' }));
+  await screen.findByText(
+    'Update queued. It applies with the next measurement cycle.',
+  );
+  const last = vi.mocked(fetch).mock.calls.at(-1)!;
+  expect(JSON.parse(last[1]?.body as string)).toMatchObject({ order: 2 });
+});
 it('rejects malformed configuration payloads without rendering an unsafe editor', async () => {
   vi.mocked(fetch).mockResolvedValueOnce({
     ok: true,
