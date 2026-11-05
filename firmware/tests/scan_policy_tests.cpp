@@ -269,5 +269,47 @@ int main() {
         CHECK(policy.apply_scan(complete_scan({rom(1), rom(2)}), 75000, none));
         CHECK(!policy.fault());
     }
+
+    // Repeated failures back off: rescan after 5, 10, 20, 40 s, then 60 s at most, and start over
+    // after a clean scan. A flaky bus is not hammered every five seconds forever.
+    {
+        ScanPolicy policy;
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2)}), 0, none));
+        int64_t now = 1000;
+        const int64_t expected[] = {5000, 10000, 20000, 40000, 60000, 60000, 60000};
+        for (int64_t wait : expected) {
+            policy.transaction_failed(now);
+            CHECK(!policy.scan_due(now + wait - 1) && policy.scan_due(now + wait));
+            now += wait;
+        }
+        // A clean scan resets the backoff.
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2)}), now, none));
+        policy.transaction_failed(now + 1);
+        CHECK(!policy.scan_due(now + 1 + 4999) && policy.scan_due(now + 1 + 5000));
+    }
+
+    // Scan-level failures back off too: a search that cannot start, repeated.
+    {
+        ScanPolicy policy;
+        ScanInput failed;
+        failed.iterator_created = false;
+        int64_t now = 0;
+        const int64_t expected[] = {5000, 10000, 20000};
+        for (int64_t wait : expected) {
+            CHECK(!policy.apply_scan(failed, now, none));
+            CHECK(!policy.scan_due(now + wait - 1) && policy.scan_due(now + wait));
+            now += wait;
+        }
+    }
+
+    // A missing value on one probe while the bus works does not escalate the backoff.
+    {
+        ScanPolicy policy;
+        CHECK(policy.apply_scan(complete_scan({rom(1), rom(2)}), 0, none));
+        for (int i = 1; i <= 5; ++i) {
+            policy.finish_reads(i * 1000, 1, true);
+            CHECK(policy.scan_due(i * 1000 + 5000) && !policy.scan_due(i * 1000 + 4999));
+        }
+    }
     std::cout << "PASS: scan policy reproduces the 1-Wire service's scan and fault decisions\n";
 }

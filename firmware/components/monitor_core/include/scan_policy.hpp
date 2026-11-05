@@ -46,12 +46,16 @@ class ScanPolicy {
     }
 
   private:
+    // Rescan after a failure: 5, 10, 20, 40 s, then 60 s at most; reset by a clean scan or reads.
+    void schedule_retry(int64_t now_ms);
+    void reset_backoff();
     std::vector<uint64_t> roms_;
     // A smaller-than-expected scan waiting for a second scan to agree with it.
     std::optional<std::vector<uint64_t>> suspect_;
     // The previous scan hit a ROM CRC error; a second one in a row is a real fault.
     bool crc_error_pending_ = false;
     int64_t next_scan_ = 0;
+    int64_t retry_ms_ = 5000;
     // Set while scans find no device at all although several probes are being read; kept across
     // read cycles so the fault does not flicker between rescans.
     bool no_presence_ = false;

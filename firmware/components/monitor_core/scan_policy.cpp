@@ -6,11 +6,21 @@ namespace monitor {
 namespace {
 constexpr int64_t scan_interval_ms = 30000;
 constexpr int64_t retry_interval_ms = 5000;
+constexpr int64_t max_retry_interval_ms = 60000;
 // Empty scans that persist this long are believed: the probes really have been removed.
 constexpr int64_t no_presence_grace_ms = 300000;
 // With this many probes being read, "nothing answers" is a bus problem, not several removals.
 constexpr std::size_t shared_bus_probe_count = 2;
 } // namespace
+
+void ScanPolicy::schedule_retry(int64_t now_ms) {
+    next_scan_ = now_ms + retry_ms_;
+    retry_ms_ = std::min(retry_ms_ * 2, max_retry_interval_ms);
+}
+
+void ScanPolicy::reset_backoff() {
+    retry_ms_ = retry_interval_ms;
+}
 
 bool ScanPolicy::begin_cycle(bool line_low) {
     fault_ = bus_fault_detected(line_low, false, 0, 0) || no_presence_;
@@ -25,7 +35,7 @@ bool ScanPolicy::apply_scan(const ScanInput &input, int64_t now_ms,
         crc_error_pending_ = false;
         status_ = probe_scan_status(0, false, false);
         fault_ = bus_fault_detected(false, true, roms_.size(), 0);
-        next_scan_ = now_ms + retry_interval_ms;
+        schedule_retry(now_ms);
         return false;
     }
     const auto discovery =
@@ -35,7 +45,7 @@ bool ScanPolicy::apply_scan(const ScanInput &input, int64_t now_ms,
         // One corrupted ROM during the search is a glitch: keep reading the probes already known
         // and search again soon. The same error twice in a row is a real fault.
         suspect_.reset();
-        next_scan_ = now_ms + retry_interval_ms;
+        schedule_retry(now_ms);
         if (crc_error_pending_) {
             fault_ = true;
             return false;
@@ -59,7 +69,7 @@ bool ScanPolicy::apply_scan(const ScanInput &input, int64_t now_ms,
                 suspect_.reset();
                 status_.complete = false;
                 fault_ = true;
-                next_scan_ = now_ms + retry_interval_ms;
+                schedule_retry(now_ms);
                 return false;
             }
             removal_confirmed = true; // minutes of silence confirm the probes are gone
@@ -76,15 +86,16 @@ bool ScanPolicy::apply_scan(const ScanInput &input, int64_t now_ms,
         if (lost_a_probe && !removal_confirmed && !(suspect_ && *suspect_ == discovery.roms)) {
             suspect_ = discovery.roms;
             status_.complete = false;
-            next_scan_ = now_ms + retry_interval_ms;
+            schedule_retry(now_ms);
             return true;
         }
         suspect_.reset();
+        reset_backoff(); // a clean scan
         roms_ = select_probe_reads(discovery.roms, managed);
         return true;
     }
     suspect_.reset();
-    next_scan_ = now_ms + retry_interval_ms;
+    schedule_retry(now_ms);
     if (!input.capped) {
         fault_ = bus_fault_detected(false, true, roms_.size(), 0);
         return false;
@@ -97,12 +108,16 @@ bool ScanPolicy::apply_scan(const ScanInput &input, int64_t now_ms,
 
 void ScanPolicy::transaction_failed(int64_t now_ms) {
     fault_ = bus_fault_detected(false, true, roms_.size(), 0);
-    next_scan_ = now_ms + retry_interval_ms;
+    schedule_retry(now_ms);
 }
 
 void ScanPolicy::finish_reads(int64_t now_ms, std::size_t completed, bool any_value_missing) {
-    if (any_value_missing || (!roms_.empty() && completed == 0))
-        next_scan_ = now_ms + retry_interval_ms;
+    if (!roms_.empty() && completed == 0)
+        schedule_retry(now_ms); // nothing answered: back off
+    else if (any_value_missing)
+        next_scan_ = now_ms + retry_interval_ms; // one probe is quiet while the bus works
+    else if (completed == roms_.size())
+        reset_backoff();
     // No addressed transaction completed: all expected probes failed together, which is one
     // shared-bus fault rather than one failure per sensor.
     if (completed > 0)
