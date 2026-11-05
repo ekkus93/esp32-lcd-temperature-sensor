@@ -43,6 +43,12 @@ class DisplayView {
     lv_obj_t *trends_value(size_t sensor) const {
         return trends_.values[sensor];
     }
+    lv_obj_t *trends_axis_mid() const {
+        return trends_.axis_mid;
+    }
+    lv_obj_t *trends_axis_min() const {
+        return trends_.axis_min[0];
+    }
     lv_obj_t *trends_axis_max(size_t sensor) const {
         return trends_.axis_max[sensor];
     }
@@ -56,7 +62,8 @@ class DisplayView {
         // Compact screens: Wi-Fi state as an icon beside the time (colour tells the state).
         lv_obj_t *wifi = nullptr;
         // Compact Trends only: highest and lowest value on each chart, and the time axis ends.
-        lv_obj_t *axis_from = nullptr, *axis_now = nullptr;
+        lv_obj_t *axis_from = nullptr, *axis_mid_x = nullptr, *axis_now = nullptr,
+                 *axis_mid = nullptr;
         std::array<lv_obj_t *, 5> axis_max{}, axis_min{}, legend{};
         std::array<lv_obj_t *, max_sensors> labels{}, values{}, alts{}, states{}, charts{};
         std::array<lv_obj_t *, max_sensors> no_data{};

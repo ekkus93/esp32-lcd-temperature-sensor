@@ -478,7 +478,7 @@ int main(int argc, char **argv) {
         }
         lv_obj_update_layout(lv_screen_active());
         auto *first_chart = view.trends_chart(0);
-        CHECK(lv_obj_get_width(first_chart) == 86 && lv_obj_get_height(first_chart) == 70);
+        CHECK(lv_obj_get_width(first_chart) == 86 && lv_obj_get_height(first_chart) == 64);
         {
             // Fonts by role: serif (Charter) for every piece of text on the Overview and Trends
             // screens; the Wi-Fi icon is a symbol and stays in Montserrat.
@@ -494,7 +494,7 @@ int main(int argc, char **argv) {
             // The compact graph says what it shows: the unit, the highest and lowest value, and
             // the time span.
             const auto text = visible_text(lv_screen_active());
-            for (const char *expected : {"Trends °F", "-60m", "now"})
+            for (const char *expected : {"Trends °F", "-1h", "-30m", "now"})
                 CHECK(text.find(expected) != std::string::npos);
             CHECK(!lv_obj_is_hidden(view.trends_axis_max(0)));
         }
@@ -527,6 +527,18 @@ int main(int argc, char **argv) {
             lv_refr_now(display);
             save("trends-compact-five-lines");
             {
+                // A real axis: the scale's top, middle and bottom, in order, containing the data
+                // (the fixture spans about 49.1 to 79.6 F) with a round middle.
+                auto number = [](lv_obj_t *obj) { return std::atof(lv_label_get_text(obj)); };
+                const double top = number(view.trends_axis_max(0));
+                const double mid = number(view.trends_axis_mid());
+                const double bottom = number(view.trends_axis_min());
+                CHECK(top > mid && mid > bottom);
+                CHECK(top >= 79.6 && bottom <= 49.1);
+                CHECK(std::fabs(mid - (top + bottom) / 2) < 0.06);
+                CHECK(!lv_obj_is_hidden(view.trends_axis_mid()));
+            }
+            {
                 // One full bucket is one point: no line, so no chart and no scale (it would show
                 // the same value as both highest and lowest); the screen says it is collecting.
                 TrendCache one_point;
@@ -556,6 +568,12 @@ int main(int argc, char **argv) {
                 CHECK(!lv_obj_is_hidden(view.trends_chart(0)));
                 CHECK(!lv_obj_is_hidden(view.trends_axis_max(0)));
                 CHECK(lv_obj_is_hidden(view.trends_no_data()));
+                // A steady reading (71.0 to 71.6 F) still gets a scale at least 2 degrees tall.
+                const double span = std::atof(lv_label_get_text(view.trends_axis_max(0))) -
+                                    std::atof(lv_label_get_text(view.trends_axis_min()));
+                CHECK(span >= 2.0);
+                CHECK(std::atof(lv_label_get_text(view.trends_axis_min())) <= 71.0 &&
+                      std::atof(lv_label_get_text(view.trends_axis_max(0))) >= 71.6);
             }
             {
                 // The same balance for four probes (2 + 2), three (2 + 1) and one.

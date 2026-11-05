@@ -60,6 +60,31 @@ uint32_t color(State state) {
 // mint. They stay distinct on the dark background and are not the alert colours.
 constexpr int legend_top = 103, legend_row = 12; // compact Trends legend: first row, row pitch
 constexpr uint32_t line_colors[max_sensors] = {0x7fc8ff, 0xffc857, 0xff8a80, 0xc3a6ff, 0x7fe0b0};
+// Scale bounds for the compact graph, in hundredths of the displayed unit. The bounds are round
+// numbers (a whole number of steps, an even count so the middle tick is round too), they always
+// contain the data, and they span at least 2 degrees so a steady reading does not look like a
+// steep slope.
+struct Axis {
+    int32_t low, high;
+};
+int32_t floor_div(int32_t a, int32_t b) {
+    return a / b - (a % b != 0 && ((a < 0) != (b < 0)) ? 1 : 0);
+}
+Axis nice_axis(int32_t data_low, int32_t data_high) {
+    const int32_t minimum_span = 200;
+    const int32_t span = std::max(data_high - data_low, minimum_span);
+    const int32_t step = span <= 300 ? 50 : span <= 1000 ? 100 : span <= 3000 ? 500 : 1000;
+    const int32_t middle = (data_low + data_high) / 2;
+    int32_t low = floor_div(middle - span / 2, step) * step;
+    int32_t high = -floor_div(-(middle + span / 2), step) * step;
+    while (low > data_low)
+        low -= step;
+    while (high < data_high)
+        high += step;
+    if (((high - low) / step) % 2)
+        high += step;
+    return {low, high};
+}
 } // namespace
 DisplayView::DisplayView() {
     compact_ = lv_display_get_horizontal_resolution(nullptr) <= 128;
@@ -115,14 +140,23 @@ DisplayView::DisplayView() {
                     chart = s->charts[0];
                 } else {
                     chart = lv_chart_create(s->root);
-                    lv_obj_set_pos(chart, large_trend ? 38 : 12, large_trend ? 16 : top + 21);
-                    lv_obj_set_size(chart, large_trend ? 86 : 141, large_trend ? 70 : 23);
+                    lv_obj_set_pos(chart, large_trend ? 38 : 12, large_trend ? 22 : top + 21);
+                    lv_obj_set_size(chart, large_trend ? 86 : 141, large_trend ? 64 : 23);
                     lv_obj_set_style_bg_opa(chart, LV_OPA_TRANSP, 0);
-                    lv_obj_set_style_border_width(chart, 0, 0);
+                    // Compact: the left and bottom edges are the axes, with faint grid lines.
+                    lv_obj_set_style_border_width(chart, large_trend ? 1 : 0, 0);
+                    if (large_trend) {
+                        lv_obj_set_style_border_side(
+                            chart, lv_border_side_t(LV_BORDER_SIDE_LEFT | LV_BORDER_SIDE_BOTTOM),
+                            0);
+                        lv_obj_set_style_border_color(chart, lv_color_hex(setup_muted), 0);
+                        lv_obj_set_style_line_color(chart, lv_color_hex(0x2c3a40), LV_PART_MAIN);
+                        lv_obj_set_style_line_width(chart, 1, LV_PART_MAIN);
+                    }
                     lv_obj_set_style_pad_all(chart, 0, 0);
                     lv_obj_set_style_size(chart, 0, 0, LV_PART_INDICATOR);
                     lv_obj_set_style_line_width(chart, large_trend ? 2 : 1, LV_PART_ITEMS);
-                    lv_chart_set_div_line_count(chart, 0, 0);
+                    lv_chart_set_div_line_count(chart, large_trend ? 3 : 0, large_trend ? 3 : 0);
                     lv_chart_set_type(chart, LV_CHART_TYPE_LINE);
                     lv_obj_set_scrollable(chart, false);
                     lv_obj_set_clickable(chart, false);
@@ -138,9 +172,12 @@ DisplayView::DisplayView() {
                     lv_label_set_long_mode(s->legend[i], LV_LABEL_LONG_CLIP);
                     lv_obj_set_style_text_color(s->legend[i], lv_color_hex(line_colors[i]), 0);
                     if (i == 0) {
-                        for (auto *axis : {&s->axis_max[0], &s->axis_min[0]}) {
-                            *axis = label(s->root, 0, axis == &s->axis_max[0] ? 16 : 72, 36,
-                                          &font_charter_regular_12);
+                        for (auto *axis : {&s->axis_max[0], &s->axis_mid, &s->axis_min[0]}) {
+                            *axis = label(s->root, 0,
+                                          axis == &s->axis_max[0] ? 16
+                                          : axis == &s->axis_mid  ? 48
+                                                                  : 80,
+                                          36, &font_charter_regular_12);
                             lv_obj_set_style_text_align(*axis, LV_TEXT_ALIGN_RIGHT, 0);
                             lv_obj_set_style_text_color(*axis, lv_color_hex(setup_muted), 0);
                         }
@@ -155,13 +192,15 @@ DisplayView::DisplayView() {
             }
         }
         if (compact && s == &trends_) {
-            s->axis_from = label(s->root, 38, 87, 43, &font_charter_regular_12);
-            s->axis_now = label(s->root, 81, 87, 43, &font_charter_regular_12);
+            s->axis_from = label(s->root, 38, 88, 43, &font_charter_regular_12);
+            s->axis_mid_x = label(s->root, 59, 88, 43, &font_charter_regular_12);
+            s->axis_now = label(s->root, 81, 88, 43, &font_charter_regular_12);
+            lv_obj_set_style_text_align(s->axis_mid_x, LV_TEXT_ALIGN_CENTER, 0);
             // At most three legend rows end at y=139, so the Trends footer sits below them.
             lv_obj_set_y(s->footer, 147);
             lv_obj_set_height(s->footer, 13);
             lv_obj_set_style_text_align(s->axis_now, LV_TEXT_ALIGN_RIGHT, 0);
-            for (auto *axis : {s->axis_from, s->axis_now})
+            for (auto *axis : {s->axis_from, s->axis_mid_x, s->axis_now})
                 lv_obj_set_style_text_color(axis, lv_color_hex(setup_muted), 0);
         }
     }
@@ -345,24 +384,34 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
         const bool collecting = low != INT32_MAX && most_points < 2;
         const bool any = low != INT32_MAX && !collecting;
         if (any && (low != trend_low_ || high != trend_high_)) {
-            lv_chart_set_axis_range(trends_.charts[0], LV_CHART_AXIS_PRIMARY_Y, low - 50,
-                                    high + 50);
+            // The labels are the scale's own bounds and middle, not just the data's extremes.
+            const Axis axis = nice_axis(low, high);
+            lv_chart_set_axis_range(trends_.charts[0], LV_CHART_AXIS_PRIMARY_Y, axis.low,
+                                    axis.high);
             char text_buffer[16];
-            std::snprintf(text_buffer, sizeof(text_buffer), "%.1f", high / 100.0);
+            std::snprintf(text_buffer, sizeof(text_buffer), "%.1f", axis.high / 100.0);
             text(trends_.axis_max[0], text_buffer);
-            std::snprintf(text_buffer, sizeof(text_buffer), "%.1f", low / 100.0);
+            std::snprintf(text_buffer, sizeof(text_buffer), "%.1f", (axis.low + axis.high) / 200.0);
+            text(trends_.axis_mid, text_buffer);
+            std::snprintf(text_buffer, sizeof(text_buffer), "%.1f", axis.low / 100.0);
             text(trends_.axis_min[0], text_buffer);
         }
         trend_low_ = low;
         trend_high_ = high;
         lv_obj_set_hidden(trends_.charts[0], !any);
-        for (auto *widget :
-             {trends_.axis_max[0], trends_.axis_min[0], trends_.axis_from, trends_.axis_now})
+        for (auto *widget : {trends_.axis_max[0], trends_.axis_mid, trends_.axis_min[0],
+                             trends_.axis_from, trends_.axis_mid_x, trends_.axis_now})
             lv_obj_set_hidden(widget, !any);
         lv_obj_set_hidden(trends_.no_data[0], any);
         text(trends_.no_data[0], collecting ? "COLLECTING DATA" : "NO DATA");
         text(trends_.title, options.fahrenheit ? "Trends °F" : "Trends °C");
-        text(trends_.axis_from, "-" + std::to_string(options.lookback_minutes) + "m");
+        // Whole hours read better and are shorter ("-1h" instead of "-60m").
+        auto ago = [](unsigned minutes) {
+            return minutes >= 60 && minutes % 60 == 0 ? "-" + std::to_string(minutes / 60) + "h"
+                                                      : "-" + std::to_string(minutes) + "m";
+        };
+        text(trends_.axis_from, ago(options.lookback_minutes));
+        text(trends_.axis_mid_x, ago(options.lookback_minutes / 2));
         text(trends_.axis_now, "now");
     }
     cache_window_ = now / bucket_ms;
