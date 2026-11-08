@@ -227,7 +227,12 @@ try:
               f'{method} {route} with a session but no CSRF token is rejected')
     check(call('/api/v1/no-such-route',headers=anonymous)['status']==404,'unknown route is 404 anonymously')
     check(call('/api/v1/no-such-route',headers=authorized)['status']==404,'unknown route is 404 when signed in')
-    check(call('/api/v1/settings','PATCH',{},authorized)['status']==400,'empty settings PATCH rejected')
+    # A settings PATCH needs the current If-Match; without it the device answers 428 before it
+    # looks at the body, so the empty-body check has to carry the owner's current etag.
+    check(call('/api/v1/settings','PATCH',{},authorized)['status']==428,
+          'settings PATCH without If-Match is refused as precondition required')
+    check(call('/api/v1/settings','PATCH',{},{**authorized,'If-Match':owner_settings['etag']})['status']==400,
+          'empty settings PATCH rejected')
     # History is public but rate limited per client: a second query within a second gets 429.
     history_query='/api/v1/history?from=0&to=3600000&max_points=24'
     first = call(history_query,headers=anonymous)
@@ -241,7 +246,9 @@ try:
           'OTA upload requires CSRF authorization')
     check(call('/api/v1/ota','POST','',authorized)['status']==400,
           'empty OTA image rejected before flash access')
-    check(call('/api/v1/ota','POST','not an image payload beyond the ESP image header',
+    # The body must reach the firmware's image-prefix length (112 bytes), or the upload is refused
+    # as truncated (400) before its media type is looked at.
+    check(call('/api/v1/ota','POST','X'*128,
                {**authorized,'Content-Type':'application/json'})['status']==415,
           'OTA rejects the wrong media type before flash access')
     invalid_image = call('/api/v1/ota','POST','X'*128,
@@ -396,12 +403,26 @@ try:
           'future empty history query (HTTP %s, body=%r, points=%s, gaps=%s)'
           % (history_response['status'], history_response.get('body', '')[:160],
              len(history.get('points', [])), len(history.get('gaps', []))))
-    valid_rom='2801000000000029'
-    rom_selectors='&rom_id='+valid_rom
-    five_rom_selectors=rom_selectors*5
-    check(call(history_path+five_rom_selectors,headers=authorized)['status']==200,
+    def ds18b20_rom(serial):
+        # A valid DS18B20 ROM id: family 0x28, a serial byte, and the Dallas CRC8 as the last byte.
+        body = bytes([0x28, serial, 0, 0, 0, 0, 0])
+        crc = 0
+        for byte in body:
+            crc ^= byte
+            for _ in range(8):
+                crc = (crc >> 1) ^ 0x8C if crc & 1 else crc >> 1
+        return (body + bytes([crc])).hex()
+    # The selectors must be distinct: a repeated rom_id is rejected (R05-02).
+    rom_selectors=''.join('&rom_id='+ds18b20_rom(serial) for serial in range(1, 6))
+    sixth_rom_selector='&rom_id='+ds18b20_rom(6)
+    # History is limited to one query per second per client, and the query above just used it.
+    time.sleep(1.1)
+    check(call(history_path+rom_selectors,headers=authorized)['status']==200,
           'history accepts the five-sensor selector limit')
-    check(call(history_path+five_rom_selectors+rom_selectors,headers=authorized)['status']==400,
+    first_rom_selector='&rom_id='+ds18b20_rom(1)
+    check(call(history_path+first_rom_selector*2,headers=authorized)['status']==400,
+          'history rejects a repeated ROM selector')
+    check(call(history_path+rom_selectors+sixth_rom_selector,headers=authorized)['status']==400,
           'history rejects more than five ROM selectors')
     check(call(history_path+'&rom_id=zzzzzzzzzzzzzzzz',headers=authorized)['status']==400,
           'history rejects malformed ROM IDs')
@@ -475,13 +496,19 @@ try:
     reboot_csrf=json.loads(reboot_login['body'])['csrf']
     reboot_authorized={**origin,'Cookie':reboot_cookie,'X-CSRF-Token':reboot_csrf}
     check(call('/api/v1/auth/logout','POST',{},authorized)['status']==200,'logout')
-    check(call('/api/v1/status',headers=authorized)['status']==401,'logged-out cookie invalidated')
-    check(call('/api/v1/not-a-route')['status']==401,'unknown API remains behind authentication')
+    # /api/v1/status is a public read, so prove the session is gone with an owner-only route and
+    # the auth state; unknown routes are 404 for everyone (the public access model).
+    check(call('/api/v1/wifi/status',headers=authorized)['status']==401,'logged-out cookie invalidated')
+    check(json.loads(call('/api/v1/auth/state',headers=authorized)['body']).get('signed_in') is False,
+          'logged-out cookie no longer reports a signed-in session')
+    check(call('/api/v1/not-a-route',headers=origin)['status']==404,'unknown API route is 404 after logout')
     result=call('/api/v1/auth/login','POST',{'password':'intentionally-wrong-test-value'},origin)
     check(result['status']==401,'invalid password rejected')
     began=time.monotonic()
     result=call('/api/v1/auth/login','POST',{'password':'intentionally-wrong-test-value'},origin)
-    check(result['status']==401 and time.monotonic()-began<2,'failed-login cooldown avoids repeated expensive work')
+    # The first wrong password starts a per-client backoff; a second attempt inside it is refused at
+    # the gate with 429 (LoginGate::locked) before any password derivation, so it returns quickly.
+    check(result['status']==429 and time.monotonic()-began<2,'failed-login cooldown avoids repeated expensive work')
     times=[int(value) for value in re.findall(rb'HEALTH uptime_ms=([0-9]+)',health_traffic)]
     Path('.build/auth-cadence.json').write_text(json.dumps({'uptime_samples':times,'deltas':[b-a for a,b in zip(times,times[1:])]},indent=2)+'\n')
     check(len(times)>=2 and all(4000<=b-a<=6000 for a,b in zip(times,times[1:])) and all(abs(value-(times[0]+index*5000))<=1000 for index,value in enumerate(times)), 'sampling cadence survives password verification')
