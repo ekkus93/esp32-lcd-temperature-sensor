@@ -112,8 +112,7 @@ int main() {
         tzset();
         std::time_t winter = 1768478400; // 2026-01-15 12:00 UTC
         std::time_t summer = 1784116800; // 2026-07-15 12:00 UTC
-        struct tm w {
-        }, s{};
+        struct tm w{}, s{};
         localtime_r(&winter, &w);
         localtime_r(&summer, &s);
         CHECK(w.tm_hour == zone.winter_hour && s.tm_hour == zone.summer_hour);

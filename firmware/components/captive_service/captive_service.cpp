@@ -25,9 +25,7 @@ void worker(void *context) {
                 vTaskDelay(pdMS_TO_TICKS(500));
                 continue;
             }
-            struct timeval timeout {
-                0, 250000
-            };
+            struct timeval timeout{0, 250000};
             setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
             sockaddr_in local{};
             local.sin_family = AF_INET;

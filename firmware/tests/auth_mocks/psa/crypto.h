@@ -23,7 +23,8 @@ struct psa_key_derivation_operation_t {
     std::vector<uint8_t> salt, password;
 };
 #define PSA_KEY_DERIVATION_OPERATION_INIT                                                          \
-    {}
+    {                                                                                              \
+    }
 // Test hook: make key derivation fail (a broken crypto engine).
 extern bool psa_mock_fail;
 psa_status_t psa_crypto_init();

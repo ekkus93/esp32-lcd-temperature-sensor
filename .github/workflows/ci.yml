@@ -26,13 +26,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            ninja-build cmake clang-format-18 libpng-dev ripgrep \
+            ninja-build cmake libpng-dev ripgrep \
             libusb-1.0-0-dev libffi-dev
-          sudo ln -sf /usr/bin/clang-format-18 /usr/local/bin/clang-format
-
-      - name: Check C++ formatting before SDK setup
-        run: |
-          rg --files -0 firmware -g '*.cpp' -g '*.hpp' -g '*.h' -g '!**/build/**' -g '!**/managed_components/**' -g '!**/generated/**' | xargs -0 clang-format --dry-run --Werror
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -75,6 +70,14 @@ jobs:
           git -C "$IDF_DIR" checkout --detach FETCH_HEAD
           git -C "$IDF_DIR" submodule update --init --recursive --depth 1
           "$IDF_DIR/install.sh" esp32s3
+
+      - name: Check C++ formatting with the ESP-IDF clang-format
+        shell: bash
+        run: |
+          set -euo pipefail
+          source "$RUNNER_TEMP/esp-idf-v6.1/export.sh"
+          clang-format --version
+          rg --files -0 firmware -g '*.cpp' -g '*.hpp' -g '*.h' -g '!**/build/**' -g '!**/managed_components/**' -g '!**/generated/**' | xargs -0 clang-format --dry-run --Werror
 
       - name: Build firmware and resolve pinned managed components
         shell: bash

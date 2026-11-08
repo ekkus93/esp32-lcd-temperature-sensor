@@ -1,6 +1,7 @@
 #include "fake_bus.hpp"
 #include "history_query.hpp"
 #include "monitor_types.hpp"
+#include <algorithm>
 #include <cctype>
 #include <cstdlib>
 #include <iostream>

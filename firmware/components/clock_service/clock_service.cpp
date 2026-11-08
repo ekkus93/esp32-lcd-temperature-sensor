@@ -99,7 +99,7 @@ std::string utc_text() {
     if (!utc)
         return {};
     std::time_t value = *utc;
-    struct tm broken {};
+    struct tm broken{};
     gmtime_r(&value, &broken);
     char text[32]{};
     std::strftime(text, sizeof(text), "%Y-%m-%dT%H:%M:%SZ", &broken);
@@ -110,7 +110,7 @@ std::string local_time_text() {
     if (!utc || !clock_mutex || xSemaphoreTake(clock_mutex, pdMS_TO_TICKS(10)) != pdTRUE)
         return {};
     std::time_t value = *utc;
-    struct tm broken {};
+    struct tm broken{};
     localtime_r(&value, &broken);
     char text[8]{};
     std::strftime(text, sizeof(text), "%H:%M", &broken);

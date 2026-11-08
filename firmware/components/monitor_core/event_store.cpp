@@ -39,7 +39,7 @@ uint64_t get(const std::vector<uint8_t> &bytes, size_t offset, unsigned width) {
 // An existing journal may have been replaced after recovery. On POSIX
 // reject symlinks without following them; ESP-IDF LittleFS has no lstat().
 bool safe_journal_path(const std::string &path) {
-    struct stat info {};
+    struct stat info{};
 #ifdef ESP_PLATFORM
     const int status = stat(path.c_str(), &info);
 #else
@@ -49,7 +49,7 @@ bool safe_journal_path(const std::string &path) {
 }
 #ifndef ESP_PLATFORM
 bool same_journal_file(const std::string &path, uint64_t device, uint64_t inode) {
-    struct stat info {};
+    struct stat info{};
     return lstat(path.c_str(), &info) == 0 && S_ISREG(info.st_mode) &&
            static_cast<uint64_t>(info.st_dev) == device &&
            static_cast<uint64_t>(info.st_ino) == inode;
@@ -59,7 +59,7 @@ bool same_journal_file(const std::string &path, uint64_t device, uint64_t inode)
 // unchanged. In particular, duplicate suppression must not report success
 // after another writer has removed the durable last event.
 bool expected_journal_size(const std::string &path, size_t expected) {
-    struct stat info {};
+    struct stat info{};
 #ifdef ESP_PLATFORM
     const int status = stat(path.c_str(), &info);
 #else
@@ -228,7 +228,7 @@ bool EventStore::recover() {
     // A failed read is not proof that the journal is absent. In particular,
     // fopen("wb") here would destroy a writeable but unreadable journal.
     // Refuse symlinks/directories and only create a genuinely missing file.
-    struct stat metadata {};
+    struct stat metadata{};
     // ESP-IDF's VFS does not export lstat(). Its LittleFS implementation
     // does not support symlinks; on POSIX hosts use lstat() to reject links.
 #ifdef ESP_PLATFORM
@@ -247,7 +247,7 @@ bool EventStore::recover() {
         if (!synced || !closed)
             return recovery_failure(__LINE__);
 #ifndef ESP_PLATFORM
-        struct stat created {};
+        struct stat created{};
         if (lstat(path_.c_str(), &created) != 0 || !S_ISREG(created.st_mode))
             return recovery_failure(__LINE__);
         journal_dev_ = static_cast<uint64_t>(created.st_dev);
@@ -306,7 +306,7 @@ bool EventStore::recover() {
         return recovery_failure(__LINE__);
     const uint64_t original_fingerprint = extend_fingerprint(fingerprint, tail.data(), remaining);
 #ifndef ESP_PLATFORM
-    struct stat recovered {};
+    struct stat recovered{};
     if (lstat(path_.c_str(), &recovered) != 0 || !S_ISREG(recovered.st_mode) ||
         recovered.st_dev != metadata.st_dev || recovered.st_ino != metadata.st_ino)
         return recovery_failure(__LINE__);
@@ -400,7 +400,7 @@ bool EventStore::compact() {
     }
 #ifndef ESP_PLATFORM
     // Compaction atomically replaces the inode: bind subsequent appends to it.
-    struct stat compacted {};
+    struct stat compacted{};
     if (lstat(path_.c_str(), &compacted) != 0 || !S_ISREG(compacted.st_mode))
         return false;
     journal_dev_ = static_cast<uint64_t>(compacted.st_dev);
@@ -463,7 +463,7 @@ bool EventStore::append(const JournalEvent &input) {
         append_ready_ = false;
         return false;
     }
-    struct stat opened {};
+    struct stat opened{};
     if (fstat(fd, &opened) != 0 || !S_ISREG(opened.st_mode)) {
         close(fd);
         append_ready_ = false;

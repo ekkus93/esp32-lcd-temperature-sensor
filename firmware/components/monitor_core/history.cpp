@@ -38,13 +38,13 @@ uint64_t get(const std::vector<uint8_t> &in, std::size_t at, unsigned width) {
     return value;
 }
 std::size_t file_size(const std::string &path) {
-    struct stat info {};
+    struct stat info{};
     return stat(path.c_str(), &info) == 0 ? info.st_size : 0;
 }
 // Refuse a host symlink substituted for the history directory itself.
 // ESP-IDF LittleFS has no symlinks or lstat().
 bool safe_history_directory(const std::string &path) {
-    struct stat info {};
+    struct stat info{};
 #ifdef ESP_PLATFORM
     const int status = stat(path.c_str(), &info);
 #else
@@ -59,7 +59,7 @@ bool same_history_directory(const std::string &path, const struct stat &expected
     if (!safe_history_directory(path))
         return false;
 #ifndef ESP_PLATFORM
-    struct stat current {};
+    struct stat current{};
     return lstat(path.c_str(), &current) == 0 && current.st_dev == expected.st_dev &&
            current.st_ino == expected.st_ino;
 #else
@@ -71,7 +71,7 @@ bool same_history_directory(const std::string &path, const struct stat &expected
 // before a later read/write. Do not follow host symlinks or treat a directory
 // as a valid segment. ESP-IDF LittleFS has no symlink support or lstat().
 bool safe_segment_path(const std::string &path, bool allow_missing) {
-    struct stat info {};
+    struct stat info{};
 #ifdef ESP_PLATFORM
     const int status = stat(path.c_str(), &info);
 #else
@@ -84,7 +84,7 @@ bool safe_segment_path(const std::string &path, bool allow_missing) {
 // An existing segment can be truncated or extended without changing its
 // pathname or inode. Refuse to append until the recovered byte count matches.
 bool segment_has_size(const std::string &path, std::size_t expected) {
-    struct stat info {};
+    struct stat info{};
 #ifdef ESP_PLATFORM
     const int status = stat(path.c_str(), &info);
 #else
@@ -100,7 +100,7 @@ bool same_history_segment(const std::string &path, const struct stat &expected) 
     if (!safe_segment_path(path, false))
         return false;
 #ifndef ESP_PLATFORM
-    struct stat current {};
+    struct stat current{};
     return lstat(path.c_str(), &current) == 0 && current.st_dev == expected.st_dev &&
            current.st_ino == expected.st_ino;
 #else
@@ -304,7 +304,7 @@ bool HistoryStore::recover() {
     sealed_segments_.clear();
     skipped_segments_ = 0;
     if (mkdir(directory_.c_str(), 0700) != 0) {
-        struct stat info {};
+        struct stat info{};
         if (stat(directory_.c_str(), &info) != 0 || !S_ISDIR(info.st_mode))
             return recovery_failure(__LINE__);
     }
@@ -398,7 +398,7 @@ bool HistoryStore::recover() {
         }
         // Seal completed segments as well as the active one. A later append
         // must never evict an older segment changed since this recovery.
-        struct stat metadata {};
+        struct stat metadata{};
 #ifdef ESP_PLATFORM
         const int status = stat(path(number).c_str(), &metadata);
 #else
@@ -415,7 +415,7 @@ bool HistoryStore::recover() {
 #ifndef ESP_PLATFORM
         seal.device = static_cast<uint64_t>(metadata.st_dev);
         seal.inode = static_cast<uint64_t>(metadata.st_ino);
-        struct stat after {};
+        struct stat after{};
         if (lstat(path(number).c_str(), &after) != 0 || after.st_dev != metadata.st_dev ||
             after.st_ino != metadata.st_ino)
             return recovery_failure(__LINE__);
@@ -425,14 +425,14 @@ bool HistoryStore::recover() {
     active_segment_exists_ = !files.empty();
 #ifndef ESP_PLATFORM
     // A different ordinary directory at this pathname requires re-recovery.
-    struct stat recovered_directory {};
+    struct stat recovered_directory{};
     if (lstat(directory_.c_str(), &recovered_directory) != 0 ||
         !same_history_directory(directory_, recovered_directory))
         return recovery_failure(__LINE__);
     directory_dev_ = static_cast<uint64_t>(recovered_directory.st_dev);
     directory_ino_ = static_cast<uint64_t>(recovered_directory.st_ino);
     if (active_segment_exists_) {
-        struct stat recovered_active {};
+        struct stat recovered_active{};
         if (lstat(path(active_).c_str(), &recovered_active) != 0 ||
             !S_ISREG(recovered_active.st_mode))
             return recovery_failure(__LINE__);
@@ -444,7 +444,7 @@ bool HistoryStore::recover() {
     }
 #endif
     if (active_segment_exists_) {
-        struct stat active_metadata {};
+        struct stat active_metadata{};
 #ifdef ESP_PLATFORM
         const int status = stat(path(active_).c_str(), &active_metadata);
 #else
@@ -479,7 +479,7 @@ bool HistoryStore::append(const Bucket &bucket) {
         return false;
     }
 #ifndef ESP_PLATFORM
-    struct stat current_directory {};
+    struct stat current_directory{};
     if (lstat(directory_.c_str(), &current_directory) != 0 ||
         static_cast<uint64_t>(current_directory.st_dev) != directory_dev_ ||
         static_cast<uint64_t>(current_directory.st_ino) != directory_ino_) {
@@ -510,7 +510,7 @@ bool HistoryStore::append(const Bucket &bucket) {
             return false;
         }
 #ifndef ESP_PLATFORM
-        struct stat current {};
+        struct stat current{};
         if (lstat(path(seal.number).c_str(), &current) != 0 ||
             static_cast<uint64_t>(current.st_dev) != seal.device ||
             static_cast<uint64_t>(current.st_ino) != seal.inode) {
@@ -528,7 +528,7 @@ bool HistoryStore::append(const Bucket &bucket) {
     // A different ordinary file with the same valid name/size is not the
     // recovered active segment, even when the parent directory is unchanged.
     if (active_segment_exists_) {
-        struct stat current_active {};
+        struct stat current_active{};
         if (lstat(path(active_).c_str(), &current_active) != 0 ||
             static_cast<uint64_t>(current_active.st_dev) != active_dev_ ||
             static_cast<uint64_t>(current_active.st_ino) != active_ino_) {
@@ -589,7 +589,7 @@ bool HistoryStore::append(const Bucket &bucket) {
         retry_after_error_ = true;
         return false;
     }
-    struct stat opened {};
+    struct stat opened{};
     if (fstat(fd, &opened) != 0 || !S_ISREG(opened.st_mode)) {
         close(fd);
         append_ready_ = false;
@@ -630,7 +630,7 @@ bool HistoryStore::append(const Bucket &bucket) {
     }
 #ifndef ESP_PLATFORM
     // Do not report success if the pathname was replaced while writing.
-    struct stat written_active {};
+    struct stat written_active{};
     if (lstat(path(active_).c_str(), &written_active) != 0 ||
         written_active.st_dev != opened.st_dev || written_active.st_ino != opened.st_ino) {
         append_ready_ = false;
@@ -683,7 +683,7 @@ bool HistoryStore::append(const Bucket &bucket) {
             return false;
         }
 #ifndef ESP_PLATFORM
-        struct stat current {};
+        struct stat current{};
         if (lstat(path(number).c_str(), &current) != 0 ||
             static_cast<uint64_t>(current.st_dev) != seal.device ||
             static_cast<uint64_t>(current.st_ino) != seal.inode) {
@@ -710,7 +710,7 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor,
         *skipped = 0;
     if (!safe_history_directory(directory_))
         return false;
-    struct stat initial_directory {};
+    struct stat initial_directory{};
     if (stat(directory_.c_str(), &initial_directory) != 0)
         return false;
     auto *dir = opendir(directory_.c_str());
@@ -738,7 +738,7 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor,
             if (!unchanged_segment_contents(segment_path, segment.size, segment.fingerprint))
                 return false;
 #ifndef ESP_PLATFORM
-            struct stat current {};
+            struct stat current{};
             if (lstat(segment_path.c_str(), &current) != 0 || !S_ISREG(current.st_mode) ||
                 static_cast<uint64_t>(current.st_dev) != segment.device ||
                 static_cast<uint64_t>(current.st_ino) != segment.inode)
@@ -758,7 +758,7 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor,
         if (!same_history_directory(directory_, initial_directory) ||
             !safe_segment_path(path(number), false))
             return false;
-        struct stat initial_segment {};
+        struct stat initial_segment{};
 #ifdef ESP_PLATFORM
         const int segment_status = stat(path(number).c_str(), &initial_segment);
 #else

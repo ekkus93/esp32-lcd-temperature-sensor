@@ -122,9 +122,7 @@ void websocket_load_bridge(cJSON *request) {
                 failure_errno = errno;
                 break;
             }
-            struct timeval timeout {
-                8, 0
-            };
+            struct timeval timeout{8, 0};
             setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
             sockaddr_in address{};
             address.sin_family = AF_INET;
@@ -184,9 +182,7 @@ void websocket_load_bridge(cJSON *request) {
     if (frames_complete) {
         int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (fd >= 0) {
-            struct timeval timeout {
-                5, 0
-            };
+            struct timeval timeout{5, 0};
             setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
             sockaddr_in address{};
             address.sin_family = AF_INET;
@@ -253,9 +249,7 @@ void websocket_slow_bridge(cJSON *request) {
             setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &receive_buffer, sizeof(receive_buffer));
             socklen_t receive_buffer_length = sizeof(receive_buffer_size);
             getsockopt(fd, SOL_SOCKET, SO_RCVBUF, &receive_buffer_size, &receive_buffer_length);
-            struct timeval timeout {
-                8, 0
-            };
+            struct timeval timeout{8, 0};
             setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
             sockaddr_in address{};
             address.sin_family = AF_INET;
@@ -277,9 +271,7 @@ void websocket_slow_bridge(cJSON *request) {
             if (api_fd < 0) {
                 api_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
                 if (api_fd >= 0) {
-                    struct timeval api_timeout {
-                        5, 0
-                    };
+                    struct timeval api_timeout{5, 0};
                     setsockopt(api_fd, SOL_SOCKET, SO_RCVTIMEO, &api_timeout, sizeof(api_timeout));
                     sockaddr_in address{};
                     address.sin_family = AF_INET;
@@ -348,9 +340,7 @@ void websocket_slow_bridge(cJSON *request) {
     size_t drained = 0;
     bool peer_closed = false;
     if (fd >= 0 && upgraded) {
-        struct timeval drain_timeout {
-            0, 100000
-        };
+        struct timeval drain_timeout{0, 100000};
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &drain_timeout, sizeof(drain_timeout));
         char buffer[512];
         const int64_t close_deadline = esp_timer_get_time() + 5000000;
@@ -404,9 +394,7 @@ void websocket_bridge(cJSON *request) {
     bool socket_closed = false;
     int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (fd >= 0) {
-        struct timeval timeout {
-            8, 0
-        };
+        struct timeval timeout{8, 0};
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
         sockaddr_in address{};
         address.sin_family = AF_INET;
@@ -605,9 +593,7 @@ void dns_bridge(cJSON *request) {
     int count = -1;
     int socket_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (socket_fd >= 0) {
-        struct timeval timeout {
-            2, 0
-        };
+        struct timeval timeout{2, 0};
         setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
         sockaddr_in destination{};
         destination.sin_family = AF_INET;

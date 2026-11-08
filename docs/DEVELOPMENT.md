@@ -8,21 +8,18 @@ registry hashes are tracked in `firmware/main/idf_component.yml` and
 `firmware/dependencies.lock`; do not edit managed component sources.
 
 On Ubuntu, install Git, Python 3.10+ with venv, CMake 3.22+, Ninja, a C/C++
-compiler, libusb, and clang-format 18. The local installation is already under
-`/home/phil/esp/esp-idf-v6.1`. For a fresh machine:
-
-```bash
-git clone --branch v6.1 --depth 1 --recursive --shallow-submodules \
-  https://github.com/espressif/esp-idf.git ~/esp/esp-idf-v6.1
-cd ~/esp/esp-idf-v6.1
-./install.sh esp32s3
-source export.sh
-```
+compiler, and libusb. clang-format is Espressif's 21.1.3, installed with
+ESP-IDF and put on PATH by the activation script. The local installation was made with
+the ESP-IDF Installation Manager (EIM) and lives under
+`~/.espressif/v6.1/esp-idf`. For a fresh machine, install ESP-IDF v6.1 with
+`eim` (select v6.1 and the esp32s3 target), then activate it as shown below.
+Manual alternative: clone `espressif/esp-idf` at tag `v6.1` with submodules,
+run `./install.sh esp32s3`, and `source export.sh`.
 
 In a new terminal, activate and verify before building:
 
 ```bash
-source /home/phil/esp/esp-idf-v6.1/export.sh
+source ~/.espressif/tools/activate_idf_v6.1.sh
 ./tools/check-sdk.sh
 npm --prefix web ci
 npm --prefix web run build
@@ -145,7 +142,7 @@ or claim hardware acceptance from CI alone.
 
 ## Contribution checks
 
-C/C++ uses clang-format 18 with four-space indentation. TypeScript uses
+C/C++ uses Espressif's clang-format 21 with four-space indentation. TypeScript uses
 Prettier and ESLint with strict TypeScript checking. Keep task IDs in TODO;
 check tasks only when acceptance criteria pass. Record evidence in
 `docs/PROGRESS.md`; distinguish host, device and deferred hardware checks.

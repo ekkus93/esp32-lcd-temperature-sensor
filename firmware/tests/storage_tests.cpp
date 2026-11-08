@@ -26,7 +26,7 @@ int main() {
     // Inject a deterministic buffered-write/flush failure on a regular file.
     // Symlinked /dev/full paths are now intentionally rejected by HistoryStore.
     const auto with_file_limit = [](rlim_t bytes, const std::function<void()> &action) {
-        struct rlimit original {};
+        struct rlimit original{};
         CHECK(getrlimit(RLIMIT_FSIZE, &original) == 0);
         struct rlimit constrained = original;
         constrained.rlim_cur = bytes;
