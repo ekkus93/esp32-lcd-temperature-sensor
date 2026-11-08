@@ -266,7 +266,7 @@ try:
         record['password'] = updated_password
         del record['pending_password']
         admin_path.write_text(json.dumps(record)+'\n')
-        check(call('/api/v1/status',headers=authorized)['status']==401,'password change invalidates existing session')
+        check(call('/api/v1/wifi/status',headers=authorized)['status']==401,'password change invalidates existing session')
         password = updated_password
         time.sleep(.6)
         result = call('/api/v1/auth/login','POST',{'password':password},origin)
@@ -523,8 +523,12 @@ try:
             break
     check(b'monitor: READY no peripherals required' in restart_output,
           'device restarts and returns to READY after safe-restart acceptance')
-    check(call('/api/v1/status',headers=reboot_authorized)['status']==401,
+    # /api/v1/status is public, so use an owner-only route and the auth state to show the old
+    # session is gone.
+    check(call('/api/v1/wifi/status',headers=reboot_authorized)['status']==401,
           'restart invalidates the prior in-memory administrator session')
+    check(json.loads(call('/api/v1/auth/state',headers=reboot_authorized)['body']).get('signed_in') is False,
+          'restart leaves the prior administrator cookie signed out')
     print('Device API tests passed; administrator password saved privately at',admin_path)
 finally:
     port.close()
