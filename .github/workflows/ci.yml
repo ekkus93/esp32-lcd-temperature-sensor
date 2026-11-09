@@ -56,7 +56,7 @@ jobs:
           path: |
             ${{ runner.temp }}/esp-idf-v6.1
             ~/.espressif
-          key: ${{ runner.os }}-idf-v6.1-fff9895c82d744c7237be8847347bdd1b07c6643-v1
+          key: ${{ runner.os }}-idf-v6.1-fff9895c82d744c7237be8847347bdd1b07c6643-clang-v2
 
       - name: Install pinned ESP-IDF v6.1
         if: steps.idf-cache.outputs.cache-hit != 'true'
@@ -70,6 +70,9 @@ jobs:
           git -C "$IDF_DIR" checkout --detach FETCH_HEAD
           git -C "$IDF_DIR" submodule update --init --recursive --depth 1
           "$IDF_DIR/install.sh" esp32s3
+          # clang-format is Espressif's, from the optional esp-clang tool; install.sh does not
+          # install it, and export.sh only puts it on PATH once it is installed.
+          python3 "$IDF_DIR/tools/idf_tools.py" install esp-clang
 
       - name: Check C++ formatting with the ESP-IDF clang-format
         shell: bash
