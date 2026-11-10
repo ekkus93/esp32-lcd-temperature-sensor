@@ -44,17 +44,29 @@ const schema11 = {
           {
             type: 'object',
             additionalProperties: false,
-            required: ['state'],
-            properties: { state: { enum: ['bus_fault', 'wifi_disconnected'] } },
+            required: ['state', 'since_uptime_ms', 'since_utc_seconds'],
+            properties: {
+              state: { enum: ['bus_fault', 'wifi_disconnected'] },
+              since_uptime_ms: { type: 'integer', minimum: 0 },
+              since_utc_seconds: { type: ['integer', 'null'], minimum: 0 },
+            },
           },
           {
             type: 'object',
             additionalProperties: false,
-            required: ['rom_id', 'name', 'state'],
+            required: [
+              'rom_id',
+              'name',
+              'state',
+              'since_uptime_ms',
+              'since_utc_seconds',
+            ],
             properties: {
               rom_id: { type: 'string', pattern: '^28[0-9a-f]{14}$' },
               name: { type: 'string', minLength: 1, maxLength: 32 },
               state: { enum: ['high', 'low', 'disconnected'] },
+              since_uptime_ms: { type: 'integer', minimum: 0 },
+              since_utc_seconds: { type: ['integer', 'null'], minimum: 0 },
             },
           },
         ],
@@ -219,7 +231,13 @@ function validate10(
                         !Array.isArray(data1)
                       ) {
                         let missing1;
-                        if (data1.state === undefined && (missing1 = 'state')) {
+                        if (
+                          (data1.state === undefined && (missing1 = 'state')) ||
+                          (data1.since_uptime_ms === undefined &&
+                            (missing1 = 'since_uptime_ms')) ||
+                          (data1.since_utc_seconds === undefined &&
+                            (missing1 = 'since_utc_seconds'))
+                        ) {
                           const err0 = {
                             instancePath: instancePath + '/active/' + i0,
                             schemaPath:
@@ -238,7 +256,11 @@ function validate10(
                         } else {
                           const _errs8 = errors;
                           for (const key1 in data1) {
-                            if (!(key1 === 'state')) {
+                            if (!(
+                              key1 === 'state' ||
+                              key1 === 'since_uptime_ms' ||
+                              key1 === 'since_utc_seconds'
+                            )) {
                               const err1 = {
                                 instancePath: instancePath + '/active/' + i0,
                                 schemaPath:
@@ -259,6 +281,7 @@ function validate10(
                           if (_errs8 === errors) {
                             if (data1.state !== undefined) {
                               let data2 = data1.state;
+                              const _errs9 = errors;
                               if (!(
                                 data2 === 'bus_fault' ||
                                 data2 === 'wifi_disconnected'
@@ -284,11 +307,146 @@ function validate10(
                                 }
                                 errors++;
                               }
+                              var valid3 = _errs9 === errors;
+                            } else {
+                              var valid3 = true;
+                            }
+                            if (valid3) {
+                              if (data1.since_uptime_ms !== undefined) {
+                                let data3 = data1.since_uptime_ms;
+                                const _errs10 = errors;
+                                if (!(
+                                  typeof data3 == 'number' &&
+                                  !(data3 % 1) &&
+                                  !isNaN(data3) &&
+                                  isFinite(data3)
+                                )) {
+                                  const err3 = {
+                                    instancePath:
+                                      instancePath +
+                                      '/active/' +
+                                      i0 +
+                                      '/since_uptime_ms',
+                                    schemaPath:
+                                      '#/properties/active/items/oneOf/0/properties/since_uptime_ms/type',
+                                    keyword: 'type',
+                                    params: { type: 'integer' },
+                                    message: 'must be integer',
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err3];
+                                  } else {
+                                    vErrors.push(err3);
+                                  }
+                                  errors++;
+                                }
+                                if (errors === _errs10) {
+                                  if (
+                                    typeof data3 == 'number' &&
+                                    isFinite(data3)
+                                  ) {
+                                    if (data3 < 0 || isNaN(data3)) {
+                                      const err4 = {
+                                        instancePath:
+                                          instancePath +
+                                          '/active/' +
+                                          i0 +
+                                          '/since_uptime_ms',
+                                        schemaPath:
+                                          '#/properties/active/items/oneOf/0/properties/since_uptime_ms/minimum',
+                                        keyword: 'minimum',
+                                        params: { comparison: '>=', limit: 0 },
+                                        message: 'must be >= 0',
+                                      };
+                                      if (vErrors === null) {
+                                        vErrors = [err4];
+                                      } else {
+                                        vErrors.push(err4);
+                                      }
+                                      errors++;
+                                    }
+                                  }
+                                }
+                                var valid3 = _errs10 === errors;
+                              } else {
+                                var valid3 = true;
+                              }
+                              if (valid3) {
+                                if (data1.since_utc_seconds !== undefined) {
+                                  let data4 = data1.since_utc_seconds;
+                                  const _errs12 = errors;
+                                  if (
+                                    !(
+                                      typeof data4 == 'number' &&
+                                      !(data4 % 1) &&
+                                      !isNaN(data4) &&
+                                      isFinite(data4)
+                                    ) &&
+                                    data4 !== null
+                                  ) {
+                                    const err5 = {
+                                      instancePath:
+                                        instancePath +
+                                        '/active/' +
+                                        i0 +
+                                        '/since_utc_seconds',
+                                      schemaPath:
+                                        '#/properties/active/items/oneOf/0/properties/since_utc_seconds/type',
+                                      keyword: 'type',
+                                      params: {
+                                        type: schema11.properties.active.items
+                                          .oneOf[0].properties.since_utc_seconds
+                                          .type,
+                                      },
+                                      message: 'must be integer,null',
+                                    };
+                                    if (vErrors === null) {
+                                      vErrors = [err5];
+                                    } else {
+                                      vErrors.push(err5);
+                                    }
+                                    errors++;
+                                  }
+                                  if (errors === _errs12) {
+                                    if (
+                                      typeof data4 == 'number' &&
+                                      isFinite(data4)
+                                    ) {
+                                      if (data4 < 0 || isNaN(data4)) {
+                                        const err6 = {
+                                          instancePath:
+                                            instancePath +
+                                            '/active/' +
+                                            i0 +
+                                            '/since_utc_seconds',
+                                          schemaPath:
+                                            '#/properties/active/items/oneOf/0/properties/since_utc_seconds/minimum',
+                                          keyword: 'minimum',
+                                          params: {
+                                            comparison: '>=',
+                                            limit: 0,
+                                          },
+                                          message: 'must be >= 0',
+                                        };
+                                        if (vErrors === null) {
+                                          vErrors = [err6];
+                                        } else {
+                                          vErrors.push(err6);
+                                        }
+                                        errors++;
+                                      }
+                                    }
+                                  }
+                                  var valid3 = _errs12 === errors;
+                                } else {
+                                  var valid3 = true;
+                                }
+                              }
                             }
                           }
                         }
                       } else {
-                        const err3 = {
+                        const err7 = {
                           instancePath: instancePath + '/active/' + i0,
                           schemaPath: '#/properties/active/items/oneOf/0/type',
                           keyword: 'type',
@@ -296,9 +454,9 @@ function validate10(
                           message: 'must be object',
                         };
                         if (vErrors === null) {
-                          vErrors = [err3];
+                          vErrors = [err7];
                         } else {
-                          vErrors.push(err3);
+                          vErrors.push(err7);
                         }
                         errors++;
                       }
@@ -308,8 +466,8 @@ function validate10(
                       valid2 = true;
                       passing0 = 0;
                     }
-                    const _errs10 = errors;
-                    if (errors === _errs10) {
+                    const _errs14 = errors;
+                    if (errors === _errs14) {
                       if (
                         data1 &&
                         typeof data1 == 'object' &&
@@ -320,9 +478,13 @@ function validate10(
                           (data1.rom_id === undefined &&
                             (missing2 = 'rom_id')) ||
                           (data1.name === undefined && (missing2 = 'name')) ||
-                          (data1.state === undefined && (missing2 = 'state'))
+                          (data1.state === undefined && (missing2 = 'state')) ||
+                          (data1.since_uptime_ms === undefined &&
+                            (missing2 = 'since_uptime_ms')) ||
+                          (data1.since_utc_seconds === undefined &&
+                            (missing2 = 'since_utc_seconds'))
                         ) {
-                          const err4 = {
+                          const err8 = {
                             instancePath: instancePath + '/active/' + i0,
                             schemaPath:
                               '#/properties/active/items/oneOf/1/required',
@@ -332,20 +494,22 @@ function validate10(
                               "must have required property '" + missing2 + "'",
                           };
                           if (vErrors === null) {
-                            vErrors = [err4];
+                            vErrors = [err8];
                           } else {
-                            vErrors.push(err4);
+                            vErrors.push(err8);
                           }
                           errors++;
                         } else {
-                          const _errs12 = errors;
+                          const _errs16 = errors;
                           for (const key2 in data1) {
                             if (!(
                               key2 === 'rom_id' ||
                               key2 === 'name' ||
-                              key2 === 'state'
+                              key2 === 'state' ||
+                              key2 === 'since_uptime_ms' ||
+                              key2 === 'since_utc_seconds'
                             )) {
-                              const err5 = {
+                              const err9 = {
                                 instancePath: instancePath + '/active/' + i0,
                                 schemaPath:
                                   '#/properties/active/items/oneOf/1/additionalProperties',
@@ -354,22 +518,22 @@ function validate10(
                                 message: 'must NOT have additional properties',
                               };
                               if (vErrors === null) {
-                                vErrors = [err5];
+                                vErrors = [err9];
                               } else {
-                                vErrors.push(err5);
+                                vErrors.push(err9);
                               }
                               errors++;
                               break;
                             }
                           }
-                          if (_errs12 === errors) {
+                          if (_errs16 === errors) {
                             if (data1.rom_id !== undefined) {
-                              let data3 = data1.rom_id;
-                              const _errs13 = errors;
-                              if (errors === _errs13) {
-                                if (typeof data3 === 'string') {
-                                  if (!pattern0.test(data3)) {
-                                    const err6 = {
+                              let data5 = data1.rom_id;
+                              const _errs17 = errors;
+                              if (errors === _errs17) {
+                                if (typeof data5 === 'string') {
+                                  if (!pattern0.test(data5)) {
+                                    const err10 = {
                                       instancePath:
                                         instancePath +
                                         '/active/' +
@@ -385,14 +549,14 @@ function validate10(
                                         '"',
                                     };
                                     if (vErrors === null) {
-                                      vErrors = [err6];
+                                      vErrors = [err10];
                                     } else {
-                                      vErrors.push(err6);
+                                      vErrors.push(err10);
                                     }
                                     errors++;
                                   }
                                 } else {
-                                  const err7 = {
+                                  const err11 = {
                                     instancePath:
                                       instancePath +
                                       '/active/' +
@@ -405,25 +569,25 @@ function validate10(
                                     message: 'must be string',
                                   };
                                   if (vErrors === null) {
-                                    vErrors = [err7];
+                                    vErrors = [err11];
                                   } else {
-                                    vErrors.push(err7);
+                                    vErrors.push(err11);
                                   }
                                   errors++;
                                 }
                               }
-                              var valid4 = _errs13 === errors;
+                              var valid4 = _errs17 === errors;
                             } else {
                               var valid4 = true;
                             }
                             if (valid4) {
                               if (data1.name !== undefined) {
-                                let data4 = data1.name;
-                                const _errs15 = errors;
-                                if (errors === _errs15) {
-                                  if (typeof data4 === 'string') {
-                                    if (func2(data4) > 32) {
-                                      const err8 = {
+                                let data6 = data1.name;
+                                const _errs19 = errors;
+                                if (errors === _errs19) {
+                                  if (typeof data6 === 'string') {
+                                    if (func2(data6) > 32) {
+                                      const err12 = {
                                         instancePath:
                                           instancePath +
                                           '/active/' +
@@ -437,14 +601,14 @@ function validate10(
                                           'must NOT have more than 32 characters',
                                       };
                                       if (vErrors === null) {
-                                        vErrors = [err8];
+                                        vErrors = [err12];
                                       } else {
-                                        vErrors.push(err8);
+                                        vErrors.push(err12);
                                       }
                                       errors++;
                                     } else {
-                                      if (func2(data4) < 1) {
-                                        const err9 = {
+                                      if (func2(data6) < 1) {
+                                        const err13 = {
                                           instancePath:
                                             instancePath +
                                             '/active/' +
@@ -458,15 +622,15 @@ function validate10(
                                             'must NOT have fewer than 1 characters',
                                         };
                                         if (vErrors === null) {
-                                          vErrors = [err9];
+                                          vErrors = [err13];
                                         } else {
-                                          vErrors.push(err9);
+                                          vErrors.push(err13);
                                         }
                                         errors++;
                                       }
                                     }
                                   } else {
-                                    const err10 = {
+                                    const err14 = {
                                       instancePath:
                                         instancePath +
                                         '/active/' +
@@ -479,27 +643,27 @@ function validate10(
                                       message: 'must be string',
                                     };
                                     if (vErrors === null) {
-                                      vErrors = [err10];
+                                      vErrors = [err14];
                                     } else {
-                                      vErrors.push(err10);
+                                      vErrors.push(err14);
                                     }
                                     errors++;
                                   }
                                 }
-                                var valid4 = _errs15 === errors;
+                                var valid4 = _errs19 === errors;
                               } else {
                                 var valid4 = true;
                               }
                               if (valid4) {
                                 if (data1.state !== undefined) {
-                                  let data5 = data1.state;
-                                  const _errs17 = errors;
+                                  let data7 = data1.state;
+                                  const _errs21 = errors;
                                   if (!(
-                                    data5 === 'high' ||
-                                    data5 === 'low' ||
-                                    data5 === 'disconnected'
+                                    data7 === 'high' ||
+                                    data7 === 'low' ||
+                                    data7 === 'disconnected'
                                   )) {
-                                    const err11 = {
+                                    const err15 = {
                                       instancePath:
                                         instancePath +
                                         '/active/' +
@@ -517,22 +681,157 @@ function validate10(
                                         'must be equal to one of the allowed values',
                                     };
                                     if (vErrors === null) {
-                                      vErrors = [err11];
+                                      vErrors = [err15];
                                     } else {
-                                      vErrors.push(err11);
+                                      vErrors.push(err15);
                                     }
                                     errors++;
                                   }
-                                  var valid4 = _errs17 === errors;
+                                  var valid4 = _errs21 === errors;
                                 } else {
                                   var valid4 = true;
+                                }
+                                if (valid4) {
+                                  if (data1.since_uptime_ms !== undefined) {
+                                    let data8 = data1.since_uptime_ms;
+                                    const _errs22 = errors;
+                                    if (!(
+                                      typeof data8 == 'number' &&
+                                      !(data8 % 1) &&
+                                      !isNaN(data8) &&
+                                      isFinite(data8)
+                                    )) {
+                                      const err16 = {
+                                        instancePath:
+                                          instancePath +
+                                          '/active/' +
+                                          i0 +
+                                          '/since_uptime_ms',
+                                        schemaPath:
+                                          '#/properties/active/items/oneOf/1/properties/since_uptime_ms/type',
+                                        keyword: 'type',
+                                        params: { type: 'integer' },
+                                        message: 'must be integer',
+                                      };
+                                      if (vErrors === null) {
+                                        vErrors = [err16];
+                                      } else {
+                                        vErrors.push(err16);
+                                      }
+                                      errors++;
+                                    }
+                                    if (errors === _errs22) {
+                                      if (
+                                        typeof data8 == 'number' &&
+                                        isFinite(data8)
+                                      ) {
+                                        if (data8 < 0 || isNaN(data8)) {
+                                          const err17 = {
+                                            instancePath:
+                                              instancePath +
+                                              '/active/' +
+                                              i0 +
+                                              '/since_uptime_ms',
+                                            schemaPath:
+                                              '#/properties/active/items/oneOf/1/properties/since_uptime_ms/minimum',
+                                            keyword: 'minimum',
+                                            params: {
+                                              comparison: '>=',
+                                              limit: 0,
+                                            },
+                                            message: 'must be >= 0',
+                                          };
+                                          if (vErrors === null) {
+                                            vErrors = [err17];
+                                          } else {
+                                            vErrors.push(err17);
+                                          }
+                                          errors++;
+                                        }
+                                      }
+                                    }
+                                    var valid4 = _errs22 === errors;
+                                  } else {
+                                    var valid4 = true;
+                                  }
+                                  if (valid4) {
+                                    if (data1.since_utc_seconds !== undefined) {
+                                      let data9 = data1.since_utc_seconds;
+                                      const _errs24 = errors;
+                                      if (
+                                        !(
+                                          typeof data9 == 'number' &&
+                                          !(data9 % 1) &&
+                                          !isNaN(data9) &&
+                                          isFinite(data9)
+                                        ) &&
+                                        data9 !== null
+                                      ) {
+                                        const err18 = {
+                                          instancePath:
+                                            instancePath +
+                                            '/active/' +
+                                            i0 +
+                                            '/since_utc_seconds',
+                                          schemaPath:
+                                            '#/properties/active/items/oneOf/1/properties/since_utc_seconds/type',
+                                          keyword: 'type',
+                                          params: {
+                                            type: schema11.properties.active
+                                              .items.oneOf[1].properties
+                                              .since_utc_seconds.type,
+                                          },
+                                          message: 'must be integer,null',
+                                        };
+                                        if (vErrors === null) {
+                                          vErrors = [err18];
+                                        } else {
+                                          vErrors.push(err18);
+                                        }
+                                        errors++;
+                                      }
+                                      if (errors === _errs24) {
+                                        if (
+                                          typeof data9 == 'number' &&
+                                          isFinite(data9)
+                                        ) {
+                                          if (data9 < 0 || isNaN(data9)) {
+                                            const err19 = {
+                                              instancePath:
+                                                instancePath +
+                                                '/active/' +
+                                                i0 +
+                                                '/since_utc_seconds',
+                                              schemaPath:
+                                                '#/properties/active/items/oneOf/1/properties/since_utc_seconds/minimum',
+                                              keyword: 'minimum',
+                                              params: {
+                                                comparison: '>=',
+                                                limit: 0,
+                                              },
+                                              message: 'must be >= 0',
+                                            };
+                                            if (vErrors === null) {
+                                              vErrors = [err19];
+                                            } else {
+                                              vErrors.push(err19);
+                                            }
+                                            errors++;
+                                          }
+                                        }
+                                      }
+                                      var valid4 = _errs24 === errors;
+                                    } else {
+                                      var valid4 = true;
+                                    }
+                                  }
                                 }
                               }
                             }
                           }
                         }
                       } else {
-                        const err12 = {
+                        const err20 = {
                           instancePath: instancePath + '/active/' + i0,
                           schemaPath: '#/properties/active/items/oneOf/1/type',
                           keyword: 'type',
@@ -540,14 +839,14 @@ function validate10(
                           message: 'must be object',
                         };
                         if (vErrors === null) {
-                          vErrors = [err12];
+                          vErrors = [err20];
                         } else {
-                          vErrors.push(err12);
+                          vErrors.push(err20);
                         }
                         errors++;
                       }
                     }
-                    var _valid0 = _errs10 === errors;
+                    var _valid0 = _errs14 === errors;
                     if (_valid0 && valid2) {
                       valid2 = false;
                       passing0 = [passing0, 1];
@@ -558,7 +857,7 @@ function validate10(
                       }
                     }
                     if (!valid2) {
-                      const err13 = {
+                      const err21 = {
                         instancePath: instancePath + '/active/' + i0,
                         schemaPath: '#/properties/active/items/oneOf',
                         keyword: 'oneOf',
@@ -566,9 +865,9 @@ function validate10(
                         message: 'must match exactly one schema in oneOf',
                       };
                       if (vErrors === null) {
-                        vErrors = [err13];
+                        vErrors = [err21];
                       } else {
-                        vErrors.push(err13);
+                        vErrors.push(err21);
                       }
                       errors++;
                       validate10.errors = vErrors;
@@ -608,11 +907,11 @@ function validate10(
           }
           if (valid0) {
             if (data.events !== undefined) {
-              let data6 = data.events;
-              const _errs18 = errors;
-              if (errors === _errs18) {
-                if (Array.isArray(data6)) {
-                  if (data6.length > 50) {
+              let data10 = data.events;
+              const _errs26 = errors;
+              if (errors === _errs26) {
+                if (Array.isArray(data10)) {
+                  if (data10.length > 50) {
                     validate10.errors = [
                       {
                         instancePath: instancePath + '/events',
@@ -625,34 +924,35 @@ function validate10(
                     return false;
                   } else {
                     var valid5 = true;
-                    const len1 = data6.length;
+                    const len1 = data10.length;
                     for (let i1 = 0; i1 < len1; i1++) {
-                      let data7 = data6[i1];
-                      const _errs20 = errors;
-                      if (errors === _errs20) {
+                      let data11 = data10[i1];
+                      const _errs28 = errors;
+                      if (errors === _errs28) {
                         if (
-                          data7 &&
-                          typeof data7 == 'object' &&
-                          !Array.isArray(data7)
+                          data11 &&
+                          typeof data11 == 'object' &&
+                          !Array.isArray(data11)
                         ) {
                           let missing3;
                           if (
-                            (data7.sequence === undefined &&
+                            (data11.sequence === undefined &&
                               (missing3 = 'sequence')) ||
-                            (data7.boot_id === undefined &&
+                            (data11.boot_id === undefined &&
                               (missing3 = 'boot_id')) ||
-                            (data7.kind === undefined && (missing3 = 'kind')) ||
-                            (data7.rom_id === undefined &&
+                            (data11.kind === undefined &&
+                              (missing3 = 'kind')) ||
+                            (data11.rom_id === undefined &&
                               (missing3 = 'rom_id')) ||
-                            (data7.previous === undefined &&
+                            (data11.previous === undefined &&
                               (missing3 = 'previous')) ||
-                            (data7.state === undefined &&
+                            (data11.state === undefined &&
                               (missing3 = 'state')) ||
-                            (data7.uptime_ms === undefined &&
+                            (data11.uptime_ms === undefined &&
                               (missing3 = 'uptime_ms')) ||
-                            (data7.utc_seconds === undefined &&
+                            (data11.utc_seconds === undefined &&
                               (missing3 = 'utc_seconds')) ||
-                            (data7.detail === undefined &&
+                            (data11.detail === undefined &&
                               (missing3 = 'detail'))
                           ) {
                             validate10.errors = [
@@ -670,8 +970,8 @@ function validate10(
                             ];
                             return false;
                           } else {
-                            const _errs22 = errors;
-                            for (const key3 in data7) {
+                            const _errs30 = errors;
+                            for (const key3 in data11) {
                               if (
                                 !func4.call(
                                   schema11.properties.events.items.properties,
@@ -694,15 +994,15 @@ function validate10(
                                 break;
                               }
                             }
-                            if (_errs22 === errors) {
-                              if (data7.sequence !== undefined) {
-                                let data8 = data7.sequence;
-                                const _errs23 = errors;
+                            if (_errs30 === errors) {
+                              if (data11.sequence !== undefined) {
+                                let data12 = data11.sequence;
+                                const _errs31 = errors;
                                 if (!(
-                                  typeof data8 == 'number' &&
-                                  !(data8 % 1) &&
-                                  !isNaN(data8) &&
-                                  isFinite(data8)
+                                  typeof data12 == 'number' &&
+                                  !(data12 % 1) &&
+                                  !isNaN(data12) &&
+                                  isFinite(data12)
                                 )) {
                                   validate10.errors = [
                                     {
@@ -720,12 +1020,12 @@ function validate10(
                                   ];
                                   return false;
                                 }
-                                if (errors === _errs23) {
+                                if (errors === _errs31) {
                                   if (
-                                    typeof data8 == 'number' &&
-                                    isFinite(data8)
+                                    typeof data12 == 'number' &&
+                                    isFinite(data12)
                                   ) {
-                                    if (data8 < 1 || isNaN(data8)) {
+                                    if (data12 < 1 || isNaN(data12)) {
                                       validate10.errors = [
                                         {
                                           instancePath:
@@ -747,17 +1047,17 @@ function validate10(
                                     }
                                   }
                                 }
-                                var valid6 = _errs23 === errors;
+                                var valid6 = _errs31 === errors;
                               } else {
                                 var valid6 = true;
                               }
                               if (valid6) {
-                                if (data7.boot_id !== undefined) {
-                                  let data9 = data7.boot_id;
-                                  const _errs25 = errors;
-                                  if (errors === _errs25) {
-                                    if (typeof data9 === 'string') {
-                                      if (!pattern1.test(data9)) {
+                                if (data11.boot_id !== undefined) {
+                                  let data13 = data11.boot_id;
+                                  const _errs33 = errors;
+                                  if (errors === _errs33) {
+                                    if (typeof data13 === 'string') {
+                                      if (!pattern1.test(data13)) {
                                         validate10.errors = [
                                           {
                                             instancePath:
@@ -797,20 +1097,20 @@ function validate10(
                                       return false;
                                     }
                                   }
-                                  var valid6 = _errs25 === errors;
+                                  var valid6 = _errs33 === errors;
                                 } else {
                                   var valid6 = true;
                                 }
                                 if (valid6) {
-                                  if (data7.kind !== undefined) {
-                                    let data10 = data7.kind;
-                                    const _errs27 = errors;
+                                  if (data11.kind !== undefined) {
+                                    let data14 = data11.kind;
+                                    const _errs35 = errors;
                                     if (!(
-                                      data10 === 'sensor_state' ||
-                                      data10 === 'wifi_state' ||
-                                      data10 === 'clock_sync' ||
-                                      data10 === 'reboot' ||
-                                      data10 === 'storage_error'
+                                      data14 === 'sensor_state' ||
+                                      data14 === 'wifi_state' ||
+                                      data14 === 'clock_sync' ||
+                                      data14 === 'reboot' ||
+                                      data14 === 'storage_error'
                                     )) {
                                       validate10.errors = [
                                         {
@@ -833,17 +1133,17 @@ function validate10(
                                       ];
                                       return false;
                                     }
-                                    var valid6 = _errs27 === errors;
+                                    var valid6 = _errs35 === errors;
                                   } else {
                                     var valid6 = true;
                                   }
                                   if (valid6) {
-                                    if (data7.rom_id !== undefined) {
-                                      let data11 = data7.rom_id;
-                                      const _errs28 = errors;
+                                    if (data11.rom_id !== undefined) {
+                                      let data15 = data11.rom_id;
+                                      const _errs36 = errors;
                                       if (
-                                        typeof data11 !== 'string' &&
-                                        data11 !== null
+                                        typeof data15 !== 'string' &&
+                                        data15 !== null
                                       ) {
                                         validate10.errors = [
                                           {
@@ -864,9 +1164,9 @@ function validate10(
                                         ];
                                         return false;
                                       }
-                                      if (errors === _errs28) {
-                                        if (typeof data11 === 'string') {
-                                          if (!pattern0.test(data11)) {
+                                      if (errors === _errs36) {
+                                        if (typeof data15 === 'string') {
+                                          if (!pattern0.test(data15)) {
                                             validate10.errors = [
                                               {
                                                 instancePath:
@@ -890,24 +1190,24 @@ function validate10(
                                           }
                                         }
                                       }
-                                      var valid6 = _errs28 === errors;
+                                      var valid6 = _errs36 === errors;
                                     } else {
                                       var valid6 = true;
                                     }
                                     if (valid6) {
-                                      if (data7.previous !== undefined) {
-                                        let data12 = data7.previous;
-                                        const _errs30 = errors;
+                                      if (data11.previous !== undefined) {
+                                        let data16 = data11.previous;
+                                        const _errs38 = errors;
                                         if (!(
-                                          data12 === 'normal' ||
-                                          data12 === 'high' ||
-                                          data12 === 'low' ||
-                                          data12 === 'unassigned' ||
-                                          data12 === 'disabled' ||
-                                          data12 === 'disconnected' ||
-                                          data12 === 'stale' ||
-                                          data12 === 'invalid' ||
-                                          data12 === 'bus_fault'
+                                          data16 === 'normal' ||
+                                          data16 === 'high' ||
+                                          data16 === 'low' ||
+                                          data16 === 'unassigned' ||
+                                          data16 === 'disabled' ||
+                                          data16 === 'disconnected' ||
+                                          data16 === 'stale' ||
+                                          data16 === 'invalid' ||
+                                          data16 === 'bus_fault'
                                         )) {
                                           validate10.errors = [
                                             {
@@ -931,24 +1231,24 @@ function validate10(
                                           ];
                                           return false;
                                         }
-                                        var valid6 = _errs30 === errors;
+                                        var valid6 = _errs38 === errors;
                                       } else {
                                         var valid6 = true;
                                       }
                                       if (valid6) {
-                                        if (data7.state !== undefined) {
-                                          let data13 = data7.state;
-                                          const _errs31 = errors;
+                                        if (data11.state !== undefined) {
+                                          let data17 = data11.state;
+                                          const _errs39 = errors;
                                           if (!(
-                                            data13 === 'normal' ||
-                                            data13 === 'high' ||
-                                            data13 === 'low' ||
-                                            data13 === 'unassigned' ||
-                                            data13 === 'disabled' ||
-                                            data13 === 'disconnected' ||
-                                            data13 === 'stale' ||
-                                            data13 === 'invalid' ||
-                                            data13 === 'bus_fault'
+                                            data17 === 'normal' ||
+                                            data17 === 'high' ||
+                                            data17 === 'low' ||
+                                            data17 === 'unassigned' ||
+                                            data17 === 'disabled' ||
+                                            data17 === 'disconnected' ||
+                                            data17 === 'stale' ||
+                                            data17 === 'invalid' ||
+                                            data17 === 'bus_fault'
                                           )) {
                                             validate10.errors = [
                                               {
@@ -972,19 +1272,19 @@ function validate10(
                                             ];
                                             return false;
                                           }
-                                          var valid6 = _errs31 === errors;
+                                          var valid6 = _errs39 === errors;
                                         } else {
                                           var valid6 = true;
                                         }
                                         if (valid6) {
-                                          if (data7.uptime_ms !== undefined) {
-                                            let data14 = data7.uptime_ms;
-                                            const _errs32 = errors;
+                                          if (data11.uptime_ms !== undefined) {
+                                            let data18 = data11.uptime_ms;
+                                            const _errs40 = errors;
                                             if (!(
-                                              typeof data14 == 'number' &&
-                                              !(data14 % 1) &&
-                                              !isNaN(data14) &&
-                                              isFinite(data14)
+                                              typeof data18 == 'number' &&
+                                              !(data18 % 1) &&
+                                              !isNaN(data18) &&
+                                              isFinite(data18)
                                             )) {
                                               validate10.errors = [
                                                 {
@@ -1002,14 +1302,14 @@ function validate10(
                                               ];
                                               return false;
                                             }
-                                            if (errors === _errs32) {
+                                            if (errors === _errs40) {
                                               if (
-                                                typeof data14 == 'number' &&
-                                                isFinite(data14)
+                                                typeof data18 == 'number' &&
+                                                isFinite(data18)
                                               ) {
                                                 if (
-                                                  data14 < 0 ||
-                                                  isNaN(data14)
+                                                  data18 < 0 ||
+                                                  isNaN(data18)
                                                 ) {
                                                   validate10.errors = [
                                                     {
@@ -1032,24 +1332,24 @@ function validate10(
                                                 }
                                               }
                                             }
-                                            var valid6 = _errs32 === errors;
+                                            var valid6 = _errs40 === errors;
                                           } else {
                                             var valid6 = true;
                                           }
                                           if (valid6) {
                                             if (
-                                              data7.utc_seconds !== undefined
+                                              data11.utc_seconds !== undefined
                                             ) {
-                                              let data15 = data7.utc_seconds;
-                                              const _errs34 = errors;
+                                              let data19 = data11.utc_seconds;
+                                              const _errs42 = errors;
                                               if (
                                                 !(
-                                                  typeof data15 == 'number' &&
-                                                  !(data15 % 1) &&
-                                                  !isNaN(data15) &&
-                                                  isFinite(data15)
+                                                  typeof data19 == 'number' &&
+                                                  !(data19 % 1) &&
+                                                  !isNaN(data19) &&
+                                                  isFinite(data19)
                                                 ) &&
-                                                data15 !== null
+                                                data19 !== null
                                               ) {
                                                 validate10.errors = [
                                                   {
@@ -1072,14 +1372,14 @@ function validate10(
                                                 ];
                                                 return false;
                                               }
-                                              if (errors === _errs34) {
+                                              if (errors === _errs42) {
                                                 if (
-                                                  typeof data15 == 'number' &&
-                                                  isFinite(data15)
+                                                  typeof data19 == 'number' &&
+                                                  isFinite(data19)
                                                 ) {
                                                   if (
-                                                    data15 < 0 ||
-                                                    isNaN(data15)
+                                                    data19 < 0 ||
+                                                    isNaN(data19)
                                                   ) {
                                                     validate10.errors = [
                                                       {
@@ -1102,19 +1402,19 @@ function validate10(
                                                   }
                                                 }
                                               }
-                                              var valid6 = _errs34 === errors;
+                                              var valid6 = _errs42 === errors;
                                             } else {
                                               var valid6 = true;
                                             }
                                             if (valid6) {
-                                              if (data7.detail !== undefined) {
-                                                let data16 = data7.detail;
-                                                const _errs36 = errors;
+                                              if (data11.detail !== undefined) {
+                                                let data20 = data11.detail;
+                                                const _errs44 = errors;
                                                 if (!(
-                                                  typeof data16 == 'number' &&
-                                                  !(data16 % 1) &&
-                                                  !isNaN(data16) &&
-                                                  isFinite(data16)
+                                                  typeof data20 == 'number' &&
+                                                  !(data20 % 1) &&
+                                                  !isNaN(data20) &&
+                                                  isFinite(data20)
                                                 )) {
                                                   validate10.errors = [
                                                     {
@@ -1135,14 +1435,14 @@ function validate10(
                                                   ];
                                                   return false;
                                                 }
-                                                if (errors === _errs36) {
+                                                if (errors === _errs44) {
                                                   if (
-                                                    typeof data16 == 'number' &&
-                                                    isFinite(data16)
+                                                    typeof data20 == 'number' &&
+                                                    isFinite(data20)
                                                   ) {
                                                     if (
-                                                      data16 > 4294967295 ||
-                                                      isNaN(data16)
+                                                      data20 > 4294967295 ||
+                                                      isNaN(data20)
                                                     ) {
                                                       validate10.errors = [
                                                         {
@@ -1165,8 +1465,8 @@ function validate10(
                                                       return false;
                                                     } else {
                                                       if (
-                                                        data16 < 0 ||
-                                                        isNaN(data16)
+                                                        data20 < 0 ||
+                                                        isNaN(data20)
                                                       ) {
                                                         validate10.errors = [
                                                           {
@@ -1191,7 +1491,7 @@ function validate10(
                                                     }
                                                   }
                                                 }
-                                                var valid6 = _errs36 === errors;
+                                                var valid6 = _errs44 === errors;
                                               } else {
                                                 var valid6 = true;
                                               }
@@ -1218,7 +1518,7 @@ function validate10(
                           return false;
                         }
                       }
-                      var valid5 = _errs20 === errors;
+                      var valid5 = _errs28 === errors;
                       if (!valid5) {
                         break;
                       }
@@ -1237,19 +1537,19 @@ function validate10(
                   return false;
                 }
               }
-              var valid0 = _errs18 === errors;
+              var valid0 = _errs26 === errors;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.next_after !== undefined) {
-                let data17 = data.next_after;
-                const _errs38 = errors;
+                let data21 = data.next_after;
+                const _errs46 = errors;
                 if (!(
-                  typeof data17 == 'number' &&
-                  !(data17 % 1) &&
-                  !isNaN(data17) &&
-                  isFinite(data17)
+                  typeof data21 == 'number' &&
+                  !(data21 % 1) &&
+                  !isNaN(data21) &&
+                  isFinite(data21)
                 )) {
                   validate10.errors = [
                     {
@@ -1262,9 +1562,9 @@ function validate10(
                   ];
                   return false;
                 }
-                if (errors === _errs38) {
-                  if (typeof data17 == 'number' && isFinite(data17)) {
-                    if (data17 < 0 || isNaN(data17)) {
+                if (errors === _errs46) {
+                  if (typeof data21 == 'number' && isFinite(data21)) {
+                    if (data21 < 0 || isNaN(data21)) {
                       validate10.errors = [
                         {
                           instancePath: instancePath + '/next_after',
@@ -1278,13 +1578,13 @@ function validate10(
                     }
                   }
                 }
-                var valid0 = _errs38 === errors;
+                var valid0 = _errs46 === errors;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.has_more !== undefined) {
-                  const _errs40 = errors;
+                  const _errs48 = errors;
                   if (typeof data.has_more !== 'boolean') {
                     validate10.errors = [
                       {
@@ -1297,22 +1597,22 @@ function validate10(
                     ];
                     return false;
                   }
-                  var valid0 = _errs40 === errors;
+                  var valid0 = _errs48 === errors;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.oldest_available !== undefined) {
-                    let data19 = data.oldest_available;
-                    const _errs42 = errors;
+                    let data23 = data.oldest_available;
+                    const _errs50 = errors;
                     if (
                       !(
-                        typeof data19 == 'number' &&
-                        !(data19 % 1) &&
-                        !isNaN(data19) &&
-                        isFinite(data19)
+                        typeof data23 == 'number' &&
+                        !(data23 % 1) &&
+                        !isNaN(data23) &&
+                        isFinite(data23)
                       ) &&
-                      data19 !== null
+                      data23 !== null
                     ) {
                       validate10.errors = [
                         {
@@ -1327,9 +1627,9 @@ function validate10(
                       ];
                       return false;
                     }
-                    if (errors === _errs42) {
-                      if (typeof data19 == 'number' && isFinite(data19)) {
-                        if (data19 < 1 || isNaN(data19)) {
+                    if (errors === _errs50) {
+                      if (typeof data23 == 'number' && isFinite(data23)) {
+                        if (data23 < 1 || isNaN(data23)) {
                           validate10.errors = [
                             {
                               instancePath: instancePath + '/oldest_available',
@@ -1344,13 +1644,13 @@ function validate10(
                         }
                       }
                     }
-                    var valid0 = _errs42 === errors;
+                    var valid0 = _errs50 === errors;
                   } else {
                     var valid0 = true;
                   }
                   if (valid0) {
                     if (data.event_log_healthy !== undefined) {
-                      const _errs44 = errors;
+                      const _errs52 = errors;
                       if (typeof data.event_log_healthy !== 'boolean') {
                         validate10.errors = [
                           {
@@ -1363,7 +1663,7 @@ function validate10(
                         ];
                         return false;
                       }
-                      var valid0 = _errs44 === errors;
+                      var valid0 = _errs52 === errors;
                     } else {
                       var valid0 = true;
                     }

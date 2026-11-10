@@ -19,6 +19,8 @@ class Registry {
     const std::vector<Event> &events() const;
     uint64_t sequence() const;
     bool bus_fault() const;
+    // Uptime ms when the current bus fault began; empty while there is no fault.
+    std::optional<int64_t> bus_fault_since() const;
 
   private:
     Sensor *find(uint64_t rom);
@@ -43,5 +45,6 @@ class Registry {
     uint64_t sequence_ = 0;
     uint64_t event_sequence_ = 0;
     bool bus_fault_ = false;
+    std::optional<int64_t> bus_fault_since_;
 };
 } // namespace monitor

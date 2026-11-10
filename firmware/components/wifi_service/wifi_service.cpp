@@ -170,7 +170,7 @@ void WifiService::station(const char *ssid, const char *password) {
     std::memcpy(config.sta.password, password, std::strlen(password));
     esp_wifi_set_config(WIFI_IF_STA, &config);
     esp_wifi_connect();
-    state_ = 1;
+    set_link_state(1);
 }
 void WifiService::set_ap(bool enabled) {
     if (enabled) {
@@ -292,7 +292,12 @@ NetworkInfo WifiService::info() const {
             attempts[phase],
             unsigned((remaining + 999) / 1000),
             saved_credentials_,
-            error};
+            error,
+            state_since_ms_.load()};
+}
+void WifiService::set_link_state(int value) {
+    if (state_.exchange(value) != value)
+        state_since_ms_ = esp_timer_get_time() / 1000;
 }
 void WifiService::worker(void *context) {
     auto &self = *static_cast<WifiService *>(context);
@@ -397,7 +402,7 @@ void WifiService::worker(void *context) {
                         continue;
                 }
                 self.ip_ = command.ip;
-                self.state_ = 2;
+                self.set_link_state(2);
                 // A transient loss during the candidate handoff must give
                 // clients a fresh setup grace period after reconnection.
                 ap_window.station_reconnected(now);
@@ -421,7 +426,7 @@ void WifiService::worker(void *context) {
             } else if (command.kind == disconnected) {
                 if (trying)
                     self.last_reason_ = int(command.ip);
-                self.state_ = 0;
+                self.set_link_state(0);
                 self.ip_ = 0;
                 // Keep provisioning reachable if the new station drops
                 // before its AP-to-STA handoff grace period completes.
@@ -461,7 +466,7 @@ void WifiService::worker(void *context) {
             if (self.saved_ssid_[0])
                 self.station(self.saved_ssid_, self.saved_password_);
             else
-                self.state_ = 0;
+                self.set_link_state(0);
         }
         if (next_retry && now >= next_retry && !trying) {
             next_retry = 0;

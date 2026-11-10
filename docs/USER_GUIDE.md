@@ -42,10 +42,11 @@ associated with that ROM and is never reassigned to another probe.
 
 ## Alerts and event history
 
-The **Alerts** page separates **active alerts** from **events**. Active alerts are
+Active alerts and events are on separate pages. The **Alerts** page shows only
+**active alerts**. The **Events** page lists the journal. Active alerts are
 conditions that need attention now: a probe reading high or low, a disconnected
-probe, a shared sensor bus fault, or a lost Wi-Fi connection. Each one clears by
-itself when the condition ends. **Events** are records of things that happened:
+probe, a shared sensor bus fault, or a lost Wi-Fi connection. Each one shows when it
+began and clears by itself when the condition ends. **Events** (on their own page) are records of things that happened:
 device starts, probe and bus state changes, Wi-Fi and clock changes, and history
 write failures. An event may or may not need attention; check the active list for
 what is still a problem. The journal is bounded; the page warns when

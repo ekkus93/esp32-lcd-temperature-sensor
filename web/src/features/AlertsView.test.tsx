@@ -4,58 +4,36 @@ import AlertsView from './AlertsView';
 
 afterEach(() => vi.unstubAllGlobals());
 
-it('distinguishes active bus/probe faults, pages recovery events and shows retention', async () => {
-  const active = [
-    { state: 'bus_fault' },
-    { state: 'wifi_disconnected' },
-    { rom_id: '2801000000000029', name: 'Freezer', state: 'disconnected' },
-  ];
-  const first = {
-    active,
-    events: [
+it('shows bus, Wi-Fi and probe conditions as active alerts', async () => {
+  const response = {
+    active: [
       {
-        sequence: 2,
-        boot_id: '0000000000000001',
-        kind: 'sensor_state',
+        state: 'bus_fault',
+        since_uptime_ms: 5000,
+        since_utc_seconds: null,
+      },
+      {
+        state: 'wifi_disconnected',
+        since_uptime_ms: 9000,
+        since_utc_seconds: null,
+      },
+      {
         rom_id: '2801000000000029',
-        previous: 'normal',
+        name: 'Freezer',
         state: 'disconnected',
-        uptime_ms: 10000,
-        utc_seconds: null,
-        detail: 0,
+        since_uptime_ms: 12000,
+        since_utc_seconds: null,
       },
     ],
-    next_after: 2,
-    has_more: true,
-    oldest_available: 2,
-    event_log_healthy: true,
-  };
-  const second = {
-    active,
-    events: [
-      {
-        sequence: 3,
-        boot_id: '0000000000000001',
-        kind: 'sensor_state',
-        rom_id: '2801000000000029',
-        previous: 'disconnected',
-        state: 'normal',
-        uptime_ms: 20000,
-        utc_seconds: null,
-        detail: 0,
-      },
-    ],
-    next_after: 3,
+    events: [],
+    next_after: 0,
     has_more: false,
-    oldest_available: 2,
+    oldest_available: null,
     event_log_healthy: true,
   };
   vi.stubGlobal(
     'fetch',
-    vi
-      .fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => first })
-      .mockResolvedValue({ ok: true, json: async () => second }),
+    vi.fn().mockResolvedValue({ ok: true, json: async () => response }),
   );
   render(<AlertsView timezone={null} />);
   expect(
@@ -63,42 +41,51 @@ it('distinguishes active bus/probe faults, pages recovery events and shows reten
   ).toBeInTheDocument();
   expect(screen.getByText(/Wi-Fi disconnected/)).toBeInTheDocument();
   expect(screen.getByText(/Freezer: disconnected/)).toBeInTheDocument();
-  expect(screen.getByText(/disconnected → normal/)).toBeInTheDocument();
+  expect(screen.queryByText(/Device started/)).toBeNull();
   expect(
-    screen.getByText(/Some older events have left the bounded event history/),
+    screen.getByText(/Freezer: disconnected · since boot \+12 seconds/),
   ).toBeInTheDocument();
-  expect(
-    screen.getByText(/stored in a bounded local journal across reboots/),
-  ).toBeInTheDocument();
-  expect(vi.mocked(fetch).mock.calls).toHaveLength(2);
-  expect(vi.mocked(fetch).mock.calls[1][0]).toContain(
-    '/alerts?after=2&limit=50',
-  );
+  expect(vi.mocked(fetch).mock.calls[0][0]).toContain('limit=1');
 });
 
-it('formats synchronized events in the configured device timezone', async () => {
+it('says so when nothing needs attention', async () => {
   vi.stubGlobal(
     'fetch',
     vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
         active: [],
-        events: [
+        events: [],
+        next_after: 0,
+        has_more: false,
+        oldest_available: null,
+        event_log_healthy: true,
+      }),
+    }),
+  );
+  render(<AlertsView timezone={null} />);
+  expect(await screen.findByText('No active alerts.')).toBeInTheDocument();
+});
+
+it('dates an active alert in the device timezone once the clock is trusted', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        active: [
           {
-            sequence: 1,
-            boot_id: '0000000000000001',
-            kind: 'reboot',
-            rom_id: null,
-            previous: 'normal',
-            state: 'normal',
-            uptime_ms: 0,
-            utc_seconds: 1767268800,
-            detail: 0,
+            rom_id: '2801000000000029',
+            name: 'Freezer',
+            state: 'high',
+            since_uptime_ms: 60000,
+            since_utc_seconds: 1767268800,
           },
         ],
-        next_after: 1,
+        events: [],
+        next_after: 0,
         has_more: false,
-        oldest_available: 1,
+        oldest_available: null,
         event_log_healthy: true,
       }),
     }),
@@ -106,43 +93,7 @@ it('formats synchronized events in the configured device timezone', async () => 
   render(<AlertsView timezone="America/Los_Angeles" />);
   expect(
     await screen.findByText(
-      /Jan 1, 2026, 4:00 AM PST \(America\/Los_Angeles\): Device started/,
+      /Freezer: high · since Jan 1, 2026, 4:00 AM PST \(America\/Los_Angeles\)/,
     ),
-  ).toBeInTheDocument();
-});
-
-it('keeps unsynchronized events boot-relative when the device timezone is unknown', async () => {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        active: [],
-        events: [
-          {
-            sequence: 1,
-            boot_id: '0123456789abcdef',
-            kind: 'reboot',
-            rom_id: null,
-            previous: 'normal',
-            state: 'normal',
-            uptime_ms: 12500,
-            utc_seconds: null,
-            detail: 0,
-          },
-        ],
-        next_after: 1,
-        has_more: false,
-        oldest_available: 1,
-        event_log_healthy: true,
-      }),
-    }),
-  );
-  render(<AlertsView timezone={null} />);
-  expect(
-    await screen.findByText(/Boot 01234567 · \+13 seconds: Device started/),
-  ).toBeInTheDocument();
-  expect(
-    screen.getByText(/Device timezone unavailable; synchronized times use UTC/),
   ).toBeInTheDocument();
 });

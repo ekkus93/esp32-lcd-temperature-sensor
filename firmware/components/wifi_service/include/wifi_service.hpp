@@ -17,6 +17,8 @@ struct NetworkInfo {
     unsigned remaining_seconds;
     bool saved_credentials;
     std::string error;
+    // Uptime ms when `state` last changed.
+    int64_t state_since_ms = 0;
 };
 struct ScannedNetwork {
     std::string ssid;
@@ -71,6 +73,8 @@ class WifiService {
     std::atomic<bool> scanning_{false};
     int64_t next_scan_ = 0; // serialized HTTP caller
     std::atomic<int> state_{0};
+    std::atomic<int64_t> state_since_ms_{0};
+    void set_link_state(int value);
     std::atomic<bool> ap_{false};
     std::atomic<bool> mdns_ready_{false};
     std::atomic<uint32_t> ip_{0};

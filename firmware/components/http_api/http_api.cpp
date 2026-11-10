@@ -980,16 +980,33 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                 }
                 Json output(cJSON_CreateObject(), cJSON_Delete);
                 auto *active = cJSON_AddArrayToObject(output.get(), "active");
+                // When each condition began: uptime ms, and UTC seconds once the clock is trusted
+                // (computed now, so a condition that began before the clock synced still gets one).
+                const int64_t uptime_now = now();
+                const auto utc_now = monitor::trusted_utc();
+                auto add_since = [&](cJSON *event, int64_t since_ms) {
+                    const int64_t since = std::clamp<int64_t>(since_ms, 0, uptime_now);
+                    cJSON_AddNumberToObject(event, "since_uptime_ms", static_cast<double>(since));
+                    if (utc_now)
+                        cJSON_AddNumberToObject(
+                            event, "since_utc_seconds",
+                            static_cast<double>(*utc_now - (uptime_now - since) / 1000));
+                    else
+                        cJSON_AddNullToObject(event, "since_utc_seconds");
+                };
                 if (current.bus_fault()) {
                     auto *event = cJSON_CreateObject();
                     cJSON_AddStringToObject(event, "state", "bus_fault");
+                    add_since(event, current.bus_fault_since().value_or(uptime_now));
                     cJSON_AddItemToArray(active, event);
                 }
                 // Losing the network is a condition that needs attention until it recovers. The
                 // connect and disconnect transitions themselves are journal events.
-                if (wifi_->info().state == "offline") {
+                const auto network = wifi_->info();
+                if (network.state == "offline") {
                     auto *event = cJSON_CreateObject();
                     cJSON_AddStringToObject(event, "state", "wifi_disconnected");
+                    add_since(event, network.state_since_ms);
                     cJSON_AddItemToArray(active, event);
                 }
                 for (const auto &sensor : current.sensors())
@@ -999,6 +1016,7 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                         cJSON_AddStringToObject(event, "rom_id", rom_hex(sensor.rom).c_str());
                         cJSON_AddStringToObject(event, "name", sensor.settings.name.c_str());
                         cJSON_AddStringToObject(event, "state", state_name(sensor.state));
+                        add_since(event, sensor.state_since_ms.value_or(0));
                         cJSON_AddItemToArray(active, event);
                     }
                 auto *events = cJSON_AddArrayToObject(output.get(), "events");
@@ -1272,7 +1290,7 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
         }
     if (!asset) {
         if (path != "/" && path != "/history" && path != "/sensors" && path != "/alerts" &&
-            path != "/settings" && path != "/setup")
+            path != "/events" && path != "/settings" && path != "/setup")
             return error(r, "404 Not Found", "Not found");
         for (const auto &candidate : web_assets)
             if (std::strcmp(candidate.path, "/index.html") == 0) {

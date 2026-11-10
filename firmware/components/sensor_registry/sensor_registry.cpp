@@ -92,6 +92,8 @@ void Registry::sample(const std::vector<Reading> &readings, int64_t now_ms, bool
     if (fault != bus_fault_)
         event(0, bus_fault_ ? State::bus_fault : State::normal,
               fault ? State::bus_fault : State::normal, now_ms);
+    if (fault != bus_fault_)
+        bus_fault_since_ = fault ? std::optional<int64_t>(now_ms) : std::nullopt;
     bus_fault_ = fault;
     // Sort new identities so discovery permutations yield deterministic initial names.
     std::vector<uint64_t> discovered;
@@ -137,5 +139,8 @@ uint64_t Registry::sequence() const {
 }
 bool Registry::bus_fault() const {
     return bus_fault_;
+}
+std::optional<int64_t> Registry::bus_fault_since() const {
+    return bus_fault_since_;
 }
 } // namespace monitor

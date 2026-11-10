@@ -48,8 +48,18 @@ it('keeps snapshot v1 strict and validates separately versioned probe diagnostic
 it('validates active bus and sensor alerts with bounded event history', async () => {
   body = {
     active: [
-      { state: 'bus_fault' },
-      { rom_id: '2801000000000029', name: 'Freezer', state: 'disconnected' },
+      {
+        state: 'bus_fault',
+        since_uptime_ms: 5000,
+        since_utc_seconds: null,
+      },
+      {
+        rom_id: '2801000000000029',
+        name: 'Freezer',
+        state: 'disconnected',
+        since_uptime_ms: 5000,
+        since_utc_seconds: null,
+      },
     ],
     events: [
       {

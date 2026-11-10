@@ -15,6 +15,7 @@ std::optional<Event> AlertService::transition(Sensor &sensor, State state, int64
         return value == State::high || value == State::low || value == State::disconnected;
     };
     set_state(sensor, state);
+    sensor.state_since_ms = now_ms;
     if ((is_alert(previous) || is_alert(state)) &&
         (state != State::disconnected || sensor.settings.disconnect_alert))
         return Event{0, sensor.rom, previous, state, now_ms};

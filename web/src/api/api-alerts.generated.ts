@@ -11,11 +11,15 @@ export interface Alerts {
   active: (
     | {
         state: 'bus_fault' | 'wifi_disconnected';
+        since_uptime_ms: number;
+        since_utc_seconds: number | null;
       }
     | {
         rom_id: string;
         name: string;
         state: 'high' | 'low' | 'disconnected';
+        since_uptime_ms: number;
+        since_utc_seconds: number | null;
       }
   )[];
   /**

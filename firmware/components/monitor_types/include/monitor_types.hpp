@@ -56,6 +56,9 @@ struct Sensor {
     // The state a sensor was in when a bus fault began, restored when the fault clears so an
     // alarm episode (and its persistence and hysteresis) is not split by the fault.
     std::optional<State> state_before_fault;
+    // When `state` last changed (uptime ms). A bus fault does not change it, so a condition keeps
+    // its start time across the fault.
+    std::optional<int64_t> state_since_ms;
     // An unconfirmed reading of exactly 85.0 (the DS18B20 power-on value) was just discarded; the
     // next reading decides whether it was real.
     bool unconfirmed_power_on_value = false;

@@ -28,6 +28,7 @@ import type { Snapshot } from './api/generated';
 const NetworkSettings = lazy(() => import('./features/NetworkSettings'));
 const SensorsView = lazy(() => import('./features/SensorsView'));
 const AlertsView = lazy(() => import('./features/AlertsView'));
+const EventsView = lazy(() => import('./features/EventsView'));
 const HistoryView = lazy(() => import('./features/HistoryView'));
 const PasswordSettings = lazy(() => import('./features/PasswordSettings'));
 const DeviceSettings = lazy(() => import('./features/DeviceSettings'));
@@ -38,9 +39,10 @@ const pages = [
   'History',
   'Sensors',
   'Alerts',
+  'Events',
   'Settings',
 ] as const;
-const routes = ['/', '/history', '/sensors', '/alerts', '/settings'];
+const routes = ['/', '/history', '/sensors', '/alerts', '/events', '/settings'];
 const readable = (s: string) => s.replaceAll('_', ' ');
 function Shell() {
   const auth = useAuth();
@@ -170,7 +172,7 @@ function Shell() {
     history.pushState({}, '', routes[index]);
     setPath(routes[index]);
   }
-  const index = path === '/setup' ? 4 : Math.max(0, routes.indexOf(path));
+  const index = path === '/setup' ? 5 : Math.max(0, routes.indexOf(path));
   const sensors = snapshot?.sensors ?? [];
 
   return (
@@ -211,7 +213,7 @@ function Shell() {
               {auth.state?.signed_in ? (
                 <Button onClick={() => void auth.signOut()}>Sign out</Button>
               ) : (
-                <Button onClick={() => navigate(4)}>Sign in</Button>
+                <Button onClick={() => navigate(5)}>Sign in</Button>
               )}
               <Button
                 onClick={() => setDark(!dark)}
@@ -355,6 +357,11 @@ function Shell() {
             </Suspense>
           )}
           {index === 4 && (
+            <Suspense fallback={<Typography>Loading events…</Typography>}>
+              <EventsView timezone={timezone} />
+            </Suspense>
+          )}
+          {index === 5 && (
             <Stack spacing={3}>
               <Card>
                 <CardContent>

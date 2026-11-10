@@ -21,19 +21,23 @@
           {
             "type": "object",
             "additionalProperties": false,
-            "required": ["state"],
+            "required": ["state", "since_uptime_ms", "since_utc_seconds"],
             "properties": {
-              "state": { "enum": ["bus_fault", "wifi_disconnected"] }
+              "state": { "enum": ["bus_fault", "wifi_disconnected"] },
+              "since_uptime_ms": { "type": "integer", "minimum": 0 },
+              "since_utc_seconds": { "type": ["integer", "null"], "minimum": 0 }
             }
           },
           {
             "type": "object",
             "additionalProperties": false,
-            "required": ["rom_id", "name", "state"],
+            "required": ["rom_id", "name", "state", "since_uptime_ms", "since_utc_seconds"],
             "properties": {
               "rom_id": { "type": "string", "pattern": "^28[0-9a-f]{14}$" },
               "name": { "type": "string", "minLength": 1, "maxLength": 32 },
-              "state": { "enum": ["high", "low", "disconnected"] }
+              "state": { "enum": ["high", "low", "disconnected"] },
+              "since_uptime_ms": { "type": "integer", "minimum": 0 },
+              "since_utc_seconds": { "type": ["integer", "null"], "minimum": 0 }
             }
           }
         ]

@@ -179,10 +179,12 @@ void alarms() {
     CHECK(registry.sensors()[0].state == State::normal);
     registry.sample({{id, 30}}, 15000);
     CHECK(registry.sensors()[0].state == State::high);
+    CHECK(registry.sensors()[0].state_since_ms == 15000);
     registry.sample({{id, 28.8}}, 20000);
     CHECK(registry.sensors()[0].state == State::high);
     registry.sample({{id, 28.4}}, 25000);
     CHECK(registry.sensors()[0].state == State::normal);
+    CHECK(registry.sensors()[0].state_since_ms == 25000);
     CHECK(registry.events().size() == 2);
     registry.sample({{id, 8}}, 30000);
     registry.sample({{id, 8}}, 45000);
