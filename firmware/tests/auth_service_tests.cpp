@@ -39,12 +39,19 @@ void enroll_admin(AuthService &auth, int64_t now = T0) {
 }
 } // namespace
 
+// A password saved by firmware before the round count was stored: PBKDF2-HMAC-SHA256 of
+// good_password, salt 1..16, 100,000 rounds, laid out as salt then hash.
+const std::string legacy_record("\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0a\x0b\x0c\x0d\x0e\x0f\x10"
+                                "\x9b\x3f\x2a\xbd\xb4\x5f\x94\xa7\xf4\x3c\xae\x3e\xcd\x74\x56\x0e"
+                                "\x87\x70\x48\x0f\xd4\x0c\x65\x52\x31\x42\xc5\xe5\x16\x37\x5d\x4f",
+                                48);
+
 int main() {
     // A first start is not enrolled and creates no owner code or verifier.
     {
         Fresh f;
         CHECK(!f.auth.enrolled());
-        CHECK(!FakeNvs::has("verifier1"));
+        CHECK(!FakeNvs::has("verifier2"));
         CHECK(!FakeNvs::has("bootstrap"));
     }
     // Enrollment: a short password is refused, the 5 second spacing applies, and once enrolled
@@ -53,11 +60,11 @@ int main() {
         Fresh f;
         auto &a = f.auth;
         CHECK(a.enroll("short", T0) == AuthService::EnrollResult::denied);
-        CHECK(!a.enrolled() && !FakeNvs::has("verifier1"));
+        CHECK(!a.enrolled() && !FakeNvs::has("verifier2"));
         CHECK(a.enroll(good_password, T0 + 1000) == AuthService::EnrollResult::denied);
         CHECK(!a.enrolled());
         CHECK(a.enroll(good_password, T0 + 6000) == AuthService::EnrollResult::enrolled);
-        CHECK(a.enrolled() && FakeNvs::has("verifier1"));
+        CHECK(a.enrolled() && FakeNvs::has("verifier2"));
         CHECK(a.enroll("another-long-password", T0 + 40000) == AuthService::EnrollResult::denied);
     }
     // A storage failure while enrolling leaves the device unenrolled; a retry later works.
@@ -135,6 +142,28 @@ int main() {
         CHECK(a.login_begin(3, T0 + 40000).gate == LoginGate::allow);
         CHECK(a.login_complete(better, 3, T0 + 40000));
     }
+    // A password saved at the old round count still signs in, and is moved to the current count on
+    // that login: the legacy record is replaced by a 10,000-round record.
+    {
+        FakeNvs::reset();
+        FakeNvs::put("verifier1", legacy_record);
+        AuthService a;
+        CHECK(a.initialize() == ESP_OK && a.enrolled());
+        CHECK(a.login_begin(1, T0).gate == LoginGate::allow);
+        CHECK(!a.login_complete("wrong-password-here", 1, T0)); // a wrong guess does not upgrade
+        CHECK(FakeNvs::has("verifier1") && !FakeNvs::has("verifier2"));
+        CHECK(a.login_begin(1, T0 + 5000).gate == LoginGate::allow);
+        CHECK(a.login_complete(good_password, 1, T0 + 5000));
+        CHECK(!FakeNvs::has("verifier1") && FakeNvs::has("verifier2"));
+        const auto upgraded = FakeNvs::get("verifier2");
+        CHECK(upgraded.size() == 52);
+        CHECK(uint8_t(upgraded[0]) == 0x10 &&
+              uint8_t(upgraded[1]) == 0x27); // 10,000, little-endian
+        AuthService restarted;
+        CHECK(restarted.initialize() == ESP_OK && restarted.enrolled());
+        CHECK(restarted.login_begin(2, T0 + 20000).gate == LoginGate::allow);
+        CHECK(restarted.login_complete(good_password, 2, T0 + 20000));
+    }
     // After a restart the stored verifier is used: the same password works, enrollment is over.
     {
         Fresh f;
@@ -154,6 +183,23 @@ int main() {
         CHECK(old_firmware.initialize() == ESP_OK);
         CHECK(!old_firmware.enrolled());
         CHECK(old_firmware.enroll(good_password, T0) == AuthService::EnrollResult::enrolled);
+    }
+    // USB recovery removes the password whichever record holds it, and leaves the device ready to
+    // enroll again.
+    {
+        Fresh f;
+        enroll_admin(f.auth);
+        FakeNvs::put("verifier1", legacy_record);
+        FakeNvs::put("other", "kept");
+        CHECK(AuthService::erase_stored_password());
+        CHECK(!FakeNvs::has("verifier2") && !FakeNvs::has("verifier1"));
+        CHECK(FakeNvs::get("other") == "kept");
+        AuthService restarted;
+        CHECK(restarted.initialize() == ESP_OK && !restarted.enrolled());
+        CHECK(AuthService::erase_stored_password()); // nothing stored is still a success
+        FakeNvs::fail_open = true;
+        CHECK(!AuthService::erase_stored_password());
+        FakeNvs::fail_open = false;
     }
     // Storage that cannot be opened stops startup; the service never becomes usable.
     {

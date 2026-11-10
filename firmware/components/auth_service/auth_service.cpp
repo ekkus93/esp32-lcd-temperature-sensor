@@ -96,14 +96,31 @@ esp_err_t AuthService::initialize() {
     auto result = nvs_open("monitor_auth", NVS_READWRITE, &handle);
     if (result != ESP_OK)
         return result;
-    size_t size = 48;
-    std::array<uint8_t, 48> record{};
-    result = nvs_get_blob(handle, "verifier1", record.data(), &size);
+    size_t size = 52;
+    std::array<uint8_t, 52> record{};
+    result = nvs_get_blob(handle, "verifier2", record.data(), &size);
     if (result == ESP_OK && size == record.size()) {
-        std::copy_n(record.begin(), 16, salt_.begin());
-        std::copy_n(record.begin() + 16, 32, hash_.begin());
+        rounds_ = uint32_t(record[0]) | uint32_t(record[1]) << 8 | uint32_t(record[2]) << 16 |
+                  uint32_t(record[3]) << 24;
+        std::copy_n(record.begin() + 4, 16, salt_.begin());
+        std::copy_n(record.begin() + 20, 32, hash_.begin());
         enrolled_ = true;
-    } else if (result != ESP_ERR_NVS_NOT_FOUND) {
+    } else if (result == ESP_ERR_NVS_NOT_FOUND) {
+        // A password saved before the round count was stored: it still works at the old count.
+        size = 48;
+        std::array<uint8_t, 48> legacy{};
+        result = nvs_get_blob(handle, "verifier1", legacy.data(), &size);
+        if (result == ESP_OK && size == legacy.size()) {
+            std::copy_n(legacy.begin(), 16, salt_.begin());
+            std::copy_n(legacy.begin() + 16, 32, hash_.begin());
+            rounds_ = legacy_password_rounds;
+            legacy_ = true;
+            enrolled_ = true;
+        } else if (result != ESP_ERR_NVS_NOT_FOUND) {
+            nvs_close(handle);
+            return result == ESP_OK ? ESP_ERR_INVALID_SIZE : result;
+        }
+    } else {
         nvs_close(handle);
         return result == ESP_OK ? ESP_ERR_INVALID_SIZE : result;
     }
@@ -142,27 +159,46 @@ bool AuthService::derive(const std::string &password, const std::array<uint8_t, 
                  static_cast<long long>((esp_timer_get_time() - started) / 1000));
     return request.result;
 }
+bool AuthService::erase_stored_password() {
+    nvs_handle_t handle;
+    if (nvs_open("monitor_auth", NVS_READWRITE, &handle) != ESP_OK)
+        return false;
+    const auto current = nvs_erase_key(handle, "verifier2");
+    const auto legacy = nvs_erase_key(handle, "verifier1");
+    const bool ok = (current == ESP_OK || current == ESP_ERR_NVS_NOT_FOUND) &&
+                    (legacy == ESP_OK || legacy == ESP_ERR_NVS_NOT_FOUND) &&
+                    nvs_commit(handle) == ESP_OK;
+    nvs_close(handle);
+    return ok;
+}
 bool AuthService::save_password(const std::string &password) {
     if (password.size() < 12 || password.size() > 128)
         return false;
     std::array<uint8_t, 16> salt{};
     std::array<uint8_t, 32> hash{};
     if (psa_generate_random(salt.data(), salt.size()) != PSA_SUCCESS ||
-        !derive(password, salt, hash))
+        !derive(password, salt, hash, password_rounds))
         return false;
-    std::array<uint8_t, 48> record{};
-    std::copy(salt.begin(), salt.end(), record.begin());
-    std::copy(hash.begin(), hash.end(), record.begin() + 16);
+    std::array<uint8_t, 52> record{};
+    for (size_t i = 0; i < 4; ++i)
+        record[i] = uint8_t(password_rounds >> (8 * i));
+    std::copy(salt.begin(), salt.end(), record.begin() + 4);
+    std::copy(hash.begin(), hash.end(), record.begin() + 20);
     nvs_handle_t handle;
     if (nvs_open("monitor_auth", NVS_READWRITE, &handle) != ESP_OK)
         return false;
-    const bool ok = nvs_set_blob(handle, "verifier1", record.data(), record.size()) == ESP_OK &&
+    // The new record replaces any legacy one in the same commit.
+    const auto legacy = nvs_erase_key(handle, "verifier1");
+    const bool ok = nvs_set_blob(handle, "verifier2", record.data(), record.size()) == ESP_OK &&
+                    (legacy == ESP_OK || legacy == ESP_ERR_NVS_NOT_FOUND) &&
                     nvs_commit(handle) == ESP_OK;
     nvs_close(handle);
     if (ok) {
         Guard guard(mutex_);
         salt_ = salt;
         hash_ = hash;
+        rounds_ = password_rounds;
+        legacy_ = false;
         enrolled_ = true;
         sessions_.clear();
     }
@@ -189,13 +225,15 @@ AuthService::PasswordCheck AuthService::check_password_result(const std::string 
     // replaced by a password change on another task while it runs.
     std::array<uint8_t, 16> salt{};
     std::array<uint8_t, 32> stored{};
+    uint32_t rounds = 0;
     {
         Guard guard(mutex_);
         salt = salt_;
         stored = hash_;
+        rounds = rounds_;
     }
     std::array<uint8_t, 32> candidate{};
-    if (!derive(password, salt, candidate))
+    if (!derive(password, salt, candidate, rounds))
         return PasswordCheck::kdf_failed;
     volatile unsigned diff = 0;
     for (size_t i = 0; i < stored.size(); ++i)
@@ -220,6 +258,15 @@ std::optional<Session> AuthService::login_complete(const std::string &password, 
                            : check == PasswordCheck::kdf_failed ? LoginOutcome::kdf_error
                                                                 : LoginOutcome::wrong_password;
     if (outcome == LoginOutcome::verified) {
+        // A password saved at the old round count is moved to the current one now, while the
+        // plain password is in hand. A failed upgrade keeps the old record: the login still works.
+        bool upgrade = false;
+        {
+            Guard guard(mutex_);
+            upgrade = legacy_;
+        }
+        if (upgrade)
+            save_password(password);
         token = secure_token(32);
         csrf = secure_token(24);
         if (token.empty() || csrf.empty())

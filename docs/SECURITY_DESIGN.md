@@ -93,8 +93,9 @@ images are not signed and secure boot is out of scope.
 ## Development implementation evidence
 
 The current firmware implements HTTP/SameSite/HttpOnly sessions, a random per-device WPA2 setup
-key and a PBKDF2-HMAC-SHA256 administrator password verifier (100,000 iterations, 128-bit random
-salt). A known-answer check of the key derivation runs at startup and fails closed
+key and a PBKDF2-HMAC-SHA256 administrator password verifier (10,000 iterations, 128-bit random
+salt). The round count is stored with the verifier. Passwords saved earlier at 100,000 rounds are
+moved to 10,000 on their next successful login. A known-answer check of the key derivation runs at startup and fails closed
 (authentication unavailable) rather than crashing.
 
 **The Wi-Fi setup key is short on purpose, because it is typed by hand from the LCD:**
@@ -111,10 +112,9 @@ salt). A known-answer check of the key derivation runs at startup and fails clos
 
 **Login:** a wrong password makes that client wait 5, 10, 20, 40 and then 60 seconds, per client
 address, so one address cannot lock the owner out from another; only one password check runs at a
-time and a refused attempt answers `429` with `Retry-After`. The password check is deliberately slow:
-about 14.7 seconds was measured on the 160 MHz ESP32-S3 earlier, and a login on 2026-11-05 took 30.7
-seconds, so the sign-in screen shows a waiting state and the check runs on its own task so sampling
-and the other pages keep working. Passwords are 12 to 128 characters.
+time and a refused attempt answers `429` with `Retry-After`. The password check takes a few seconds on
+the 160 MHz ESP32-S3, so the sign-in screen shows a waiting message, and the check runs on its own task
+so sampling and the other pages keep working. Passwords are 12 to 128 characters.
 
 Physical recovery requires the explicit USB command
 `RESET_ADMIN_CREDENTIALS CONFIRM`. It removes only the administrator verifier

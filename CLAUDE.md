@@ -32,5 +32,5 @@ Run the focused test for the area changed, then `./tools/verify.sh` before decla
 - Run `python tools/check-secret-leaks.py` before committing. Never print or commit credentials; don't delete the admin file under `.build/`.
 - Changes to `contracts/*.schema.json` (and `contracts/API.md`) or storage formats need a deliberate version/migration decision.
 - `CONFIG_MONITOR_LCD_ST7735` (default on) selects the 1.8" compact layout; disable it for the original ST7789 design. CI also checks that `firmware/sdkconfig` has `CONFIG_MONITOR_SENSOR_BUS=y` and `CONFIG_ESP_TASK_WDT_PANIC=y`.
-- `tools/device_*.py` need a connected board on `/dev/ttyACM0`, a mode-0600 setup file and the activated IDF Python environment. Admin login hashing takes about 15 s on the device, so don't treat that as a hang.
+- `tools/device_*.py` need a connected board on `/dev/ttyACM0`, a mode-0600 setup file and the activated IDF Python environment. Admin login hashing takes a few seconds on the device, so don't treat that as a hang.
 - Keep host, simulated and physical evidence distinct in docs. Builds and simulations are not hardware acceptance.

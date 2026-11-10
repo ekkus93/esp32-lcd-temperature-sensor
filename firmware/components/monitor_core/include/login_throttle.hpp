@@ -12,7 +12,7 @@ uint32_t client_identity_ipv6(const uint8_t *address16);
 enum class LoginOutcome { verified, wrong_password, kdf_error };
 
 // Decides whether a login attempt may start. The password check is a deliberately slow key
-// derivation (about 15 s on the ESP32-S3), so only one runs at a time, and a client that keeps
+// derivation (a few seconds on the ESP32-S3), so only one runs at a time, and a client that keeps
 // guessing backs off on its own: one address cannot lock the owner out on another.
 class LoginThrottle {
   public:

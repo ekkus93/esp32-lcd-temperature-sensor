@@ -15,7 +15,16 @@ std::string secure_token(size_t bytes = 24);
 std::string readable_secret(size_t length);
 class AuthService {
   public:
+    // PBKDF2-HMAC-SHA256 rounds for a new password. A login checks it in a few seconds on the
+    // board.
+    static constexpr uint32_t password_rounds = 10000;
+    // Rounds used by firmware before the count was stored with the password.
+    static constexpr uint32_t legacy_password_rounds = 100000;
+
     esp_err_t initialize(); // Call after radio start so hardware entropy is available.
+    // Physical USB recovery: removes the stored administrator password (current and legacy
+    // records) and nothing else. The caller restarts the device afterwards.
+    static bool erase_stored_password();
     // Safe from any task: `enrolled_` is atomic.
     bool enrolled() const {
         return enrolled_.load();
@@ -30,7 +39,7 @@ class AuthService {
     // caller must follow with login_complete() or login_abort().
     LoginThrottle::Decision login_begin(uint32_t client, int64_t now_ms);
     void login_abort(uint32_t client);
-    // Runs the password check (about 15 s); never call it from the HTTP task.
+    // Runs the password check (a few seconds); never call it from the HTTP task.
     std::optional<Session> login_complete(const std::string &password, uint32_t client,
                                           int64_t now_ms);
     // Returns a copy, so the caller never holds a pointer into the shared session table.
@@ -41,7 +50,7 @@ class AuthService {
 
   private:
     bool derive(const std::string &password, const std::array<uint8_t, 16> &salt,
-                std::array<uint8_t, 32> &hash, uint32_t iterations = 100000);
+                std::array<uint8_t, 32> &hash, uint32_t iterations);
     bool save_password(const std::string &password);
     enum class PasswordCheck { match, mismatch, kdf_failed };
     PasswordCheck check_password_result(const std::string &password);
@@ -54,6 +63,10 @@ class AuthService {
     // worker, display): they are only touched under mutex_.
     std::array<uint8_t, 16> salt_{};
     std::array<uint8_t, 32> hash_{};
+    // PBKDF2 rounds for hash_, stored with the record. Passwords saved by firmware before 10,000
+    // rounds (`legacy_`) are rehashed at the next successful login.
+    uint32_t rounds_ = password_rounds;
+    bool legacy_ = false;
     SessionStore sessions_;
     LoginThrottle throttle_;
     int64_t next_login_ = 0; // spacing for enrollment and password changes

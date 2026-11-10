@@ -1,9 +1,9 @@
 #include "provisioning_service.hpp"
+#include "auth_service.hpp"
 #include "boot_button_service.hpp"
 #include "cJSON.h"
 #include "esp_system.h"
 #include "freertos/task.h"
-#include "nvs.h"
 #include "usb_bridge.hpp"
 #include <cstdio>
 #include <cstring>
@@ -41,14 +41,7 @@ void console(void *context) {
         line[used++] = '\n';
         line[used] = 0;
         if (std::strcmp(line, "RESET_ADMIN_CREDENTIALS CONFIRM\n") == 0) {
-            nvs_handle_t handle;
-            bool ok = nvs_open("monitor_auth", NVS_READWRITE, &handle) == ESP_OK;
-            if (ok) {
-                auto verifier = nvs_erase_key(handle, "verifier1");
-                ok = (verifier == ESP_OK || verifier == ESP_ERR_NVS_NOT_FOUND) &&
-                     nvs_commit(handle) == ESP_OK;
-                nvs_close(handle);
-            }
+            const bool ok = AuthService::erase_stored_password();
             std::printf("\nADMIN_RESET_%s\n", ok ? "OK" : "FAILED");
             std::fflush(stdout);
             if (ok) {
