@@ -198,9 +198,18 @@ export default function AuthGate({
                     !state.enrolled ? 'At least 12 characters' : undefined
                   }
                 />
+                {busy && (
+                  <Typography role="status" color="text.secondary">
+                    {state.enrolled
+                      ? 'Logging in… the device is checking the password. Please wait.'
+                      : 'Creating the administrator password… the device is saving it. Please wait.'}
+                  </Typography>
+                )}
                 <Button variant="contained" type="submit" disabled={busy}>
                   {busy
-                    ? 'Please wait…'
+                    ? state.enrolled
+                      ? 'Logging in…'
+                      : 'Creating…'
                     : state.enrolled
                       ? 'Sign in'
                       : 'Create administrator'}

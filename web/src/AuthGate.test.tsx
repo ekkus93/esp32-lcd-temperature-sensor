@@ -153,3 +153,27 @@ it('ignores an authentication response that arrives after unmount', async () => 
   });
   expect(fetch).toHaveBeenCalledTimes(1);
 });
+
+it('tells the user the login is in progress while the device checks the password', async () => {
+  vi.mocked(fetch)
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ enrolled: true, signed_in: false }),
+    } as Response)
+    .mockReturnValueOnce(new Promise(() => {}));
+  render(
+    <AuthProvider>
+      <AuthGate>
+        <div>Protected dashboard</div>
+      </AuthGate>
+    </AuthProvider>,
+  );
+  fireEvent.change(await screen.findByLabelText(/Administrator password/), {
+    target: { value: 'an-example-password' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+  expect(
+    await screen.findByText(/Logging in… the device is checking the password/),
+  ).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Logging in…' })).toBeDisabled();
+});

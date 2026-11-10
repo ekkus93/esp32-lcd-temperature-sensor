@@ -12,6 +12,15 @@ export async function authState(): Promise<AuthState> {
     throw new Error('Invalid authentication state');
   return value;
 }
+// The device checks passwords on its own processor, which takes a few seconds. The first login with
+// a password saved by older firmware checks it at 100,000 rounds and saves it again, about 35
+// seconds; a password change does two checks. Other requests answer in well under a second.
+export function requestTimeoutMs(path: string): number {
+  if (path === '/auth/password') return 60000;
+  if (path === '/auth/login' || path === '/auth/enroll') return 90000;
+  return 30000;
+}
+
 export async function request<T>(
   path: string,
   method = 'GET',
@@ -19,11 +28,7 @@ export async function request<T>(
   extraHeaders: Record<string, string> = {},
 ): Promise<T> {
   const controller = new AbortController();
-  // Password rotation performs two slow hashes on the MCU.
-  const timeout = setTimeout(
-    () => controller.abort(),
-    path === '/auth/password' ? 60000 : 30000,
-  );
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs(path));
   try {
     let response: Response;
     try {
