@@ -13,7 +13,7 @@ checker = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(checker)
 
 SECRET = "Zq7-made-up-secret-value-1234"
-OWNER_CODE = "H5RB2WTDK7M4Q9XP"
+ADMIN_PASSWORD = "Ld3-made-up-admin-password-5678"
 
 
 class LeakCheckerTests(unittest.TestCase):
@@ -26,7 +26,7 @@ class LeakCheckerTests(unittest.TestCase):
         (self.root / "notes.txt").write_text("nothing secret here\n", encoding="utf-8")
         self.commit("first")
         (self.root / ".build").mkdir()
-        self.write_setup({"password": SECRET, "setup_secret": OWNER_CODE})
+        self.write_setup({"password": SECRET, "admin_password": ADMIN_PASSWORD})
 
     def git(self, *arguments):
         return subprocess.run(
@@ -60,10 +60,10 @@ class LeakCheckerTests(unittest.TestCase):
         self.assertIn("config.txt", err)
         for text in (out, err):
             self.assertNotIn(SECRET, text)
-            self.assertNotIn(OWNER_CODE, text)
+            self.assertNotIn(ADMIN_PASSWORD, text)
 
-    def test_owner_code_is_checked_too(self):
-        (self.root / "readme.txt").write_text(f"code {OWNER_CODE}\n", encoding="utf-8")
+    def test_admin_password_is_checked_too(self):
+        (self.root / "readme.txt").write_text(f"login {ADMIN_PASSWORD}\n", encoding="utf-8")
         code, _, err = self.run_checker()
         self.assertEqual(code, 1)
         self.assertIn("readme.txt", err)

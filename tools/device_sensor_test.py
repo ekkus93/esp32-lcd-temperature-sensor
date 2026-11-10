@@ -59,7 +59,7 @@ def check(ok, name):
 
 
 try:
-    password = json.loads(Path('.build/device-admin.json').read_text())['password']
+    password = json.loads(Path('.build/device-admin.json').read_text())['admin_password']
     origin = {'Origin': 'http://192.168.4.1'}
     login = call('/auth/login', 'POST', {'password': password}, origin)
     check(login['status'] == 200, 'administrator login')

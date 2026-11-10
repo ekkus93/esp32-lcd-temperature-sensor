@@ -10,9 +10,13 @@ import os
 import secrets
 import re
 import gzip
+import sys
 import time
 from pathlib import Path
 import serial
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from setup_file import save_setup_response  # noqa: E402
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--port', required=True)
@@ -30,11 +34,11 @@ os.umask(0o077)
 setup = json.loads(Path(args.setup_file).read_text())
 admin_path = Path(args.admin_file)
 if admin_path.exists():
-    password = json.loads(admin_path.read_text())['password']
+    password = json.loads(admin_path.read_text())['admin_password']
 else:
     password = secrets.token_urlsafe(24)
     admin_path.parent.mkdir(parents=True, exist_ok=True)
-    admin_path.write_text(json.dumps({'password':password,'managed_by_device_tests':True})+'\n')
+    admin_path.write_text(json.dumps({'admin_password':password,'managed_by_device_tests':True})+'\n')
     admin_path.chmod(0o600)
 port = serial.Serial(port=None, baudrate=115200, timeout=.5)
 port.dtr = False
@@ -159,7 +163,7 @@ try:
         start=data.find(b'SETUP_INFO_BEGIN\n');finish=data.find(b'SETUP_INFO_END',start)
         if start<0 or finish<0:raise RuntimeError('Fresh setup response missing')
         setup=json.loads(data[start+len(b'SETUP_INFO_BEGIN\n'):finish].strip())
-        setup_path=Path(args.setup_file);setup_path.write_text(json.dumps(setup)+'\n');setup_path.chmod(0o600)
+        setup=save_setup_response(args.setup_file,setup)  # keeps the administrator password
 
     page=call('/',headers={'Accept-Encoding':'gzip'},binary=True)
     check(page['status']==200 and page.get('content_encoding')=='gzip','embedded app served with gzip')
@@ -272,7 +276,7 @@ try:
         admin_path.write_text(json.dumps(record)+'\n')
         result = call('/api/v1/auth/password','POST',{'old_password':password,'new_password':updated_password},authorized)
         check(result['status']==200,'administrator password changed through real slow-hash path')
-        record['password'] = updated_password
+        record['admin_password'] = updated_password
         del record['pending_password']
         admin_path.write_text(json.dumps(record)+'\n')
         check(call('/api/v1/wifi/status',headers=authorized)['status']==401,'password change invalidates existing session')

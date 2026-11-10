@@ -21,7 +21,7 @@ def check(ok,name):
 
 
 with DeviceClient(args.port) as device:
-    password=json.loads(Path(args.admin_file).read_text())['password']
+    password=json.loads(Path(args.admin_file).read_text())['admin_password']
     origin='http://192.168.4.1'
     login=device.http('/api/v1/auth/login','POST',{'password':password},
                       {'Origin':origin,'Content-Type':'application/json'})

@@ -2,7 +2,7 @@
 """Fail if a local device secret appears in the project's files, staged changes or recent history.
 
 The secrets are the values the device setup tools keep under `.build/` (the administrator
-password, the one-time owner code, the Wi-Fi setup key and similar). A leak is reported by where it
+password, the Wi-Fi setup key and similar). A leak is reported by where it
 was found, never by its value. The check also fails, instead of quietly skipping, when it cannot do
 its job: an unreadable setup file, or git that will not answer.
 
@@ -16,8 +16,8 @@ import sys
 from pathlib import Path
 
 # Keys, in the JSON files under .build/, whose string values are secrets.
-SECRET_KEYS = ('password', 'setup_secret', 'wifi_password', 'ap_password', 'wifi_key',
-               'owner_code')
+SECRET_KEYS = ('password', 'admin_password', 'wifi_setup_password', 'wifi_password', 'ap_password',
+               'wifi_key')
 MIN_LENGTH = 12  # shorter values would match unrelated text
 
 

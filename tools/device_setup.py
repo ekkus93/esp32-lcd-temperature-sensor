@@ -3,9 +3,13 @@
 import argparse
 import json
 import os
+import sys
 import time
 from pathlib import Path
 import serial
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from setup_file import save_setup_response  # noqa: E402
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--port', required=True)
@@ -37,15 +41,8 @@ try:
     if start < 0 or finish < 0:
         raise SystemExit('No setup response; check firmware/USB console. No credentials were printed.')
     response = json.loads(data[start+len(b'SETUP_INFO_BEGIN\n'):finish].strip())
-    path = Path(args.output)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    os.fchmod(fd, 0o600)
-    with os.fdopen(fd, 'w') as output:
-        json.dump(response, output, indent=2)
-        output.write('\n')
-    path.chmod(0o600)
-    print(f'Saved device setup credentials to {path} (mode 0600).')
+    save_setup_response(args.output, response)
+    print(f'Saved device setup credentials to {args.output} (mode 0600).')
     if args.wifi_file:
         credentials = json.loads(Path(args.wifi_file).read_text())
         command = json.dumps({'ssid':credentials['ssid'], 'password':credentials['password']})

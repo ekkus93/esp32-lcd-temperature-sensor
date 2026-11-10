@@ -33,7 +33,7 @@ def main():
     if not 30 <= args.seconds <= 300:
         parser.error('--seconds must be 30..300')
     os.umask(0o077)
-    password = json.loads(Path('.build/device-admin.json').read_text())['password']
+    password = json.loads(Path('.build/device-admin.json').read_text())['admin_password']
     with DeviceClient(args.port) as device:
         origin = {'Origin': 'http://192.168.4.1'}
         login = device.http('/api/v1/auth/login', 'POST', {'password': password}, origin)

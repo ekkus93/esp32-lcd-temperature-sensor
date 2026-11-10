@@ -52,7 +52,7 @@ def websocket_frame(sock):
 
 
 def authenticated_websocket():
-    password = json.loads(Path(args.admin_file).read_text())['password']
+    password = json.loads(Path(args.admin_file).read_text())['admin_password']
     origin = f'http://{host}'
     request = urllib.request.Request(
         f'{origin}/api/v1/auth/login',
