@@ -174,8 +174,11 @@ it('marks unavailable device data visibly', async () => {
     vi.fn().mockRejectedValue(new Error('Live connection lost')),
   );
   render(<App />);
-  expect(await screen.findByText(/Live connection lost/)).toBeInTheDocument();
-});
+  // The warning appears only after the problem has lasted ten seconds.
+  expect(
+    await screen.findByText(/Live connection lost/, {}, { timeout: 12000 }),
+  ).toBeInTheDocument();
+}, 20000);
 it('shows storage capacity and five-minute policy in Settings diagnostics', async () => {
   const snapshot = {
     ...empty,
@@ -375,16 +378,22 @@ it('keeps the last readings visible, marked stale, when the live connection drop
   );
   render(<App />);
   expect(await screen.findByText('-1.3 °F')).toBeInTheDocument();
+  // The feed stays down: the reconnect's reload fails too, so the readings really are stale.
+  vi.mocked(fetch).mockRejectedValue(new Error('Live connection lost'));
   await act(async () => {
     sockets[0].onclose?.();
   });
   expect(
-    await screen.findByText(/Live connection lost; readings are stale/),
+    await screen.findByText(
+      /Live connection lost; readings are stale/,
+      {},
+      { timeout: 12000 },
+    ),
   ).toBeInTheDocument();
   // The reading stays on screen, flagged stale, instead of turning into a dash.
   expect(screen.getByText('-1.3 °F')).toBeInTheDocument();
   expect(screen.getByText('Stale')).toBeInTheDocument();
-});
+}, 20000);
 it('shows an error and retries when the display settings cannot be loaded', async () => {
   const snapshot = {
     ...empty,

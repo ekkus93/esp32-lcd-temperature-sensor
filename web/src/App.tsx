@@ -24,6 +24,7 @@ import { getProbeScan, type ProbeScanStatus } from './api/probe-scan';
 import AuthGate, { AuthProvider } from './AuthGate';
 import { useAuth } from './authContext';
 import { subscribeLive } from './api/live';
+import { delayedError } from './api/delayedError';
 import type { Snapshot } from './api/generated';
 const NetworkSettings = lazy(() => import('./features/NetworkSettings'));
 const SensorsView = lazy(() => import('./features/SensorsView'));
@@ -163,10 +164,16 @@ function Shell() {
     return () => removeEventListener('popstate', onPop);
   }, []);
   useEffect(() => {
-    return subscribeLive((next) => {
+    // A live-feed problem is shown only once it has lasted ten seconds.
+    const problem = delayedError(setError, 10000);
+    const unsubscribe = subscribeLive((next) => {
       setSnapshot(next);
-      setError('');
-    }, setError);
+      problem.recover();
+    }, problem.fail);
+    return () => {
+      problem.cancel();
+      unsubscribe();
+    };
   }, []);
   function navigate(index: number) {
     history.pushState({}, '', routes[index]);
