@@ -5,8 +5,7 @@
 With no saved station network, the device starts its WPA2 setup access point.
 The SSID is `TempMonitor-` followed by the last three Wi-Fi MAC bytes in
 uppercase hex. The AP password is a random per-device value saved in NVS; there
-is no factory-wide password. Retrieve the AP password and one-time administrator
-setup secret over the physical USB console with:
+is no factory-wide password. Retrieve the AP password over the physical USB console with:
 
 ```sh
 python tools/device_setup.py --port /dev/ttyACM0
@@ -14,10 +13,9 @@ python tools/device_setup.py --port /dev/ttyACM0
 
 The utility saves the response in `.build/device-setup.json` with mode 0600 and
 does not print credential values. Keep that file private. Join the named AP,
-then open `http://192.168.4.1` if the phone does not open its captive page. Use
-the one-time setup secret to enroll the administrator password. Enrollment
-disables the bootstrap secret for future network use; an ordinary restart or
-Wi-Fi recovery does not restore it.
+then open `http://192.168.4.1` if the phone does not open its captive page. Create
+the administrator password there. Creating it is only allowed while the setup
+window is open (a five-second BOOT hold), and only once.
 
 After enrollment, use **Settings → Network** to scan visible 2.4 GHz networks or
 enter a hidden SSID manually. Submit the Wi-Fi password once. The device tests

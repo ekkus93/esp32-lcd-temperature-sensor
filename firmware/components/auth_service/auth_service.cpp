@@ -56,10 +56,6 @@ void derive_worker(void *context) {
 }
 } // namespace
 
-std::string AuthService::setup_secret() const {
-    Guard guard(mutex_);
-    return setup_;
-}
 std::string secure_token(size_t size) {
     if (size > 64)
         return {};
@@ -79,20 +75,6 @@ std::string readable_secret(size_t length) {
         return psa_generate_random(bytes, size) == PSA_SUCCESS;
     });
 }
-namespace {
-// Generates and persists a new owner setup code; leaves `code` untouched on failure.
-esp_err_t store_new_setup_code(nvs_handle_t handle, std::string &code) {
-    auto fresh = readable_secret(owner_setup_code_length);
-    if (fresh.size() != owner_setup_code_length)
-        return ESP_FAIL;
-    auto result = nvs_set_str(handle, "bootstrap", fresh.c_str());
-    if (result == ESP_OK)
-        result = nvs_commit(handle);
-    if (result == ESP_OK)
-        code = std::move(fresh);
-    return result;
-}
-} // namespace
 esp_err_t AuthService::initialize() {
     if (!mutex_)
         mutex_ = xSemaphoreCreateMutex();
@@ -125,37 +107,8 @@ esp_err_t AuthService::initialize() {
         nvs_close(handle);
         return result == ESP_OK ? ESP_ERR_INVALID_SIZE : result;
     }
-    if (!enrolled_) {
-        char secret[65]{};
-        size = sizeof(secret);
-        result = nvs_get_str(handle, "bootstrap", secret, &size);
-        const bool stored = result == ESP_OK;
-        // A missing, oversized or damaged code is replaced rather than failing startup: failing
-        // here would keep HTTP closed and leave no way to set the device up.
-        if (result == ESP_ERR_NVS_NOT_FOUND || result == ESP_ERR_NVS_INVALID_LENGTH || stored) {
-            switch (plan_setup_code(stored, stored ? std::string(secret) : std::string())) {
-            case SetupCodeAction::keep:
-                setup_ = secret;
-                result = ESP_OK;
-                break;
-            case SetupCodeAction::rotate:
-                // The old code still works if the replacement cannot be stored.
-                setup_ = secret;
-                if (store_new_setup_code(handle, setup_) != ESP_OK)
-                    ESP_LOGW("auth",
-                             "Could not shorten the owner setup code; keeping the existing one");
-                else
-                    ESP_LOGI("auth", "Owner setup code replaced with a shorter format");
-                result = ESP_OK;
-                break;
-            case SetupCodeAction::create:
-                if (result != ESP_ERR_NVS_NOT_FOUND)
-                    ESP_LOGW("auth", "Stored owner setup code is damaged; creating a new one");
-                result = store_new_setup_code(handle, setup_);
-                break;
-            }
-        }
-    } else
+    // Not enrolled yet is a normal state: the administrator is created during setup.
+    if (result == ESP_ERR_NVS_NOT_FOUND)
         result = ESP_OK;
     nvs_close(handle);
     ready_ = result == ESP_OK;
@@ -203,48 +156,25 @@ bool AuthService::save_password(const std::string &password) {
     nvs_handle_t handle;
     if (nvs_open("monitor_auth", NVS_READWRITE, &handle) != ESP_OK)
         return false;
-    bool ok = nvs_set_blob(handle, "verifier1", record.data(), record.size()) == ESP_OK &&
-              nvs_commit(handle) == ESP_OK;
-    if (ok) {
-        nvs_erase_key(handle, "bootstrap");
-        nvs_commit(handle);
-    }
+    const bool ok = nvs_set_blob(handle, "verifier1", record.data(), record.size()) == ESP_OK &&
+                    nvs_commit(handle) == ESP_OK;
     nvs_close(handle);
     if (ok) {
         Guard guard(mutex_);
         salt_ = salt;
         hash_ = hash;
-        setup_.clear();
         enrolled_ = true;
         sessions_.clear();
     }
     return ok;
 }
-AuthService::EnrollResult AuthService::enroll(const std::string &secret,
-                                              const std::string &password, int64_t now_ms) {
-    std::string setup;
+AuthService::EnrollResult AuthService::enroll(const std::string &password, int64_t now_ms) {
     {
         Guard guard(mutex_);
         if (!ready_ || enrolled_ || now_ms < next_login_)
             return EnrollResult::denied;
-        setup = setup_;
-    }
-    // A code in the current format is compared after normalising what was typed (case, spaces,
-    // hyphens). A malformed one is reported as such and is not a guess; the old 64-character hex
-    // code, if still stored, is compared exactly.
-    std::string candidate = secret;
-    if (is_readable_code(setup, owner_setup_code_length)) {
-        const auto normalized = normalize_owner_code(secret);
-        if (!normalized)
-            return EnrollResult::bad_format;
-        candidate = *normalized;
-    }
-    {
-        Guard guard(mutex_);
         next_login_ = now_ms + 5000;
     }
-    if (!constant_equal(candidate, setup))
-        return EnrollResult::denied;
     const bool ok = save_password(password);
     if (ok) {
         Guard guard(mutex_);

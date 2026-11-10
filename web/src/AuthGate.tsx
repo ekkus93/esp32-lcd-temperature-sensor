@@ -66,16 +66,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const signIn = useCallback(
-    async (password: string, ownerCode = '') => {
+    async (password: string) => {
       if (!state) return;
       setBusy(true);
       setError('');
       try {
         if (!state.enrolled)
-          await request('/auth/enroll', 'POST', {
-            setup_secret: ownerCode,
-            password,
-          });
+          await request('/auth/enroll', 'POST', { password });
         const result = await request<{ csrf: string }>('/auth/login', 'POST', {
           password,
         });
@@ -128,15 +125,13 @@ export default function AuthGate({
 }) {
   const { state, error, checking, busy, refresh, signIn } = useAuth();
   const [password, setPassword] = useState('');
-  const [secret, setSecret] = useState('');
   if (state?.signed_in) return children;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     try {
-      await signIn(password, secret);
+      await signIn(password);
       setPassword('');
-      setSecret('');
     } catch {
       // The provider shows the message.
     }
@@ -180,30 +175,6 @@ export default function AuthGate({
           ) : (
             <form onSubmit={submit}>
               <Stack spacing={2}>
-                {!state.enrolled && (
-                  <>
-                    <Typography>
-                      Enter the owner code shown on the monitor's screen (or in
-                      the physical USB setup file).
-                    </Typography>
-                    <TextField
-                      label="One-time owner code"
-                      type="text"
-                      autoComplete="one-time-code"
-                      required
-                      value={secret}
-                      onChange={(e) => setSecret(e.target.value)}
-                      helperText="16 letters and digits, shown on the screen in two lines. Capitals don't matter and spaces and dashes are fine; there is no 0, 1, I or O."
-                      slotProps={{
-                        htmlInput: {
-                          autoCapitalize: 'characters',
-                          autoCorrect: 'off',
-                          spellCheck: false,
-                        },
-                      }}
-                    />
-                  </>
-                )}
                 <TextField
                   label={
                     state.enrolled

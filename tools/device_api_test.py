@@ -174,24 +174,22 @@ try:
     check(call('/api/v1/auth/state',headers={'Host':'attacker.invalid'})['status']==403,'forged Host rejected')
     state = json.loads(call('/api/v1/auth/state')['body'])
     if not state['enrolled']:
-        check(bool(setup.get('setup_secret')),'physical setup secret available')
         if args.wait_for_provisioning:
             print('Waiting up to 90 seconds for BOOT provisioning; hold BOOT for five seconds now.', flush=True)
             enrollment_deadline = time.monotonic() + 90
             result = None
             while time.monotonic() < enrollment_deadline:
-                attempt = call('/api/v1/auth/enroll','POST',
-                               {'setup_secret':setup['setup_secret'],'password':password},origin)
+                attempt = call('/api/v1/auth/enroll','POST',{'password':password},origin)
                 if attempt['status'] == 201:
                     result = attempt
                     break
                 if attempt['status'] != 403:
                     raise RuntimeError(f'enrollment returned HTTP {attempt["status"]}')
                 time.sleep(2)
-            check(result is not None,'one-time owner enrollment after BOOT provisioning')
+            check(result is not None,'administrator enrollment after BOOT provisioning')
         else:
-            result = call('/api/v1/auth/enroll','POST',{'setup_secret':setup['setup_secret'],'password':password},origin)
-            check(result['status']==201,f'one-time owner enrollment (HTTP {result["status"]})')
+            result = call('/api/v1/auth/enroll','POST',{'password':password},origin)
+            check(result['status']==201,f'administrator enrollment (HTTP {result["status"]})')
     result = call('/api/v1/auth/login','POST',{'password':password},origin)
     check(result['status']==200,'PBKDF2 password verification and login')
     cookie = result['cookie'].split(';',1)[0]
@@ -482,7 +480,7 @@ try:
           and call('/api/v1/wifi/connect','POST',oversized_json,authorized)['status']==400,
           'oversized JSON request body rejected')
     check(call('/api/v1/wifi/connect','POST',{'ssid':'x'*33,'password':'irrelevant-password'},authorized)['status']==400,'oversized SSID rejected')
-    check(call('/api/v1/auth/enroll','POST',{'setup_secret':setup.get('setup_secret',''),'password':password},origin)['status']==403,'bootstrap enrollment cannot be reused')
+    check(call('/api/v1/auth/enroll','POST',{'password':password},origin)['status']==403,'enrollment cannot be repeated')
     check(call('/api/v1/system/reboot','POST',None,origin)['status']==401,
           'anonymous safe-restart request rejected')
     check(call('/api/v1/system/reboot','POST',None,

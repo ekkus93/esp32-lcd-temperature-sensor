@@ -25,77 +25,55 @@ namespace {
 const std::string good_password = "a-long-example-password";
 constexpr int64_t T0 = 1000000;
 
-std::string lower(std::string text) {
-    for (auto &c : text)
-        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    return text;
-}
-// An initialised, not yet enrolled service with a fresh owner code.
+// An initialised, not yet enrolled service.
 struct Fresh {
     AuthService auth;
-    std::string code;
     Fresh() {
         FakeNvs::reset();
         psa_mock_fail = false;
         CHECK(auth.initialize() == ESP_OK);
-        code = auth.setup_secret();
     }
 };
-void enroll_owner(AuthService &auth, const std::string &code, int64_t now = T0) {
-    CHECK(auth.enroll(code, good_password, now) == AuthService::EnrollResult::enrolled);
+void enroll_admin(AuthService &auth, int64_t now = T0) {
+    CHECK(auth.enroll(good_password, now) == AuthService::EnrollResult::enrolled);
 }
 } // namespace
 
 int main() {
-    // A first start creates a one-time owner code in the current format and stores it.
+    // A first start is not enrolled and creates no owner code or verifier.
     {
         Fresh f;
         CHECK(!f.auth.enrolled());
-        CHECK(f.code.size() == 16);
-        CHECK(FakeNvs::get("bootstrap") == f.code);
         CHECK(!FakeNvs::has("verifier1"));
+        CHECK(!FakeNvs::has("bootstrap"));
     }
-    // Enrollment: wrong code, the 5 second spacing, format errors that are not guesses, and a
-    // password that is too short.
+    // Enrollment: a short password is refused, the 5 second spacing applies, and once enrolled
+    // it cannot be done again.
     {
         Fresh f;
         auto &a = f.auth;
-        CHECK(a.enroll("ABCDEFGHJKLMNPQR", good_password, T0) == AuthService::EnrollResult::denied);
-        // Even the right code is refused during the spacing after a guess.
-        CHECK(a.enroll(f.code, good_password, T0 + 1000) == AuthService::EnrollResult::denied);
-        CHECK(!a.enrolled());
-        // A malformed code is reported as such and is not a guess: no spacing starts.
-        CHECK(a.enroll("short", good_password, T0 + 6000) == AuthService::EnrollResult::bad_format);
-        CHECK(a.enroll("O0I1O0I1O0I1O0I1", good_password, T0 + 6000) ==
-              AuthService::EnrollResult::bad_format);
-        // A short password is refused without enrolling, even with the right code.
-        CHECK(a.enroll(f.code, "short", T0 + 6000) == AuthService::EnrollResult::denied);
+        CHECK(a.enroll("short", T0) == AuthService::EnrollResult::denied);
         CHECK(!a.enrolled() && !FakeNvs::has("verifier1"));
-        // What was typed is normalised: lower case and a dash in the middle are fine.
-        const auto typed = lower(f.code.substr(0, 8)) + "-" + lower(f.code.substr(8));
-        CHECK(a.enroll(typed, good_password, T0 + 20000) == AuthService::EnrollResult::enrolled);
-        CHECK(a.enrolled());
-        // The owner code is gone everywhere once the owner exists.
-        CHECK(a.setup_secret().empty());
-        CHECK(!FakeNvs::has("bootstrap") && FakeNvs::has("verifier1"));
-        // And cannot be used again.
-        CHECK(a.enroll(f.code, good_password, T0 + 40000) == AuthService::EnrollResult::denied);
+        CHECK(a.enroll(good_password, T0 + 1000) == AuthService::EnrollResult::denied);
+        CHECK(!a.enrolled());
+        CHECK(a.enroll(good_password, T0 + 6000) == AuthService::EnrollResult::enrolled);
+        CHECK(a.enrolled() && FakeNvs::has("verifier1"));
+        CHECK(a.enroll("another-long-password", T0 + 40000) == AuthService::EnrollResult::denied);
     }
-    // A storage failure while enrolling leaves the device unenrolled and the code usable.
+    // A storage failure while enrolling leaves the device unenrolled; a retry later works.
     {
         Fresh f;
         FakeNvs::fail_commit = true;
-        CHECK(f.auth.enroll(f.code, good_password, T0) == AuthService::EnrollResult::denied);
+        CHECK(f.auth.enroll(good_password, T0) == AuthService::EnrollResult::denied);
         CHECK(!f.auth.enrolled());
         FakeNvs::fail_commit = false;
-        CHECK(f.auth.enroll(f.code, good_password, T0 + 10000) ==
-              AuthService::EnrollResult::enrolled);
+        CHECK(f.auth.enroll(good_password, T0 + 10000) == AuthService::EnrollResult::enrolled);
     }
     // Login: right and wrong passwords, per-client backoff, one derive at a time, abort.
     {
         Fresh f;
         auto &a = f.auth;
-        enroll_owner(a, f.code);
+        enroll_admin(a);
         auto begin = a.login_begin(1, T0);
         CHECK(begin.gate == LoginGate::allow);
         // A second client has to wait for the derive in flight.
@@ -122,7 +100,7 @@ int main() {
     {
         Fresh f;
         auto &a = f.auth;
-        enroll_owner(a, f.code);
+        enroll_admin(a);
         CHECK(a.login_begin(1, T0).gate == LoginGate::allow);
         psa_mock_fail = true;
         CHECK(!a.login_complete(good_password, 1, T0));
@@ -138,7 +116,7 @@ int main() {
     {
         Fresh f;
         auto &a = f.auth;
-        enroll_owner(a, f.code);
+        enroll_admin(a);
         CHECK(a.login_begin(1, T0).gate == LoginGate::allow);
         const auto session = a.login_complete(good_password, 1, T0);
         CHECK(session);
@@ -157,32 +135,25 @@ int main() {
         CHECK(a.login_begin(3, T0 + 40000).gate == LoginGate::allow);
         CHECK(a.login_complete(better, 3, T0 + 40000));
     }
-    // After a restart the stored verifier is used: same password, no owner code any more.
+    // After a restart the stored verifier is used: the same password works, enrollment is over.
     {
         Fresh f;
-        enroll_owner(f.auth, f.code);
+        enroll_admin(f.auth);
         AuthService restarted;
         CHECK(restarted.initialize() == ESP_OK);
-        CHECK(restarted.enrolled() && restarted.setup_secret().empty());
+        CHECK(restarted.enrolled());
         CHECK(restarted.login_begin(1, T0).gate == LoginGate::allow);
         CHECK(restarted.login_complete(good_password, 1, T0));
-        CHECK(restarted.enroll(f.code, good_password, T0 + 9000) ==
-              AuthService::EnrollResult::denied);
+        CHECK(restarted.enroll(good_password, T0 + 9000) == AuthService::EnrollResult::denied);
     }
-    // A damaged or old-format stored owner code is replaced at start, never left to block setup.
+    // A leftover owner code from an older firmware is ignored: it does not block or change setup.
     {
         FakeNvs::reset();
-        FakeNvs::put("bootstrap", "not-a-valid-code");
-        AuthService damaged;
-        CHECK(damaged.initialize() == ESP_OK);
-        CHECK(damaged.setup_secret().size() == 16 &&
-              FakeNvs::get("bootstrap") == damaged.setup_secret());
-        FakeNvs::reset();
-        const std::string legacy(64, 'a'); // the old 256-bit hex code
-        FakeNvs::put("bootstrap", legacy);
-        AuthService old_format;
-        CHECK(old_format.initialize() == ESP_OK);
-        CHECK(old_format.setup_secret().size() == 16); // shortened to the current format
+        FakeNvs::put("bootstrap", "ABCDEFGHJKLMNPQR");
+        AuthService old_firmware;
+        CHECK(old_firmware.initialize() == ESP_OK);
+        CHECK(!old_firmware.enrolled());
+        CHECK(old_firmware.enroll(good_password, T0) == AuthService::EnrollResult::enrolled);
     }
     // Storage that cannot be opened stops startup; the service never becomes usable.
     {
@@ -190,8 +161,7 @@ int main() {
         FakeNvs::fail_open = true;
         AuthService broken;
         CHECK(broken.initialize() != ESP_OK);
-        CHECK(broken.enroll("ANYCODEANYCODEAN", good_password, T0) ==
-              AuthService::EnrollResult::denied);
+        CHECK(broken.enroll(good_password, T0) == AuthService::EnrollResult::denied);
         FakeNvs::fail_open = false;
     }
     // A broken crypto engine at start is caught by the known-answer self-test.
@@ -202,29 +172,24 @@ int main() {
         CHECK(broken.initialize() != ESP_OK);
         psa_mock_fail = false;
     }
-    // Other tasks read the owner code and the enrolled flag while the HTTP task enrolls: every
-    // read is a consistent value (never a half-cleared code), and nothing is lost or deadlocked.
+    // Other tasks read the enrolled flag while the HTTP task enrolls: nothing is lost or
+    // deadlocked.
     {
         Fresh f;
         std::atomic<bool> stop{false};
-        std::atomic<int> torn{0};
         std::thread reader([&] {
-            while (!stop) {
-                const auto code = f.auth.setup_secret();
-                if (!code.empty() && code != f.code)
-                    ++torn;
+            while (!stop)
                 (void)f.auth.enrolled();
-            }
         });
-        enroll_owner(f.auth, f.code);
+        enroll_admin(f.auth);
         stop = true;
         reader.join();
-        CHECK(torn == 0 && f.auth.enrolled() && f.auth.setup_secret().empty());
+        CHECK(f.auth.enrolled());
     }
     // Logins from two clients at once: one derive runs at a time and both finish.
     {
         Fresh f;
-        enroll_owner(f.auth, f.code);
+        enroll_admin(f.auth);
         CHECK(f.auth.login_begin(1, T0).gate == LoginGate::allow);
         std::optional<Session> first, second;
         std::thread one([&] { first = f.auth.login_complete(good_password, 1, T0); });

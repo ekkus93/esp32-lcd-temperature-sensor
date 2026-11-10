@@ -228,26 +228,23 @@ int main(int argc, char **argv) {
         CHECK(display_rows(registry, false)[0].alt_value.empty()); // no reading, no second unit
         for (const auto &row : display_rows(registry, false))
             CHECK(row.value == "OFF" || row.value == "--.-");
-        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP");
+        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD");
         save("provisioning-simulation-only");
         {
             const auto text = visible_text(lv_screen_active());
             for (const char *expected :
                  {"Wi-Fi setup", "1  Join this Wi-Fi", "TempMonitor-A1B2C3", "Password",
-                  "K7M4Q9XP2WTD", "2  Open in a browser", "192.168.4.1", "3  One-time owner code",
-                  "H5RB2WTD\nK7M4Q9XP"})
+                  "K7M4Q9XP2WTD", "2  Open in a browser", "192.168.4.1"})
                 CHECK(text.find(expected) != std::string::npos);
         }
         // Once the device is also on the home network, its name is offered as an alternative.
-        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP", false,
-                          "temperature-monitor.local");
+        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "temperature-monitor.local");
         save("provisioning-simulation-only-local-name");
         CHECK(visible_text(lv_screen_active()).find("or temperature-monitor.local") !=
               std::string::npos);
         CHECK(visible_text(lv_screen_active()).find("192.168.4.1") != std::string::npos);
-        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "");
+        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD");
         save("provisioning-enrolled-simulation-only");
-        CHECK(visible_text(lv_screen_active()).find("owner code") == std::string::npos);
         options.extended = false;
         view.render(registry, cache, options, status, 3650000);
         CHECK(!view.showing_trends());
@@ -621,38 +618,29 @@ int main(int argc, char **argv) {
         CHECK(lv_obj_is_hidden(view.trends_chart(0)));
         CHECK(!lv_obj_is_hidden(view.trends_no_data()));
         CHECK(legend_entries() == 0);
-        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP");
+        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD");
         const auto first_page = visible_text(lv_screen_active());
         save("provisioning-compact-wifi");
         {
             // With a name to offer, the compact page shows it under the setup address.
-            view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP", false,
-                              "temperature-monitor.local");
+            view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "temperature-monitor.local");
             const auto named = visible_text(lv_screen_active());
             save("provisioning-compact-wifi-local-name");
             for (const char *expected : {"192.168.4.1", "or temperature-monitor.local",
                                          "2  Open in a browser", "K7M4Q9XP2WTD"})
                 CHECK(named.find(expected) != std::string::npos);
             // A short name fits on one line as well.
-            view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP", false,
-                              "freezer.local");
+            view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "freezer.local");
             save("provisioning-compact-wifi-local-name-short");
             CHECK(visible_text(lv_screen_active()).find("or freezer.local") != std::string::npos);
             // Without a name the page returns to its normal layout, page marker included.
-            view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP");
+            view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD");
             const auto plain = visible_text(lv_screen_active());
-            CHECK(plain.find("or ") == std::string::npos && plain.find("1/2") != std::string::npos);
+            CHECK(plain.find("or ") == std::string::npos);
         }
-        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "H5RB2WTDK7M4Q9XP", true);
-        const auto second_page = visible_text(lv_screen_active());
-        save("provisioning-compact-owner-code");
         for (const char *expected : {"1  Join this Wi-Fi", "TempMonitor-\nA1B2C3", "K7M4Q9XP2WTD",
-                                     "2  Open in a browser", "192.168.4.1", "1/2"})
+                                     "2  Open in a browser", "192.168.4.1"})
             CHECK(first_page.find(expected) != std::string::npos);
-        CHECK(first_page.find("H5RB2WTD") == std::string::npos);
-        for (const char *expected : {"Owner code", "H5RB2WTD\nK7M4Q9XP", "2/2"})
-            CHECK(second_page.find(expected) != std::string::npos);
-        CHECK(second_page.find("K7M4Q9XP2WTD") == std::string::npos);
         {
             // Each line of the compact SSID must fit the 124 px label for every hex suffix.
             auto *probe = lv_label_create(lv_screen_active());
@@ -668,15 +656,15 @@ int main(int argc, char **argv) {
             lv_obj_delete(probe);
             CHECK(widest <= 124);
         }
-        // An enrolled device has no owner code: one steady page, no "1/2" and no alternating.
-        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "");
-        const auto enrolled_first = visible_text(lv_screen_active());
-        save("provisioning-compact-enrolled");
+        // The setup page does not change while it is shown: there is no second page to alternate
+        // to.
+        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD");
+        const auto steady_first = visible_text(lv_screen_active());
+        save("provisioning-compact-steady");
         lv_tick_inc(10000);
-        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD", "");
-        CHECK(visible_text(lv_screen_active()) == enrolled_first);
-        CHECK(enrolled_first.find("K7M4Q9XP2WTD") != std::string::npos &&
-              enrolled_first.find("/2") == std::string::npos);
+        view.provisioning("TempMonitor-A1B2C3", "K7M4Q9XP2WTD");
+        CHECK(visible_text(lv_screen_active()) == steady_first);
+        CHECK(steady_first.find("K7M4Q9XP2WTD") != std::string::npos);
         lv_screen_load(blank);
     }
     {

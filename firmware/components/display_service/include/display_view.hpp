@@ -10,12 +10,10 @@ class DisplayView {
     ~DisplayView();
     void render(const Registry &registry, const TrendCache &cache, const DisplayOptions &options,
                 const DisplayStatus &status, int64_t uptime_ms);
-    // Shows the setup screen. On the compact screen `owner_page` picks the owner-code page instead
-    // of the Wi-Fi page; it is ignored when there is no owner code or on the large screen.
-    // `local_name` (for example "temperature-monitor.local") is shown as an alternative to the
-    // setup address when the device is also on the home network; empty hides it.
+    // Shows the setup screen. `local_name` (for example "temperature-monitor.local") is shown as
+    // an alternative to the setup address when the device is also on the home network; empty
+    // hides it.
     void provisioning(const std::string &ssid, const std::string &wifi_key,
-                      const std::string &owner_code, bool owner_page = false,
                       const std::string &local_name = {});
     bool showing_trends() const {
         return showing_trends_;
@@ -71,8 +69,8 @@ class DisplayView {
     };
     Screen overview_{}, trends_{};
     // Setup screen: title, "1 join" heading/SSID, password heading/value, "2 open" heading/URL,
-    // owner-code heading/value, a hint and a page footer, shown or hidden per layout and page.
-    static constexpr size_t setup_slot_count = 11;
+    // and a footer naming the local address, shown or hidden per layout.
+    static constexpr size_t setup_slot_count = 8;
     lv_obj_t *setup_ = nullptr;
     std::array<lv_obj_t *, setup_slot_count> setup_slots_{};
     // Decided once from the display resolution when the view is built.

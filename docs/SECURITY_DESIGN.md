@@ -42,8 +42,8 @@ history; only changing things needs the password.
   Wi-Fi status, scans and credentials, firmware upload, restart, factory reset
   and password change. These need a session, and changes also need the CSRF
   token. The NTP server setting is owner-only.
-- **Never public:** the setup Wi-Fi key and owner code (LCD and USB only),
-  session tokens, the Wi-Fi SSID and IP details.
+- **Never public:** the setup Wi-Fi key (LCD and USB only), session tokens, the
+  Wi-Fi SSID and IP details.
 - **One access table:** `firmware/components/monitor_core/route_access.cpp`
   decides which routes are public or owner-only and is covered by a host test;
   a route that is not listed is a 404 for everyone.
@@ -59,14 +59,14 @@ history; only changing things needs the password.
 
 ## Enrollment and recovery (common behavior)
 
-- First owner proves access with a random one-time setup secret delivered
-  through the LCD or a physical USB provisioning utility. No universal default
+- The first administrator password is created only while the setup window is
+  open, which needs a physical five-second BOOT hold. No universal default
   administrator password; do not derive secrets solely from the MAC address.
 - Enroll a new administrator password; store a random salt and a deliberately
   costed PBKDF2-HMAC-SHA256 verifier using vetted crypto. Measure KDF latency on
   the actual S3 and confirm acquisition/watchdog behavior during login.
-- Persist an enrollment marker that disables the initial bootstrap secret for
-  network use. Ordinary reboot, Wi-Fi loss or BOOT recovery must not re-enable it.
+- Enrollment is one-time: once the administrator exists, creating another is
+  refused. Ordinary reboot, Wi-Fi loss or BOOT recovery does not re-enable it.
 - Use bounded RAM sessions with random tokens, expiration, HttpOnly/SameSite
   cookies (Secure under HTTPS), and separate CSRF tokens. Never persist passwords
   or session tokens in browser localStorage.
@@ -83,8 +83,8 @@ history; only changing things needs the password.
   Flash encryption/secure boot require a separate, deliberate provisioning plan;
   do not burn irreversible eFuses during ordinary automated device tests.
 
-The implementation must test the selected flow, including rejected bootstrap
-reuse, login rate limits, session expiry, forged origins, unauthenticated Wi-Fi
+The implementation must test the selected flow, including rejected repeat enrollment,
+login rate limits, session expiry, forged origins, unauthenticated Wi-Fi
 changes, socket upgrades, exports, malformed OTA uploads, and that each public
 and owner route behaves as the table above says, before release. OTA uploads
 are checked to be for this product (`project_name`) before anything is written;
@@ -93,11 +93,11 @@ images are not signed and secure boot is out of scope.
 ## Development implementation evidence
 
 The current firmware implements HTTP/SameSite/HttpOnly sessions, a random per-device WPA2 setup
-key, a random one-time owner code, and a PBKDF2-HMAC-SHA256 password verifier (100,000 iterations,
-128-bit random salt). A known-answer check of the key derivation runs at startup and fails closed
+key and a PBKDF2-HMAC-SHA256 administrator password verifier (100,000 iterations, 128-bit random
+salt). A known-answer check of the key derivation runs at startup and fails closed
 (authentication unavailable) rather than crashing.
 
-**Setup secrets are short on purpose, because they are typed by hand from the LCD:**
+**The Wi-Fi setup key is short on purpose, because it is typed by hand from the LCD:**
 
 - **Wi-Fi setup key:** 12 characters from a 32-symbol alphabet without `0`, `1`, `I` and `O`:
   60 bits. It protects the setup access point, which is only open for a limited time after a BOOT
@@ -105,15 +105,9 @@ key, a random one-time owner code, and a PBKDF2-HMAC-SHA256 password verifier (1
   join handshake while the access point is open could try keys offline; 60 random bits make that
   expensive, not impossible for a determined attacker with large resources, which is why the window
   is short.
-- **Owner code:** 16 characters from the same alphabet: 80 bits, one time, shown on the LCD and
-  over USB. What is typed is normalised (case, spaces and dashes are ignored); a malformed entry is
-  reported as such and is not counted as a guess, a wrong one starts a five-second spacing before
-  the next attempt, and enrollment only works while the setup window is open. Once an owner exists
-  the code is erased. An older 256-bit code still stored on a device keeps working exactly as
-  typed until the next start replaces it with the shorter format.
-- **Why not longer:** a 32-character code cannot realistically be read from a 1.8-inch screen and
-  typed on a phone. The limits above (physical BOOT hold, closing window, spacing between guesses,
-  one-time use) are what protect it.
+- **Administrator enrollment** has no separate code. It is allowed only while the setup window is
+  open (a five-second BOOT hold), only once, and starts a five-second spacing after each attempt.
+  A stale owner code left in storage by an older firmware is ignored.
 
 **Login:** a wrong password makes that client wait 5, 10, 20, 40 and then 60 seconds, per client
 address, so one address cannot lock the owner out from another; only one password check runs at a
@@ -123,8 +117,8 @@ seconds, so the sign-in screen shows a waiting state and the check runs on its o
 and the other pages keep working. Passwords are 12 to 128 characters.
 
 Physical recovery requires the explicit USB command
-`RESET_ADMIN_CREDENTIALS CONFIRM`. It removes only administrator verifier/bootstrap
-keys and restarts; Wi-Fi, sensor settings and history remain separate. It has no
+`RESET_ADMIN_CREDENTIALS CONFIRM`. It removes only the administrator verifier
+and restarts; Wi-Fi, sensor settings and history remain separate. It has no
 LAN endpoint. Automated fresh-enrollment tests invoke it only for an account
 marked as created by the device test runner. The USB HTTP bridge is a physical
 owner/testing interface, not an unauthenticated LAN route.

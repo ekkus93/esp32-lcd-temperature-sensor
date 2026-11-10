@@ -11,7 +11,7 @@ export interface AuthValue {
   checking: boolean;
   busy: boolean;
   refresh: () => Promise<void>;
-  signIn: (password: string, ownerCode?: string) => Promise<void>;
+  signIn: (password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 export const AuthContext = createContext<AuthValue | null>(null);

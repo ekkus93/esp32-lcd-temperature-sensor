@@ -98,7 +98,7 @@ selects its compact display layout and driver by default. Disable that option
 for the original 240 × 320 ST7789 design. The ST7735 build initially assumes
 128 × 160 pixels; the module PCB says 128 × 120, so physical dimensions,
 address offsets, rotation and colors must be checked on the actual panel.
-The compact setup screen alternates between Wi-Fi and owner-code pages.
+The setup window alternates the Wi-Fi page and the readings.
 
 ```bash
 python tools/device_smoke.py --port /dev/ttyACM0 --seconds 20

@@ -2,33 +2,18 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
-#include <optional>
 #include <string>
 
 namespace monitor {
-// Setup secrets that people type from the LCD use 32 unambiguous characters (no 0, 1, I or O),
-// so one random byte maps to a character with no modulo bias and each character is 5 bits.
+// Codes that people type from the LCD use 32 unambiguous characters (no 0, 1, I or O), so one
+// random byte maps to a character with no modulo bias and each character is 5 bits.
 inline constexpr char readable_code_alphabet[] = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-inline constexpr size_t wifi_setup_key_length = 12;   // 60 bits
-inline constexpr size_t owner_setup_code_length = 16; // 80 bits
+inline constexpr size_t wifi_setup_key_length = 12; // 60 bits
 
 using RandomFill = std::function<bool(uint8_t *bytes, size_t size)>;
 
 // Returns an empty string if the length is unusable or the random source fails.
 std::string make_readable_code(size_t length, const RandomFill &fill);
-bool is_readable_code(const std::string &code, size_t length);
-// The previous format: lowercase hex of the given number of characters.
+// The older Wi-Fi password format: lowercase hex of the given number of characters.
 bool is_legacy_hex_secret(const std::string &secret, size_t length);
-
-// A typed owner code ready to compare: spaces, hyphens, tabs and line breaks removed and letters
-// upper-cased. Returns nothing if what remains is not exactly owner_setup_code_length characters
-// of the alphabet (which has no 0, 1, I or O), so the caller can report a malformed code instead
-// of counting it as a wrong guess.
-std::optional<std::string> normalize_owner_code(const std::string &typed);
-
-enum class SetupCodeAction { keep, rotate, create };
-// What to do with the stored one-time owner code while the device is not enrolled: keep a good
-// one, replace the old 64-character hex format, and create a new one when it is missing or
-// damaged, so a bad stored code can never leave the device without a working setup path.
-SetupCodeAction plan_setup_code(bool stored, const std::string &value);
 } // namespace monitor

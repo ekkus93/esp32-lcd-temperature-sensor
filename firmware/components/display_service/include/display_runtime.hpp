@@ -13,7 +13,7 @@ class DisplayRuntime {
     void update(const Registry &registry, const TrendCache &cache, const DisplayOptions &options,
                 const DisplayStatus &status, int64_t uptime_ms, bool provisioning = false,
                 const std::string &ssid = {}, const std::string &wifi_key = {},
-                const std::string &owner_code = {}, const std::string &local_name = {});
+                const std::string &local_name = {});
     bool ready() const {
         return display_ != nullptr && view_ != nullptr;
     }

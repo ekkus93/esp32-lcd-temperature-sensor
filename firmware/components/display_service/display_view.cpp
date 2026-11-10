@@ -206,7 +206,7 @@ DisplayView::DisplayView() {
     }
     setup_ = screen();
     // Slots: 0 title, 1 step-1 heading, 2 SSID, 3 password heading, 4 password, 5 step-2
-    // heading, 6 address, 7 owner-code heading, 8 owner code, 9 page footer, 10 hint.
+    // heading, 6 address, 7 footer.
     struct SlotLayout {
         int x, y, width, height;
         const lv_font_t *font;
@@ -225,10 +225,7 @@ DisplayView::DisplayView() {
         {x, 83, w, 18, &large, setup_accent},  // password value
         {x, 106, w, 14, &small, setup_muted},  // 2 Open in a browser
         {x, 121, w, 18, &large, setup_accent}, // address
-        {x, 20, w, 14, &small, setup_muted},   // owner heading (page 2)
-        {x, 35, w, 36, &large, setup_accent},  // owner code, two lines (page 2)
-        {x, 143, w, 14, &small, setup_muted},  // page footer
-        {x, 84, w, 32, &small, setup_muted},   // hint (page 2)
+        {x, 143, w, 14, &small, setup_muted},  // footer
     }};
     const SlotLayouts large_layout{{
         {x, 10, w, 18, &medium, foreground},   // title
@@ -238,10 +235,7 @@ DisplayView::DisplayView() {
         {x, 118, w, 30, &large, setup_accent}, // password value
         {x, 162, w, 16, &small, setup_muted},  // 2 Open in a browser
         {x, 182, w, 30, &large, setup_accent}, // address
-        {x, 226, w, 16, &small, setup_muted},  // 3 Owner code
-        {x, 246, w, 60, &large, setup_accent}, // owner code, two lines
-        {x, 300, w, 16, &small, setup_muted},  // unused on this layout
-        {x, 300, w, 16, &small, setup_muted},  // unused on this layout
+        {x, 226, w, 16, &small, setup_muted},  // footer
     }};
     const SlotLayouts &layouts = compact ? compact_layout : large_layout;
     for (size_t i = 0; i < setup_slot_count; ++i) {
@@ -465,63 +459,36 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
         lv_screen_load(desired);
 }
 void DisplayView::provisioning(const std::string &ssid, const std::string &wifi_key,
-                               const std::string &owner_code, bool owner_page_requested,
                                const std::string &local_name) {
     const bool compact = compact_;
-    const bool has_owner_code = !owner_code.empty();
-    // The compact screen alternates between the Wi-Fi page and the owner-code page, but only when
-    // there is an owner code to show (an enrolled device has none).
-    const bool owner_page = compact && has_owner_code && owner_page_requested;
-    // Codes are wrapped in two equal lines so each line fits the screen without breaking a word.
-    auto two_lines = [](const std::string &code) {
-        const size_t half = (code.size() + 1) / 2;
-        return code.size() <= 8 ? code : code.substr(0, half) + "\n" + code.substr(half);
-    };
     auto set = [&](size_t slot, const std::string &value) {
         text(setup_slots_[slot], value);
         lv_obj_set_hidden(setup_slots_[slot], value.empty());
     };
-    const std::string title = owner_page ? "Owner code" : "Wi-Fi setup";
-    if (compact && owner_page) {
-        for (size_t slot : {size_t(1), size_t(2), size_t(3), size_t(4), size_t(5), size_t(6)})
-            set(slot, "");
-        set(0, title);
-        set(7, "Owner setup code:");
-        set(8, two_lines(owner_code));
-        set(10, "Type it once at\n192.168.4.1");
-        set(9, "2/2");
-    } else {
-        set(0, title);
-        set(1, "1  Join this Wi-Fi");
-        // "TempMonitor-XXXXXX" is wider than the compact screen, so break it after the hyphen
-        // instead of letting it wrap or clip unpredictably.
-        const auto dash = ssid.find('-');
-        set(2, compact && dash != std::string::npos && dash + 1 < ssid.size()
-                   ? ssid.substr(0, dash + 1) + "\n" + ssid.substr(dash + 1)
-                   : ssid);
-        set(3, "Password");
-        set(4, wifi_key);
-        set(5, "2  Open in a browser");
-        // With a name to show, the compact page gives the address block more room: the heading
-        // moves up and the address and name share one small-font label that wraps at hyphens.
-        const bool compact_with_name = compact && !local_name.empty();
-        lv_obj_set_y(setup_slots_[5], compact_with_name ? 104 : 106);
-        lv_obj_set_y(setup_slots_[6], compact_with_name ? 118 : 121);
-        lv_obj_set_height(setup_slots_[6], compact_with_name ? 42 : 18);
-        lv_obj_set_style_text_font(
-            setup_slots_[6],
-            compact_with_name ? &lv_font_montserrat_12
-                              : (compact ? &lv_font_montserrat_14 : &lv_font_montserrat_24),
-            0);
-        set(6, compact_with_name ? "192.168.4.1\nor " + local_name : "192.168.4.1");
-        set(7, compact ? "" : "3  One-time owner code");
-        set(8, compact ? "" : two_lines(owner_code));
-        set(10, "");
-        set(9, compact ? (has_owner_code && local_name.empty() ? "1/2" : "")
-                       : (local_name.empty() ? "" : "or " + local_name));
-        if (!compact && !has_owner_code)
-            set(7, "");
-    }
+    set(0, "Wi-Fi setup");
+    set(1, "1  Join this Wi-Fi");
+    // "TempMonitor-XXXXXX" is wider than the compact screen, so break it after the hyphen
+    // instead of letting it wrap or clip unpredictably.
+    const auto dash = ssid.find('-');
+    set(2, compact && dash != std::string::npos && dash + 1 < ssid.size()
+               ? ssid.substr(0, dash + 1) + "\n" + ssid.substr(dash + 1)
+               : ssid);
+    set(3, "Password");
+    set(4, wifi_key);
+    set(5, "2  Open in a browser");
+    // With a name to show, the compact page gives the address block more room: the heading moves
+    // up and the address and name share one small-font label that wraps at hyphens.
+    const bool compact_with_name = compact && !local_name.empty();
+    lv_obj_set_y(setup_slots_[5], compact_with_name ? 104 : 106);
+    lv_obj_set_y(setup_slots_[6], compact_with_name ? 118 : 121);
+    lv_obj_set_height(setup_slots_[6], compact_with_name ? 42 : 18);
+    lv_obj_set_style_text_font(setup_slots_[6],
+                               compact_with_name
+                                   ? &lv_font_montserrat_12
+                                   : (compact ? &lv_font_montserrat_14 : &lv_font_montserrat_24),
+                               0);
+    set(6, compact_with_name ? "192.168.4.1\nor " + local_name : "192.168.4.1");
+    set(7, compact ? "" : (local_name.empty() ? "" : "or " + local_name));
     if (lv_screen_active() != setup_)
         lv_screen_load(setup_);
 }

@@ -103,7 +103,7 @@ states that the time is unknown rather than inferring freshness from wall time.
 unit beside them (for example `68.0 °F` and `20.0 °C`), so you never have to convert. In Extended
 mode it alternates Overview and Trends; a footer reports Wi-Fi, history logging problems (`Log ERR`)
 and a shared sensor-bus fault. While the setup window is open the screen alternates the Wi-Fi setup
-page, the owner-code page and the normal readings. Holding the BOOT button shows a progress bar.
+page and the normal readings. Holding the BOOT button shows a progress bar.
 Whether the panel itself has passed its physical acceptance checks is tracked in
 [`LCD_BENCH_CHECKLIST.md`](LCD_BENCH_CHECKLIST.md). The browser is read-only with respect to sensor
 measurements; it does not acknowledge or clear active alarms.

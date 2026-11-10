@@ -45,9 +45,7 @@ void console(void *context) {
             bool ok = nvs_open("monitor_auth", NVS_READWRITE, &handle) == ESP_OK;
             if (ok) {
                 auto verifier = nvs_erase_key(handle, "verifier1");
-                auto bootstrap = nvs_erase_key(handle, "bootstrap");
                 ok = (verifier == ESP_OK || verifier == ESP_ERR_NVS_NOT_FOUND) &&
-                     (bootstrap == ESP_OK || bootstrap == ESP_ERR_NVS_NOT_FOUND) &&
                      nvs_commit(handle) == ESP_OK;
                 nvs_close(handle);
             }
@@ -59,21 +57,9 @@ void console(void *context) {
             }
         } else if (std::strcmp(line, "SETUP_INFO\n") == 0) {
             // Explicit physical-USB response, never an ordinary log message.
-            char bootstrap[65]{};
-            size_t size = sizeof(bootstrap);
-            nvs_handle_t handle;
-            if (nvs_open("monitor_auth", NVS_READONLY, &handle) == ESP_OK) {
-                if (nvs_get_str(handle, "bootstrap", bootstrap, &size) != ESP_OK)
-                    bootstrap[0] = 0;
-                nvs_close(handle);
-            }
             cJSON *object = cJSON_CreateObject();
             cJSON_AddStringToObject(object, "ssid", wifi.ap_ssid().c_str());
             cJSON_AddStringToObject(object, "password", wifi.ap_password().c_str());
-            if (bootstrap[0])
-                cJSON_AddStringToObject(object, "setup_secret", bootstrap);
-            else
-                cJSON_AddNullToObject(object, "setup_secret");
             cJSON_AddStringToObject(object, "ip", "192.168.4.1");
             char *json = cJSON_PrintUnformatted(object);
             if (json) {
@@ -81,7 +67,6 @@ void console(void *context) {
                 cJSON_free(json);
             }
             cJSON_Delete(object);
-            std::memset(bootstrap, 0, sizeof(bootstrap));
         } else if (handle_usb_bridge_command(line)) {
             // a test bridge ran (usb_bridge.cpp)
         } else if (std::strncmp(line, "WIFI_CONNECT ", 13) == 0) {

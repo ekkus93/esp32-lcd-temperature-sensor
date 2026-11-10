@@ -114,8 +114,10 @@
 Each item states its acceptance in §16 of `REVIEW_FIX_SPEC.md`. Items marked `[HW]` need the
 connected board.
 
-- [ ] **R10-00** Remove the owner code from enrollment, the sign-in form, the USB setup output, the
-  LCD setup screens and the docs; the admin password is created during the BOOT setup window.
+- [x] **R10-00** Remove the owner code from enrollment, the sign-in form, the USB setup output, the
+  LCD setup screens and the docs; the admin password is created during the BOOT setup window. Done
+  (host, display, web and Python tests, firmware build; board enrolled with a password-only
+  request, HTTP 201).
 - [x] **R10-01** Trend restore logs a failed or partial history read and an untrusted clock instead
   of failing silently. Done (firmware build only: the restore runs in `main.cpp`, which has no host
   test; the log lines have not yet been seen on the board).

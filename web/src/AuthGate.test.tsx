@@ -38,42 +38,16 @@ it('gates the app until an administrator signs in', async () => {
     expect.objectContaining({ credentials: 'same-origin', method: 'POST' }),
   );
 });
-it('requires a device-specific secret for first enrollment', async () => {
-  vi.mocked(fetch).mockResolvedValue({
-    ok: true,
-    json: async () => ({ enrolled: false, signed_in: false }),
-  } as Response);
-  render(
-    <AuthProvider>
-      <AuthGate>
-        <div>Protected dashboard</div>
-      </AuthGate>
-    </AuthProvider>,
-  );
-  const code = await screen.findByLabelText(/One-time owner code/);
-  // The owner code is typed from the LCD, so it is shown (not masked) with a hint about
-  // what is accepted; only the password being created is masked.
-  expect(code).toHaveAttribute('type', 'text');
-  expect(code).toHaveAttribute('autocapitalize', 'characters');
-  expect(screen.getByText(/spaces and dashes are fine/i)).toBeInTheDocument();
-  expect(
-    screen.getByLabelText(/Create administrator password/),
-  ).toHaveAttribute('type', 'password');
-  expect(screen.queryByText('Protected dashboard')).not.toBeInTheDocument();
-});
-it('sends the owner code as typed and shows the device message for a malformed one', async () => {
+it('creates the administrator password on first use, with no other code', async () => {
   vi.mocked(fetch)
     .mockResolvedValueOnce({
       ok: true,
       json: async () => ({ enrolled: false, signed_in: false }),
     } as Response)
+    .mockResolvedValueOnce({ ok: true, json: async () => ({}) } as Response)
     .mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      json: async () => ({
-        error:
-          'The owner code is 16 characters from A-Z and 2-9 (no 0, 1, I or O); spaces and dashes are fine',
-      }),
+      ok: true,
+      json: async () => ({ csrf: 'a'.repeat(48) }),
     } as Response);
   render(
     <AuthProvider>
@@ -82,25 +56,25 @@ it('sends the owner code as typed and shows the device message for a malformed o
       </AuthGate>
     </AuthProvider>,
   );
-  fireEvent.change(await screen.findByLabelText(/One-time owner code/), {
-    target: { value: 'h5rb 2wtd k7m4 q9x0' },
-  });
+  expect(
+    await screen.findByLabelText(/Create administrator password/),
+  ).toHaveAttribute('type', 'password');
+  expect(screen.queryByLabelText(/owner code/i)).not.toBeInTheDocument();
   fireEvent.change(screen.getByLabelText(/Create administrator password/), {
     target: { value: 'correct horse battery' },
   });
   fireEvent.click(
     screen.getByRole('button', { name: /set up|create|continue|save/i }),
   );
-  expect(
-    await screen.findByText(/16 characters from A-Z and 2-9/),
-  ).toBeInTheDocument();
+  await screen.findByText('Protected dashboard');
   const enroll = vi
     .mocked(fetch)
     .mock.calls.find(([url]) => String(url).endsWith('/auth/enroll'));
-  expect(JSON.parse(String(enroll?.[1]?.body)).setup_secret).toBe(
-    'h5rb 2wtd k7m4 q9x0',
-  );
+  expect(JSON.parse(String(enroll?.[1]?.body))).toEqual({
+    password: 'correct horse battery',
+  });
 });
+
 it('returns to login after session expiration', async () => {
   vi.mocked(fetch).mockResolvedValue({
     ok: true,

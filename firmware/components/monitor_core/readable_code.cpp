@@ -1,6 +1,5 @@
 #include "readable_code.hpp"
 #include <array>
-#include <cstring>
 
 namespace monitor {
 std::string make_readable_code(size_t length, const RandomFill &fill) {
@@ -13,41 +12,6 @@ std::string make_readable_code(size_t length, const RandomFill &fill) {
     for (size_t i = 0; i < length; ++i)
         code[i] = readable_code_alphabet[bytes[i] & 31];
     return code;
-}
-
-bool is_readable_code(const std::string &code, size_t length) {
-    if (code.size() != length)
-        return false;
-    for (char c : code)
-        if (c == '\0' || !std::strchr(readable_code_alphabet, c))
-            return false;
-    return true;
-}
-
-std::optional<std::string> normalize_owner_code(const std::string &typed) {
-    if (typed.size() > 128)
-        return std::nullopt; // far too long: reject without scanning it all
-    std::string code;
-    for (char c : typed) {
-        if (c == ' ' || c == '-' || c == '\t' || c == '\r' || c == '\n')
-            continue;
-        if (c >= 'a' && c <= 'z')
-            c = static_cast<char>(c - 'a' + 'A');
-        code += c;
-    }
-    if (!is_readable_code(code, owner_setup_code_length))
-        return std::nullopt;
-    return code;
-}
-
-SetupCodeAction plan_setup_code(bool stored, const std::string &value) {
-    if (!stored)
-        return SetupCodeAction::create;
-    if (is_readable_code(value, owner_setup_code_length))
-        return SetupCodeAction::keep;
-    if (is_legacy_hex_secret(value, 64))
-        return SetupCodeAction::rotate;
-    return SetupCodeAction::create;
 }
 
 bool is_legacy_hex_secret(const std::string &secret, size_t length) {
