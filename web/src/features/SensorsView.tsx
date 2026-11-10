@@ -161,9 +161,11 @@ function SensorEditor({
           setMessage('Update is still pending. Refresh before trying again.');
       }
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'Unable to update sensor');
+      if (mounted.current)
+        setMessage(e instanceof Error ? e.message : 'Unable to update sensor');
     } finally {
-      setBusy(false);
+      // The editor may have closed while the device was answering.
+      if (mounted.current) setBusy(false);
     }
   }
   async function retire() {
@@ -203,7 +205,7 @@ function SensorEditor({
       if (mounted.current)
         setMessage(e instanceof Error ? e.message : 'Unable to retire probe');
     } finally {
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   }
   const numeric = (key: NumericKey, value: string) => {
