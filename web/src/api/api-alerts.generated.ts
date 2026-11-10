@@ -6,11 +6,11 @@
 
 export interface Alerts {
   /**
-   * @maxItems 6
+   * @maxItems 7
    */
   active: (
     | {
-        state: 'bus_fault';
+        state: 'bus_fault' | 'wifi_disconnected';
       }
     | {
         rom_id: string;

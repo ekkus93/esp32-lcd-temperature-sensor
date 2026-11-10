@@ -5,6 +5,15 @@ import { formatDeviceTime } from '../api/time';
 function wifiState(value: number) {
   return ['offline', 'connecting', 'connected', 'setup'][value] ?? 'unknown';
 }
+// Active alerts are conditions that need attention now; each one clears by itself when the
+// condition ends.
+function activeText(item: AlertData['active'][number]) {
+  if ('rom_id' in item) return `${item.name}: ${item.state}`;
+  if (item.state === 'bus_fault')
+    return 'Shared sensor bus fault: probes may read as missing';
+  return 'Wi-Fi disconnected: the device has lost its network connection';
+}
+
 function description(event: AlertData['events'][number]) {
   if (event.kind === 'sensor_state')
     return `${event.rom_id ?? 'Shared bus'} · ${event.previous.replaceAll('_', ' ')} → ${event.state.replaceAll('_', ' ')}`;
@@ -86,14 +95,17 @@ export default function AlertsView({ timezone }: { timezone: string | null }) {
       <Card>
         <CardContent>
           <Typography variant="h6">Active alerts</Typography>
+          <Typography color="text.secondary" variant="body2" sx={{ my: 1 }}>
+            Conditions that need attention now. Each one clears by itself when
+            the condition ends.
+          </Typography>
           {data?.active.map((item, i) => (
             <Alert
               key={'rom_id' in item ? item.rom_id : `global-${i}`}
               severity="warning"
               sx={{ mt: 1 }}
             >
-              {'name' in item ? item.name : 'Device'}:{' '}
-              {item.state.replaceAll('_', ' ')}
+              {activeText(item)}
             </Alert>
           ))}
           {data && !data.active.length && (
@@ -104,9 +116,11 @@ export default function AlertsView({ timezone }: { timezone: string | null }) {
       </Card>
       <Card>
         <CardContent>
-          <Typography variant="h6">Recent device events</Typography>
+          <Typography variant="h6">Events</Typography>
           <Typography color="text.secondary" variant="body2" sx={{ my: 1 }}>
-            Events are stored in a bounded local journal across reboots.{' '}
+            What happened: device starts, clock and Wi-Fi changes, and probe
+            state changes. An event is a record, not an ongoing problem. Events
+            are stored in a bounded local journal across reboots.{' '}
             {timezone
               ? `Synchronized times use ${timezone}`
               : 'Device timezone unavailable; synchronized times use UTC'}

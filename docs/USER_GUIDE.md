@@ -42,9 +42,13 @@ associated with that ROM and is never reassigned to another probe.
 
 ## Alerts and event history
 
-The **Alerts** page separates active conditions from recent device events.
-Events include probe/bus transitions, Wi-Fi state changes, clock synchronization,
-reboots, and history write failures. The journal is bounded; the page warns when
+The **Alerts** page separates **active alerts** from **events**. Active alerts are
+conditions that need attention now: a probe reading high or low, a disconnected
+probe, a shared sensor bus fault, or a lost Wi-Fi connection. Each one clears by
+itself when the condition ends. **Events** are records of things that happened:
+device starts, probe and bus state changes, Wi-Fi and clock changes, and history
+write failures. An event may or may not need attention; check the active list for
+what is still a problem. The journal is bounded; the page warns when
 older records have been compacted or the journal is unavailable. When the clock
 is synchronized, event times use the timezone selected in Settings and include
 the local zone abbreviation. If that setting is unavailable, synchronized times

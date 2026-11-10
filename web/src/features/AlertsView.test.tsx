@@ -7,6 +7,7 @@ afterEach(() => vi.unstubAllGlobals());
 it('distinguishes active bus/probe faults, pages recovery events and shows retention', async () => {
   const active = [
     { state: 'bus_fault' },
+    { state: 'wifi_disconnected' },
     { rom_id: '2801000000000029', name: 'Freezer', state: 'disconnected' },
   ];
   const first = {
@@ -57,7 +58,10 @@ it('distinguishes active bus/probe faults, pages recovery events and shows reten
       .mockResolvedValue({ ok: true, json: async () => second }),
   );
   render(<AlertsView timezone={null} />);
-  expect(await screen.findByText(/Device: bus fault/)).toBeInTheDocument();
+  expect(
+    await screen.findByText(/Shared sensor bus fault/),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/Wi-Fi disconnected/)).toBeInTheDocument();
   expect(screen.getByText(/Freezer: disconnected/)).toBeInTheDocument();
   expect(screen.getByText(/disconnected → normal/)).toBeInTheDocument();
   expect(

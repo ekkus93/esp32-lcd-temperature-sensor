@@ -38,14 +38,14 @@ const schema11 = {
   properties: {
     active: {
       type: 'array',
-      maxItems: 6,
+      maxItems: 7,
       items: {
         oneOf: [
           {
             type: 'object',
             additionalProperties: false,
             required: ['state'],
-            properties: { state: { const: 'bus_fault' } },
+            properties: { state: { enum: ['bus_fault', 'wifi_disconnected'] } },
           },
           {
             type: 'object',
@@ -191,14 +191,14 @@ function validate10(
             const _errs2 = errors;
             if (errors === _errs2) {
               if (Array.isArray(data0)) {
-                if (data0.length > 6) {
+                if (data0.length > 7) {
                   validate10.errors = [
                     {
                       instancePath: instancePath + '/active',
                       schemaPath: '#/properties/active/maxItems',
                       keyword: 'maxItems',
-                      params: { limit: 6 },
-                      message: 'must NOT have more than 6 items',
+                      params: { limit: 7 },
+                      message: 'must NOT have more than 7 items',
                     },
                   ];
                   return false;
@@ -258,15 +258,24 @@ function validate10(
                           }
                           if (_errs8 === errors) {
                             if (data1.state !== undefined) {
-                              if ('bus_fault' !== data1.state) {
+                              let data2 = data1.state;
+                              if (!(
+                                data2 === 'bus_fault' ||
+                                data2 === 'wifi_disconnected'
+                              )) {
                                 const err2 = {
                                   instancePath:
                                     instancePath + '/active/' + i0 + '/state',
                                   schemaPath:
-                                    '#/properties/active/items/oneOf/0/properties/state/const',
-                                  keyword: 'const',
-                                  params: { allowedValue: 'bus_fault' },
-                                  message: 'must be equal to constant',
+                                    '#/properties/active/items/oneOf/0/properties/state/enum',
+                                  keyword: 'enum',
+                                  params: {
+                                    allowedValues:
+                                      schema11.properties.active.items.oneOf[0]
+                                        .properties.state.enum,
+                                  },
+                                  message:
+                                    'must be equal to one of the allowed values',
                                 };
                                 if (vErrors === null) {
                                   vErrors = [err2];

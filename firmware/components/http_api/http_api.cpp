@@ -985,6 +985,13 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                     cJSON_AddStringToObject(event, "state", "bus_fault");
                     cJSON_AddItemToArray(active, event);
                 }
+                // Losing the network is a condition that needs attention until it recovers. The
+                // connect and disconnect transitions themselves are journal events.
+                if (wifi_->info().state == "offline") {
+                    auto *event = cJSON_CreateObject();
+                    cJSON_AddStringToObject(event, "state", "wifi_disconnected");
+                    cJSON_AddItemToArray(active, event);
+                }
                 for (const auto &sensor : current.sensors())
                     if (sensor.state == State::high || sensor.state == State::low ||
                         (sensor.state == State::disconnected && sensor.settings.disconnect_alert)) {
@@ -1277,6 +1284,7 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
         return ESP_FAIL;
     if (header(r, "Accept-Encoding", 256).find("gzip") == std::string::npos)
         return error(r, "406 Not Acceptable", "Client must accept gzip");
+    const int socket_fd = httpd_req_to_sockfd(r);
     httpd_resp_set_type(r, asset->type);
     httpd_resp_set_hdr(r, "Content-Encoding", "gzip");
     httpd_resp_set_hdr(r, "Vary", "Accept-Encoding");
@@ -1289,6 +1297,13 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
         r, "Content-Security-Policy",
         "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src "
         "'self' ws:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
-    return httpd_resp_send(r, reinterpret_cast<const char *>(asset->data), asset->size);
+    const esp_err_t sent =
+        httpd_resp_send(r, reinterpret_cast<const char *>(asset->data), asset->size);
+    // The browser fetches the page's files in parallel over at most six connections, and each
+    // keep-alive connection holds one of max_open_sockets. Closing after an asset frees its
+    // socket at once, so the live WebSocket and API calls are not purged to make room.
+    if (socket_fd >= 0)
+        httpd_sess_trigger_close(r->handle, socket_fd);
+    return sent;
 }
 } // namespace monitor

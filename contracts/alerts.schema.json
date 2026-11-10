@@ -15,14 +15,16 @@
   "properties": {
     "active": {
       "type": "array",
-      "maxItems": 6,
+      "maxItems": 7,
       "items": {
         "oneOf": [
           {
             "type": "object",
             "additionalProperties": false,
             "required": ["state"],
-            "properties": { "state": { "const": "bus_fault" } }
+            "properties": {
+              "state": { "enum": ["bus_fault", "wifi_disconnected"] }
+            }
           },
           {
             "type": "object",
