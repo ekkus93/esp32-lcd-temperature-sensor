@@ -455,6 +455,9 @@ try:
           'history rejects a point count above its bound')
     check(call('/api/v1/history?'+('x'*300),headers=authorized)['status']==400,
           'history rejects an oversized query string')
+    # The journal keeps at most 128 KiB of 60-byte records (event_store.hpp): 2184 events, so a full
+    # journal is 219 pages of ten. A page count past that means the cursor is not advancing.
+    EVENT_JOURNAL_PAGE_LIMIT = -(-(128 * 1024 // 60) // 10) + 1
     alert_events=[]
     alert_cursor=0
     oldest_available=None
@@ -469,7 +472,7 @@ try:
             oldest_available=alerts['oldest_available']
         alert_events.extend(alerts['events'])
         pages+=1
-        check(pages<=100, 'durable event journal pagination stays bounded')
+        check(pages<=EVENT_JOURNAL_PAGE_LIMIT, 'durable event journal pagination stays bounded')
         next_cursor=alerts['next_after']
         if not alerts['has_more']:
             break
