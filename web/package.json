@@ -17,7 +17,7 @@
     "test:simulator": "node ../tools/test-simulator-live.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "simulator": "node scripts/simulator.mjs",
-    "contract:generate": "node scripts/generate-contracts.mjs"
+    "contract:generate": "node scripts/generate-contracts.mjs && node scripts/generate-validators.mjs"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

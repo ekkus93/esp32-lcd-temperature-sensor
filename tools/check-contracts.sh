@@ -4,9 +4,9 @@
 # unrelated uncommitted edits elsewhere in the tree do not matter.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-before=$(sha256sum web/src/api/generated.ts web/src/api/api-*.generated.ts | sort)
+before=$(sha256sum web/src/api/generated.ts web/src/api/api-*.generated.ts web/src/api/schema-validators.generated.ts | sort)
 npm --prefix web run contract:generate >/dev/null
-after=$(sha256sum web/src/api/generated.ts web/src/api/api-*.generated.ts | sort)
+after=$(sha256sum web/src/api/generated.ts web/src/api/api-*.generated.ts web/src/api/schema-validators.generated.ts | sort)
 if [[ "$before" != "$after" ]]; then
   echo "Generated contract types were out of date and have been regenerated." >&2
   echo "Review and commit: npm --prefix web run contract:generate" >&2

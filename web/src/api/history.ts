@@ -1,10 +1,9 @@
-import Ajv from 'ajv';
-import schema from '../../../contracts/history.schema.json';
 import type { HistoryResult } from './api-history.generated';
 import { request } from './auth';
 import type { Snapshot } from './generated';
+import { historyValid } from './schema-validators.generated';
 export type { HistoryResult } from './api-history.generated';
-const validate = new Ajv().compile<HistoryResult>(schema);
+const validate = historyValid;
 function historyQuery(
   snapshot: Snapshot,
   hours: number,

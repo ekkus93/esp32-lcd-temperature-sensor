@@ -1,20 +1,19 @@
-import Ajv from 'ajv';
-import patchSchema from '../../../contracts/sensor-patch.schema.json';
-import schema from '../../../contracts/sensor-configurations.schema.json';
-import storageSchema from '../../../contracts/sensor-storage.schema.json';
-import retirementSchema from '../../../contracts/sensor-retire.schema.json';
 import type { SensorPatch } from './api-sensor-patch.generated';
 import type { SensorConfigurations } from './api-sensors.generated';
 import type { SensorStorageStatus } from './api-sensor-storage.generated';
 import type { SensorRetirementAcceptance } from './api-sensor-retire.generated';
 import { request } from './auth';
+import {
+  sensorConfigurationsValid,
+  sensorPatchValid,
+  sensorRetireValid,
+  sensorStorageValid,
+} from './schema-validators.generated';
 export type SensorConfiguration = SensorConfigurations[number];
-const validate = new Ajv().compile<SensorConfigurations>(schema);
-const validatePatch = new Ajv().compile<SensorPatch>(patchSchema);
-const validateStorage = new Ajv().compile<SensorStorageStatus>(storageSchema);
-const validateRetirement = new Ajv().compile<SensorRetirementAcceptance>(
-  retirementSchema,
-);
+const validate = sensorConfigurationsValid;
+const validatePatch = sensorPatchValid;
+const validateStorage = sensorStorageValid;
+const validateRetirement = sensorRetireValid;
 export async function getSensors(): Promise<SensorConfigurations> {
   const result = await request<unknown>('/sensors');
   if (

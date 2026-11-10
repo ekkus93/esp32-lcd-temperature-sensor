@@ -1,10 +1,9 @@
-import Ajv from 'ajv';
-import schema from '../../../contracts/clock-diagnostics.schema.json';
 import type { ClockDiagnostics } from './api-clock-diagnostics.generated';
 import { request } from './auth';
+import { clockDiagnosticsValid } from './schema-validators.generated';
 
 export type { ClockDiagnostics };
-const validate = new Ajv().compile<ClockDiagnostics>(schema);
+const validate = clockDiagnosticsValid;
 
 export async function getClockDiagnostics(): Promise<ClockDiagnostics> {
   const result = await request<unknown>('/clock');

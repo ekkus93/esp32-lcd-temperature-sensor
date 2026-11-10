@@ -1,7 +1,6 @@
-import Ajv from 'ajv';
-import schema from '../../../contracts/snapshot.schema.json';
 import type { Snapshot } from './generated';
-const validate = new Ajv({ strict: true }).compile<Snapshot>(schema);
+import { snapshotValid } from './schema-validators.generated';
+const validate = snapshotValid;
 export function parseSnapshot(value: unknown): Snapshot {
   if (!validate(value)) throw new Error('Invalid device snapshot');
   const ids = value.sensors.map((s) => s.rom_id);

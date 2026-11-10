@@ -1,14 +1,11 @@
-import Ajv from 'ajv';
-import schema from '../../../contracts/system-reboot.schema.json';
 import { request } from './auth';
-import type { SystemRebootAcceptance } from './api-system-reboot.generated';
-import resetSchema from '../../../contracts/system-factory-reset.schema.json';
-import type { SystemFactoryResetAcceptance } from './api-system-factory-reset.generated';
+import {
+  systemFactoryResetValid,
+  systemRebootValid,
+} from './schema-validators.generated';
 
-const validate = new Ajv().compile<SystemRebootAcceptance>(schema);
-const validateReset = new Ajv().compile<SystemFactoryResetAcceptance>(
-  resetSchema,
-);
+const validate = systemRebootValid;
+const validateReset = systemFactoryResetValid;
 
 export async function rebootDevice(): Promise<void> {
   const result = await request<unknown>('/system/reboot', 'POST');

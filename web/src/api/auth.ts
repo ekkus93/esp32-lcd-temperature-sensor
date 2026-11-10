@@ -1,9 +1,8 @@
-import Ajv from 'ajv';
-import authStateSchema from '../../../contracts/auth-state.schema.json';
 import type { AuthState } from './api-auth.generated';
+import { authStateValid } from './schema-validators.generated';
 export type { AuthState } from './api-auth.generated';
 let csrfToken = '';
-const validateAuthState = new Ajv().compile<AuthState>(authStateSchema);
+const validateAuthState = authStateValid;
 export function setCsrf(value: string) {
   csrfToken = value;
 }

@@ -1,15 +1,17 @@
-import Ajv from 'ajv';
-import patchSchema from '../../../contracts/device-settings-patch.schema.json';
 import schema from '../../../contracts/device-settings.schema.json';
-import publicSchema from '../../../contracts/device-settings-public.schema.json';
 import type { DeviceSettings } from './api-device-settings.generated';
 import type { DeviceSettingsPatch } from './api-device-settings-patch.generated';
 import type { PublicDeviceSettings } from './api-device-settings-public.generated';
 import { request } from './auth';
+import {
+  devicePublicSettingsValid,
+  deviceSettingsPatchValid,
+  deviceSettingsValid,
+} from './schema-validators.generated';
 export type { DeviceSettings } from './api-device-settings.generated';
-const validate = new Ajv().compile<DeviceSettings>(schema);
-const validatePublic = new Ajv().compile<PublicDeviceSettings>(publicSchema);
-const validatePatch = new Ajv().compile<DeviceSettingsPatch>(patchSchema);
+const validate = deviceSettingsValid;
+const validatePublic = devicePublicSettingsValid;
+const validatePatch = deviceSettingsPatchValid;
 function parse(value: unknown): DeviceSettings {
   if (!validate(value)) throw new Error('Invalid device settings response');
   return value;
