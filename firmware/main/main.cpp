@@ -65,10 +65,14 @@ void trend_restore_task(void *argument) {
         monitor::HistoryQuery query;
         query.from = (*utc - 86400) * 1000;
         query.to = (*utc + 1) * 1000;
-        restore.history->visit(query, [&](const monitor::Bucket &bucket) {
+        const bool complete = restore.history->visit(query, [&](const monitor::Bucket &bucket) {
             collected.push_back(bucket);
             return true;
         });
+        if (!complete)
+            ESP_LOGW("trends", "Trend history restore read only part of the stored history");
+    } else {
+        ESP_LOGW("trends", "Trend history restore skipped: the clock is not trusted");
     }
     if (xSemaphoreTake(restore.mutex, portMAX_DELAY) == pdTRUE) {
         restore.stored = std::move(collected);

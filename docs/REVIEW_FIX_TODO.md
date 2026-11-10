@@ -116,8 +116,9 @@ connected board.
 
 - [ ] **R10-00** Remove the owner code from enrollment, the sign-in form, the USB setup output, the
   LCD setup screens and the docs; the admin password is created during the BOOT setup window.
-- [ ] **R10-01** Trend restore logs a failed or partial history read and an untrusted clock instead
-  of failing silently.
+- [x] **R10-01** Trend restore logs a failed or partial history read and an untrusted clock instead
+  of failing silently. Done (firmware build only: the restore runs in `main.cpp`, which has no host
+  test; the log lines have not yet been seen on the board).
 - [ ] **R10-02** "Live connection lost" is shown only after it has lasted ten seconds, so brief
   reconnects do not flash.
 - [ ] **R10-03** [HW] History queries finish well under one second on a full store, so the history
