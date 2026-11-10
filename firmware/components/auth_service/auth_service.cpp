@@ -1,4 +1,5 @@
 #include "auth_service.hpp"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -52,7 +53,9 @@ void derive_worker(void *context) {
     psa_key_derivation_abort(&op);
     request.result = status == PSA_SUCCESS;
     xSemaphoreGive(request.done);
-    vTaskDelete(nullptr);
+    // Wait here to be deleted: the stack was allocated with caps, so the creator frees it with
+    // vTaskDeleteWithCaps() once this task is suspended.
+    vTaskSuspend(nullptr);
 }
 } // namespace
 
@@ -140,16 +143,23 @@ bool AuthService::derive(const std::string &password, const std::array<uint8_t, 
     // The HTTP task is pinned to core 1. A priority-0 worker shares that core
     // with IDLE1, while higher-priority network tasks can still preempt it.
     // Only one derivation at a time: each needs a large stack and working memory.
+    // The stack comes from PSRAM: internal RAM is mostly the fragmented reserve kept for Wi-Fi and
+    // DMA, and an 8 KiB block there was often unavailable, so logins failed at random. The worker
+    // only computes (no flash access), and the SHA driver copies PSRAM buffers for its DMA.
     xSemaphoreTake(kdf_mutex_, portMAX_DELAY);
     TaskHandle_t worker = nullptr;
-    if (xTaskCreatePinnedToCore(derive_worker, "password_kdf", 8192, &request, tskIDLE_PRIORITY,
-                                &worker, 1) != pdPASS) {
+    if (xTaskCreatePinnedToCoreWithCaps(derive_worker, "password_kdf", 8192, &request,
+                                        tskIDLE_PRIORITY, &worker, 1,
+                                        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT) != pdPASS) {
         ESP_LOGE("auth", "Could not start password KDF worker");
         xSemaphoreGive(kdf_mutex_);
         vSemaphoreDelete(request.done);
         return false;
     }
     xSemaphoreTake(request.done, portMAX_DELAY);
+    while (eTaskGetState(worker) != eSuspended)
+        vTaskDelay(1);
+    vTaskDeleteWithCaps(worker);
     xSemaphoreGive(kdf_mutex_);
     vSemaphoreDelete(request.done);
     if (!request.result)
@@ -250,7 +260,7 @@ void AuthService::login_abort(uint32_t client) {
     throttle_.abort(client);
 }
 std::optional<Session> AuthService::login_complete(const std::string &password, uint32_t client,
-                                                   int64_t now_ms) {
+                                                   int64_t now_ms, LoginFailure *failure) {
     const auto started = esp_timer_get_time() / 1000;
     const auto check = check_password_result(password); // slow; no lock held
     std::string token, csrf;
@@ -275,10 +285,16 @@ std::optional<Session> AuthService::login_complete(const std::string &password, 
     const auto finished_ms = now_ms + (esp_timer_get_time() / 1000 - started);
     Guard guard(mutex_);
     throttle_.finish(client, outcome, finished_ms);
+    if (failure)
+        *failure = outcome == LoginOutcome::wrong_password ? LoginFailure::wrong_password
+                                                           : LoginFailure::unavailable;
     if (outcome != LoginOutcome::verified)
         return std::nullopt;
-    if (auto *session = sessions_.create(token, csrf, finished_ms))
+    if (auto *session = sessions_.create(token, csrf, finished_ms)) {
+        if (failure)
+            *failure = LoginFailure::none;
         return *session;
+    }
     return std::nullopt;
 }
 std::optional<Session> AuthService::authorize(const std::string &token, int64_t now_ms) {

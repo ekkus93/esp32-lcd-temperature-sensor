@@ -156,6 +156,14 @@ connected board.
 - [ ] **R10-12** T11-08: publish versioned firmware binaries, web build provenance, checksums and
   release notes, with known issues, only after every item above is done (§16.9).
 - [ ] **R10-13** R09-08: correct `docs/TODO.md`. **Blocked until you approve the edit.**
+- [x] **R10-14** Logins failed at random with "Login denied" although the password was right: the
+  password worker's 8 KiB stack could not be allocated from the fragmented internal RAM ("Could not
+  start password KDF worker"), and that device failure was reported as a wrong password (§16.11).
+  Done: the worker stack comes from PSRAM, and a login the device could not check answers `503`
+  with "try again in a few seconds" instead of "Login denied" (host tests for the PSRAM request and
+  each failure cause). **Board (2026-11-10):** 20 of 20 logins through the USB bridge succeeded in
+  the two minutes after boot, while the largest free internal block fell to 4608 bytes; the
+  PBKDF2 self-test still passes.
 
 ## Definition of done
 

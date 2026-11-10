@@ -2,6 +2,8 @@
 // FreeRTOS, NVS and PSA are stood in for by tests/auth_mocks; the password derivation is a real
 // PBKDF2-HMAC-SHA256, so the on-device known-answer self-test also runs.
 #include "auth_service.hpp"
+#include "esp_heap_caps.h"
+#include "freertos/task.h"
 #include "nvs.h"
 #include "psa/crypto.h"
 #include <atomic>
@@ -117,6 +119,27 @@ int main() {
         CHECK(a.login_begin(1, T0 + 2500).gate == LoginGate::allow);
         CHECK(a.login_complete(good_password, 1,
                                T0 + 2500)); // the password was never held against it
+    }
+    // The login says why it failed. When the password worker cannot be started (no memory for its
+    // stack) that is the device's failure: reported as unavailable, with no strike against the
+    // client. The worker's stack is asked for in PSRAM, not in the scarce internal RAM.
+    {
+        Fresh f;
+        auto &a = f.auth;
+        enroll_admin(a);
+        CHECK((FakeTasks::last_caps & MALLOC_CAP_SPIRAM) != 0);
+        auto failure = AuthService::LoginFailure::none;
+        CHECK(a.login_begin(1, T0).gate == LoginGate::allow);
+        CHECK(!a.login_complete("wrong-password-here", 1, T0, &failure));
+        CHECK(failure == AuthService::LoginFailure::wrong_password);
+        FakeTasks::fail_create = true;
+        CHECK(a.login_begin(2, T0).gate == LoginGate::allow);
+        CHECK(!a.login_complete(good_password, 2, T0, &failure));
+        CHECK(failure == AuthService::LoginFailure::unavailable);
+        FakeTasks::fail_create = false;
+        CHECK(a.login_begin(2, T0 + 2500).gate == LoginGate::allow);
+        CHECK(a.login_complete(good_password, 2, T0 + 2500, &failure));
+        CHECK(failure == AuthService::LoginFailure::none);
     }
     // A password change: needs the session and the old password, ends all sessions, and the new
     // password is the only one that works afterwards.

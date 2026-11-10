@@ -271,11 +271,18 @@ void HttpApi::login_worker(void *context) {
         LoginJob *job = nullptr;
         if (xQueueReceive(self.login_queue_, &job, portMAX_DELAY) != pdTRUE || !job)
             continue;
-        const auto session = self.auth_->login_complete(job->password, job->client, now());
+        auto failure = AuthService::LoginFailure::none;
+        const auto session =
+            self.auth_->login_complete(job->password, job->client, now(), &failure);
         std::fill(job->password.begin(), job->password.end(), '\0');
-        if (!session) {
+        if (!session && failure == AuthService::LoginFailure::wrong_password) {
             httpd_resp_set_hdr(job->request, "Retry-After", "5");
             error(job->request, "401 Unauthorized", "Login denied; retry after 5 seconds");
+        } else if (!session) {
+            // Not the password's fault: say so, so nobody retypes a correct password.
+            httpd_resp_set_hdr(job->request, "Retry-After", "5");
+            error(job->request, "503 Service Unavailable",
+                  "The device could not check the password just now; try again in a few seconds");
         } else {
             std::string value = "tm_session=" + session->token +
                                 "; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600";

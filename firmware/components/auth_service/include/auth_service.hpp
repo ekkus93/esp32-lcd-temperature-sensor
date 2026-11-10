@@ -39,9 +39,12 @@ class AuthService {
     // caller must follow with login_complete() or login_abort().
     LoginThrottle::Decision login_begin(uint32_t client, int64_t now_ms);
     void login_abort(uint32_t client);
+    // Why login_complete() returned no session: a wrong password, or the device could not
+    // check it or open a session (out of memory, no entropy, session table full).
+    enum class LoginFailure { none, wrong_password, unavailable };
     // Runs the password check (a few seconds); never call it from the HTTP task.
     std::optional<Session> login_complete(const std::string &password, uint32_t client,
-                                          int64_t now_ms);
+                                          int64_t now_ms, LoginFailure *failure = nullptr);
     // Returns a copy, so the caller never holds a pointer into the shared session table.
     std::optional<Session> authorize(const std::string &token, int64_t now_ms);
     void logout(const std::string &token);

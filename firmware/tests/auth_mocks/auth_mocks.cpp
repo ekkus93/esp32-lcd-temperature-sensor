@@ -5,6 +5,7 @@
 #include "psa/crypto.h"
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <condition_variable>
 #include <cstring>
 #include <map>
@@ -44,14 +45,49 @@ BaseType_t xSemaphoreGive(SemaphoreHandle_t handle) {
 void vSemaphoreDelete(SemaphoreHandle_t handle) {
     delete static_cast<Semaphore *>(handle);
 }
+bool FakeTasks::fail_create = false;
+uint32_t FakeTasks::last_caps = 0;
 BaseType_t xTaskCreatePinnedToCore(void (*fn)(void *), const char *, uint32_t, void *arg, int,
                                    TaskHandle_t *handle, int) {
+    if (FakeTasks::fail_create)
+        return 0;
     if (handle)
         *handle = nullptr;
     std::thread([fn, arg] { fn(arg); }).detach();
     return pdPASS;
 }
+namespace {
+// A caps task on the host: a thread whose function has returned once `finished` is set (the device
+// worker suspends itself at that point).
+struct FakeTask {
+    std::atomic<bool> finished{false};
+};
+} // namespace
+BaseType_t xTaskCreatePinnedToCoreWithCaps(void (*fn)(void *), const char *, uint32_t, void *arg,
+                                           int, TaskHandle_t *handle, int, uint32_t caps) {
+    FakeTasks::last_caps = caps;
+    if (FakeTasks::fail_create)
+        return 0;
+    auto *task = new FakeTask;
+    if (handle)
+        *handle = task;
+    std::thread([fn, arg, task] {
+        fn(arg);
+        task->finished = true;
+    }).detach();
+    return pdPASS;
+}
 void vTaskDelete(TaskHandle_t) {}
+void vTaskDeleteWithCaps(TaskHandle_t handle) {
+    delete static_cast<FakeTask *>(handle);
+}
+void vTaskSuspend(TaskHandle_t) {}
+void vTaskDelay(uint32_t) {
+    std::this_thread::yield();
+}
+eTaskState eTaskGetState(TaskHandle_t handle) {
+    return static_cast<FakeTask *>(handle)->finished ? eSuspended : eRunning;
+}
 
 // ---- NVS: one in-memory namespace ----
 namespace {

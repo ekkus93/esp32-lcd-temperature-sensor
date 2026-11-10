@@ -375,3 +375,13 @@ wanted and the acceptance test.
 ### 16.10 Approval-gated edit (R10-13)
 
 - `docs/TODO.md` is edited only with the owner's approval, as R09-08 requires.
+
+### 16.11 Login reliability (R10-14)
+
+- Behaviour: a correct password always signs in when the device is otherwise healthy. The password
+  check must not depend on finding a large free block of internal RAM, and a login the device
+  could not check is reported as a device problem (`503`, retry shortly), never as a wrong
+  password.
+- Acceptance: host tests for the failure causes; on the board, repeated logins in the first minutes
+  after boot all succeed.
+
