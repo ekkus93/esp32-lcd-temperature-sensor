@@ -262,6 +262,44 @@ std::optional<Bucket> decode_bucket(const std::vector<uint8_t> &in) {
         return std::nullopt;
     return bucket;
 }
+bool history_bucket_in_range(const Bucket &bucket, const HistoryRange &range) {
+    int64_t time = bucket.start_uptime_ms;
+    if (range.boot_id) {
+        if (bucket.boot_id != *range.boot_id)
+            return false;
+    } else {
+        if (!bucket.utc_seconds || *bucket.utc_seconds < 0 ||
+            *bucket.utc_seconds > INT64_MAX / 1000)
+            return false;
+        time = *bucket.utc_seconds * 1000;
+    }
+    return time >= range.from && time < range.to;
+}
+void HistoryStore::SegmentSpan::add(const Bucket &bucket) {
+    if (bucket.utc_seconds && *bucket.utc_seconds >= 0 && *bucket.utc_seconds <= INT64_MAX / 1000) {
+        const int64_t utc_ms = *bucket.utc_seconds * 1000;
+        utc_first_ms = has_utc ? std::min(utc_first_ms, utc_ms) : utc_ms;
+        utc_last_ms = has_utc ? std::max(utc_last_ms, utc_ms) : utc_ms;
+        has_utc = true;
+    }
+    for (auto &boot : boots)
+        if (boot.id == bucket.boot_id) {
+            boot.first_ms = std::min(boot.first_ms, bucket.start_uptime_ms);
+            boot.last_ms = std::max(boot.last_ms, bucket.start_uptime_ms);
+            return;
+        }
+    boots.push_back({bucket.boot_id, bucket.start_uptime_ms, bucket.start_uptime_ms});
+}
+bool HistoryStore::SegmentSpan::may_hold(const HistoryRange &range) const {
+    if (!known)
+        return true;
+    if (!range.boot_id)
+        return has_utc && utc_last_ms >= range.from && utc_first_ms < range.to;
+    for (const auto &boot : boots)
+        if (boot.id == *range.boot_id && boot.last_ms >= range.from && boot.first_ms < range.to)
+            return true;
+    return false;
+}
 HistoryStore::HistoryStore(std::string directory, std::size_t max_bytes, std::size_t segment_bytes)
     : directory_(std::move(directory)), max_bytes_(max_bytes), segment_bytes_(segment_bytes) {}
 std::string HistoryStore::path(unsigned number) const {
@@ -329,8 +367,11 @@ bool HistoryStore::recover() {
         if (!input)
             return recovery_failure(__LINE__);
         std::size_t good = 0;
-        while (auto bucket = next(input))
+        SegmentSpan span;
+        while (auto bucket = next(input)) {
             good = static_cast<std::size_t>(input.tellg());
+            span.add(*bucket);
+        }
         if (input.bad())
             return recovery_failure(__LINE__);
         if (good != file_size(path(number))) {
@@ -340,6 +381,7 @@ bool HistoryStore::recover() {
             // unusable.
             if (number != active_) {
                 ++skipped_segments_;
+                span.known = false;
                 input.clear();
             } else {
                 input.clear();
@@ -411,7 +453,7 @@ bool HistoryStore::recover() {
         if (!segment_fingerprint(path(number), size, fingerprint) ||
             !segment_has_size(path(number), size))
             return recovery_failure(__LINE__);
-        SegmentSeal seal{number, size, fingerprint};
+        SegmentSeal seal{number, size, fingerprint, std::move(span)};
 #ifndef ESP_PLATFORM
         seal.device = static_cast<uint64_t>(metadata.st_dev);
         seal.inode = static_cast<uint64_t>(metadata.st_ino);
@@ -656,6 +698,7 @@ bool HistoryStore::append(const Bucket &bucket) {
     active_segment_exists_ = true;
     if (create_new) {
         SegmentSeal seal{active_, written_size, written_fingerprint};
+        seal.span.add(bucket);
 #ifndef ESP_PLATFORM
         seal.device = static_cast<uint64_t>(opened.st_dev);
         seal.inode = static_cast<uint64_t>(opened.st_ino);
@@ -664,6 +707,7 @@ bool HistoryStore::append(const Bucket &bucket) {
     } else {
         sealed_segments_.back().size = written_size;
         sealed_segments_.back().fingerprint = written_fingerprint;
+        sealed_segments_.back().span.add(bucket);
     }
     // Retention may briefly exceed its configured logical budget by one
     // record. Evict only after fsync succeeds, and fail closed if eviction
@@ -704,8 +748,8 @@ bool HistoryStore::append(const Bucket &bucket) {
     }
     return true;
 }
-bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor,
-                         std::size_t *skipped) const {
+bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor, std::size_t *skipped,
+                         const HistoryRange *range) const {
     if (skipped)
         *skipped = 0;
     if (!safe_history_directory(directory_))
@@ -767,6 +811,16 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor,
         if (segment_status != 0 || !S_ISREG(initial_segment.st_mode) || initial_segment.st_size < 0)
             return false;
         const auto initial_size = static_cast<std::size_t>(initial_segment.st_size);
+        // A segment indexed as holding nothing in the requested window is left unread. The index
+        // is trusted only while the file still has the size it was indexed at.
+        if (range) {
+            const auto seal = std::find_if(
+                sealed_segments_.begin(), sealed_segments_.end(),
+                [&](const SegmentSeal &candidate) { return candidate.number == number; });
+            if (seal != sealed_segments_.end() && seal->size == initial_size &&
+                !seal->span.may_hold(*range))
+                continue;
+        }
         uint64_t initial_fingerprint = 0;
         std::string content;
         if (!read_segment_snapshot(path(number), initial_size, content, initial_fingerprint) ||

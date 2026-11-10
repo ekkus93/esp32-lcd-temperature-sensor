@@ -97,6 +97,7 @@ bool HistoryService::query(const HistoryQuery &query, std::vector<HistoryPoint> 
     const int64_t deadline_us = esp_timer_get_time() + query_budget_us;
     bool timed_out = false;
     std::size_t skipped_segments = 0;
+    const HistoryRange range{query.boot_id, query.from, query.to};
     bool ok = store_ && store_->visit(
                             [&](const Bucket &bucket) {
                                 if (esp_timer_get_time() > deadline_us) {
@@ -108,7 +109,7 @@ bool HistoryService::query(const HistoryQuery &query, std::vector<HistoryPoint> 
                                     vTaskDelay(1);
                                 return true;
                             },
-                            &skipped_segments);
+                            &skipped_segments, &range);
     xSemaphoreGive(mutex_);
     if (skipped_segments)
         ESP_LOGW("history", "%u damaged history segment(s) skipped; answer is truncated",
@@ -144,31 +145,24 @@ bool HistoryService::visit(const HistoryQuery &query,
     const int64_t deadline = esp_timer_get_time() / 1000 + 15000;
     bool complete = true;
     unsigned visited = 0;
-    bool ok = store_ && store_->visit([&](const Bucket &bucket) {
-        if (++visited % 32 == 0)
-            vTaskDelay(1);
-        if (esp_timer_get_time() / 1000 >= deadline) {
-            complete = false;
-            return false;
-        }
-        int64_t time = bucket.start_uptime_ms;
-        if (query.boot_id) {
-            if (bucket.boot_id != *query.boot_id)
-                return true;
-        } else {
-            if (!bucket.utc_seconds || *bucket.utc_seconds < 0 ||
-                *bucket.utc_seconds > INT64_MAX / 1000)
-                return true;
-            time = *bucket.utc_seconds * 1000;
-        }
-        if (time < query.from || time >= query.to)
-            return true;
-        if (!visitor(bucket)) {
-            complete = false;
-            return false;
-        }
-        return true;
-    });
+    const HistoryRange range{query.boot_id, query.from, query.to};
+    bool ok = store_ && store_->visit(
+                            [&](const Bucket &bucket) {
+                                if (++visited % 32 == 0)
+                                    vTaskDelay(1);
+                                if (esp_timer_get_time() / 1000 >= deadline) {
+                                    complete = false;
+                                    return false;
+                                }
+                                if (!history_bucket_in_range(bucket, range))
+                                    return true;
+                                if (!visitor(bucket)) {
+                                    complete = false;
+                                    return false;
+                                }
+                                return true;
+                            },
+                            nullptr, &range);
     xSemaphoreGive(mutex_);
     return ok && complete;
 }

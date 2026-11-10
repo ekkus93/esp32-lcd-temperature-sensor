@@ -11,7 +11,10 @@ import secrets
 import re
 import gzip
 import sys
+import threading
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 import serial
 
@@ -20,6 +23,7 @@ from setup_file import save_setup_response  # noqa: E402
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--port', required=True)
+parser.add_argument('--host', default='100.64.64.61', help='Device address on the network (history rate limit is checked over Wi-Fi)')
 parser.add_argument('--setup-file', default='.build/device-setup.json')
 parser.add_argument('--admin-file', default='.build/device-admin.json')
 parser.add_argument('--fresh-enrollment', action='store_true', help='Reset only a test-managed administrator and re-enroll it')
@@ -239,19 +243,25 @@ try:
     check(call('/api/v1/settings','PATCH',{},{**authorized,'If-Match':owner_settings['etag']})['status']==400,
           'empty settings PATCH rejected')
     # History is public but rate limited per client: a second query within a second gets 429.
+    # Both requests go over Wi-Fi, the second 0.2 s after the first. The device serves one request
+    # at a time, so the check also needs the first query to finish well inside the one-second window
+    # (history queries read only the segments covering their range, R10-03). The check is not
+    # skipped when that fails.
     history_query='/api/v1/history?from=0&to=3600000&max_points=24'
-    started = time.monotonic()
-    first = call(history_query,headers=anonymous)
-    first_seconds = time.monotonic() - started
-    check(first['status'] in (200,503),'anonymous history query answered (HTTP %s)' % first['status'])
-    second = call(history_query,headers=anonymous)
-    # The USB bridge runs one command at a time, so a query that itself takes longer than the
-    # one-second window cannot be followed by a refused one. Only assert the limit when it applies.
-    if first_seconds < 0.8:
-        check(second['status']==429,'second history query within one second is rate limited')
-    else:
-        print('NOTE: first history query took %.2f s over the bridge; the one-second limit was not '
-              'exercised here (it is covered over Wi-Fi)' % first_seconds, flush=True)
+    def over_network(path):
+        try:
+            with urllib.request.urlopen('http://%s%s' % (args.host, path), timeout=30) as response:
+                return response.status
+        except urllib.error.HTTPError as error:
+            return error.code
+    first_result = []
+    first_request = threading.Thread(target=lambda: first_result.append(over_network(history_query)))
+    first_request.start()
+    time.sleep(0.2)
+    second_status = over_network(history_query)
+    first_request.join()
+    check(first_result and first_result[0] in (200,503),'anonymous history query answered (HTTP %s)' % (first_result or ['none'])[0])
+    check(second_status==429,'second history query within one second is rate limited')
     time.sleep(1.1)
     check(call(history_query,headers=anonymous)['status'] in (200,503),'history available again after the interval')
     check(call('/api/v1/ota','POST','',origin)['status']==401,'anonymous OTA upload rejected')

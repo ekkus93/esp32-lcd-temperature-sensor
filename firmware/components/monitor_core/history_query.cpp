@@ -91,18 +91,10 @@ HistoryReducer::HistoryReducer(HistoryQuery query) : query_(std::move(query)) {
 void HistoryReducer::add(const Bucket &bucket) {
     if (groups_.empty())
         return;
-    int64_t time = bucket.start_uptime_ms;
-    if (query_.boot_id) {
-        if (bucket.boot_id != *query_.boot_id)
-            return;
-    } else {
-        if (!bucket.utc_seconds || *bucket.utc_seconds < 0 ||
-            *bucket.utc_seconds > INT64_MAX / 1000)
-            return;
-        time = *bucket.utc_seconds * 1000;
-    }
-    if (time < query_.from || time >= query_.to)
+    if (!history_bucket_in_range(bucket, {query_.boot_id, query_.from, query_.to}))
         return;
+    const int64_t time =
+        query_.boot_id ? bucket.start_uptime_ms : *bucket.utc_seconds * int64_t(1000);
     if (!last_boot_id_ || *last_boot_id_ != bucket.boot_id) {
         last_end_.clear();
         last_boot_id_ = bucket.boot_id;

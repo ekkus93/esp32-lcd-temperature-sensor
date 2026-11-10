@@ -21,6 +21,10 @@ add_executable(storage_tests storage_tests.cpp)
 target_link_libraries(storage_tests PRIVATE monitor_core Threads::Threads)
 target_compile_options(storage_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_test(NAME storage_recovery COMMAND storage_tests)
+add_executable(history_range_tests history_range_tests.cpp)
+target_link_libraries(history_range_tests PRIVATE monitor_core)
+target_compile_options(history_range_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
+add_test(NAME history_range COMMAND history_range_tests)
 
 # Opt-in long-running profile of production segment rollover at realistic capacity.
 add_executable(history_retention_profile history_retention_profile.cpp)
