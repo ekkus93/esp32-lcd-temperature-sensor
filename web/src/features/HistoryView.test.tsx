@@ -396,3 +396,54 @@ it('lists probes in their position order, not by ROM ID', async () => {
     `Sensor 2 · ${later}`,
   ]);
 });
+
+it('runs one line through a missing interval and still shades it', async () => {
+  const rom = '2801000000000029';
+  const point = (start: number) => ({
+    boot_id: '0123456789abcdef',
+    rom_id: rom,
+    start_ms: start,
+    end_ms: start + 300000,
+    utc_seconds: null,
+    average_c: 4,
+    minimum_c: 3,
+    maximum_c: 5,
+    count: 60,
+    partial: false,
+  });
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        schema_version: 1,
+        simulated: false,
+        truncated: false,
+        time_basis: 'uptime',
+        points: [point(0), point(1800000)],
+        gaps: [
+          {
+            boot_id: '0123456789abcdef',
+            rom_id: rom,
+            start_ms: 300000,
+            end_ms: 1800000,
+          },
+        ],
+      }),
+    }),
+  );
+  const { container } = render(
+    <HistoryView
+      snapshot={parseSnapshot({ ...empty, uptime_ms: 7200000 })}
+      unit="C"
+      timezone={null}
+    />,
+  );
+  await screen.findByRole('img', { name: /average temperature chart/ });
+  const lines = container.querySelectorAll('polyline');
+  expect(lines).toHaveLength(1);
+  expect(lines[0].getAttribute('points')?.split(' ')).toHaveLength(2);
+  expect(container.querySelector('rect title')?.textContent).toContain(
+    'Missing data',
+  );
+});

@@ -408,17 +408,16 @@ export default function HistoryView({
                       ));
                   })()}
                   {chartSeries.map((item) => {
-                    // A line joins neighbouring five-minute groups only; a gap or a partial group
-                    // starts a new run, so a missing interval is never drawn as a straight line.
+                    // The line runs through missing intervals; the shaded gaps show where data is
+                    // missing. Elapsed-time charts start a new line at each boot, because a
+                    // boot's times cannot be compared with another boot's.
                     const runs: string[][] = [];
                     item.points.forEach((p, i) => {
                       const previous = item.points[i - 1];
                       const joins =
                         i > 0 &&
-                        !p.partial &&
-                        !previous.partial &&
-                        p.boot_id === previous.boot_id &&
-                        p.start_ms === previous.end_ms;
+                        (result?.time_basis === 'utc' ||
+                          p.boot_id === previous.boot_id);
                       if (!joins) runs.push([]);
                       runs[runs.length - 1].push(
                         `${x(p.start_ms)},${y(p.average_c)}`,
