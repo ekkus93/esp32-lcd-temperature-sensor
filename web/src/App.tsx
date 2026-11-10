@@ -451,9 +451,6 @@ function Shell() {
               </AuthGate>
             </Stack>
           )}
-          <footer>
-            Local-first · No cloud required · Firmware development preview
-          </footer>
         </main>
       </div>
     </ThemeProvider>

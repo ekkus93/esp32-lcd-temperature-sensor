@@ -44,7 +44,9 @@ it('shows selectable history series for probes no longer in the live snapshot', 
     name: new RegExp(rom),
   });
   expect(
-    await screen.findByRole('img', { name: /Probe 0029/ }),
+    await screen.findByRole('img', {
+      name: /Five-minute average temperature chart for 1 probe/,
+    }),
   ).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Zoom out' })).toBeDisabled();
   fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
@@ -59,7 +61,9 @@ it('shows selectable history series for probes no longer in the live snapshot', 
   expect(screen.getByRole('button', { name: 'Zoom out' })).toBeDisabled();
   fireEvent.click(checkbox);
   expect(
-    screen.queryByRole('img', { name: /Probe 0029/ }),
+    screen.queryByRole('img', {
+      name: /Five-minute average temperature chart/,
+    }),
   ).not.toBeInTheDocument();
 }, 10000);
 
@@ -147,7 +151,9 @@ it('visibly shades missing intervals in the selected history series', async () =
     />,
   );
   expect(
-    await screen.findByRole('img', { name: /Probe 0029 five-minute/ }),
+    await screen.findByRole('img', {
+      name: /Five-minute average temperature chart/,
+    }),
   ).toContainHTML('Missing data: 10 min to 20 min since boot (10 min missing)');
 });
 
@@ -186,7 +192,9 @@ it('explains a zoomed view that contains no data', async () => {
       timezone={null}
     />,
   );
-  await screen.findByRole('img', { name: /Probe 0029/ });
+  await screen.findByRole('img', {
+    name: /Five-minute average temperature chart/,
+  });
   expect(screen.queryByText(/No data in this zoomed view/)).toBeNull();
   for (let i = 0; i < 3; i++)
     fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
@@ -213,7 +221,9 @@ it('loads history again once the clock synchronizes', async () => {
   const view = render(
     <HistoryView snapshot={unsynchronized} unit="C" timezone={null} />,
   );
-  await screen.findByRole('img', { name: /Probe 0029/ });
+  await screen.findByRole('img', {
+    name: /Five-minute average temperature chart/,
+  });
   const before = fetchMock.mock.calls.length;
   // A new snapshot with the same sync state does not reload.
   view.rerender(
@@ -259,4 +269,130 @@ it('exposes the selected range and history errors to assistive technology', asyn
   expect(await screen.findByRole('alert')).toHaveTextContent(
     'Could not reach the device',
   );
+});
+
+it('draws every selected probe on one chart, each in its own colour', async () => {
+  const first = '2801000000000029';
+  const second = '2801000000000030';
+  const point = (rom: string, start: number, average: number) => ({
+    boot_id: '0123456789abcdef',
+    rom_id: rom,
+    start_ms: start,
+    end_ms: start + 300000,
+    utc_seconds: null,
+    average_c: average,
+    minimum_c: average - 0.5,
+    maximum_c: average + 0.5,
+    count: 60,
+    partial: false,
+  });
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        schema_version: 1,
+        simulated: false,
+        truncated: false,
+        time_basis: 'uptime',
+        points: [
+          point(first, 0, 4),
+          point(first, 300000, 4.5),
+          point(second, 0, 20),
+          point(second, 300000, 21),
+        ],
+        gaps: [],
+      }),
+    }),
+  );
+  const snapshot = parseSnapshot({
+    ...empty,
+    uptime_ms: 7200000,
+    sensors: [
+      {
+        rom_id: first,
+        name: 'Sensor 1',
+        state: 'normal',
+        temperature_c: 4.5,
+        last_seen_ms: 7200000,
+        enabled: true,
+        order: 0,
+      },
+      {
+        rom_id: second,
+        name: 'Sensor 2',
+        state: 'normal',
+        temperature_c: 21,
+        last_seen_ms: 7200000,
+        enabled: true,
+        order: 1,
+      },
+    ],
+  });
+  const { container } = render(
+    <HistoryView snapshot={snapshot} unit="C" timezone={null} />,
+  );
+  expect(
+    await screen.findByRole('img', {
+      name: 'Five-minute average temperature chart for 2 probes',
+    }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getAllByRole('img', { name: /temperature chart/ }),
+  ).toHaveLength(1);
+  const lines = container.querySelectorAll('polyline');
+  expect(lines).toHaveLength(2);
+  expect(lines[0].getAttribute('stroke')).toBe('#7fc8ff');
+  expect(lines[1].getAttribute('stroke')).toBe('#ffc857');
+});
+
+it('lists probes in their position order, not by ROM ID', async () => {
+  const later = '2801000000000001'; // lower ROM ID, but position 1
+  const first = '2802000000000002';
+  const point = (rom: string) => ({
+    boot_id: '0123456789abcdef',
+    rom_id: rom,
+    start_ms: 0,
+    end_ms: 300000,
+    utc_seconds: null,
+    average_c: 4,
+    minimum_c: 3,
+    maximum_c: 5,
+    count: 60,
+    partial: false,
+  });
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        schema_version: 1,
+        simulated: false,
+        truncated: false,
+        time_basis: 'uptime',
+        points: [point(later), point(first)],
+        gaps: [],
+      }),
+    }),
+  );
+  const sensor = (rom_id: string, name: string, order: number) => ({
+    rom_id,
+    name,
+    state: 'normal' as const,
+    temperature_c: 4,
+    last_seen_ms: 7200000,
+    enabled: true,
+    order,
+  });
+  const snapshot = parseSnapshot({
+    ...empty,
+    uptime_ms: 7200000,
+    sensors: [sensor(first, 'Sensor 1', 0), sensor(later, 'Sensor 2', 1)],
+  });
+  render(<HistoryView snapshot={snapshot} unit="C" timezone={null} />);
+  const boxes = await screen.findAllByRole('checkbox');
+  expect(boxes.map((box) => box.closest('label')?.textContent)).toEqual([
+    `Sensor 1 · ${first}`,
+    `Sensor 2 · ${later}`,
+  ]);
 });
