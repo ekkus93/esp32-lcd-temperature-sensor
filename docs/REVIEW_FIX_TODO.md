@@ -109,6 +109,46 @@
 - [ ] **R09-08** With owner approval, correct `docs/TODO.md`: reopen or annotate the affected checked tasks, move T09-14's notes, refresh T11-09's counts (§9).
 - [x] **R09-09** Design cleanups from §11 (USB bridge naming, host-only identity checks documented or simplified). Done (build only; behaviour unchanged by design, not re-run on the board): the USB test bridges (`DNS_BRIDGE`, `HTTP_BRIDGE`, `WS_BRIDGE`, `WS_LOAD_BRIDGE`, `WS_SLOW_BRIDGE`, about 540 lines) moved out of `provisioning_service.cpp` into `usb_bridge.cpp` behind `handle_usb_bridge_command()`, so `provisioning_service.cpp` (116 lines) holds only the owner USB commands (`SETUP_INFO`, `RESET_ADMIN_CREDENTIALS CONFIRM`, `WIFI_CONNECT`) and the dispatch; the component keeps its name. The host-only file-identity checks in the history store are documented in `history.hpp` (what they guard against, that the device build does not compile them, and which checks protect the device instead). **Board check (2026-11-05):** after the split, `HTTP_BRIDGE` over USB returned the status response (`200`) and `SETUP_INFO` returned its begin and end markers; the owner's setup contents were not displayed or recorded.
 
+## Phase R10 — Follow-ups from the owner-code removal and the code review
+
+Each item states its acceptance in §16 of `REVIEW_FIX_SPEC.md`. Items marked `[HW]` need the
+connected board.
+
+- [ ] **R10-00** Remove the owner code from enrollment, the sign-in form, the USB setup output, the
+  LCD setup screens and the docs; the admin password is created during the BOOT setup window.
+- [ ] **R10-01** Trend restore logs a failed or partial history read and an untrusted clock instead
+  of failing silently.
+- [ ] **R10-02** "Live connection lost" is shown only after it has lasted ten seconds, so brief
+  reconnects do not flash.
+- [ ] **R10-03** [HW] History queries finish well under one second on a full store, so the history
+  rate limit can refuse a second query made within a second. Bound the store scan to the requested
+  range (§16.1). Acceptance: `tools/device_api_test.py` passes its history rate-limit check
+  unchanged on the board, and a host test covers the bounded scan.
+- [ ] **R10-04** The device test expects the sensor count it is told to expect, not a range of zero
+  to five (§16.2). Acceptance: the test fails when the count differs from `--expect-sensors`.
+- [ ] **R10-05** Erase the stale owner code (`bootstrap` key) from storage once at startup, and
+  remove the test that asserts it is ignored (§16.3). Acceptance: host test shows the key is gone
+  after startup; on the board the key is absent after one reboot.
+- [ ] **R10-06** Enrollment refusal says why it was refused: setup window closed (hold BOOT for five
+  seconds), repeat enrollment, or spacing after an attempt (§16.4). Acceptance: each cause has its
+  own message in the API and the sign-in form, with a test for each.
+- [ ] **R10-07** Display cleanups from R03-07 (comment fix, blank screen before destroying the view,
+  flush-diagnostic callback check, single compact footer). Acceptance: the display tests pass and
+  each cleanup is covered by a test or noted as build-only.
+- [ ] **R10-08** T06-15: measure bytes per history record and the retention for one to five probes,
+  and document the oldest and newest timestamps (§16.5). Acceptance: numbers recorded in the docs.
+- [ ] **R10-09** T10-02: mark a new firmware valid only after startup health checks, roll back when
+  they fail, and show the update status on the LCD and web UI (§16.6). Acceptance: host tests for
+  the health gate; on the board, the status shows in the web UI.
+- [ ] **R10-10** T10-05: profile heap, client counts, LVGL, flash writes and Wi-Fi traffic for leaks
+  and high-water marks (§16.7). Acceptance: a recorded profile with no growth over a soak run.
+- [ ] **R10-11** T11-01: reconcile `SPEC.md`, `TODO.md`, the wiring document, the UI specs and the
+  diagrams with the final pinout and measurements (§16.8). Acceptance: no conflicting statements
+  remain, checked by a reviewer.
+- [ ] **R10-12** T11-08: publish versioned firmware binaries, web build provenance, checksums and
+  release notes, with known issues, only after every item above is done (§16.9).
+- [ ] **R10-13** R09-08: correct `docs/TODO.md`. **Blocked until you approve the edit.**
+
 ## Definition of done
 
 - [ ] All P0 and P1 items pass with tests, and their `[HW]` checks are recorded.

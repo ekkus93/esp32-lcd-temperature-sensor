@@ -303,3 +303,75 @@ Confirmed by the owner on 2026-11-05: D1 to D7 are all accepted as proposed belo
 - Each change: the focused host or web test first (failing before the fix where it's a defect), then `./tools/verify.sh`; firmware changes also `./tools/verify.sh --firmware`.
 - Board checks are recorded under `docs/validation/` and labelled host, simulated or physical. Builds and simulations don't count as hardware acceptance.
 - No `erase-flash` or partition change. History and NVS survive every flash.
+
+## 16. Follow-ups from the owner-code removal and the code review
+
+These close the open items in `REVIEW_FIX_TODO.md` Phase R10. Each subsection states the behaviour
+wanted and the acceptance test.
+
+### 16.1 History query speed and the rate limit (R10-03)
+
+- Behaviour: a history query reads only the storage it needs for its time range, so it finishes
+  well under one second on a full store. Today every query scans the whole store and filters
+  afterwards, which takes about 1.2 s even for one bucket.
+- Why it matters: the public history limit is one query per second per client. A query longer than
+  a second means a sequential client is never refused, so the limit does nothing.
+- Acceptance: a host test shows a bounded scan visits only the segments in range; the device test's
+  history rate-limit check passes unchanged on the board.
+
+### 16.2 Device test sensor count (R10-04)
+
+- Behaviour: `device_api_test.py` takes the expected probe count (`--expect-sensors`) and checks
+  for exactly that count. A bare board reports the probes saved on it, so the count is set per board
+  rather than assumed.
+- Acceptance: the test fails when the count differs.
+
+### 16.3 Stale owner code (R10-05)
+
+- Behaviour: at startup the firmware erases the `bootstrap` key once, so no owner code remains in
+  storage. The erase is idempotent and does not touch the administrator verifier.
+- Acceptance: host test: after startup the key is absent, and the verifier is unchanged. The
+  migration test that asserts the old key is ignored is removed. On the board the key is absent
+  after one reboot.
+
+### 16.4 Enrollment refusal messages (R10-06)
+
+- Behaviour: the enrollment refusal names its cause:
+  - setup window closed: "Hold BOOT for five seconds to open setup, then try again";
+  - already enrolled: "An administrator password already exists";
+  - spacing after an attempt: "Wait five seconds and try again".
+- Acceptance: one test per message in the API and the sign-in form.
+
+### 16.5 History retention measurements (R10-08)
+
+- Behaviour: record the bytes per history record and the retention for one to five probes, and
+  the oldest and newest timestamps the store holds, in `docs/HISTORY_FORMAT.md`.
+- Acceptance: the numbers are in the document, with the measurement method.
+
+### 16.6 Firmware validity and rollback (R10-09)
+
+- Behaviour: a new image is marked valid only after startup health checks pass (storage mounted,
+  sensors read, HTTP answering). If they fail, the device rolls back to the previous image. The
+  update status shows on the LCD and in the web UI.
+- Acceptance: host tests for the health gate; on the board, the web UI shows the status.
+
+### 16.7 Resource profile (R10-10)
+
+- Behaviour: profile heap, client counts, LVGL memory, flash writes and Wi-Fi traffic over a soak
+  run.
+- Acceptance: a recorded profile with no growth after warm-up.
+
+### 16.8 Documentation reconciliation (R10-11)
+
+- Behaviour: `SPEC.md`, `TODO.md`, the wiring document, the UI specs and the diagrams agree with the
+  final pinout and measurements.
+- Acceptance: a reviewer finds no conflicting statements.
+
+### 16.9 Release (R10-12)
+
+- Behaviour: versioned firmware binaries, web build provenance, checksums and release notes with
+  known issues. Published only after §16.1 to §16.8 are complete.
+
+### 16.10 Approval-gated edit (R10-13)
+
+- `docs/TODO.md` is edited only with the owner's approval, as R09-08 requires.
