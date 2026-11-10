@@ -69,10 +69,20 @@ bool WsLive::add_client(int fd, const std::string &token) {
     slot->fd = fd;
     slot->token = token;
     slot->quarantined = false;
+    slot->sent = 0;
     return true;
 }
 
 bool WsLive::schedule() {
+    generation_.fetch_add(1);
+    return queue();
+}
+
+bool WsLive::welcome() {
+    return queue();
+}
+
+bool WsLive::queue() {
     if (!server_ || pending_.exchange(true))
         return true;
     if (httpd_queue_work(server_, broadcast, this) == ESP_OK)
@@ -120,6 +130,7 @@ void WsLive::broadcast(void *context) {
     // HTTP sockets into a fixed-size array fails when unrelated REST/asset
     // clients outnumber the array, silently starving every live subscriber.
     const auto now_ms = esp_timer_get_time() / 1000;
+    const uint64_t generation = self.generation_.load();
     for (auto &client : self.clients_) {
         const int fd = client.fd;
         // The HTTP server may have closed/reused a registered descriptor.
@@ -144,13 +155,17 @@ void WsLive::broadcast(void *context) {
             httpd_sess_trigger_close(self.server_, fd);
             continue;
         }
+        if (client.sent >= generation)
+            continue; // already has the current snapshot
         if (!snapshot_loaded) {
             text = self.snapshot_ ? self.snapshot_() : std::string{};
             snapshot_loaded = true;
         }
         if (text.empty())
             continue;
-        if (!ws_frame::send_text_nonblocking(fd, text, send)) {
+        if (ws_frame::send_text_nonblocking(fd, text, send)) {
+            client.sent = generation;
+        } else {
             client.quarantined = true;
             ESP_LOGW("ws_live", "Closing slow or failed WebSocket send for fd=%d", fd);
             if (httpd_sess_trigger_close(self.server_, fd) == ESP_OK)

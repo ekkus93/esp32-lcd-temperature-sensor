@@ -451,6 +451,43 @@ int main() {
         }
     }
 
+    // A connecting client gets the current snapshot at once, and only it: the clients already
+    // connected are not sent a duplicate. The next new snapshot reaches everyone once.
+    {
+        fake_now_us = 1000000;
+        monitor::WsLive welcome_live(4, 0);
+        welcome_live.configure(reinterpret_cast<httpd_handle_t>(1), auth, [&] { return payload; });
+        std::array<std::array<int, 2>, 2> welcome_peers{};
+        for (auto &pair : welcome_peers) {
+            assert(socketpair(AF_UNIX, SOCK_STREAM, 0, pair.data()) == 0);
+            add_websocket(pair[0]);
+        }
+        const auto nothing_waiting = [](int fd) {
+            char unexpected = 0;
+            return recv(fd, &unexpected, 1, MSG_DONTWAIT) == -1 &&
+                   (errno == EAGAIN || errno == EWOULDBLOCK);
+        };
+        assert(welcome_live.add_client(welcome_peers[0][0], ""));
+        assert(welcome_live.welcome());
+        drain(welcome_peers[0][1], payload);
+        assert(welcome_live.add_client(welcome_peers[1][0], ""));
+        assert(welcome_live.welcome());
+        drain(welcome_peers[1][1], payload);
+        assert(nothing_waiting(welcome_peers[0][1])); // no duplicate for the first client
+        assert(welcome_live.welcome());               // nothing new: nobody is sent anything
+        assert(nothing_waiting(welcome_peers[0][1]) && nothing_waiting(welcome_peers[1][1]));
+        assert(welcome_live.schedule());
+        drain(welcome_peers[0][1], payload);
+        drain(welcome_peers[1][1], payload);
+        assert(nothing_waiting(welcome_peers[0][1]) && nothing_waiting(welcome_peers[1][1]));
+        for (auto &pair : welcome_peers) {
+            websocket_fds.erase(std::remove(websocket_fds.begin(), websocket_fds.end(), pair[0]),
+                                websocket_fds.end());
+            close(pair[0]);
+            close(pair[1]);
+        }
+    }
+
     for (auto &pair : admission_peers) {
         close(pair[0]);
         close(pair[1]);

@@ -478,7 +478,7 @@ esp_err_t HttpApi::ws_pre(httpd_req_t *r) {
         error(r, "503 Service Unavailable", "Socket limit");
         return ESP_FAIL;
     }
-    self.ws_live_.schedule();
+    self.ws_live_.welcome();
     return ESP_OK;
 }
 esp_err_t HttpApi::live(httpd_req_t *r) {
