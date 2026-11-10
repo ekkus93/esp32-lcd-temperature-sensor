@@ -47,6 +47,37 @@ struct DisplayFrame {
     std::string local_name;
 };
 
+// The last day of stored buckets for the trend graph. The history worker owns the store and a
+// visit can take seconds, so it runs in its own task; the main loop places the buckets on this
+// boot's timeline once the clock is trusted (the stored UTC starts are what places them).
+struct TrendRestore {
+    monitor::HistoryService *history = nullptr;
+    SemaphoreHandle_t mutex = nullptr;
+    std::vector<monitor::Bucket> stored;   // guarded by mutex; written by the task
+    bool done = false;                     // guarded by mutex
+    bool started = false, applied = false; // main loop only
+};
+
+void trend_restore_task(void *argument) {
+    auto &restore = *static_cast<TrendRestore *>(argument);
+    std::vector<monitor::Bucket> collected;
+    if (const auto utc = monitor::trusted_utc()) {
+        monitor::HistoryQuery query;
+        query.from = (*utc - 86400) * 1000;
+        query.to = (*utc + 1) * 1000;
+        restore.history->visit(query, [&](const monitor::Bucket &bucket) {
+            collected.push_back(bucket);
+            return true;
+        });
+    }
+    if (xSemaphoreTake(restore.mutex, portMAX_DELAY) == pdTRUE) {
+        restore.stored = std::move(collected);
+        restore.done = true;
+        xSemaphoreGive(restore.mutex);
+    }
+    vTaskDelete(nullptr);
+}
+
 struct DisplayTaskContext {
     monitor::DisplayRuntime *display;
     monitor::HttpApi *api;
@@ -169,6 +200,9 @@ extern "C" void app_main() {
     if (display.ready() && !display_task_started)
         ESP_LOGE(tag, "Independent display refresh unavailable; using acquisition cadence");
     monitor::TrendCache trend_cache;
+    TrendRestore trend_restore;
+    trend_restore.history = &history;
+    trend_restore.mutex = xSemaphoreCreateMutex();
     monitor::SamplingService sampling;
     monitor::SensorDiagnostics sensor_diagnostics;
     esp_err_t bus_status = sampling.initialize(simulated);
@@ -277,6 +311,30 @@ extern "C" void app_main() {
             event.detail = clock_synced ? 1 : 0;
             history.submit_event(event);
             prior_clock_synced = clock_synced;
+        }
+        if (!simulated && trend_restore.mutex && !trend_restore.started &&
+            monitor::clock_synchronized()) {
+            trend_restore.started = true;
+            if (xTaskCreate(trend_restore_task, "trend_restore", 8192, &trend_restore, 1,
+                            nullptr) != pdPASS)
+                ESP_LOGW(tag, "Trend history restore unavailable; the graph starts at boot");
+        }
+        if (trend_restore.started && !trend_restore.applied) {
+            std::vector<monitor::Bucket> stored;
+            bool done = false;
+            if (xSemaphoreTake(trend_restore.mutex, 0) == pdTRUE) {
+                done = trend_restore.done;
+                if (done)
+                    stored = std::move(trend_restore.stored);
+                xSemaphoreGive(trend_restore.mutex);
+            }
+            if (done) {
+                trend_restore.applied = true;
+                if (const auto utc = monitor::trusted_utc()) {
+                    trend_cache.restore(monitor::rebase_stored_buckets(stored, *utc * 1000, now));
+                    ESP_LOGI(tag, "Trends restored from history");
+                }
+            }
         }
         if (auto bucket = aggregator.add(registry, sampled_at,
                                          simulated ? std::nullopt : monitor::trusted_utc())) {

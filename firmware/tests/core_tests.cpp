@@ -423,6 +423,67 @@ void controls() {
     CHECK(!button.update(true, 25000));
     CHECK(button.progress(25000) == 100);
 }
+void chart_gaps() {
+    const int32_t none = -1;
+    // One and two missing points between values are joined; three are not.
+    std::vector<int32_t> points{none, 100, none, none, 130, none, none, none, 200, none};
+    bridge_short_gaps(points.data(), points.size(), none, 2);
+    CHECK(points[0] == none && points[1] == 100);
+    CHECK(points[2] == 110 && points[3] == 120 && points[4] == 130);
+    CHECK(points[5] == none && points[6] == none && points[7] == none && points[8] == 200);
+    CHECK(points[9] == none); // a run at the end has no value after it, so it is not joined
+    // Rounds to the nearest hundredth between the neighbours.
+    std::vector<int32_t> rounded{0, none, 1};
+    bridge_short_gaps(rounded.data(), rounded.size(), none, 2);
+    CHECK(rounded[1] == 1); // 0.5 rounds away from zero
+    std::vector<int32_t> empty;
+    bridge_short_gaps(empty.data(), 0, none, 2);
+}
+void trend_restore() {
+    const int64_t utc_now = 1800003600000;     // a five-minute grid boundary in UTC
+    const int64_t uptime_now = 3600000 + 2000; // two seconds past an uptime boundary
+    auto stored = [](uint64_t boot, std::optional<int64_t> utc_seconds, double average) {
+        Bucket bucket{boot, 0, utc_seconds, {}};
+        bucket.sensors.push_back(Aggregate{1, average, average, average, 60, false, ""});
+        return bucket;
+    };
+    // Two windows from an earlier boot (one half a grid slot off), one with no UTC start, and one
+    // that starts after now. Only the first three can be placed: the last is dropped.
+    std::vector<Bucket> older{stored(1, 1800000000, 20), stored(1, 1800000303, 21),
+                              stored(1, std::nullopt, 99), stored(1, 1800003700, 98)};
+    auto placed = rebase_stored_buckets(older, utc_now, uptime_now);
+    CHECK(placed.size() == 2);
+    CHECK(placed[0].start_uptime_ms == 0 && placed[1].start_uptime_ms == 300000);
+    CHECK(placed[0].sensors[0].average == 20 && placed[1].sensors[0].average == 21);
+    CHECK(placed[0].boot_id == 1);
+
+    // Restored buckets feed the graph and survive the first live window of this boot, which has
+    // a later start than everything restored.
+    TrendCache cache;
+    cache.restore(placed);
+    CHECK(cache.size() == 2);
+    Bucket live{2, 600000, std::nullopt, {}};
+    live.sensors.push_back(Aggregate{1, 22, 22, 22, 60, false, ""});
+    cache.add(live);
+    CHECK(cache.size() == 3);
+    auto values = cache.values(1, 900000, 15); // last 15 min: slots [0,5), [5,10), [10,15)
+    CHECK(values.size() == 3 && values[0] == 20 && values[1] == 21 && values[2] == 22);
+
+    // Restoring again adds nothing (the oldest held window is not after the restored ones), and
+    // a window that is not older than the held ones is never placed in front of them.
+    TrendCache held;
+    held.add(live);
+    held.restore(placed);
+    CHECK(held.size() == 3);
+    held.restore(placed);
+    CHECK(held.size() == 3);
+    held.restore({Bucket{3, 900000, std::nullopt, {}}});
+    CHECK(held.size() == 3);
+
+    // Out-of-order live windows still clear the cache, as before.
+    cache.add(Bucket{2, 300000, std::nullopt, {}});
+    CHECK(cache.size() == 1);
+}
 int run_core_tests() {
     identity();
     retirement();
@@ -432,6 +493,8 @@ int run_core_tests() {
     configuration_transitions();
     bus_permutations();
     bucket_alignment();
+    trend_restore();
+    chart_gaps();
     aggregate_metadata();
     controls();
     std::cout << "PASS: identity, retirement, CRC, invalid data, alerts, aggregates, clock, "

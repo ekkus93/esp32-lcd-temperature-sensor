@@ -322,6 +322,7 @@ void DisplayView::render(const Registry &registry, const TrendCache &cache,
                                         low == INT32_MAX ? 0 : low - 50,
                                         high == INT32_MIN ? 100 : high + 50);
             }
+            monitor::bridge_short_gaps(points.data(), values.size(), LV_CHART_POINT_NONE, 2);
             lv_chart_set_series_values(trends_.charts[i], trends_.series[i], points.data(),
                                        values.size());
         }
