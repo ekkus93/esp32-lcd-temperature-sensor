@@ -50,3 +50,14 @@ forecast after segment eviction. Actual MCU LittleFS retained range, filesystem
 metadata/wear, and timestamps with physical probes still need device
 qualification; T06-15 remains open until those device measurements are
 recorded.
+
+## Board measurement (2026-11-12)
+
+Physical ESP32-S3 with four saved DS18B20 probes (`Sensor 1` to `Sensor 4`). CSV export of the last
+30 days: 1,133 rows, 314 records from 71 boots, UTC starts 2026-11-04 11:10 to 2026-11-12 07:35
+UTC. The export of the 30 days before that was empty. Records: 272 with four probes (180 bytes),
+40 with one (75), one with two (110), one with three (145), sizes from the encoding rule applied to
+the exported names. The store has not reached its 3 MiB budget, so retention is a forecast: about
+61 days at four probes with these names when logging is continuous. The gaps (314 of 2,262 windows)
+come from development reflashes and restarts. LittleFS physical allocation was not read from flash.
+

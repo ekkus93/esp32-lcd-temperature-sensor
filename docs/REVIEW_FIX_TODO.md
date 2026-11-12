@@ -162,8 +162,13 @@ connected board.
   (2026-11-11):** over 6 minutes, 76 HEALTH lines with `display_dropped=0`, the LCD alternated
   Overview and Trends 12 times each after the trends were restored, no panic; `device_api_test.py`
   passed all 467 checks.
-- [ ] **R10-08** T06-15: measure bytes per history record and the retention for one to five probes,
-  and document the oldest and newest timestamps (§16.5). Acceptance: numbers recorded in the docs.
+- [x] **R10-08** T06-15: measure bytes per history record and the retention for one to five probes,
+  and document the oldest and newest timestamps (§16.5). Acceptance: numbers recorded in the docs. Done (board,
+  2026-11-12): recorded in `docs/HISTORY_FORMAT.md` and the retention validation record. Oldest
+  2026-11-04 11:10 UTC, newest 2026-11-12 07:35 UTC, 314 records from 71 boots; 180 bytes per
+  four-probe record; forecast about 61 days at four probes when logging is continuous. The store has
+  not filled yet, so retention under eviction is still the host profile's; `docs/TODO.md` T06-15 is
+  left for R10-13.
 - [ ] **R10-09** T10-02: mark a new firmware valid only after startup health checks, roll back when
   they fail, and show the update status on the LCD and web UI (§16.6). Acceptance: host tests for
   the health gate; on the board, the status shows in the web UI.

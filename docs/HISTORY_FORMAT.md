@@ -49,8 +49,37 @@ approximately 110, 69, 50, 40 and 32 days at 288 windows/day. These are capacity
 forecasts, not measured retained date ranges or a flash lifetime guarantee.
 Host-asserted encoded sizes and floor forecasts are recorded in
 [`validation/history-retention-estimate.md`](validation/history-retention-estimate.md).
-Actual LittleFS retained timestamps still need to be measured on a populated
-device.
+
+**Measured on the board (2026-11-12, physical probes).** A CSV export of the
+last 30 days (and an empty export of the 30 days before) shows what the store
+holds: UTC-stamped records from 2026-11-04 11:10 UTC (oldest) to 2026-11-12
+07:35 UTC (newest), 314 records from 71 boots. That is 314 of the 2,262
+five-minute windows in the span: the board was reflashed and restarted many
+times during development, and a restart loses the window in progress. The
+store has not yet reached its budget, so no record has been evicted. Records
+written before the clock was synchronised are kept by boot and uptime and are
+not in this UTC export.
+
+Record sizes follow the encoding above (40 bytes plus 27 bytes and the name per
+probe; the 32-character case is the 59 bytes per probe the host tests assert).
+The board's records name their probes `Sensor 1` to `Sensor 4`:
+
+| Probes in the record | Records | Bytes each |
+| ---: | ---: | ---: |
+| 4 | 272 | 180 |
+| 1 | 40 | 75 |
+| 2 | 1 | 110 |
+| 3 | 1 | 145 |
+
+The byte counts are computed from the exported records with that rule, not read
+from the flash filesystem. Forecast for this board when it logs without
+interruption: four probes with 8-character names use 180 bytes per window, so
+3 MiB holds about 61 days (288 windows a day); five such probes (215 bytes)
+about 51 days. Longer names shorten this, down to the 32-day floor for five
+32-character names. The measurement method: export with
+`GET /api/v1/history/export?from=…&to=…` over consecutive 30-day ranges, group
+rows by boot ID and window start, and apply the size rule to each record's
+names.
 
 ## Recovery and backups
 
