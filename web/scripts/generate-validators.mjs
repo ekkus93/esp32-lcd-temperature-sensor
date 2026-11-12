@@ -41,7 +41,16 @@ for (const [name, file] of validators) {
   ajv.addSchema(schema, name);
   refs[name] = name;
 }
-const code = standaloneCode(ajv, refs);
+// Ajv's standalone output still loads its string-length helper with CommonJS `require()`, even with
+// `esm: true`. The production bundler converts that, but the Vite dev server does not, and a raw
+// `require` leaves a blank page in development. Replace it with the same count (Unicode code points,
+// a surrogate pair counting once, as Ajv's ucs2length does), and refuse any other `require`.
+const code = standaloneCode(ajv, refs).replace(
+  /const (func\d+) = require\(["']ajv\/dist\/runtime\/ucs2length["']\)\.default;/g,
+  'const $1 = (value) => Array.from(value).length;',
+);
+if (/\brequire\(/.test(code))
+  throw new Error('Generated validators still contain require(); they must be plain ES modules');
 
 const types = [...new Map(validators.map(([, , type, module]) => [type, module])).entries()];
 const header = [

@@ -142,7 +142,7 @@ const schema11 = {
 };
 const pattern0 = new RegExp('^28[0-9a-f]{14}$', 'u');
 const pattern1 = new RegExp('^[A-Za-z0-9_-]{1,32}$', 'u');
-const func2 = require('ajv/dist/runtime/ucs2length').default;
+const func2 = (value) => Array.from(value).length;
 const func4 = Object.prototype.hasOwnProperty;
 function validate10(
   data,
