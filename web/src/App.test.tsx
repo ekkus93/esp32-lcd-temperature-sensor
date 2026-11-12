@@ -197,6 +197,7 @@ it('shows storage capacity and five-minute policy in Settings diagnostics', asyn
   );
   render(<App />);
   fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  fireEvent.click(await screen.findByRole('tab', { name: 'System' }));
   expect(
     await screen.findByText('Storage and diagnostics'),
   ).toBeInTheDocument();
@@ -330,6 +331,7 @@ it('keeps the dashboard history link neutral across populated and unsynchronized
 it('explains unavailable storage without implying healthy logging', async () => {
   render(<App />);
   fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  fireEvent.click(await screen.findByRole('tab', { name: 'System' }));
   expect(
     await screen.findByText('Storage and diagnostics'),
   ).toBeInTheDocument();
@@ -623,14 +625,45 @@ it('keeps the Settings diagnostics public and gates the owner controls', async (
   render(<App />);
   await screen.findByText('No probes detected');
   fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-  expect(
-    await screen.findByText('Storage and diagnostics'),
-  ).toBeInTheDocument();
+  // Settings opens on Preferences, which asks for the password before showing the form.
   expect(await screen.findByText('Administrator sign in')).toBeInTheDocument();
-  expect(screen.queryByText('Save device preferences')).toBeNull();
   expect(
     screen.queryByRole('button', { name: 'Save device preferences' }),
   ).toBeNull();
+  // The System tab shows the public diagnostics, and its controls stay behind sign-in.
+  fireEvent.click(screen.getByRole('tab', { name: 'System' }));
+  expect(
+    await screen.findByText('Storage and diagnostics'),
+  ).toBeInTheDocument();
+  expect(screen.getByText('Administrator sign in')).toBeInTheDocument();
+  expect(screen.queryByText('Restart device')).toBeNull();
+});
+
+it('groups Settings into tabs and opens the Wi-Fi tab from /setup', async () => {
+  stubDevice({ signedIn: true });
+  history.replaceState({}, '', '/setup');
+  render(<App />);
+  expect(
+    await screen.findByRole('tab', { name: 'Wi-Fi', selected: true }),
+  ).toBeInTheDocument();
+  expect(
+    await screen.findByRole('button', { name: 'Test and connect' }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText('Change administrator password')).toBeNull();
+  expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+    'Preferences',
+    'Wi-Fi',
+    'System',
+    'Password',
+  ]);
+  fireEvent.click(screen.getByRole('tab', { name: 'Password' }));
+  expect(
+    await screen.findByRole('button', {
+      name: 'Change administrator password',
+    }),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Test and connect' })).toBeNull();
+  history.replaceState({}, '', '/');
 });
 
 it('signs out from the app bar and returns to public reading', async () => {
@@ -656,6 +689,7 @@ it('shows the network name in the public Settings diagnostics, or says it is una
   );
   const first = render(<App />);
   fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+  fireEvent.click(await screen.findByRole('tab', { name: 'System' }));
   expect(await screen.findByText('http://garage-2.local')).toBeInTheDocument();
   first.unmount();
   history.replaceState({}, '', '/');
@@ -665,6 +699,7 @@ it('shows the network name in the public Settings diagnostics, or says it is una
   );
   render(<App />);
   fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+  fireEvent.click(await screen.findByRole('tab', { name: 'System' }));
   expect(
     await screen.findByText(/Network name unavailable/),
   ).toBeInTheDocument();
@@ -685,6 +720,7 @@ it('says in words when new firmware is being checked', async () => {
   );
   render(<App />);
   fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  fireEvent.click(await screen.findByRole('tab', { name: 'System' }));
   expect(
     await screen.findByText(
       /ota_1 · OTA new firmware being checked \(it rolls back if the check fails\)/,
