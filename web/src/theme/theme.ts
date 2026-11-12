@@ -383,6 +383,7 @@ export function createAppTheme(mode: Mode): Theme {
           root: {
             ...type.labelLarge,
             textTransform: 'none',
+            whiteSpace: 'nowrap',
             minHeight: 40,
             padding: '0 16px',
             borderRadius: corner.full,

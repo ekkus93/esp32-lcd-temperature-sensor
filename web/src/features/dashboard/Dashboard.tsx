@@ -20,6 +20,7 @@ import { AlertList } from '../alertItems';
 import type { ActiveAlert } from '../alertText';
 import TrendChart, { type TrendLimit } from '../chart/TrendChart';
 import { timeTicks } from '../chart/scale';
+import { chartGaps, chartSeries, pointTime } from '../chart/historySeries';
 import LiveReadings from './LiveReadings';
 import { formatTemperature, roomState, type PanelProbe } from './roomState';
 
@@ -187,20 +188,15 @@ export default function Dashboard({
     const order = snapshot.sensors.find((s) => s.rom_id === p.rom)?.order ?? 0;
     return { ...p, colour: colour(order) };
   });
-  const series = charted
-    .filter((p) => !hidden.includes(p.rom))
-    .map((p) => ({
-      key: p.rom,
-      name: p.name,
-      colour: p.colour,
-      points: (result?.points ?? [])
-        .filter((point) => point.rom_id === p.rom)
-        .map((point) => ({
-          start: point.start_ms,
-          end: point.end_ms,
-          celsius: point.average_c,
-        })),
-    }));
+  const shown = charted.filter((p) => !hidden.includes(p.rom));
+  const series = result ? chartSeries(result, shown) : [];
+  const gaps = result
+    ? chartGaps(
+        result,
+        shown.map((p) => p.rom),
+        timezone,
+      )
+    : [];
   const limitLines: TrendLimit[] = charted.flatMap((p) => {
     if (hidden.includes(p.rom)) return [];
     const warm = p.state === 'high' && p.highC !== null;
@@ -318,6 +314,8 @@ export default function Dashboard({
               ticks={timeTicks(from, to, basis, timezone)}
               unit={unit}
               limits={limitLines}
+              gaps={gaps}
+              formatTime={(at) => pointTime(at, basis, timezone)}
               label={`${range.title}: five-minute average temperature of ${series.length === 1 ? 'one probe' : `${series.length} probes`}.`}
             />
           ) : (

@@ -1,45 +1,66 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Alert,
-  Button,
+  Box,
   Card,
   CardContent,
-  Checkbox,
-  FormControlLabel,
-  FormGroup,
   Chip,
-  Stack,
+  IconButton,
+  Menu,
+  MenuItem,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import ChevronLeftRounded from '@mui/icons-material/ChevronLeftRounded';
+import ChevronRightRounded from '@mui/icons-material/ChevronRightRounded';
+import DownloadOutlined from '@mui/icons-material/DownloadOutlined';
+import InfoOutlined from '@mui/icons-material/InfoOutlined';
+import MoreVertOutlined from '@mui/icons-material/MoreVertOutlined';
+import RefreshOutlined from '@mui/icons-material/RefreshOutlined';
+import ZoomInOutlined from '@mui/icons-material/ZoomInOutlined';
+import ZoomOutMapOutlined from '@mui/icons-material/ZoomOutMapOutlined';
+import ZoomOutOutlined from '@mui/icons-material/ZoomOutOutlined';
 import {
   getHistory,
   historyExportUrl,
   type HistoryResult,
 } from '../api/history';
 import { temperature } from '../api/client';
-import { formatDeviceTime } from '../api/time';
 import type { Snapshot } from '../api/generated';
+import TrendChart from './chart/TrendChart';
+import { timeTicks } from './chart/scale';
+import { chartGaps, chartSeries, pointTime } from './chart/historySeries';
+
 const ranges = [
-  { label: '1h', hours: 1 },
-  { label: '24h', hours: 24 },
-  { label: '7d', hours: 168 },
-  { label: '30d', hours: 720 },
+  { label: '1 hour', hours: 1 },
+  { label: '24 hours', hours: 24 },
+  { label: '7 days', hours: 168 },
+  { label: '30 days', hours: 720 },
 ];
-function minutes(ms: number) {
-  return `${Math.round(ms / 60000)} min`;
-}
-// A readable description of a missing interval, in the same basis as the chart.
-function gapText(
-  start: number,
-  end: number,
-  basis: string,
-  timezone: string | null,
-) {
-  const missing = `${minutes(end - start)} missing`;
-  return basis === 'utc'
-    ? `${formatDeviceTime(start, timezone)} to ${formatDeviceTime(end, timezone)} (${missing})`
-    : `${minutes(start)} to ${minutes(end)} since boot (${missing})`;
+
+// An icon button whose name is its tooltip.
+function Action({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip title={label}>
+      <IconButton onClick={onClick}>{children}</IconButton>
+    </Tooltip>
+  );
 }
 
 export default function HistoryView({
@@ -134,358 +155,354 @@ export default function HistoryView({
     // A new snapshot only changes the query when the user refreshes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boot, synced, hours, refresh, key]);
-  // Every selected probe with data in the zoomed window is one line of the shared chart.
-  const chartSeries = series
-    .filter((rom) => selectedRoms.includes(rom))
-    .map((rom) => {
-      const sensor = snapshot.sensors.find((item) => item.rom_id === rom);
-      return {
-        rom,
-        name: sensor?.name ?? `Probe ${rom.slice(-4).toUpperCase()}`,
-        colour: probeColours[(sensor?.order ?? 0) % probeColours.length],
-        points:
-          result?.points.filter(
-            (point) =>
-              point.rom_id === rom &&
-              point.end_ms > viewFrom &&
-              point.start_ms < viewTo,
-          ) ?? [],
-      };
-    })
-    .filter((item) => item.points.length > 0);
-  const chartValues = chartSeries.flatMap((item) => item.points);
-  const chartMin = chartValues.length
-    ? Math.min(...chartValues.map((p) => p.minimum_c))
-    : 0;
-  const chartMax = chartValues.length
-    ? Math.max(...chartValues.map((p) => p.maximum_c))
-    : 1;
-  const x = (t: number) => 56 + (532 * (t - viewFrom)) / windowSpan;
-  const y = (t: number) =>
-    140 - (126 * (t - chartMin)) / Math.max(1, chartMax - chartMin);
+  const [menu, setMenu] = useState<HTMLElement | null>(null);
+  const theme = useTheme();
+  // The selected probes, in position order, with their names and colours.
+  const probes = series.map((rom) => {
+    const sensor = snapshot.sensors.find((item) => item.rom_id === rom);
+    return {
+      rom,
+      name: sensor?.name ?? `Probe ${rom.slice(-4).toUpperCase()}`,
+      colour: probeColours[(sensor?.order ?? 0) % probeColours.length],
+    };
+  });
+  const shown = probes.filter((probe) => selectedRoms.includes(probe.rom));
+  const lines = result
+    ? chartSeries(result, shown).filter((line) =>
+        line.points.some((p) => p.end > viewFrom && p.start < viewTo),
+      )
+    : [];
+  const basis = result?.time_basis ?? 'uptime';
+  // Low, average and high of each line in the window, weighted by the readings in each bucket.
+  const summary = lines.map((line) => {
+    const points = (result?.points ?? []).filter(
+      (p) =>
+        p.rom_id === line.key && p.end_ms > viewFrom && p.start_ms < viewTo,
+    );
+    const readings = points.reduce((sum, p) => sum + p.count, 0);
+    return {
+      line,
+      low: Math.min(...points.map((p) => p.minimum_c)),
+      high: Math.max(...points.map((p) => p.maximum_c)),
+      average:
+        points.reduce((sum, p) => sum + p.average_c * p.count, 0) /
+        Math.max(1, readings),
+      readings,
+    };
+  });
+  const canZoomIn = viewport.scale < 8 && Boolean(result?.points.length);
+  const zoomed = viewport.scale > 1;
+  const canGoEarlier = zoomed && viewport.offset < 1 - 1 / viewport.scale;
+  const canGoLater = zoomed && viewport.offset > 0;
+  const notice = [
+    result?.simulated ? 'Simulated history.' : '',
+    basis === 'uptime'
+      ? 'Clock unsynchronized: showing elapsed time for this boot only.'
+      : timezone
+        ? `Times shown in ${timezone}.`
+        : 'Device timezone unavailable; synchronized times shown in UTC.',
+    'Missing intervals are shaded.',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <Card>
-      <CardContent>
-        <Typography variant="h6">Five-minute temperature history</Typography>
-        <Stack direction="row" sx={{ my: 2, gap: 1, flexWrap: 'wrap' }}>
-          {ranges.map((range) => (
-            <Chip
-              key={range.label}
-              label={range.label}
-              color={hours === range.hours ? 'primary' : 'default'}
-              aria-pressed={hours === range.hours}
-              onClick={() => setHours(range.hours)}
-            />
-          ))}
-          <Button onClick={() => setRefresh(refresh + 1)}>
-            Refresh history
-          </Button>
-          <Button
-            onClick={() => setViewport(viewport.scale / 2, viewport.offset)}
-            disabled={viewport.scale <= 1}
-          >
-            Zoom out
-          </Button>
-          <Button
-            onClick={() => {
-              const nextScale = Math.min(8, viewport.scale * 2);
-              const center = viewFrom + windowSpan / 2;
-              setViewport(
-                nextScale,
-                (dataTo - center - dataSpan / nextScale / 2) / dataSpan,
-              );
+      <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+        <Box
+          sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 1.5,
+          }}
+        >
+          <Typography variant="titleLarge" component="h2">
+            Five-minute temperature history
+          </Typography>
+          <Box
+            sx={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: 0.5,
             }}
-            disabled={viewport.scale >= 8 || !result?.points.length}
           >
-            Zoom in
-          </Button>
-          <Button
-            onClick={() =>
-              setViewport(
-                viewport.scale,
-                viewport.offset + 0.5 / viewport.scale,
-              )
-            }
-            disabled={
-              viewport.offset >= 1 - 1 / viewport.scale || viewport.scale <= 1
-            }
-          >
-            Earlier
-          </Button>
-          <Button
-            onClick={() =>
-              setViewport(
-                viewport.scale,
-                viewport.offset - 0.5 / viewport.scale,
-              )
-            }
-            disabled={viewport.offset <= 0 || viewport.scale <= 1}
-          >
-            Later
-          </Button>
-          <Button
-            onClick={() => setViewport(1, 0)}
-            disabled={viewport.scale === 1}
-          >
-            Reset zoom
-          </Button>
-          <Button
-            component="a"
-            href={exportUrl}
-            disabled={!exportUrl}
-            target="_blank"
-            rel="noopener"
-          >
-            Export five-minute CSV
-          </Button>
-        </Stack>
+            <ToggleButtonGroup
+              exclusive
+              value={hours}
+              onChange={(_, next: number | null) => next && setHours(next)}
+              aria-label="Time range"
+              sx={{
+                mr: 1,
+                width: { xs: '100%', sm: 'auto' },
+                '& .MuiToggleButton-root': {
+                  flex: { xs: '1 1 0', sm: 'none' },
+                  px: { xs: 1, sm: 2 },
+                },
+              }}
+            >
+              {ranges.map((range) => (
+                <ToggleButton key={range.hours} value={range.hours}>
+                  {range.label}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+            {zoomed && (
+              <Action
+                label="Zoom out"
+                onClick={() => setViewport(viewport.scale / 2, viewport.offset)}
+              >
+                <ZoomOutOutlined />
+              </Action>
+            )}
+            {canZoomIn && (
+              <Action
+                label="Zoom in"
+                onClick={() => {
+                  const nextScale = Math.min(8, viewport.scale * 2);
+                  const center = viewFrom + windowSpan / 2;
+                  setViewport(
+                    nextScale,
+                    (dataTo - center - dataSpan / nextScale / 2) / dataSpan,
+                  );
+                }}
+              >
+                <ZoomInOutlined />
+              </Action>
+            )}
+            {canGoEarlier && (
+              <Action
+                label="Earlier"
+                onClick={() =>
+                  setViewport(
+                    viewport.scale,
+                    viewport.offset + 0.5 / viewport.scale,
+                  )
+                }
+              >
+                <ChevronLeftRounded />
+              </Action>
+            )}
+            {canGoLater && (
+              <Action
+                label="Later"
+                onClick={() =>
+                  setViewport(
+                    viewport.scale,
+                    viewport.offset - 0.5 / viewport.scale,
+                  )
+                }
+              >
+                <ChevronRightRounded />
+              </Action>
+            )}
+            {zoomed && (
+              <Action label="Reset zoom" onClick={() => setViewport(1, 0)}>
+                <ZoomOutMapOutlined />
+              </Action>
+            )}
+            <Action
+              label="Refresh history"
+              onClick={() => setRefresh(refresh + 1)}
+            >
+              <RefreshOutlined />
+            </Action>
+            <Tooltip title="More">
+              <IconButton
+                aria-haspopup="menu"
+                aria-expanded={Boolean(menu)}
+                onClick={(event) => setMenu(event.currentTarget)}
+              >
+                <MoreVertOutlined />
+              </IconButton>
+            </Tooltip>
+            <Menu
+              anchorEl={menu}
+              open={Boolean(menu)}
+              onClose={() => setMenu(null)}
+            >
+              <MenuItem
+                component="a"
+                href={exportUrl}
+                target="_blank"
+                rel="noopener"
+                disabled={!exportUrl}
+                onClick={() => setMenu(null)}
+              >
+                <DownloadOutlined fontSize="small" sx={{ mr: 1.5 }} />
+                Export five-minute CSV
+              </MenuItem>
+            </Menu>
+          </Box>
+        </Box>
         {error && <Alert severity="error">{error}</Alert>}
         {!error && !result && <Typography>Loading history…</Typography>}
         {result && (
           <>
-            {result.simulated && (
-              <Alert severity="info">Simulated history</Alert>
-            )}
             {result.truncated && (
               <Alert severity="warning">
                 Some overlapping or mixed-boot records were omitted. Narrow the
                 range.
               </Alert>
             )}
-            <Typography color="text.secondary">
-              {result.time_basis === 'uptime'
-                ? 'Clock unsynchronized: showing elapsed time for this boot only.'
-                : timezone
-                  ? `Times shown in ${timezone}.`
-                  : 'Device timezone unavailable; synchronized times shown in UTC.'}{' '}
-              Missing intervals remain gaps.
-            </Typography>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 1,
+                color: 'text.secondary',
+              }}
+            >
+              <InfoOutlined
+                aria-hidden="true"
+                sx={{ fontSize: 18, mt: '1px' }}
+              />
+              <Typography variant="bodyMedium">{notice}</Typography>
+            </Box>
             {!result.points.length && (
               <Typography>No history available in this range.</Typography>
             )}
-            {result.points.length > 0 &&
-              viewport.scale > 1 &&
-              !result.points.some(
-                (point) =>
-                  selectedRoms.includes(point.rom_id) &&
-                  point.end_ms > viewFrom &&
-                  point.start_ms < viewTo,
-              ) && (
-                <Typography>
-                  No data in this zoomed view. Zoom out, or use Earlier and
-                  Later.
-                </Typography>
-              )}
-            {series.length > 0 && (
-              <FormGroup row aria-label="History sensor series">
-                {series.map((rom) => {
-                  const sensor = snapshot.sensors.find(
-                    (item) => item.rom_id === rom,
-                  );
-                  const name =
-                    sensor?.name ?? `Probe ${rom.slice(-4).toUpperCase()}`;
+            {probes.length > 0 && (
+              <Box
+                role="group"
+                aria-label="Probes shown"
+                sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}
+              >
+                {probes.map((probe) => {
+                  const on = selectedRoms.includes(probe.rom);
                   return (
-                    <FormControlLabel
-                      key={rom}
-                      control={
-                        <Checkbox
-                          checked={selectedRoms.includes(rom)}
-                          onChange={(event) => {
-                            const next = event.target.checked
-                              ? [...selectedRoms, rom]
-                              : selectedRoms.filter((item) => item !== rom);
-                            setSeriesSelection({ key, roms: next });
-                          }}
-                        />
-                      }
-                      label={
-                        <span>
-                          <span
+                    <Tooltip
+                      key={probe.rom}
+                      title={`ROM ${probe.rom}`}
+                      describeChild
+                    >
+                      <Chip
+                        clickable
+                        variant={on ? 'filled' : 'outlined'}
+                        aria-pressed={on}
+                        label={probe.name}
+                        onClick={() =>
+                          setSeriesSelection({
+                            key,
+                            roms: on
+                              ? selectedRoms.filter((rom) => rom !== probe.rom)
+                              : [...selectedRoms, probe.rom],
+                          })
+                        }
+                        icon={
+                          <Box
+                            component="span"
                             aria-hidden="true"
-                            style={{
-                              display: 'inline-block',
-                              width: 12,
-                              height: 12,
-                              marginRight: 6,
-                              background:
-                                probeColours[
-                                  (sensor?.order ?? 0) % probeColours.length
-                                ],
+                            sx={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: '50%',
+                              bgcolor: probe.colour,
+                              opacity: on ? 1 : 0.5,
+                              ml: '10px !important',
                             }}
                           />
-                          {`${name} · ${rom}`}
-                        </span>
-                      }
-                    />
+                        }
+                      />
+                    </Tooltip>
                   );
                 })}
-              </FormGroup>
+              </Box>
             )}
-            {chartSeries.length > 0 && (
+            {result.points.length > 0 && zoomed && !lines.length && (
+              <Typography>
+                No data in this zoomed view. Zoom out, or use Earlier and Later.
+              </Typography>
+            )}
+            {lines.length > 0 && (
               <>
-                <svg
-                  viewBox="0 0 600 170"
-                  role="img"
-                  aria-label={`Five-minute average temperature chart for ${chartSeries.length} ${chartSeries.length === 1 ? 'probe' : 'probes'}`}
-                  style={{ width: '100%', maxHeight: 300, marginTop: 16 }}
-                >
-                  <text
-                    x="50"
-                    y="14"
-                    textAnchor="end"
-                    fontSize="11"
-                    fill="currentColor"
+                <TrendChart
+                  series={lines}
+                  from={viewFrom}
+                  to={viewTo}
+                  ticks={timeTicks(viewFrom, viewTo, basis, timezone)}
+                  unit={unit}
+                  gaps={chartGaps(
+                    result,
+                    lines.map((line) => line.key),
+                    timezone,
+                  )}
+                  height={280}
+                  formatTime={(at) => pointTime(at, basis, timezone)}
+                  label={`Five-minute average temperature chart for ${lines.length} ${lines.length === 1 ? 'probe' : 'probes'}`}
+                />
+                <Box sx={{ overflowX: 'auto' }}>
+                  <Table
+                    size="small"
+                    aria-label="Range summary"
+                    sx={{
+                      '& th, & td': {
+                        whiteSpace: 'nowrap',
+                        px: { xs: 1, sm: 2 },
+                      },
+                      '& .readings': {
+                        display: { xs: 'none', sm: 'table-cell' },
+                      },
+                    }}
                   >
-                    {temperature(chartMax, unit)}
-                  </text>
-                  <text
-                    x="50"
-                    y="146"
-                    textAnchor="end"
-                    fontSize="11"
-                    fill="currentColor"
-                  >
-                    {temperature(chartMin, unit)}
-                  </text>
-                  <line
-                    x1="56"
-                    y1="10"
-                    x2="56"
-                    y2="140"
-                    stroke="currentColor"
-                    opacity=".4"
-                  />
-                  <line
-                    x1="56"
-                    y1="140"
-                    x2="588"
-                    y2="140"
-                    stroke="currentColor"
-                    opacity=".4"
-                  />
-                  {(() => {
-                    // Missing intervals are shaded once, whichever probe they belong to.
-                    const seen = new Set<string>();
-                    return result?.gaps
-                      .filter(
-                        (gap) =>
-                          chartSeries.some(
-                            (item) =>
-                              item.rom === gap.rom_id &&
-                              item.points.some(
-                                (point) => point.boot_id === gap.boot_id,
-                              ),
-                          ) &&
-                          gap.end_ms > viewFrom &&
-                          gap.start_ms < viewTo,
-                      )
-                      .filter((gap) => {
-                        const key = `${gap.boot_id}:${gap.start_ms}:${gap.end_ms}`;
-                        if (seen.has(key)) return false;
-                        seen.add(key);
-                        return true;
-                      })
-                      .map((gap) => (
-                        <rect
-                          key={`gap:${gap.boot_id}:${gap.rom_id}:${gap.start_ms}`}
-                          x={x(gap.start_ms)}
-                          y="10"
-                          width={Math.max(1, x(gap.end_ms) - x(gap.start_ms))}
-                          height="130"
-                          fill="currentColor"
-                          opacity=".08"
-                        >
-                          <title>
-                            Missing data:{' '}
-                            {gapText(
-                              gap.start_ms,
-                              gap.end_ms,
-                              result?.time_basis ?? 'uptime',
-                              timezone,
-                            )}
-                          </title>
-                        </rect>
-                      ));
-                  })()}
-                  {chartSeries.map((item) => {
-                    // The line runs through missing intervals; the shaded gaps show where data is
-                    // missing. Elapsed-time charts start a new line at each boot, because a
-                    // boot's times cannot be compared with another boot's.
-                    const runs: string[][] = [];
-                    item.points.forEach((p, i) => {
-                      const previous = item.points[i - 1];
-                      const joins =
-                        i > 0 &&
-                        (result?.time_basis === 'utc' ||
-                          p.boot_id === previous.boot_id);
-                      if (!joins) runs.push([]);
-                      runs[runs.length - 1].push(
-                        `${x(p.start_ms)},${y(p.average_c)}`,
-                      );
-                    });
-                    return (
-                      <g key={item.rom} color={item.colour}>
-                        {runs.map((run, index) =>
-                          run.length > 1 ? (
-                            <polyline
-                              key={index}
-                              points={run.join(' ')}
-                              fill="none"
-                              stroke={item.colour}
-                              strokeWidth="2"
-                            />
-                          ) : null,
-                        )}
-                        {item.points.map((p) => (
-                          <circle
-                            key={`${p.boot_id}:${p.start_ms}`}
-                            cx={x(p.start_ms)}
-                            cy={y(p.average_c)}
-                            r="2.5"
-                            fill={item.colour}
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Probe</TableCell>
+                        <TableCell align="right">Low</TableCell>
+                        <TableCell align="right">Average</TableCell>
+                        <TableCell align="right">High</TableCell>
+                        <TableCell align="right" className="readings">
+                          Readings
+                        </TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {summary.map((row) => (
+                        <TableRow key={row.line.key}>
+                          <TableCell>
+                            <Box
+                              sx={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                              }}
+                            >
+                              <Box
+                                aria-hidden="true"
+                                sx={{
+                                  width: 10,
+                                  height: 10,
+                                  borderRadius: '50%',
+                                  bgcolor: row.line.colour,
+                                  flex: '0 0 10px',
+                                }}
+                              />
+                              {row.line.name}
+                            </Box>
+                          </TableCell>
+                          <TableCell align="right">
+                            {temperature(row.low, unit)}
+                          </TableCell>
+                          <TableCell align="right">
+                            {temperature(row.average, unit)}
+                          </TableCell>
+                          <TableCell align="right">
+                            {temperature(row.high, unit)}
+                          </TableCell>
+                          <TableCell
+                            align="right"
+                            className="readings"
+                            sx={{ color: theme.palette.text.secondary }}
                           >
-                            <title>
-                              {item.name}:{' '}
-                              {result?.time_basis === 'utc'
-                                ? formatDeviceTime(p.start_ms, timezone)
-                                : `${Math.floor(p.start_ms / 60000)} min since boot`}
-                              : {temperature(p.average_c, unit)}; {p.count}{' '}
-                              readings{p.partial ? '; partial' : ''}
-                            </title>
-                          </circle>
-                        ))}
-                      </g>
-                    );
-                  })}
-                </svg>
-                <Stack spacing={0.5} sx={{ mt: 1 }}>
-                  {chartSeries.map((item) => (
-                    <Typography key={item.rom}>
-                      <span
-                        aria-hidden="true"
-                        style={{
-                          display: 'inline-block',
-                          width: 12,
-                          height: 12,
-                          marginRight: 6,
-                          background: item.colour,
-                        }}
-                      />
-                      {item.name}:{' '}
-                      {temperature(
-                        Math.min(...item.points.map((p) => p.minimum_c)),
-                        unit,
-                      )}{' '}
-                      to{' '}
-                      {temperature(
-                        Math.max(...item.points.map((p) => p.maximum_c)),
-                        unit,
-                      )}{' '}
-                      · {item.points.length} groups
-                    </Typography>
-                  ))}
-                </Stack>
+                            {row.readings.toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Box>
               </>
             )}
           </>

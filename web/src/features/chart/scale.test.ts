@@ -26,6 +26,16 @@ describe('chart scales', () => {
     expect(india).toHaveLength(6);
   });
 
+  it('labels whole hours only when exact', () => {
+    expect(timeTicks(0, 2 * HOUR, 'uptime', null).map((t) => t.label)).toEqual([
+      '2 h ago',
+      '90 min ago',
+      '1 h ago',
+      '30 min ago',
+      'Now',
+    ]);
+  });
+
   it('counts back from now in a step that suits a short time since boot', () => {
     const ticks = timeTicks(0, 70 * 60_000, 'uptime', null);
     expect(ticks.map((t) => t.label)).toEqual([

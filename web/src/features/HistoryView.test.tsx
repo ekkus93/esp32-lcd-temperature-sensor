@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import HistoryView from './HistoryView';
 import { empty } from '../api/fixtures';
@@ -42,26 +42,29 @@ it('shows selectable history series for probes no longer in the live snapshot', 
       timezone={null}
     />,
   );
-  const checkbox = await screen.findByRole('checkbox', {
-    name: new RegExp(rom),
-  });
+  // A probe no longer in the snapshot is named from its ROM ID; the full ID is its description.
+  const chip = await screen.findByRole('button', { name: 'Probe 0029' });
+  expect(chip).toHaveAccessibleDescription(`ROM ${rom}`);
   expect(
     await screen.findByRole('img', {
       name: /Five-minute average temperature chart for 1 probe/,
     }),
   ).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Zoom out' })).toBeDisabled();
+  // Controls that would do nothing are hidden, not greyed out.
+  expect(screen.queryByRole('button', { name: 'Zoom out' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Earlier' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
-  expect(screen.getByRole('button', { name: 'Zoom out' })).toBeEnabled();
-  expect(screen.getByRole('button', { name: 'Earlier' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Zoom out' })).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Earlier' }));
-  expect(screen.getByRole('button', { name: 'Later' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Later' })).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
   fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
-  expect(screen.getByRole('button', { name: 'Zoom in' })).toBeDisabled();
+  expect(screen.queryByRole('button', { name: 'Zoom in' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Reset zoom' }));
-  expect(screen.getByRole('button', { name: 'Zoom out' })).toBeDisabled();
-  fireEvent.click(checkbox);
+  expect(screen.queryByRole('button', { name: 'Zoom out' })).toBeNull();
+  expect(chip).toHaveAttribute('aria-pressed', 'true');
+  fireEvent.click(chip);
+  expect(chip).toHaveAttribute('aria-pressed', 'false');
   expect(
     screen.queryByRole('img', {
       name: /Five-minute average temperature chart/,
@@ -254,16 +257,16 @@ it('exposes the selected range and history errors to assistive technology', asyn
     <HistoryView snapshot={parseSnapshot(empty)} unit="C" timezone={null} />,
   );
   // The selected range is announced as pressed; the others are not.
-  expect(screen.getByRole('button', { name: '24h' })).toHaveAttribute(
+  expect(screen.getByRole('button', { name: '24 hours' })).toHaveAttribute(
     'aria-pressed',
     'true',
   );
-  expect(screen.getByRole('button', { name: '1h' })).toHaveAttribute(
+  expect(screen.getByRole('button', { name: '1 hour' })).toHaveAttribute(
     'aria-pressed',
     'false',
   );
-  fireEvent.click(screen.getByRole('button', { name: '7d' }));
-  expect(screen.getByRole('button', { name: '7d' })).toHaveAttribute(
+  fireEvent.click(screen.getByRole('button', { name: '7 days' }));
+  expect(screen.getByRole('button', { name: '7 days' })).toHaveAttribute(
     'aria-pressed',
     'true',
   );
@@ -342,7 +345,7 @@ it('draws every selected probe on one chart, each in its own colour', async () =
   expect(
     screen.getAllByRole('img', { name: /temperature chart/ }),
   ).toHaveLength(1);
-  const lines = container.querySelectorAll('polyline');
+  const lines = container.querySelectorAll('path[data-series]');
   expect(lines).toHaveLength(2);
   // Coloured by display position, in the LCD's hue order (blue, then yellow).
   expect(lines[0].getAttribute('stroke')).toBe(tokens.light.series[0]);
@@ -393,11 +396,14 @@ it('lists probes in their position order, not by ROM ID', async () => {
     sensors: [sensor(first, 'Sensor 1', 0), sensor(later, 'Sensor 2', 1)],
   });
   render(<HistoryView snapshot={snapshot} unit="C" timezone={null} />);
-  const boxes = await screen.findAllByRole('checkbox');
-  expect(boxes.map((box) => box.closest('label')?.textContent)).toEqual([
-    `Sensor 1 · ${first}`,
-    `Sensor 2 · ${later}`,
+  const chips = within(
+    await screen.findByRole('group', { name: 'Probes shown' }),
+  ).getAllByRole('button');
+  expect(chips.map((chip) => chip.textContent)).toEqual([
+    'Sensor 1',
+    'Sensor 2',
   ]);
+  expect(chips[0]).toHaveAccessibleDescription(`ROM ${first}`);
 });
 
 it('runs one line through a missing interval and still shades it', async () => {
@@ -443,10 +449,40 @@ it('runs one line through a missing interval and still shades it', async () => {
     />,
   );
   await screen.findByRole('img', { name: /average temperature chart/ });
-  const lines = container.querySelectorAll('polyline');
+  // One line (one run) through both points, with the interval between them shaded.
+  const lines = container.querySelectorAll('path[data-series]');
   expect(lines).toHaveLength(1);
-  expect(lines[0].getAttribute('points')?.split(' ')).toHaveLength(2);
+  expect(lines[0].getAttribute('data-runs')).toBe('1');
   expect(container.querySelector('rect title')?.textContent).toContain(
     'Missing data',
   );
+});
+
+it('summarises each probe’s low, average and high for the range', async () => {
+  const rom = '2801000000000029';
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => twoFarPoints(rom) }),
+  );
+  render(
+    <HistoryView
+      snapshot={parseSnapshot({ ...empty, uptime_ms: 7200000 })}
+      unit="C"
+      timezone={null}
+    />,
+  );
+  const table = await screen.findByRole('table', { name: 'Range summary' });
+  const row = within(table).getAllByRole('row')[1];
+  expect(
+    within(row)
+      .getAllByRole('cell')
+      .map((cell) => cell.textContent),
+  ).toEqual(['Probe 0029', '3.0 °C', '4.0 °C', '5.0 °C', '120']);
+  // Export is in the overflow menu.
+  fireEvent.click(screen.getByRole('button', { name: 'More' }));
+  expect(
+    await screen.findByRole('menuitem', { name: 'Export five-minute CSV' }),
+  ).toHaveAttribute('href', expect.stringContaining('/api/v1/history/export?'));
 });

@@ -50,11 +50,11 @@ export function timeTicks(
     const step =
       (minutes.find((m) => span / (m * 60_000) <= 6) ?? 7200) * 60_000;
     const ago = (ms: number) =>
-      ms < HOUR
-        ? `${Math.round(ms / 60_000)} min ago`
-        : ms < 48 * HOUR
-          ? `${Math.round(ms / HOUR)} h ago`
-          : `${Math.round(ms / (24 * HOUR))} d ago`;
+      ms >= 48 * HOUR
+        ? `${Math.round(ms / (24 * HOUR))} d ago`
+        : ms % HOUR === 0
+          ? `${ms / HOUR} h ago`
+          : `${Math.round(ms / 60_000)} min ago`;
     const ticks: TimeTick[] = [];
     for (let back = 0; to - back >= from; back += step)
       ticks.push({ at: to - back, label: back === 0 ? 'Now' : ago(back) });

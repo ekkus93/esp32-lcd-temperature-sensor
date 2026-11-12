@@ -322,9 +322,21 @@ or storage change. R12-01 comes first; if R11-02 is built after it, it uses the 
   Dashboard tests rewritten for the panel. The test device now serves `GET /sensors` publicly,
   as the firmware does. Checked against the simulator at 1440 px light, 1280 px dark and 390 px.
   Packed web build 286,918 gzip bytes (+94,123 since R12 began; budget 150 KB).
-- [ ] **R12-05** History (§18.5): segmented range, icon toolbar, export menu, filter chips, time
+- [x] **R12-05** History (§18.5): segmented range, icon toolbar, export menu, filter chips, time
   axis, gridlines, hover or tap values, summary table, compact notices. Acceptance: History tests,
-  including the unsynchronised-clock axis.
+  including the unsynchronised-clock axis. Done
+  (2026-11-12): History uses the Dashboard's chart (`chart/TrendChart.tsx`, now with shaded
+  missing intervals titled "Missing data: …", lines that run through a gap but start again at
+  each boot without a trusted clock, and each probe's value at the pointer on hover or tap),
+  shared through `chart/historySeries.ts`. The toolbar has the range as a segmented button (1
+  hour to 30 days), zoom in and out, earlier, later and reset as icon buttons with tooltips that
+  are hidden when they would do nothing, refresh, and CSV export in a "More" menu. Probes are
+  filter chips in their series colours with the ROM ID as the chip's description; a table gives
+  each probe's low, count-weighted average, high and readings for the window; notices are one
+  line. The Dashboard chart now shades gaps and shows values on hover too. Tests: chart runs and
+  hover readout, tick labels, the table and export menu, and the History tests updated for the
+  new controls (hidden rather than disabled, chips, paths). Checked against the simulator at
+  1280 and 390 px: range buttons don't wrap, every other time label on a phone, the table fits.
 - [ ] **R12-06** Sensors, Settings and sign-in restyled (§18.7): Material 3 tabs and fields, the
   °C/°F segmented button, the button rule, confirm dialogs for destructive actions, snackbars.
   Acceptance: the existing tests pass, updated only for the new controls.
