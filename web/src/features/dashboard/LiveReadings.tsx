@@ -284,15 +284,17 @@ export default function LiveReadings({
                 >
                   {value}
                 </Typography>
-                <Typography
-                  component="span"
-                  sx={{
-                    fontSize: { xs: '0.875rem', md: '1.25rem' },
-                    color: panel.muted,
-                  }}
-                >
-                  {`°${unit}`}
-                </Typography>
+                {probe.celsius !== null && (
+                  <Typography
+                    component="span"
+                    sx={{
+                      fontSize: { xs: '0.875rem', md: '1.25rem' },
+                      color: panel.muted,
+                    }}
+                  >
+                    {`°${unit}`}
+                  </Typography>
+                )}
               </Box>
               <Box
                 role="img"

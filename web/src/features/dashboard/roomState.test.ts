@@ -94,6 +94,25 @@ describe('the room state in words', () => {
     );
   });
 
+  it('leaves out a duration shorter than a minute', () => {
+    const state = roomState({
+      ...base,
+      alerts: [
+        {
+          rom_id: 'rom-Floor',
+          name: 'Floor',
+          state: 'disconnected',
+          since_uptime_ms: base.uptimeMs - 20_000,
+          since_utc_seconds: null,
+        },
+      ],
+      probes: [probe('Floor', null, 'disconnected'), probe('Canopy', 24)],
+    });
+    expect(state.detail).toBe(
+      'No reading. Check its cable and connector. The other probe is in range.',
+    );
+  });
+
   it('handles a disconnected probe, one probe, and none', () => {
     expect(
       roomState({ ...base, probes: [probe('Floor', null, 'disconnected')] }),

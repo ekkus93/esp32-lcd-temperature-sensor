@@ -24,7 +24,6 @@ export function formatTemperature(celsius: number, unit: 'C' | 'F'): string {
 
 function duration(ms: number): string {
   const minutes = Math.floor(ms / 60000);
-  if (minutes < 1) return 'less than a minute';
   if (minutes < 120) return minutes === 1 ? '1 minute' : `${minutes} minutes`;
   return `${Math.floor(minutes / 60)} hours`;
 }
@@ -113,9 +112,9 @@ export function roomState({
   const alert = alerts?.find(
     (item) => 'rom_id' in item && item.rom_id === p.rom,
   );
-  const lasting = alert
-    ? ` for ${duration(Math.max(0, uptimeMs - alert.since_uptime_ms))}`
-    : '';
+  // How long, once it has lasted a minute; "for less than a minute" says nothing useful.
+  const elapsed = alert ? Math.max(0, uptimeMs - alert.since_uptime_ms) : 0;
+  const lasting = elapsed >= 60000 ? ` for ${duration(elapsed)}` : '';
   const rest = others(probes.length);
   if (p.state === 'high' || p.state === 'low') {
     const limit = p.state === 'high' ? p.highC : p.lowC;

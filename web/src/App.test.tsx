@@ -159,6 +159,8 @@ it('keeps healthy sensors visible alongside bus and per-probe fault states', asy
   expect(await panelEntry('Healthy room')).toHaveTextContent(/69\.8\s*°F/);
   expect(await panelEntry('Missing probe')).toHaveTextContent('Disconnected');
   expect(await panelEntry('Missing probe')).toHaveTextContent('—');
+  // No unit beside a missing reading.
+  expect(await panelEntry('Missing probe')).not.toHaveTextContent('°F');
   // A disabled probe is not monitored, so it is not on the live panel.
   expect(screen.queryByText('Disabled probe')).toBeNull();
 });
