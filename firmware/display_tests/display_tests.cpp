@@ -113,7 +113,7 @@ int main(int argc, char **argv) {
             auto settings = sensors[i].settings;
             settings.name = "Longest permitted sensor label ABC";
             settings.name.resize(32);
-            settings.calibration = -20;
+            settings.calibration = -calibration_limit_c;
             settings.high = -10;
             settings.persistence_ms = 0;
             CHECK(registry.configure(sensors[i].rom, settings));

@@ -1,6 +1,5 @@
 #include "sensor_registry.hpp"
 #include <algorithm>
-#include <cmath>
 
 namespace monitor {
 Sensor *Registry::find(uint64_t rom) {
@@ -78,9 +77,7 @@ void Registry::refresh_probe_calibration(Sensor &sensor) {
                                        : ProbeCalibration::pending;
         return;
     }
-    if (std::fabs(sensor.settings.calibration) > probe_calibration_limit)
-        sensor.probe_calibration = ProbeCalibration::out_of_range;
-    else if (sensor.probe_calibration != ProbeCalibration::restored)
+    if (sensor.probe_calibration != ProbeCalibration::restored)
         sensor.probe_calibration = ProbeCalibration::stored;
 }
 std::optional<Registry::ProbeWrite> Registry::next_probe_write() const {

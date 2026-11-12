@@ -14,7 +14,27 @@ uint64_t rom(unsigned serial) {
     uint8_t b[7] = {0x28, uint8_t(serial)};
     return value | (uint64_t(crc8(b, 7)) << 56);
 }
+// The codec's checksum (FNV-1a), to build a configuration saved by an older release.
+std::string with_checksum(const std::string &data) {
+    uint32_t value = 2166136261u;
+    for (unsigned char c : data) {
+        value ^= c;
+        value *= 16777619u;
+    }
+    return data + std::to_string(value);
+}
+// Offsets up to 20 degrees C were allowed before 0.2.0; such a saved one is clamped to the limit
+// instead of failing the whole configuration (which would make sensor storage read-only).
+void old_large_offset_is_clamped_on_load() {
+    for (const auto &[saved, loaded] : {std::pair{"20", 12.7}, std::pair{"-15.5", -12.7}}) {
+        const std::string data = "TMS1 1\n" + std::to_string(rom(3)) + " \"Old\" \"\" 1 1 0 " +
+                                 saved + " 0 0 0 0 0.5 15000\n";
+        const auto decoded = decode_settings(with_checksum(data));
+        CHECK(decoded && decoded->size() == 1 && (*decoded)[0].settings.calibration == loaded);
+    }
+}
 int main() {
+    old_large_offset_is_clamped_on_load();
     Registry registry;
     registry.discover(rom(1));
     registry.discover(rom(2));

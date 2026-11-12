@@ -72,8 +72,6 @@ it.each([
   ['pending', 'C', /Saving a copy on the probe/],
   ['failed', 'C', /Could not be saved on the probe/],
   ['unknown', 'C', /Not read from the probe yet/],
-  ['out_of_range', 'C', /up to ±12.7 °C/],
-  ['out_of_range', 'F', /up to ±22.86 °F/],
 ] as const)(
   'explains probe memory state %s under the calibration offset (%s)',
   async (probe_calibration, unit, text) => {
@@ -446,4 +444,90 @@ it('does not submit retirement when its confirmation is cancelled', async () => 
   expect(
     vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'DELETE'),
   ).toBe(false);
+});
+
+function stubSaving() {
+  const patches: Record<string, unknown>[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockImplementation(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          if (init?.method === 'PATCH') {
+            patches.push(JSON.parse(init.body as string));
+            return { ok: true, json: async () => ({ status: 'queued' }) };
+          }
+          return {
+            ok: true,
+            json: async () =>
+              String(input).endsWith('/sensors/storage')
+                ? { schema_version: 1, state: 'ready', writable: true }
+                : [limited],
+          };
+        },
+      ),
+  );
+  return patches;
+}
+const save = async () => {
+  fireEvent.click(screen.getByRole('button', { name: 'Save sensor settings' }));
+  await screen.findByText(
+    'Update queued. It applies with the next measurement cycle.',
+  );
+};
+it('starts in the display unit and switches entry between °C and °F', async () => {
+  stubLimited();
+  render(<SensorsView unit="C" />);
+  expect(await screen.findByLabelText(/Low threshold \(°C\)/)).toHaveValue(2);
+  expect(screen.getByRole('button', { name: 'Celsius' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Fahrenheit' }));
+  expect(screen.getByLabelText(/Low threshold \(°F\)/)).toHaveValue(35.6);
+  expect(screen.getByLabelText(/High threshold \(°F\)/)).toHaveValue(46.4);
+  expect(screen.getByLabelText(/Calibration offset \(°F\)/)).toHaveValue(0.9);
+  expect(screen.getByLabelText(/Hysteresis \(°F\)/)).toHaveValue(0.9);
+  fireEvent.click(screen.getByRole('button', { name: 'Celsius' }));
+  expect(screen.getByLabelText(/Low threshold \(°C\)/)).toHaveValue(2);
+  expect(screen.getByLabelText(/Calibration offset \(°C\)/)).toHaveValue(0.5);
+});
+it('converts typed values when the unit changes and still saves Celsius', async () => {
+  const patches = stubSaving();
+  render(<SensorsView unit="F" />);
+  fireEvent.change(await screen.findByLabelText(/High threshold/), {
+    target: { value: '50' },
+  });
+  fireEvent.change(screen.getByLabelText(/Calibration offset/), {
+    target: { value: '0.22' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Celsius' }));
+  // 50 °F is 10 °C; a 0.22 °F difference is 0.12 °C to the nearest 0.01.
+  expect(screen.getByLabelText(/High threshold \(°C\)/)).toHaveValue(10);
+  expect(screen.getByLabelText(/Calibration offset \(°C\)/)).toHaveValue(0.12);
+  fireEvent.click(screen.getByRole('button', { name: 'Fahrenheit' }));
+  expect(screen.getByLabelText(/High threshold \(°F\)/)).toHaveValue(50);
+  expect(screen.getByLabelText(/Calibration offset \(°F\)/)).toHaveValue(0.22);
+  fireEvent.click(screen.getByRole('button', { name: 'Celsius' }));
+  await save();
+  expect(patches[0]).toMatchObject({ high_c: 10, calibration_c: 0.12 });
+  // Untouched fields are sent exactly as stored, whatever the unit switches did.
+  expect(patches[0]).toMatchObject({ low_c: 2, hysteresis_c: 0.5 });
+});
+it('saves the °F calibration limit as exactly 12.7 °C', async () => {
+  const patches = stubSaving();
+  render(<SensorsView unit="F" />);
+  const field = await screen.findByLabelText(/Calibration offset \(°F\)/);
+  expect(field).toHaveAttribute('max', '22.86');
+  expect(field).toHaveAttribute('min', '-22.86');
+  fireEvent.change(field, { target: { value: '-22.86' } });
+  await save();
+  expect(patches[0].calibration_c).toBe(-12.7);
+});
+it('limits the calibration offset to what the probe can hold', async () => {
+  render(<SensorsView unit="C" />);
+  const field = await screen.findByLabelText(/Calibration offset \(°C\)/);
+  expect(field).toHaveAttribute('max', '12.7');
+  expect(field).toHaveAttribute('min', '-12.7');
 });

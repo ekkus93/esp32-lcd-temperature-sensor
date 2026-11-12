@@ -135,20 +135,22 @@ void failed_writes_stop_until_the_offset_changes() {
     CHECK(sensor(registry, rom).probe_calibration == ProbeCalibration::pending);
     CHECK(registry.next_probe_write());
 }
-void large_offset_clears_the_probe_copy() {
+void every_allowed_offset_fits_on_the_probe() {
     Registry registry;
     const auto rom = probe_rom(7);
     registry.sample({reading(rom, 20, encode_probe_calibration(1))}, 1000);
     CHECK(sensor(registry, rom).probe_calibration == ProbeCalibration::restored);
-    CHECK(registry.configure(rom, with_calibration(sensor(registry, rom), 15)));
-    const auto write = registry.next_probe_write();
-    CHECK(write && !decode_probe_calibration(write->memory));
-    registry.probe_written(rom, write->memory);
-    CHECK(sensor(registry, rom).probe_calibration == ProbeCalibration::out_of_range);
-    // Back in range: rewritten, and now "stored" rather than "restored".
-    CHECK(registry.configure(rom, with_calibration(sensor(registry, rom), 1)));
-    registry.probe_written(rom, encode_probe_calibration(1));
-    CHECK(sensor(registry, rom).probe_calibration == ProbeCalibration::stored);
+    // The limit is what the probe can hold; just beyond it is rejected.
+    for (double offset : {12.8, -12.8, 12.71})
+        CHECK(!registry.configure(rom, with_calibration(sensor(registry, rom), offset)));
+    for (double offset : {12.7, -12.7}) {
+        CHECK(registry.configure(rom, with_calibration(sensor(registry, rom), offset)));
+        const auto write = registry.next_probe_write();
+        CHECK(write && decode_probe_calibration(write->memory) == offset);
+        registry.probe_written(rom, write->memory);
+        // A changed offset is "stored", no longer "restored".
+        CHECK(sensor(registry, rom).probe_calibration == ProbeCalibration::stored);
+    }
 }
 } // namespace
 
@@ -161,6 +163,6 @@ int main() {
     adoption_waits_for_a_valid_read();
     owner_settings_win_over_the_probe();
     failed_writes_stop_until_the_offset_changes();
-    large_offset_clears_the_probe_copy();
+    every_allowed_offset_fits_on_the_probe();
     std::cout << "probe calibration tests passed\n";
 }

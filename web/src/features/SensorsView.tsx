@@ -10,6 +10,8 @@ import {
   Tab,
   Tabs,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from '@mui/material';
 import {
@@ -36,9 +38,33 @@ function toDisplay(key: NumericKey, celsius: number, unit: Unit) {
   if (unit === 'C' || !temperatureField(key)) return celsius;
   return Number((celsius * 1.8 + (absolute(key) ? 32 : 0)).toFixed(2));
 }
+// Rounded to 0.0001 °C, far below the probe's 0.0625 °C step, so 22.86 °F is exactly the 12.7 °C
+// calibration limit rather than 12.700000000000001, which the device would reject.
 function toCelsius(key: NumericKey, shown: number, unit: Unit) {
   if (unit === 'C' || !temperatureField(key)) return shown;
-  return (shown - (absolute(key) ? 32 : 0)) / 1.8;
+  return Number(((shown - (absolute(key) ? 32 : 0)) / 1.8).toFixed(4));
+}
+// Re-expresses the form's text in another unit. Untouched fields are shown from the stored Celsius
+// value; edited ones convert what was typed, to 0.01, which converts back to the same 0.01 °C.
+// Text that is not a number is kept as typed, so its error still shows on save.
+function convertText(
+  numbers: Record<NumericKey, string>,
+  edited: Set<NumericKey>,
+  stored: SensorConfiguration,
+  from: Unit,
+  to: Unit,
+) {
+  const fresh = numericText(stored, to);
+  return Object.fromEntries(
+    numericFields.map((key) => {
+      const text = numbers[key];
+      if (!edited.has(key)) return [key, fresh[key]];
+      const value = Number(text);
+      if (text.trim() === '' || !Number.isFinite(value)) return [key, text];
+      const celsius = toCelsius(key, value, from);
+      return [key, String(Number(toDisplay(key, celsius, to).toFixed(2)))];
+    }),
+  ) as Record<NumericKey, string>;
 }
 function numericText(sensor: SensorConfiguration, unit: Unit) {
   return Object.fromEntries(
@@ -50,11 +76,7 @@ function numericText(sensor: SensorConfiguration, unit: Unit) {
 }
 // What the probe's own memory holds, shown under the calibration offset. The probe keeps a copy
 // of the offset to the nearest 0.1 °C, so it stays with the probe on another monitor.
-function probeCalibrationText(
-  state: SensorConfiguration['probe_calibration'],
-  limit: number,
-  unit: string,
-) {
+function probeCalibrationText(state: SensorConfiguration['probe_calibration']) {
   switch (state) {
     case 'stored':
       return 'Also saved on the probe itself, so it stays with the probe.';
@@ -62,8 +84,6 @@ function probeCalibrationText(
       return "Read from the probe's own memory when it was first connected.";
     case 'pending':
       return 'Saving a copy on the probe…';
-    case 'out_of_range':
-      return `Not saved on the probe: it can hold offsets up to ±${limit} ${unit}.`;
     case 'failed':
       return 'Could not be saved on the probe. It may not support this.';
     default:
@@ -86,6 +106,14 @@ function SensorEditor({
   onRetired: (id: string) => void;
 }) {
   const [numbers, setNumbers] = useState(() => numericText(sensor, unit));
+  // The unit the form's text is in. When the page's entry unit changes, the text is converted
+  // here, during render, so no frame shows numbers under the wrong unit.
+  const [shownUnit, setShownUnit] = useState(unit);
+  // A save finishing after a unit switch must format its result in the unit shown by then.
+  const currentUnit = useRef(unit);
+  useEffect(() => {
+    currentUnit.current = unit;
+  }, [unit]);
   // Only fields the user edited are converted back; the rest are sent exactly as stored.
   const [edited, setEdited] = useState<Set<NumericKey>>(new Set());
   const mounted = useRef(true);
@@ -101,6 +129,10 @@ function SensorEditor({
   const [positionError, setPositionError] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  if (shownUnit !== unit) {
+    setShownUnit(unit);
+    setNumbers(convertText(numbers, edited, draft, shownUnit, unit));
+  }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setMessage('');
@@ -169,7 +201,7 @@ function SensorEditor({
             );
           } else {
             setDraft(updated);
-            setNumbers(numericText(updated, unit));
+            setNumbers(numericText(updated, currentUnit.current));
             setEdited(new Set());
             setPositionText(String(updated.order + 1));
             onSaved(updated);
@@ -300,16 +332,13 @@ function SensorEditor({
                 type="number"
                 value={numbers.calibration_c}
                 onChange={(e) => numeric('calibration_c', e.target.value)}
-                helperText={probeCalibrationText(
-                  sensor.probe_calibration,
-                  limit('calibration_c', 12.7),
-                  u,
-                )}
+                helperText={probeCalibrationText(sensor.probe_calibration)}
                 slotProps={{
                   htmlInput: {
-                    min: limit('calibration_c', -20),
-                    max: limit('calibration_c', 20),
-                    step: 0.01,
+                    min: limit('calibration_c', -12.7),
+                    max: limit('calibration_c', 12.7),
+                    // Any precision: a converted value must not trip the browser's step check.
+                    step: 'any',
                   },
                 }}
               />
@@ -323,7 +352,7 @@ function SensorEditor({
                   htmlInput: {
                     min: limit('low_c', -55),
                     max: limit('low_c', 125),
-                    step: 0.1,
+                    step: 'any',
                   },
                 }}
               />
@@ -337,7 +366,7 @@ function SensorEditor({
                   htmlInput: {
                     min: limit('low_c', -55),
                     max: limit('low_c', 125),
-                    step: 0.1,
+                    step: 'any',
                   },
                 }}
               />
@@ -350,7 +379,7 @@ function SensorEditor({
                   htmlInput: {
                     min: 0,
                     max: limit('hysteresis_c', 20),
-                    step: 0.1,
+                    step: 'any',
                   },
                 }}
               />
@@ -407,6 +436,10 @@ export default function SensorsView({ unit }: { unit: Unit }) {
   const [refresh, setRefresh] = useState(0);
   // The chosen probe's ROM; when it is missing (first load, retired) the first tab is shown.
   const [selected, setSelected] = useState('');
+  // The unit temperatures are typed in here. It starts as the monitor's display unit (until the
+  // owner picks one) and changes nothing else; the device always stores Celsius.
+  const [chosenUnit, setChosenUnit] = useState<Unit | null>(null);
+  const entryUnit = chosenUnit ?? unit;
   useEffect(() => {
     let active = true;
     Promise.all([getSensors(), getSensorStorageStatus()])
@@ -466,6 +499,34 @@ export default function SensorsView({ unit }: { unit: Unit }) {
         </Typography>
       )}
       {current && (
+        <Stack
+          direction="row"
+          // Gaps, not margins, so a wrapped line starts flush on a phone.
+          useFlexGap
+          spacing={1.5}
+          sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 1 }}
+        >
+          <Typography id="sensor-entry-unit">Enter temperatures in</Typography>
+          <ToggleButtonGroup
+            exclusive
+            size="small"
+            value={entryUnit}
+            onChange={(_, next: Unit | null) => next && setChosenUnit(next)}
+            aria-labelledby="sensor-entry-unit"
+          >
+            <ToggleButton value="C" aria-label="Celsius" sx={{ px: 2 }}>
+              °C
+            </ToggleButton>
+            <ToggleButton value="F" aria-label="Fahrenheit" sx={{ px: 2 }}>
+              °F
+            </ToggleButton>
+          </ToggleButtonGroup>
+          <Typography variant="body2" color="text.secondary">
+            Always saved in °C.
+          </Typography>
+        </Stack>
+      )}
+      {current && (
         <Tabs
           value={current}
           onChange={(_, rom: string) => setSelected(rom)}
@@ -505,7 +566,7 @@ export default function SensorsView({ unit }: { unit: Unit }) {
         >
           <SensorEditor
             sensor={sensor}
-            unit={unit}
+            unit={entryUnit}
             writable={writable === true}
             onUnavailable={() => setWritable(false)}
             onSaved={(updated) =>

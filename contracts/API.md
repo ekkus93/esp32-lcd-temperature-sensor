@@ -102,6 +102,11 @@ offset in 0.1 °C steps (−12.7 to +12.7 °C) and TL is TH XOR `0xa5`; TH `0x80
 means "no offset stored". The configuration byte is written as `0x7f`
 (12-bit resolution) at the same time.
 
+`calibration_c` is limited to ±12.7 °C, what a probe can hold (a DS18B20 is
+specified within ±0.5 °C, ±2 °C at the extremes). Releases before 0.2.0 allowed
+±20 °C; a saved offset beyond the new limit is clamped to it when the monitor
+loads its configuration, rather than failing the whole load.
+
 - A probe **new to the monitor** takes the offset its memory holds at its first
   valid read, rounded to 0.1 °C. Configuring the sensor before that read wins.
 - For a **known probe** the monitor's setting is authoritative: when the
@@ -109,10 +114,9 @@ means "no offset stored". The configuration byte is written as `0x7f`
   measurement cycle), copies them to EEPROM and reads them back from EEPROM.
   Three failed attempts stop retries until the offset changes or the monitor
   restarts. Writes happen only on a difference, so EEPROM wear is negligible.
-- An offset beyond ±12.7 °C is not stored; the probe is told it holds none.
 
 `GET /sensors` reports the result in the read-only `probe_calibration` field:
 `unknown` (no valid read yet), `pending`, `stored`, `restored` (taken from the
-probe this run), `out_of_range` or `failed`. `PATCH` does not accept it.
+probe this run) or `failed`. `PATCH` does not accept it.
 Adding this response field is additive within schema version 1; the web client
 and firmware ship together.

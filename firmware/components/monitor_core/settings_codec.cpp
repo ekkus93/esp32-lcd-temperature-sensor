@@ -1,5 +1,6 @@
 #include "settings_codec.hpp"
 #include <algorithm>
+#include <cmath>
 #include <iomanip>
 #include <locale>
 #include <set>
@@ -68,6 +69,10 @@ std::optional<std::vector<SavedSensor>> decode_settings(const std::string &bytes
             s.low = low_value;
         if (high)
             s.high = high_value;
+        // Offsets were allowed up to 20 degrees C before 0.2.0. Clamp such a saved offset rather
+        // than reject the whole configuration, which would leave sensor storage read-only.
+        if (std::isfinite(s.calibration))
+            s.calibration = std::clamp(s.calibration, -calibration_limit_c, calibration_limit_c);
         if (!valid_rom(sensor.rom) || !valid_settings(s) || !identities.insert(sensor.rom).second)
             return std::nullopt;
         sensors.push_back(sensor);

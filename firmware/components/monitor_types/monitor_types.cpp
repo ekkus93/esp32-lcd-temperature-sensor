@@ -73,8 +73,7 @@ std::optional<ProbeMemory> probe_memory(const std::array<uint8_t, 9> &scratchpad
     return ProbeMemory{scratchpad[2], scratchpad[3]};
 }
 const char *probe_calibration_name(ProbeCalibration state) {
-    static constexpr const char *names[] = {"unknown",  "pending",      "stored",
-                                            "restored", "out_of_range", "failed"};
+    static constexpr const char *names[] = {"unknown", "pending", "stored", "restored", "failed"};
     return names[static_cast<unsigned>(state)];
 }
 namespace {
@@ -119,7 +118,7 @@ bool label_text(const std::string &text) {
 bool valid_settings(const Settings &s) {
     return !s.name.empty() && s.name.size() <= 32 && s.short_name.size() <= 12 &&
            label_text(s.name) && label_text(s.short_name) && s.order < max_sensors &&
-           std::isfinite(s.calibration) && std::abs(s.calibration) <= 20 &&
+           std::isfinite(s.calibration) && std::abs(s.calibration) <= calibration_limit_c &&
            std::isfinite(s.hysteresis) && s.hysteresis >= 0 && s.hysteresis <= 20 &&
            s.persistence_ms >= 0 && s.persistence_ms <= 3600000 &&
            (!s.low || (std::isfinite(*s.low) && *s.low >= -55 && *s.low <= 125)) &&

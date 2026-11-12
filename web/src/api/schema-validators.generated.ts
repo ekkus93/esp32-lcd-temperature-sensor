@@ -5148,7 +5148,7 @@ const schema19 = {
       enabled: { type: 'boolean' },
       disconnect_alert: { type: 'boolean' },
       order: { type: 'integer', minimum: 0, maximum: 4 },
-      calibration_c: { type: 'number', minimum: -20, maximum: 20 },
+      calibration_c: { type: 'number', minimum: -12.7, maximum: 12.7 },
       low_c: { type: ['number', 'null'], minimum: -55, maximum: 125 },
       high_c: { type: ['number', 'null'], minimum: -55, maximum: 125 },
       hysteresis_c: { type: 'number', minimum: 0, maximum: 20 },
@@ -5169,14 +5169,7 @@ const schema19 = {
       probe_calibration: {
         description:
           "Whether the probe's own memory (DS18B20 TH/TL bytes) holds calibration_c, to the nearest 0.1 °C. Read-only; not accepted by PATCH.",
-        enum: [
-          'unknown',
-          'pending',
-          'stored',
-          'restored',
-          'out_of_range',
-          'failed',
-        ],
+        enum: ['unknown', 'pending', 'stored', 'restored', 'failed'],
       },
     },
   },
@@ -5619,7 +5612,7 @@ function validate18(
                                         typeof data9 == 'number' &&
                                         isFinite(data9)
                                       ) {
-                                        if (data9 > 20 || isNaN(data9)) {
+                                        if (data9 > 12.7 || isNaN(data9)) {
                                           validate18.errors = [
                                             {
                                               instancePath:
@@ -5632,14 +5625,14 @@ function validate18(
                                               keyword: 'maximum',
                                               params: {
                                                 comparison: '<=',
-                                                limit: 20,
+                                                limit: 12.7,
                                               },
-                                              message: 'must be <= 20',
+                                              message: 'must be <= 12.7',
                                             },
                                           ];
                                           return false;
                                         } else {
-                                          if (data9 < -20 || isNaN(data9)) {
+                                          if (data9 < -12.7 || isNaN(data9)) {
                                             validate18.errors = [
                                               {
                                                 instancePath:
@@ -5652,9 +5645,9 @@ function validate18(
                                                 keyword: 'minimum',
                                                 params: {
                                                   comparison: '>=',
-                                                  limit: -20,
+                                                  limit: -12.7,
                                                 },
-                                                message: 'must be >= -20',
+                                                message: 'must be >= -12.7',
                                               },
                                             ];
                                             return false;
@@ -6064,7 +6057,6 @@ function validate18(
                                                   data15 === 'pending' ||
                                                   data15 === 'stored' ||
                                                   data15 === 'restored' ||
-                                                  data15 === 'out_of_range' ||
                                                   data15 === 'failed'
                                                 )) {
                                                   validate18.errors = [
@@ -6159,7 +6151,7 @@ const schema20 = {
     enabled: { type: 'boolean' },
     disconnect_alert: { type: 'boolean' },
     order: { type: 'integer', minimum: 0, maximum: 4 },
-    calibration_c: { type: 'number', minimum: -20, maximum: 20 },
+    calibration_c: { type: 'number', minimum: -12.7, maximum: 12.7 },
     low_c: { type: ['number', 'null'], minimum: -55, maximum: 125 },
     high_c: { type: ['number', 'null'], minimum: -55, maximum: 125 },
     hysteresis_c: { type: 'number', minimum: 0, maximum: 20 },
@@ -6383,28 +6375,28 @@ function validate19(
                       const _errs12 = errors;
                       if (errors === _errs12) {
                         if (typeof data5 == 'number' && isFinite(data5)) {
-                          if (data5 > 20 || isNaN(data5)) {
+                          if (data5 > 12.7 || isNaN(data5)) {
                             validate19.errors = [
                               {
                                 instancePath: instancePath + '/calibration_c',
                                 schemaPath:
                                   '#/properties/calibration_c/maximum',
                                 keyword: 'maximum',
-                                params: { comparison: '<=', limit: 20 },
-                                message: 'must be <= 20',
+                                params: { comparison: '<=', limit: 12.7 },
+                                message: 'must be <= 12.7',
                               },
                             ];
                             return false;
                           } else {
-                            if (data5 < -20 || isNaN(data5)) {
+                            if (data5 < -12.7 || isNaN(data5)) {
                               validate19.errors = [
                                 {
                                   instancePath: instancePath + '/calibration_c',
                                   schemaPath:
                                     '#/properties/calibration_c/minimum',
                                   keyword: 'minimum',
-                                  params: { comparison: '>=', limit: -20 },
-                                  message: 'must be >= -20',
+                                  params: { comparison: '>=', limit: -12.7 },
+                                  message: 'must be >= -12.7',
                                 },
                               ];
                               return false;

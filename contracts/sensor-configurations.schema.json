@@ -33,7 +33,7 @@
       "enabled": { "type": "boolean" },
       "disconnect_alert": { "type": "boolean" },
       "order": { "type": "integer", "minimum": 0, "maximum": 4 },
-      "calibration_c": { "type": "number", "minimum": -20, "maximum": 20 },
+      "calibration_c": { "type": "number", "minimum": -12.7, "maximum": 12.7 },
       "low_c": { "type": ["number", "null"], "minimum": -55, "maximum": 125 },
       "high_c": { "type": ["number", "null"], "minimum": -55, "maximum": 125 },
       "hysteresis_c": { "type": "number", "minimum": 0, "maximum": 20 },
@@ -62,7 +62,6 @@
           "pending",
           "stored",
           "restored",
-          "out_of_range",
           "failed"
         ]
       }

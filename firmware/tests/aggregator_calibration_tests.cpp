@@ -43,7 +43,7 @@ int main() {
     // A steady probe with any calibration offset must still produce a bucket that encodes: the
     // average of equal values can land one rounding step outside [min, max] in doubles.
     unsigned checked = 0;
-    for (double calibration : {0.0, 0.1, 0.2, -0.3, 0.05, 1.7, -2.45, 19.9}) {
+    for (double calibration : {0.0, 0.1, 0.2, -0.3, 0.05, 1.7, -2.45, 12.7, -12.7}) {
         for (int step = -200; step < 400; step += 7) {
             const double raw = step * 0.0625;
             if (raw + calibration < -55 || raw + calibration > 125)

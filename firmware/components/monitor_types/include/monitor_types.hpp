@@ -30,11 +30,14 @@ bool bus_fault_detected(bool line_low, bool operation_failed, std::size_t expect
 std::string rom_hex(uint64_t rom);
 std::optional<double> decode_temperature(const std::array<uint8_t, 9> &scratchpad,
                                          bool conversion_complete);
+// The largest calibration offset, either way. It is what a probe's own memory can hold (below); a
+// real DS18B20 is within 2 degrees C, so a larger correction would mean a broken probe.
+constexpr double calibration_limit_c = 12.7;
 // A DS18B20 keeps two user bytes, TH and TL, in its own EEPROM. They hold a copy of the probe's
 // calibration offset, so the offset stays with the probe when it moves to another monitor or the
 // monitor is factory reset. TH is the offset in 0.1 degree C steps (-12.7 to +12.7); TL is TH XOR
-// a fixed pattern, which tells our bytes from factory values. TH -128 means no offset is stored,
-// used when the monitor's offset is too large to fit.
+// a fixed pattern, which tells our bytes from factory values. TH -128 means no offset is stored;
+// it is written only for a value outside the limit, which validation already rejects.
 struct ProbeMemory {
     uint8_t th = 0;
     uint8_t tl = 0;
@@ -45,7 +48,6 @@ struct ProbeMemory {
         return !(*this == other);
     }
 };
-constexpr double probe_calibration_limit = 12.7;
 ProbeMemory encode_probe_calibration(double calibration);
 // The offset a probe holds; empty when the bytes are not ours or say that no offset is stored.
 std::optional<double> decode_probe_calibration(ProbeMemory memory);
@@ -53,12 +55,11 @@ std::optional<double> decode_probe_calibration(ProbeMemory memory);
 std::optional<ProbeMemory> probe_memory(const std::array<uint8_t, 9> &scratchpad);
 // Whether the probe's own memory holds the monitor's calibration offset.
 enum class ProbeCalibration {
-    unknown,      // no valid read of the probe's memory yet
-    pending,      // the probe holds something else; a write is due
-    stored,       // the probe holds the monitor's offset
-    restored,     // the monitor took this offset from the probe when the probe was new to it
-    out_of_range, // the offset is too large to store; the probe says it holds none
-    failed        // writes did not stick; not retried until the offset changes or a restart
+    unknown,  // no valid read of the probe's memory yet
+    pending,  // the probe holds something else; a write is due
+    stored,   // the probe holds the monitor's offset
+    restored, // the monitor took this offset from the probe when the probe was new to it
+    failed    // writes did not stick; not retried until the offset changes or a restart
 };
 const char *probe_calibration_name(ProbeCalibration state);
 constexpr unsigned max_probe_write_attempts = 3;

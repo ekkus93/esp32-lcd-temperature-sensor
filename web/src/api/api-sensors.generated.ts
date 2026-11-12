@@ -34,6 +34,5 @@ export type SensorConfigurations = {
   /**
    * Whether the probe's own memory (DS18B20 TH/TL bytes) holds calibration_c, to the nearest 0.1 °C. Read-only; not accepted by PATCH.
    */
-  probe_calibration:
-    'unknown' | 'pending' | 'stored' | 'restored' | 'out_of_range' | 'failed';
+  probe_calibration: 'unknown' | 'pending' | 'stored' | 'restored' | 'failed';
 }[];
