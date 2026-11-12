@@ -1,3 +1,4 @@
+import PasswordField from '../PasswordField';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -148,9 +149,8 @@ export default function NetworkSettings() {
               onChange={(e) => setSsid(e.target.value)}
               slotProps={{ htmlInput: { maxLength: 32 } }}
             />
-            <TextField
+            <PasswordField
               label="Wi-Fi password"
-              type="password"
               autoComplete="off"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

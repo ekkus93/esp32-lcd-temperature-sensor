@@ -75,3 +75,13 @@ it('reports a failed candidate without claiming saved credentials were replaced'
     screen.getByRole('button', { name: 'Test and connect' }),
   ).toBeEnabled();
 });
+
+it('lets the owner show the Wi-Fi password being typed', () => {
+  render(<NetworkSettings />);
+  const field = screen.getByLabelText(/Wi-Fi password/);
+  fireEvent.change(field, { target: { value: 'home-network-key' } });
+  expect(field).toHaveAttribute('type', 'password');
+  fireEvent.click(screen.getByRole('button', { name: 'Show password' }));
+  expect(field).toHaveAttribute('type', 'text');
+  expect(field).toHaveValue('home-network-key');
+});
