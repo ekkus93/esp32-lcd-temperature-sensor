@@ -447,16 +447,16 @@ void trend_restore() {
     auto stored = [](uint64_t boot, std::optional<int64_t> utc_seconds, double average) {
         Bucket bucket{boot, 0, utc_seconds, {}};
         bucket.sensors.push_back(Aggregate{1, average, average, average, 60, false, ""});
-        return bucket;
+        return trend_point(bucket);
     };
     // Two windows from an earlier boot (one half a grid slot off), one with no UTC start, and one
     // that starts after now. Only the first three can be placed: the last is dropped.
-    std::vector<Bucket> older{stored(1, 1800000000, 20), stored(1, 1800000303, 21),
-                              stored(1, std::nullopt, 99), stored(1, 1800003700, 98)};
-    auto placed = rebase_stored_buckets(older, utc_now, uptime_now);
+    TrendPoints older{stored(1, 1800000000, 20), stored(1, 1800000303, 21),
+                      stored(1, std::nullopt, 99), stored(1, 1800003700, 98)};
+    auto placed = rebase_stored_trends(older, utc_now, uptime_now);
     CHECK(placed.size() == 2);
-    CHECK(placed[0].start_uptime_ms == 0 && placed[1].start_uptime_ms == 300000);
-    CHECK(placed[0].sensors[0].average == 20 && placed[1].sensors[0].average == 21);
+    CHECK(placed[0].start_ms == 0 && placed[1].start_ms == 300000);
+    CHECK(placed[0].averages[0] == 20 && placed[1].averages[0] == 21);
     CHECK(placed[0].boot_id == 1);
 
     // Restored buckets feed the graph and survive the first live window of this boot, which has
@@ -479,12 +479,28 @@ void trend_restore() {
     CHECK(held.size() == 3);
     held.restore(placed);
     CHECK(held.size() == 3);
-    held.restore({Bucket{3, 900000, std::nullopt, {}}});
+    held.restore(TrendPoints{trend_point(Bucket{3, 900000, std::nullopt, {}})});
     CHECK(held.size() == 3);
 
     // Out-of-order live windows still clear the cache, as before.
     cache.add(Bucket{2, 300000, std::nullopt, {}});
     CHECK(cache.size() == 1);
+
+    // A trend point keeps only complete, valid averages (a partial or empty window draws nothing),
+    // never more than the five probe positions, and no names.
+    Bucket mixed{4, 0, std::nullopt, {}};
+    mixed.sensors.push_back(Aggregate{10, 1, 1, 1, 60, false, std::string(32, 'N')});
+    mixed.sensors.push_back(Aggregate{11, 2, 2, 2, 30, true, ""}); // partial window
+    mixed.sensors.push_back(Aggregate{12, 3, 3, 3, 0, false, ""}); // no valid sample
+    for (uint64_t rom = 13; rom < 20; ++rom)
+        mixed.sensors.push_back(Aggregate{rom, 4, 4, 4, 60, false, ""});
+    const auto compact = trend_point(mixed);
+    CHECK(compact.count == max_sensors && compact.roms[0] == 10 && compact.averages[0] == 1);
+    CHECK(compact.roms[1] == 13);
+    TrendCache partial;
+    partial.add(mixed);
+    CHECK(!partial.values(11, 300000, 5)[0] && !partial.values(12, 300000, 5)[0]);
+    CHECK(partial.values(10, 300000, 5)[0] == 1);
 }
 int run_core_tests() {
     identity();

@@ -164,6 +164,15 @@ connected board.
   each failure cause). **Board (2026-11-10):** 20 of 20 logins through the USB bridge succeeded in
   the two minutes after boot, while the largest free internal block fell to 4608 bytes; the
   PBKDF2 self-test still passes.
+- [x] **R10-15** Internal RAM ran out a minute after boot (low-water mark 576 to 820 bytes), so the
+  network stack dropped or cut short HTTP responses and `device_api_test.py` failed at random
+  places. The LCD trend cache held up to 288 full history buckets, each with its own allocations,
+  which the PSRAM threshold placed in internal RAM, and a copy for the display task (§16.12).
+  Done: the cache keeps compact `TrendPoint`s (start, boot, UTC and up to five averages) in PSRAM
+  through `ExternalAllocator`, and the restore task collects points instead of buckets (host test
+  for the compaction; display test unchanged). **Board (2026-11-10/11):** in the first 76 s after
+  boot internal free RAM 58 to 64 KB (was 19 to 33 KB), low-water mark 38096 bytes (was 576 to 820),
+  largest free block 31744 bytes (was 4608 to 19456); `device_api_test.py` passed all 452 checks.
 
 ## Definition of done
 

@@ -53,20 +53,22 @@ struct DisplayFrame {
 struct TrendRestore {
     monitor::HistoryService *history = nullptr;
     SemaphoreHandle_t mutex = nullptr;
-    std::vector<monitor::Bucket> stored;   // guarded by mutex; written by the task
+    monitor::TrendPoints stored;           // guarded by mutex; written by the task
     bool done = false;                     // guarded by mutex
     bool started = false, applied = false; // main loop only
 };
 
 void trend_restore_task(void *argument) {
     auto &restore = *static_cast<TrendRestore *>(argument);
-    std::vector<monitor::Bucket> collected;
+    // Only what the graph draws is kept, in PSRAM: a day of full buckets used most of the free
+    // internal RAM while it was collected.
+    monitor::TrendPoints collected;
     if (const auto utc = monitor::trusted_utc()) {
         monitor::HistoryQuery query;
         query.from = (*utc - 86400) * 1000;
         query.to = (*utc + 1) * 1000;
         const bool complete = restore.history->visit(query, [&](const monitor::Bucket &bucket) {
-            collected.push_back(bucket);
+            collected.push_back(monitor::trend_point(bucket));
             return true;
         });
         if (!complete)
@@ -324,7 +326,7 @@ extern "C" void app_main() {
                 ESP_LOGW(tag, "Trend history restore unavailable; the graph starts at boot");
         }
         if (trend_restore.started && !trend_restore.applied) {
-            std::vector<monitor::Bucket> stored;
+            monitor::TrendPoints stored;
             bool done = false;
             if (xSemaphoreTake(trend_restore.mutex, 0) == pdTRUE) {
                 done = trend_restore.done;
@@ -335,7 +337,7 @@ extern "C" void app_main() {
             if (done) {
                 trend_restore.applied = true;
                 if (const auto utc = monitor::trusted_utc()) {
-                    trend_cache.restore(monitor::rebase_stored_buckets(stored, *utc * 1000, now));
+                    trend_cache.restore(monitor::rebase_stored_trends(stored, *utc * 1000, now));
                     ESP_LOGI(tag, "Trends restored from history");
                 }
             }

@@ -25,57 +25,70 @@ void bridge_short_gaps(int32_t *points, size_t count, int32_t missing, size_t ma
     }
 }
 
-std::vector<Bucket> rebase_stored_buckets(const std::vector<Bucket> &stored, int64_t utc_now_ms,
-                                          int64_t uptime_now_ms) {
-    std::vector<Bucket> result;
-    for (const auto &bucket : stored) {
-        if (!bucket.utc_seconds)
+TrendPoint trend_point(const Bucket &bucket) {
+    TrendPoint point;
+    point.boot_id = bucket.boot_id;
+    point.start_ms = bucket.start_uptime_ms;
+    point.utc_seconds = bucket.utc_seconds;
+    for (const auto &sensor : bucket.sensors) {
+        if (!sensor.count || sensor.partial || point.count == max_sensors)
             continue;
-        const int64_t raw = *bucket.utc_seconds * 1000 - utc_now_ms + uptime_now_ms;
+        point.roms[point.count] = sensor.rom;
+        point.averages[point.count] = sensor.average;
+        ++point.count;
+    }
+    return point;
+}
+
+TrendPoints rebase_stored_trends(const TrendPoints &stored, int64_t utc_now_ms,
+                                 int64_t uptime_now_ms) {
+    TrendPoints result;
+    for (const auto &point : stored) {
+        if (!point.utc_seconds)
+            continue;
+        const int64_t raw = *point.utc_seconds * 1000 - utc_now_ms + uptime_now_ms;
         if (raw > uptime_now_ms)
             continue;
-        Bucket moved = bucket;
-        moved.start_uptime_ms = floor_div(raw + bucket_ms / 2, bucket_ms) * bucket_ms;
-        result.push_back(std::move(moved));
+        TrendPoint moved = point;
+        moved.start_ms = floor_div(raw + bucket_ms / 2, bucket_ms) * bucket_ms;
+        result.push_back(moved);
     }
-    std::stable_sort(result.begin(), result.end(), [](const Bucket &a, const Bucket &b) {
-        return a.start_uptime_ms < b.start_uptime_ms;
+    std::stable_sort(result.begin(), result.end(), [](const TrendPoint &a, const TrendPoint &b) {
+        return a.start_ms < b.start_ms;
     });
     // Two stored windows can round onto one grid slot; keep the later one.
-    std::vector<Bucket> unique;
-    for (auto &bucket : result) {
-        if (!unique.empty() && unique.back().start_uptime_ms == bucket.start_uptime_ms)
-            unique.back() = std::move(bucket);
+    TrendPoints unique;
+    for (const auto &point : result) {
+        if (!unique.empty() && unique.back().start_ms == point.start_ms)
+            unique.back() = point;
         else
-            unique.push_back(std::move(bucket));
+            unique.push_back(point);
     }
     return unique;
 }
 
 void TrendCache::add(const Bucket &bucket) {
-    // Restored buckets from an earlier boot share this timeline, so the boot ID is not compared.
+    // Restored points from an earlier boot share this timeline, so the boot ID is not compared.
     // A window that does not start after the newest one is out of order: drop what is held.
-    if (!buckets_.empty() && bucket.start_uptime_ms <= buckets_.back().start_uptime_ms)
-        buckets_.clear();
-    if (buckets_.size() == 288)
-        buckets_.pop_front();
-    buckets_.push_back(bucket);
+    if (!points_.empty() && bucket.start_uptime_ms <= points_.back().start_ms)
+        points_.clear();
+    if (points_.size() == 288)
+        points_.pop_front();
+    points_.push_back(trend_point(bucket));
 }
 
-void TrendCache::restore(const std::vector<Bucket> &older) {
-    std::deque<Bucket> merged;
-    for (const auto &bucket : older) {
-        const bool before_held =
-            buckets_.empty() || bucket.start_uptime_ms < buckets_.front().start_uptime_ms;
-        if (before_held &&
-            (merged.empty() || bucket.start_uptime_ms > merged.back().start_uptime_ms))
-            merged.push_back(bucket);
+void TrendCache::restore(const TrendPoints &older) {
+    std::deque<TrendPoint, ExternalAllocator<TrendPoint>> merged;
+    for (const auto &point : older) {
+        const bool before_held = points_.empty() || point.start_ms < points_.front().start_ms;
+        if (before_held && (merged.empty() || point.start_ms > merged.back().start_ms))
+            merged.push_back(point);
     }
-    for (const auto &bucket : buckets_)
-        merged.push_back(bucket);
+    for (const auto &point : points_)
+        merged.push_back(point);
     while (merged.size() > 288)
         merged.pop_front();
-    buckets_.swap(merged);
+    points_.swap(merged);
 }
 std::vector<std::optional<double>> TrendCache::values(uint64_t rom, int64_t now,
                                                       unsigned minutes) const {
@@ -84,14 +97,13 @@ std::vector<std::optional<double>> TrendCache::values(uint64_t rom, int64_t now,
     const size_t count = (minutes + 4) / 5;
     std::vector<std::optional<double>> result(count);
     const int64_t start = now / bucket_ms * bucket_ms - int64_t(count) * bucket_ms;
-    for (const auto &bucket : buckets_) {
-        const auto offset = bucket.start_uptime_ms - start;
+    for (const auto &point : points_) {
+        const auto offset = point.start_ms - start;
         if (offset < 0 || offset >= int64_t(count) * bucket_ms)
             continue;
-        auto sensor = std::find_if(bucket.sensors.begin(), bucket.sensors.end(),
-                                   [rom](const Aggregate &a) { return a.rom == rom; });
-        if (sensor != bucket.sensors.end() && sensor->count && !sensor->partial)
-            result[offset / bucket_ms] = sensor->average;
+        for (uint8_t i = 0; i < point.count; ++i)
+            if (point.roms[i] == rom)
+                result[offset / bucket_ms] = point.averages[i];
     }
     return result;
 }

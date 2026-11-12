@@ -385,3 +385,11 @@ wanted and the acceptance test.
 - Acceptance: host tests for the failure causes; on the board, repeated logins in the first minutes
   after boot all succeed.
 
+### 16.12 Internal RAM headroom (R10-15)
+
+- Behaviour: long-lived bulk data (the LCD trend history and its restore) lives in PSRAM, so
+  internal RAM stays free for Wi-Fi, the network stack and task stacks. HTTP responses are not
+  dropped for lack of memory.
+- Acceptance: on the board the internal-RAM low-water mark stays well above the size of a network
+  buffer after boot and trend restore, and `device_api_test.py` passes.
+
