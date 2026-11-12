@@ -7,6 +7,8 @@ import {
   FormControlLabel,
   Stack,
   Switch,
+  Tab,
+  Tabs,
   TextField,
   Typography,
 } from '@mui/material';
@@ -51,12 +53,14 @@ function SensorEditor({
   unit,
   writable,
   onUnavailable,
+  onSaved,
   onRetired,
 }: {
   sensor: SensorConfiguration;
   unit: Unit;
   writable: boolean;
   onUnavailable: () => void;
+  onSaved: (updated: SensorConfiguration) => void;
   onRetired: (id: string) => void;
 }) {
   const [numbers, setNumbers] = useState(() => numericText(sensor, unit));
@@ -103,7 +107,7 @@ function SensorEditor({
         return;
       } else if (edited.has(key))
         parsed[key] = toCelsius(key, Number(value), unit);
-      else Object.assign(parsed, { [key]: sensor[key] });
+      // Untouched fields keep the draft's value: the last applied revision, sent unconverted.
     }
     if (
       parsed.low_c !== null &&
@@ -144,6 +148,7 @@ function SensorEditor({
             setNumbers(numericText(updated, unit));
             setEdited(new Set());
             setPositionText(String(updated.order + 1));
+            onSaved(updated);
             setMessage('Settings committed and applied.');
           }
           resolved = true;
@@ -169,7 +174,7 @@ function SensorEditor({
     }
   }
   async function retire() {
-    const { rom_id: id, etag } = sensor;
+    const { rom_id: id, etag } = draft;
     if (
       !window.confirm(
         `Retire disconnected probe ${id}? Its configuration mapping will be removed after saving. Existing history remains under this ROM, and a returning probe starts with default settings.`,
@@ -361,12 +366,18 @@ function SensorEditor({
     </Card>
   );
 }
+// Tabs follow the LCD display position, then the ROM, so they match the screen's order.
+function byPosition(a: SensorConfiguration, b: SensorConfiguration) {
+  return a.order - b.order || a.rom_id.localeCompare(b.rom_id);
+}
 export default function SensorsView({ unit }: { unit: Unit }) {
   const [sensors, setSensors] = useState<SensorConfiguration[] | null>(null);
   const [writable, setWritable] = useState<boolean | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [refresh, setRefresh] = useState(0);
+  // The chosen probe's ROM; when it is missing (first load, retired) the first tab is shown.
+  const [selected, setSelected] = useState('');
   useEffect(() => {
     let active = true;
     Promise.all([getSensors(), getSensorStorageStatus()])
@@ -384,6 +395,10 @@ export default function SensorsView({ unit }: { unit: Unit }) {
       active = false;
     };
   }, [refresh]);
+  const ordered = sensors ? [...sensors].sort(byPosition) : [];
+  const current = ordered.some((item) => item.rom_id === selected)
+    ? selected
+    : (ordered[0]?.rom_id ?? '');
   return (
     <Stack spacing={2}>
       <Alert severity="info">
@@ -421,23 +436,67 @@ export default function SensorsView({ unit }: { unit: Unit }) {
           No sensors discovered. Unused positions do not cause alarms.
         </Typography>
       )}
-      {sensors?.map((sensor) => (
-        <SensorEditor
+      {current && (
+        <Tabs
+          value={current}
+          onChange={(_, rom: string) => setSelected(rom)}
+          // Up to five names of up to 32 characters: scroll rather than squeeze on a phone.
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          aria-label="Sensors"
+        >
+          {ordered.map((sensor) => (
+            <Tab
+              key={sensor.rom_id}
+              value={sensor.rom_id}
+              label={sensor.name}
+              id={`sensor-tab-${sensor.rom_id}`}
+              aria-controls={`sensor-panel-${sensor.rom_id}`}
+              sx={{
+                textTransform: 'none',
+                fontSize: { xs: 14, sm: 15 },
+                minWidth: 0,
+                maxWidth: 220,
+                px: 1.5,
+              }}
+            />
+          ))}
+        </Tabs>
+      )}
+      {/* Every editor stays mounted so unsaved edits and a save in progress survive a tab
+          switch; only the chosen one is shown. */}
+      {ordered.map((sensor) => (
+        <div
           key={`${sensor.rom_id}-${refresh}`}
-          sensor={sensor}
-          unit={unit}
-          writable={writable === true}
-          onUnavailable={() => setWritable(false)}
-          onRetired={(id) => {
-            setSensors(
-              (current) =>
-                current?.filter((item) => item.rom_id !== id) ?? null,
-            );
-            setMessage(
-              `Probe ${id} retired. Its history remains under the original ROM.`,
-            );
-          }}
-        />
+          role="tabpanel"
+          id={`sensor-panel-${sensor.rom_id}`}
+          aria-labelledby={`sensor-tab-${sensor.rom_id}`}
+          hidden={sensor.rom_id !== current}
+        >
+          <SensorEditor
+            sensor={sensor}
+            unit={unit}
+            writable={writable === true}
+            onUnavailable={() => setWritable(false)}
+            onSaved={(updated) =>
+              setSensors(
+                (list) =>
+                  list?.map((item) =>
+                    item.rom_id === updated.rom_id ? updated : item,
+                  ) ?? null,
+              )
+            }
+            onRetired={(id) => {
+              setSensors(
+                (list) => list?.filter((item) => item.rom_id !== id) ?? null,
+              );
+              setMessage(
+                `Probe ${id} retired. Its history remains under the original ROM.`,
+              );
+            }}
+          />
+        </div>
       ))}
     </Stack>
   );

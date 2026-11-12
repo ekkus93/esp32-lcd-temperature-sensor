@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import SensorsView from './SensorsView';
 const sensor = {
@@ -139,14 +139,7 @@ it('explains the empty managed-sensor list', async () => {
     ),
   ).toBeInTheDocument();
 });
-it('renders all five sensor editors with maximum-length names', async () => {
-  const sensors = Array.from({ length: 5 }, (_, index) => ({
-    ...sensor,
-    rom_id: `28${String(index + 1).padStart(14, '0')}`,
-    etag: `"simulator:${index}:1"`,
-    name: `${index + 1}${'x'.repeat(31)}`,
-    order: index,
-  }));
+function stubSensors(list: object[]) {
   vi.stubGlobal(
     'fetch',
     vi.fn().mockImplementation(async (input: RequestInfo | URL) => ({
@@ -154,15 +147,114 @@ it('renders all five sensor editors with maximum-length names', async () => {
       json: async () =>
         String(input).endsWith('/sensors/storage')
           ? { schema_version: 1, state: 'ready', writable: true }
-          : sensors,
+          : list,
     })),
   );
+}
+it('gives each of five sensors a tab with its maximum-length name', async () => {
+  const sensors = Array.from({ length: 5 }, (_, index) => ({
+    ...sensor,
+    rom_id: `28${String(index + 1).padStart(14, '0')}`,
+    etag: `"simulator:${index}:1"`,
+    name: `${index + 1}${'x'.repeat(31)}`,
+    order: index,
+  }));
+  stubSensors(sensors);
   render(<SensorsView unit="C" />);
-  const editors = await screen.findAllByLabelText(/Sensor name/);
-  expect(editors).toHaveLength(5);
-  expect(editors.map((editor) => (editor as HTMLInputElement).value)).toEqual(
+  const tabs = await screen.findAllByRole('tab');
+  expect(tabs.map((tab) => tab.textContent)).toEqual(
     sensors.map((item) => item.name),
   );
+  expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
+  // Only the chosen sensor's editor is shown.
+  expect(screen.getAllByRole('tabpanel')).toHaveLength(1);
+  expect(screen.getByRole('tabpanel')).toHaveAccessibleName(sensors[0].name);
+});
+it('orders the tabs by LCD display position and switches editors', async () => {
+  stubSensors([
+    { ...sensor, rom_id: '2800000000000002', name: 'Freezer', order: 1 },
+    { ...sensor, rom_id: '2800000000000001', name: 'Fridge', order: 0 },
+  ]);
+  render(<SensorsView unit="C" />);
+  const tabs = await screen.findAllByRole('tab');
+  expect(tabs.map((tab) => tab.textContent)).toEqual(['Fridge', 'Freezer']);
+  expect(screen.getByRole('tabpanel')).toHaveTextContent('2800000000000001');
+  fireEvent.click(screen.getByRole('tab', { name: 'Freezer' }));
+  expect(screen.getByRole('tab', { name: 'Freezer' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  expect(screen.getByRole('tabpanel')).toHaveTextContent('2800000000000002');
+});
+it('keeps unsaved edits when switching to another sensor and back', async () => {
+  stubSensors([
+    { ...sensor, rom_id: '2800000000000001', name: 'Fridge', order: 0 },
+    { ...sensor, rom_id: '2800000000000002', name: 'Freezer', order: 1 },
+  ]);
+  render(<SensorsView unit="C" />);
+  await screen.findAllByRole('tab');
+  const panel = () => within(screen.getByRole('tabpanel'));
+  fireEvent.change(panel().getByLabelText(/High threshold/), {
+    target: { value: '7' },
+  });
+  fireEvent.click(screen.getByRole('tab', { name: 'Freezer' }));
+  expect(panel().getByLabelText(/High threshold/)).toHaveValue(null);
+  fireEvent.click(screen.getByRole('tab', { name: 'Fridge' }));
+  expect(panel().getByLabelText(/High threshold/)).toHaveValue(7);
+});
+it('renames the tab and keeps the first change when a second save follows', async () => {
+  let stored: typeof sensor & { high_c: number | null } = { ...sensor };
+  const patches: Record<string, unknown>[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockImplementation(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          if (init?.method === 'PATCH') {
+            const patch = JSON.parse(init.body as string);
+            patches.push(patch);
+            // The device applies the patch and moves to a new revision.
+            const revision = stored.revision + 1;
+            stored = {
+              ...stored,
+              ...patch,
+              revision,
+              etag: `"simulator:${sensor.rom_id}:${revision}"`,
+            };
+            return { ok: true, json: async () => ({ status: 'queued' }) };
+          }
+          return {
+            ok: true,
+            json: async () =>
+              String(input).endsWith('/sensors/storage')
+                ? { schema_version: 1, state: 'ready', writable: true }
+                : [stored],
+          };
+        },
+      ),
+  );
+  render(<SensorsView unit="C" />);
+  fireEvent.change(await screen.findByLabelText(/High threshold/), {
+    target: { value: '8' },
+  });
+  fireEvent.change(screen.getByLabelText(/Sensor name/), {
+    target: { value: 'Fridge' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Save sensor settings' }));
+  await screen.findByText('Settings committed and applied.', undefined, {
+    timeout: 3000,
+  });
+  expect(screen.getByRole('tab', { name: 'Fridge' })).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText(/Low threshold/), {
+    target: { value: '2' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Save sensor settings' }));
+  await screen.findByText(
+    'Update queued. It applies with the next measurement cycle.',
+  );
+  // The second save must not send the high threshold as it was before the first save.
+  expect(patches[1]).toMatchObject({ low_c: 2, high_c: 8, name: 'Fridge' });
 });
 it('rejects reversed thresholds before sending an update', async () => {
   render(<SensorsView unit="C" />);
