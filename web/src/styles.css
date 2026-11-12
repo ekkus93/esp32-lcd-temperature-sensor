@@ -82,9 +82,12 @@ footer {
   }
   nav button {
     min-width: 0 !important;
-    flex: 1;
+    /* Size each item to its label and share the rest, so "Dashboard" is not squeezed into an
+       equal sixth while "Alerts" has room to spare. */
+    flex: 1 1 auto;
+    white-space: nowrap;
     font-size: 11px !important;
-    padding: 10px 2px !important;
+    padding: 10px 6px !important;
   }
   header h1 {
     font-size: 28px !important;
@@ -95,6 +98,12 @@ footer {
   }
   .sensor-grid {
     grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 359px) {
+  nav button {
+    font-size: 10px !important;
+    padding: 10px 5px !important;
   }
 }
 @media (prefers-reduced-motion: reduce) {
