@@ -18,8 +18,8 @@ import {
   Tabs,
   ThemeProvider,
   Typography,
-  createTheme,
 } from '@mui/material';
+import { createAppTheme } from './theme/theme';
 import { temperature } from './api/client';
 import { getDisplaySettings } from './api/settings';
 import { getProbeScan, type ProbeScanStatus } from './api/probe-scan';
@@ -140,39 +140,7 @@ function Shell() {
       clearInterval(interval);
     };
   }, []);
-  const theme = useMemo(
-    () =>
-      createTheme({
-        palette: {
-          mode: dark ? 'dark' : 'light',
-          primary: { main: dark ? '#a1d0bf' : '#22534a' },
-          warning: {
-            main: dark ? '#ffb74d' : '#a64b00',
-            contrastText: dark ? '#1b1305' : '#ffffff',
-          },
-          background: { default: dark ? '#111815' : '#f5f8f5' },
-        },
-        shape: { borderRadius: 20 },
-        typography: { fontFamily: 'system-ui, sans-serif' },
-        components: {
-          MuiButton: {
-            styleOverrides: {
-              root: { textTransform: 'none', borderRadius: 24 },
-            },
-          },
-          MuiCard: {
-            styleOverrides: {
-              root: {
-                boxShadow: 'none',
-                border: '1px solid',
-                borderColor: dark ? '#394b43' : '#d8e4dc',
-              },
-            },
-          },
-        },
-      }),
-    [dark],
-  );
+  const theme = useMemo(() => createAppTheme(dark ? 'dark' : 'light'), [dark]);
   useEffect(() => {
     const onPop = () => {
       setPath(location.pathname);
@@ -307,7 +275,7 @@ function Shell() {
                       <Typography variant="subtitle1">{s.name}</Typography>
                       <Typography
                         className="reading"
-                        variant="h3"
+                        variant="displayMedium"
                         sx={{ opacity: error ? 0.5 : 1 }}
                       >
                         {temperature(s.temperature_c, unit)}

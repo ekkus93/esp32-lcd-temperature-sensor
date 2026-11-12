@@ -262,11 +262,27 @@ Owner request, 2026-11-12: real Material 3, a slicker and more professional look
 (D9), seed `#2F6B4F` (D10), Events as a tab of Alerts with Alerts first and default (D11). No API
 or storage change. R12-01 comes first; if R11-02 is built after it, it uses the new components.
 
-- [ ] **R12-01** Material 3 foundation (§18.1, §18.2): token generator and committed tokens (light,
+- [x] **R12-01** Material 3 foundation (§18.1, §18.2): token generator and committed tokens (light,
   dark, status and chart colours), the MUI theme built from them, the type scale, Roboto Flex
   subset with its licence and a `docs/FONTS.md` web section, icons, shape, spacing and motion, and
   Material 3 component overrides. Acceptance: token and contrast tests pass; the size before and
-  after is measured and within the §18.8 budget.
+  after is measured and within the §18.8 budget. Done
+  (2026-11-12): tokens from seed `#2F6B4F` with `@material/material-color-utilities` 0.3.0 (dev
+  only; 0.4.0's ESM build does not load in Node) through `npm run theme:generate` into
+  `web/src/theme/tokens.generated.ts`; `web/src/theme/theme.ts` maps them to MUI (palette, the
+  Material 3 type scale on Roboto Flex, shape and motion scales, `--md-sys-color-*` CSS variables,
+  and Material 3 styles for buttons with a `tonal` variant, segmented toggle buttons, tabs,
+  switches, chips, alerts, cards, fields, dialogs, menus, tooltips, snackbars and progress). Chart
+  colours follow the LCD's hue order; the History chart uses them. Roboto Flex is cut to 67,004
+  bytes by `tools/fonts/make_web_font.py` (source and checksum in `docs/FONTS.md`); its licence is
+  served at `/licenses/RobotoFlex-OFL.txt`, and `pack-web.py` serves `.woff2` as `font/woff2`.
+  `@mui/icons-material` 9.5.0 is added and first used in R12-02. Tests: tokens match the generator
+  (shown to fail on an edited file), WCAG AA contrast for every text pair (4.5:1) and boundary or
+  chart pair (3:1) in both themes, the theme mapping, and the 80 KB font limit. Size: the packed
+  web build went from 192,795 to 264,914 gzip bytes (+72,119: font 67,009, licence 2,012, theme
+  about 3,100), within the 150 KB budget. Checked in a browser against the simulator at 1280 and
+  390 px, light and dark: Roboto Flex loaded, no horizontal scroll. `verify.sh --firmware` passed
+  (39 host and 175 web tests); the firmware is 2,138,336 bytes, 49% of each OTA slot free.
 - [ ] **R12-02** Navigation and top bar (§18.3): rail at 840 px and wider, bottom bar below, five
   destinations with icons, the Alerts badge, the compact top bar with theme and sign-in icon
   buttons, and the status chips. Acceptance: navigation tests; no horizontal scroll at 360 px.

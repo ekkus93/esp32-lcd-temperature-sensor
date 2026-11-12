@@ -18,7 +18,7 @@ for index, path in enumerate(sorted(source.rglob('*'))):
     data = gzip.compress(raw, compresslevel=9, mtime=0)
     name = f'asset_{index}'
     url = '/' + path.relative_to(source).as_posix()
-    content_type = {'.html':'text/html; charset=utf-8', '.js':'text/javascript', '.css':'text/css', '.svg':'image/svg+xml', '.png':'image/png'}.get(path.suffix,'application/octet-stream')
+    content_type = {'.html':'text/html; charset=utf-8', '.js':'text/javascript', '.css':'text/css', '.svg':'image/svg+xml', '.png':'image/png', '.woff2':'font/woff2', '.txt':'text/plain; charset=utf-8'}.get(path.suffix,'application/octet-stream')
     manifest.append({'url':url,'bytes':len(raw),'gzip_bytes':len(data),'sha256':hashlib.sha256(raw).hexdigest()})
     entries.append((name, url, content_type, data))
 if not any(url=='/index.html' for _,url,_,_ in entries):

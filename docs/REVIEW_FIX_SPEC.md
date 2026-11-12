@@ -570,8 +570,10 @@ Status colours are Material 3 custom colours harmonised to the seed, each with a
 | Normal | primary-container roles | primary-container roles |
 
 Chart series, from the colour-blind-safe Okabe–Ito hues, at tone 45 (light) and 75 (dark), in
-probe display order: `#006FAE`/`#77BFFF`, `#8F6200`/`#F4AB18`, `#007A58`/`#51CE9F`,
-`#A24D7F`/`#FC9AD0`, `#B04D00`/`#FFA26F`. A probe keeps its colour on every page.
+probe display order and in the hue order of the LCD's Trends lines (blue, yellow, red, purple,
+green), so a probe looks the same on the LCD and the web: `#006FAE`/`#77BFFF`,
+`#8F6200`/`#F4AB18`, `#B04D00`/`#FFA26F`, `#A24D7F`/`#FC9AD0`, `#007A58`/`#51CE9F`. A probe keeps
+its colour on every page.
 
 The theme follows the system light/dark setting, with the existing override kept.
 

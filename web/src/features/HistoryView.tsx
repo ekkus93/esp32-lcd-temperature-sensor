@@ -11,6 +11,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import {
   getHistory,
   historyExportUrl,
@@ -40,9 +41,6 @@ function gapText(
     ? `${formatDeviceTime(start, timezone)} to ${formatDeviceTime(end, timezone)} (${missing})`
     : `${minutes(start)} to ${minutes(end)} since boot (${missing})`;
 }
-// The LCD Trends graph colours probes by position (firmware display_view.cpp line_colors), so the
-// same probe has the same line colour on the device and in the browser.
-const probeColours = ['#7fc8ff', '#ffc857', '#ff8a80', '#c3a6ff', '#7fe0b0'];
 
 export default function HistoryView({
   snapshot,
@@ -53,6 +51,9 @@ export default function HistoryView({
   unit: 'C' | 'F';
   timezone: string | null;
 }) {
+  // Probes are coloured by display position in the hues of the LCD's Trends lines, set for the
+  // current light or dark theme (spec §18.2), so a probe looks the same everywhere.
+  const probeColours = useTheme().palette.series;
   const [hours, setHours] = useState(24);
   const [loaded, setLoaded] = useState<{
     key: string;

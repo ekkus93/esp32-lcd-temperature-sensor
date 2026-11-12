@@ -17,11 +17,13 @@
     "test:simulator": "node ../tools/test-simulator-live.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "simulator": "node scripts/simulator.mjs",
-    "contract:generate": "node scripts/generate-contracts.mjs && node scripts/generate-validators.mjs"
+    "contract:generate": "node scripts/generate-contracts.mjs && node scripts/generate-validators.mjs",
+    "theme:generate": "node scripts/generate-theme.mjs && prettier --write src/theme/tokens.generated.ts"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.1",
+    "@mui/icons-material": "9.5.0",
     "@mui/material": "9.5.0",
     "ajv": "8.20.0",
     "react": "19.3.1",
@@ -29,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@material/material-color-utilities": "0.3.0",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.3",
     "@types/node": "26.6.5",

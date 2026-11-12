@@ -1,5 +1,4 @@
 :root {
-  font-family: system-ui, sans-serif;
   font-synthesis: none;
 }
 * {
@@ -18,7 +17,7 @@ nav {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  border-right: 1px solid #8b9f9233;
+  border-right: 1px solid var(--md-sys-color-outline-variant);
 }
 .brand {
   font-size: 20px;
@@ -74,8 +73,8 @@ footer {
     flex-direction: row;
     gap: 0;
     padding: 8px 2px calc(8px + env(safe-area-inset-bottom));
-    background: var(--mui-palette-background-paper, Canvas);
-    border-top: 1px solid #8b9f9244;
+    background: var(--md-sys-color-surface-container, Canvas);
+    border-top: 1px solid var(--md-sys-color-outline-variant);
   }
   nav .brand {
     display: none;

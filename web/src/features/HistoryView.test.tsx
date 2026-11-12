@@ -1,8 +1,23 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import type { ReactElement, ReactNode } from 'react';
+import { ThemeProvider } from '@mui/material/styles';
+import {
+  fireEvent,
+  render as renderPlain,
+  screen,
+} from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import HistoryView from './HistoryView';
 import { empty } from '../api/fixtures';
 import { parseSnapshot } from '../api/client';
+import { createAppTheme } from '../theme/theme';
+import { tokens } from '../theme/tokens.generated';
+
+// The view takes its probe colours from the app theme, as it does inside the app.
+const lightTheme = createAppTheme('light');
+const AppTheme = ({ children }: { children: ReactNode }) => (
+  <ThemeProvider theme={lightTheme}>{children}</ThemeProvider>
+);
+const render = (ui: ReactElement) => renderPlain(ui, { wrapper: AppTheme });
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -342,8 +357,9 @@ it('draws every selected probe on one chart, each in its own colour', async () =
   ).toHaveLength(1);
   const lines = container.querySelectorAll('polyline');
   expect(lines).toHaveLength(2);
-  expect(lines[0].getAttribute('stroke')).toBe('#7fc8ff');
-  expect(lines[1].getAttribute('stroke')).toBe('#ffc857');
+  // Coloured by display position, in the LCD's hue order (blue, then yellow).
+  expect(lines[0].getAttribute('stroke')).toBe(tokens.light.series[0]);
+  expect(lines[1].getAttribute('stroke')).toBe(tokens.light.series[1]);
 });
 
 it('lists probes in their position order, not by ROM ID', async () => {
