@@ -599,37 +599,53 @@ progress indicators.
 
 ### 18.3 Navigation and top bar
 
-- At 840 px and wider, a navigation rail on the left: the app's mark and name, then five
-  destinations, each an icon with a label and the Material 3 active indicator (pill behind the
-  icon).
-- Below 840 px, a navigation bar at the bottom with the same five destinations, icons with
-  labels. The page uses the full width; no horizontal scrolling at 360 px.
+The owner approved a concept on 2026-11-12 (desktop light and phone dark boards of the Dashboard);
+§18.3 and §18.4 describe it.
+
+- At 840 px and wider, a navigation rail on the left (96 px, surface-container): the app's mark
+  (a leaf on the deep evergreen of §18.4), then five destinations, each an icon above its label,
+  with the Material 3 active indicator (a secondary-container pill behind the icon).
+- Below 840 px, a navigation bar at the bottom (80 px) with the same five destinations. The page
+  uses the full width; no horizontal scrolling at 360 px.
 - Destinations: Dashboard, History, Sensors, Alerts, Settings. Alerts shows a badge with the
-  number of active alerts.
-- A compact top app bar: the page title, the device's network name, and icon buttons for the
-  theme (light, dark, system) and signing in or out, with tooltips. The repeated "Local
-  temperature monitor" label goes.
-- Device status (Wi-Fi, time sync, history logging, simulation) is shown as assist chips with an
-  icon and the status colours of §18.2, only for conditions that need attention; when everything
-  is fine a single "All systems normal" chip shows instead.
+  number of active alerts, from `GET /alerts`.
+- A top bar: the page title on the left; on the right the device's network name with a Wi-Fi icon
+  (`wifi.mdns_hostname` plus `.local`, hidden when unknown or on a phone), and icon buttons with
+  tooltips for the light/dark theme and for signing in or out. The repeated "Local temperature
+  monitor" label goes.
+- Device conditions that need attention (Wi-Fi not connected, clock not synchronised, history
+  logging unavailable, simulation) show as warning-coloured chips with an icon under the top bar.
+  When everything is fine, nothing is shown.
 
 ### 18.4 Dashboard
 
-- One card per enabled probe, in display order, in a responsive grid (one column on a phone, up
-  to five across on a wide screen). Each card shows:
-  - the probe's name, and its series colour as a small mark;
-  - the temperature, large, in tabular figures, with its unit;
-  - the state as a coloured chip with an icon (normal, high, low, disconnected, stale), using the
-    status colours;
-  - a 24-hour sparkline;
-  - today's minimum and maximum, and the low and high limits as a small range bar with the current
-    value marked;
-  - "Updated n s ago" in small text, highlighted when stale.
-- The ROM ID is not shown on the Dashboard.
-- Below the cards, a 24-hour chart of all probes (the History chart component, §18.5) with a link
-  to History. It uses one history query for all probes, refreshed every five minutes, within the
-  one-query-per-second limit; live readings extend it between refreshes.
-- While the first data loads, skeleton cards show in place of "Connecting…".
+- **Live readings panel.** One deep evergreen panel (`#003824`, the seed's tone 20) across the
+  top, radius 28, with light mint text, in both themes. It is the page's one bold element.
+  - A headline stating the room's state in words: "All five probes are in range"; "Exhaust is
+    running warm" or "… running cold" for one probe out of range; "Exhaust is disconnected"; "2
+    probes need attention" for several; "Readings are out of date" when the live feed is lost.
+  - Under it, one sentence with the detail: the reading, the limit it passed and for how long
+    (from the active alert's start), and that the others are in range.
+  - "Updated n seconds ago" with a small live dot that pulses gently, and stays still when the
+    system asks for reduced motion.
+  - One column per enabled probe, in display order (a row per probe on a phone): its name; the
+    temperature large and light (Roboto Flex weight 300 at the largest optical size, tabular
+    figures) with its unit; a slim gauge showing the low-to-high range as a band and the reading
+    as a dot; and "Range low to high". Above the high limit the number and dot turn the warm
+    status colour and a "Too warm" tag appears; below the low limit, the cold colour and "Too
+    cold"; disconnected or without a reading, the number is a dash and the tag says so. A probe
+    with no limits shows the gauge without a band.
+- **Last 24 hours.** A card with all probes as smooth lines in their series colours, light
+  gridlines, temperature labels at round values, a time axis, a dashed line at the limit of any
+  probe that is out of range, the probes as filter chips, and the range as a segmented button
+  (24 hours, 7 days, 30 days). It uses one history query for all probes, refreshed every five
+  minutes, within the one-query-per-second limit.
+- **Alerts.** Beside the chart (below it on a phone): the active alerts, each with a status icon,
+  what is wrong and since when, or "No active alerts"; then the three most recent events; then a
+  link to all events.
+- The ROM ID is not shown on the Dashboard. Limits come from `GET /sensors`, refreshed every
+  minute and after an edit on the Sensors page.
+- While the first data loads, skeletons show in place of the panel and cards.
 
 ### 18.5 History
 
