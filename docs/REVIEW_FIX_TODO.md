@@ -200,9 +200,9 @@ connected board.
   release notes, with known issues, only after every item above is done (§16.9). **Prepared
   (2026-11-12):** version 0.2.0 set in the firmware, `web/package.json` and the lockfile; release
   notes with known issues in [`RELEASE_NOTES_0.2.0.md`](RELEASE_NOTES_0.2.0.md) (the draft now
-  points there). Still to do, each needing the owner's go-ahead: accept the open checks as known
-  issues (R10-10, R01-07, R07-08, R08-05), merge to `master` so CI builds the release package, then
-  tag `v0.2.0` and publish the GitHub release with that package.
+  points there). The work is on `master` (fast-forwarded on 2026-11-12). Still to do, each needing
+  the owner's go-ahead: accept the open checks as known issues (R10-10, R01-07, R07-08, R08-05),
+  then tag `v0.2.0` and publish the GitHub release with the CI package from that commit.
 - [x] **R10-13** R09-08: correct `docs/TODO.md`. **Done (2026-11-12, with the owner's approval):** the 18 tasks
   carry a code-review note naming the finding and the R-items that fixed it (T02-11, T03-04 and
   T03-05 note that board check R01-07 is still open); T07-08 says there is no per-client queue;

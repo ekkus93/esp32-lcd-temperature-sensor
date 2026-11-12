@@ -1,9 +1,9 @@
 # ESP32-S3 Temperature Monitor 0.2.0 — release notes
 
-> **Status: prepared, not yet published.** The version and these notes are ready. Publishing needs
-> the owner's go-ahead to merge the release branch into `master` (where CI builds the release
-> package) and to create the GitHub release. The open checks under **Known issues** are released
-> as known issues only with the owner's approval.
+> **Status: prepared, not yet published.** The version and these notes are ready on `master`.
+> Publishing (tagging `v0.2.0` and creating the GitHub release with the CI release package) waits
+> for the owner's go-ahead, and the open checks under **Known issues** are released as known issues
+> only with the owner's approval.
 
 0.2.0 is the first numbered release. Earlier builds were development builds labelled 0.1.0 and
 were never published.
@@ -13,8 +13,8 @@ were never published.
 | Field | Value |
 | --- | --- |
 | Version | 0.2.0 (firmware `project()` version, web `package.json` and lockfile agree) |
-| Source | Branch `fix/trends-restore-and-csp-validators`; the exact release commit and its CI run are recorded when the release is tagged |
-| Release package | Built by CI on `master`: bootloader, partition table, initial OTA selector, application, web build, `SHA256SUMS.txt` and `manifest.json` ([RELEASE_PROVENANCE.md](RELEASE_PROVENANCE.md)) |
+| Source | `master`; the exact release commit and its CI run are recorded when the release is tagged |
+| Release package | Built by every CI run: bootloader, partition table, initial OTA selector, application, web build, `SHA256SUMS.txt` and `manifest.json` ([RELEASE_PROVENANCE.md](RELEASE_PROVENANCE.md)) |
 | SDK and toolchain | ESP-IDF v6.1 (`fff9895c82d744c7237be8847347bdd1b07c6643`), Xtensa GCC `esp-15.2.0_20251204` |
 | Hardware | ESP32-S3-N16R8 (16 MiB flash, 8 MiB PSRAM), 1.8-inch ST7735 LCD, up to five DS18B20 probes on GPIO4 |
 
