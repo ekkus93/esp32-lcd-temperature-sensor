@@ -72,7 +72,7 @@ upload retention is guaranteed by the hosting policy.
 ## Release gate (still blocked)
 
 Do **not** rename this artifact a production release or claim OTA, power-loss,
-sensor, LCD, or Wi-Fi acceptance. The preparatory [draft release notes](RELEASE_NOTES_DRAFT.md) are not an
+sensor, LCD, or Wi-Fi acceptance. The [0.2.0 release notes](RELEASE_NOTES_0.2.0.md) (prepared, not yet published) are not an
 approved release. Before completing
 [T11-08](TODO.md), the owner must provide physical acceptance evidence for
 the board/pins/backlight, five probes and 1-Wire pull-up, live display and
