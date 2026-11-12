@@ -227,6 +227,23 @@ connected board.
   boot internal free RAM 58 to 64 KB (was 19 to 33 KB), low-water mark 38096 bytes (was 576 to 820),
   largest free block 31744 bytes (was 4608 to 19456); `device_api_test.py` passed all 452 checks.
 
+## Phase R11 — Sensor calibration in an ice bath (feature, §17)
+
+Owner request, 2026-11-12: ice point only (D8). No API, schema or storage change.
+
+- [ ] **R11-01** Guided ice-bath calibration on each sensor's tab (§17.2): instructions, live
+  measuring, the steadiness rule (12 readings within 0.125 °C), offset = 0 − mean uncalibrated
+  reading rounded to 0.1 °C, confirm and save through the existing `PATCH`, and the guards
+  (disconnect, bus fault, revision change, beyond ±12.7 °C refused, beyond ±2 °C warned, cancel,
+  10-minute give-up). Acceptance: the web tests in §17.5 pass; checked in a browser at 360 px
+  against the simulator.
+- [ ] **R11-02** User guide calibration section (§17.4): the ice bath, calibrating each probe as
+  installed, and probe placement in a grow room. `docs/WEB_UI_DESIGN_SPEC.md` describes the
+  flow. Acceptance: a reviewer can follow the guide without other documents.
+- [ ] **R11-03** [HW] Calibrate a real probe in a real ice bath with the new flow. Acceptance
+  (§17.5): the probe then reads 0.0 ± 0.1 °C in the bath, `probe_calibration` is `stored` with the
+  new offset, and the offset survives a restart; recorded under `docs/validation/`.
+
 ## Definition of done
 
 - [ ] All P0 and P1 items pass with tests, and their `[HW]` checks are recorded.

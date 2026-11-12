@@ -297,6 +297,7 @@ Confirmed by the owner on 2026-11-05: D1 to D7 are all accepted as proposed belo
 | D5 | Sensor thresholds in the web: entered in the configured unit, or kept in °C? | Configured unit, stored in °C |
 | D6 | Unprovisioned device: alternate setup and Overview on the LCD, or setup only? | Alternate |
 | D7 | Owner-code characters outside the alphabet (`0`, `1`, `I`, `O`): reject with a message, or map to look-alikes? | Reject with a message |
+| D8 | Sensor calibration: ice point only, or a second point (boiling water, a reference thermometer)? Decided by the owner on 2026-11-12 (§17). | Ice point only |
 
 ## 15. Verification
 
@@ -393,3 +394,79 @@ wanted and the acceptance test.
 - Acceptance: on the board the internal-RAM low-water mark stays well above the size of a network
   buffer after boot and trend restore, and `device_api_test.py` passes.
 
+## 17. Sensor calibration in an ice bath
+
+Owner request (2026-11-12). The monitor watches a grow room, about 18 to 30 °C. Calibration stays
+a single offset per probe (`calibration_c`, ±12.7 °C, also kept in the probe's own memory). This
+section adds a guided way to measure that offset in an ice bath, and instructions for doing it
+well.
+
+### 17.1 Why ice only (D8)
+
+- A stirred bath of crushed ice and a little water sits at 0.0 °C within about ±0.1 °C anywhere,
+  with no equipment.
+- A DS18B20's error is almost all a fixed offset: its rated error is ±0.5 °C from −10 to +85 °C,
+  and it changes by only hundredths of a degree between 0 and 30 °C. An offset set at 0 °C
+  therefore holds across a grow room's range.
+- Boiling water is not used. Its temperature falls about 1 °C per 300 m of altitude and moves a
+  few tenths with the weather, and most waterproof probes have PVC cable and heat-shrink rated
+  near 80 to 105 °C, which repeated boiling can damage.
+- Out of scope: a second calibration point and a gain (slope) correction, a reference-thermometer
+  check, and humidity (the DS18B20 cannot measure it).
+
+### 17.2 Guided calibration on the Sensors page
+
+- Each sensor's tab has a **Calibrate in ice** button, shown to the signed-in owner while the
+  probe is connected and sensor storage is writable.
+- The flow:
+  1. Instructions: make the ice bath (§17.4), put the probe in it, wait.
+  2. Measuring: the page shows the live reading and collects the probe's readings from the live
+     feed, each sample once. The uncalibrated reading is the live (calibrated) reading minus the
+     probe's current `calibration_c`.
+  3. Steady: the reading counts as steady when the last 12 readings (one minute at the 5-second
+     cycle) span no more than 0.125 °C, two steps of the probe's 0.0625 °C resolution. The page
+     says it is waiting while they don't, and gives up after 10 minutes with advice (more ice,
+     stir, check the probe is fully covered).
+  4. Result: the new offset is 0 minus the mean of those 12 uncalibrated readings, rounded to
+     0.1 °C, the step the probe's memory holds, so the monitor and the probe's copy agree exactly.
+     The page shows the current and new offsets and asks before saving.
+  5. Saving uses the existing `PATCH /sensors/{rom_id}` with the sensor's current ETag; nothing
+     else in the sensor's settings changes. Afterwards the page says the probe should now read
+     0.0 °C in the bath.
+- Guards:
+  - The probe disconnects, the sensor bus faults, or the sensor's revision or offset changes during
+    measuring: measuring stops and must be started again.
+  - A result beyond ±12.7 °C is refused: that is a faulty probe or a bad bath, not an offset.
+  - A result beyond ±2 °C (four times the probe's rated error) is offered only with a warning to
+    check the bath and the probe first.
+  - Cancel at any step leaves the settings as they were.
+- The readings and offsets are shown in the unit chosen by the page's °C/°F switch; the bath is
+  still 0 °C (32 °F) and the saved offset is in °C.
+
+### 17.3 API and storage
+
+- No change. The flow is in the web app, using the existing live feed, `GET /sensors` and
+  `PATCH /sensors/{rom_id}`. No schema version or storage change.
+
+### 17.4 User guide
+
+`docs/USER_GUIDE.md` gains a calibration section:
+
+- The ice bath: a tall container packed with crushed ice (not cubes), topped up with cold water
+  just to below the ice surface, stirred, left a minute; the probe's metal tip at least 5 cm in,
+  in the middle, not touching the container; stir while measuring; add ice if it floats free.
+- Calibrate each probe on its own cable as it will be installed. Dry it afterwards.
+- Probe placement in a grow room, which matters more than calibration: shade the probe from the
+  grow lights (a vented white shield or a white tube open at both ends), mount it at canopy
+  height, away from heaters, fan outlets, walls and the lamp's hot spot, and where air moves past
+  it.
+
+### 17.5 Acceptance
+
+- Web tests: the button's visibility rules; the steadiness rule (12 readings within 0.125 °C, a
+  repeated sample counted once); the offset arithmetic with a non-zero current offset and its
+  rounding; each guard; cancel; that the save sends only `calibration_c` with the current ETag; and
+  the °F display.
+- On the board, with a real probe in a real ice bath: the flow completes, the probe then reads
+  0.0 ± 0.1 °C in the bath, the offset is saved on the probe (`stored`), and it survives a restart.
+  This is also the first board check of a non-zero offset written to a probe.
