@@ -42,3 +42,17 @@ Not done and limits:
 - Physical LCD visibility of the OTA-verifying and rollback states was not
   observed.
 - Wi-Fi was not stressed and the sequence ran once per service.
+
+## HTTP server not started, self-rollback (2026-11-12, R02-07)
+
+Throwaway image built from commit `fe61e18` with one temporary change in `firmware/main/main.cpp`
+(`http_started = false` instead of starting the HTTP server); the source was restored right after
+the build and never committed. Image 1,785,568 bytes, SHA-256
+`649a6982032ba43cbe219dd8ebc4d615cf7d227b43a098c8488fee8fe65ee86e`.
+
+Uploaded with the authenticated `POST /api/v1/ota` (answer `202`) while `ota_0` ran valid. The
+board restarted into `ota_1`; the API was unreachable from 4 s (no HTTP server). Without any reset
+or USB access, the health gate's 120 s grace ran out, the image marked itself invalid and the
+board restarted into `ota_0`: the API answered `ota_0` / `valid` again **129.8 s after the upload
+was accepted**, inside the 2.5-minute limit. `otadata` read afterwards: seq 1 VALID, seq 2 INVALID.
+Logging was healthy and history, settings and the administrator password were kept.
