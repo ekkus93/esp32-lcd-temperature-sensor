@@ -45,6 +45,31 @@ were never published.
 - Settings describes the firmware update state in words.
 - The pages work under the device's Content Security Policy: schema validators are compiled at
   build time.
+- Settings has four tabs: Preferences, Wi-Fi, System and Password. The device's setup page opens
+  on the Wi-Fi tab.
+- Password fields, including the Wi-Fi password, have an eye button to show or hide what was
+  typed.
+- A page left open across a firmware update reloads once to fetch the new build instead of going
+  blank. Any other failure while drawing a page shows a message with a Reload button.
+- On a phone the navigation labels no longer crowd each other, and the `.local` network name no
+  longer wraps in Settings.
+
+**Sensors**
+
+- The Sensors page has one tab per probe, in display-position order. Unsaved edits survive
+  switching tabs.
+- A switch on the Sensors page enters temperatures in °C or °F. It starts in the display unit and
+  does not change it. Values are always saved in °C, and fields left alone are sent back exactly
+  as stored.
+- The calibration offset is limited to ±12.7 °C (±22.86 °F), down from ±20 °C. A genuine
+  DS18B20 is within ±2 °C, so a larger correction points to a faulty probe.
+- Each probe keeps a copy of its calibration offset in its own memory (the DS18B20's TH and TL
+  bytes, to 0.1 °C). A probe new to the monitor takes the offset it carries, so the offset
+  follows the probe to another monitor, after a factory reset, or after it is retired and plugged
+  back in. For a probe the monitor already knows, the monitor's setting wins and the probe is
+  rewritten only when its copy differs. Each write is read back to check it; after three failures
+  the monitor stops trying until the offset changes or it restarts. The Sensors page shows whether
+  the copy is saved.
 
 **LCD**
 
@@ -77,6 +102,9 @@ were never published.
 - `POST /auth/enroll` takes only `password` and answers `201`, or `403`, `409`, `429`, `400` or
   `503` with a reason.
 - `POST /auth/login` answers `503` when the device could not check the password.
+- `GET /sensors` adds a read-only `probe_calibration` field (`unknown`, `pending`, `stored`,
+  `restored` or `failed`). `PATCH` still rejects it, as it rejects any unknown key.
+- `calibration_c` is limited to ±12.7 °C in both sensor schemas and in the firmware.
 
 ## Checked on the board
 
@@ -90,6 +118,9 @@ On the connected ESP32-S3 with four saved probes, between 2026-11-10 and 2026-11
 - Repeated wrong logins did not slow the dashboard (slowest reply 0.25 s), and the owner still
   signed in at once.
 - A 45-minute load soak: every request answered, no faults, internal RAM flat.
+- The three connected probes had their calibration copy written and verified, and were not
+  rewritten after a restart ([record](validation/device-probe-calibration-memory-2026-11-12.md)).
+  Only a 0 °C offset was written.
 - `./tools/verify.sh --firmware` and CI pass.
 
 The evidence is in [validation/](validation/) and [REVIEW_FIX_TODO.md](REVIEW_FIX_TODO.md).
@@ -102,6 +133,7 @@ The evidence is in [validation/](validation/) and [REVIEW_FIX_TODO.md](REVIEW_FI
 | Sensor bus faults | Unplugging the probe bus, and recovery of a probe held above its limit, have not been checked on the board. | R01-07 |
 | Other devices | Public access from a phone, and `.local` name resolution from Windows, macOS/iOS and Android, are not checked. Linux works. | R07-08, R08-05 |
 | LCD | The update-status footer and the setup page were not watched on the panel (their logs and host renders were checked). The panel's geometry and backlight are not fully measured. | T10-02, T04-02 |
+| Probe calibration memory | On the board only a 0 °C offset was written. A non-zero offset, a probe adopting its saved offset when retired and plugged back in, and write failures are covered by host tests only. | [record](validation/device-probe-calibration-memory-2026-11-12.md) |
 | History retention | The store has not filled yet. Retention under eviction is the host profile's forecast (about 61 days with four probes). | T06-15 |
 | Backlight | Do not connect GPIO15 to the LCD backlight until its voltage, polarity and current are measured. | T04-02 |
 | Security model | The device uses local HTTP, so traffic is not encrypted on the LAN. Readings, history and display settings are public; changes need the administrator password. Do not expose the device to the internet. | [SECURITY_DESIGN.md](SECURITY_DESIGN.md) |
@@ -113,6 +145,12 @@ The evidence is in [validation/](validation/) and [REVIEW_FIX_TODO.md](REVIEW_FI
   administrator password are kept.
 - The first login after upgrading takes about 35 seconds while the password is rehashed. Later
   logins take about 4 seconds.
+- A calibration offset saved beyond ±12.7 °C by an older build is trimmed to ±12.7 °C when the
+  monitor starts, rather than making sensor settings read-only. Check any such probe after
+  upgrading.
+- On first start each connected probe's calibration offset is written into the probe's own
+  memory, one probe per five-second cycle. The probe's factory TH/TL alarm bytes are replaced;
+  the monitor does not use the probe's built-in alarm.
 - If a development setup file under `.build/` still uses the old key names, rename `password` to
   `admin_password` in `device-admin.json`. Running `device_setup.py` again rewrites the setup key
   as `wifi_setup_password`.
