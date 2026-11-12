@@ -5,6 +5,7 @@
 #include "esp_heap_caps.h"
 #include "esp_system.h"
 #include "esp_timer.h"
+#include "external_allocator.hpp"
 #include "history_csv.hpp"
 #include "host_rules.hpp"
 #include "login_throttle.hpp"
@@ -295,6 +296,152 @@ void HttpApi::login_worker(void *context) {
         delete job;
     }
 }
+// Answers one history query or CSV export on the history worker (never on the HTTP task).
+esp_err_t HttpApi::serve_history(httpd_req_t *r, const HistoryQuery &query, bool exporting) {
+    if (exporting) {
+        bool started = false;
+        auto start = [&]() {
+            if (started)
+                return true;
+            started = true;
+            httpd_resp_set_type(r, "text/csv; charset=utf-8");
+            httpd_resp_set_hdr(r, "Content-Disposition",
+                               "attachment; filename=temperature-history.csv");
+            httpd_resp_set_hdr(r, "Cache-Control", "no-store");
+            return httpd_resp_send_chunk(r, history_csv_header(), HTTPD_RESP_USE_STRLEN) == ESP_OK;
+        };
+        // Rows are sent in chunks of about 4 KiB. One chunk per row (about 110 bytes) meant
+        // three small socket writes per row; a month of history took over six seconds,
+        // during which the single HTTP task answered nothing else. The buffer is in PSRAM.
+        constexpr size_t csv_chunk_bytes = 4096;
+        std::vector<char, ExternalAllocator<char>> pending;
+        pending.reserve(csv_chunk_bytes + 512);
+        auto flush = [&]() {
+            if (pending.empty())
+                return true;
+            const bool sent = httpd_resp_send_chunk(r, pending.data(), pending.size()) == ESP_OK;
+            pending.clear();
+            return sent;
+        };
+        const bool ok = history_->visit(query, [&](const Bucket &bucket) {
+            if (!start())
+                return false;
+            for (const auto &sensor : bucket.sensors) {
+                if (!query.roms.empty() &&
+                    std::find(query.roms.begin(), query.roms.end(), sensor.rom) == query.roms.end())
+                    continue;
+                const auto row = history_csv_row(bucket, sensor, simulated_);
+                pending.insert(pending.end(), row.begin(), row.end());
+                if (pending.size() >= csv_chunk_bytes && !flush())
+                    return false;
+            }
+            return true;
+        });
+        if (!ok) {
+            if (!started)
+                return error(r, "503 Service Unavailable", "History unavailable or busy");
+            httpd_sess_trigger_close(server_, httpd_req_to_sockfd(r));
+            return ESP_FAIL;
+        }
+        if (!start() || !flush())
+            return ESP_FAIL;
+        return httpd_resp_send_chunk(r, nullptr, 0);
+    }
+    std::vector<HistoryPoint> points;
+    std::vector<HistoryGap> gap_records;
+    bool truncated = false;
+    if (!history_->query(query, points, gap_records, truncated))
+        return error(r, "503 Service Unavailable", "History unavailable or busy");
+    Json output(cJSON_CreateObject(), cJSON_Delete);
+    cJSON_AddNumberToObject(output.get(), "schema_version", 1);
+    cJSON_AddBoolToObject(output.get(), "simulated", simulated_);
+    cJSON_AddBoolToObject(output.get(), "truncated", truncated);
+    cJSON_AddStringToObject(output.get(), "time_basis", query.boot_id ? "uptime" : "utc");
+    // An allocation failure while building the answer is reported as `truncated`, not
+    // hidden by silently dropping rows.
+    bool allocation_failed = false;
+    auto *items = cJSON_AddArrayToObject(output.get(), "points");
+    if (!items)
+        return error(r, "503 Service Unavailable", "History response memory unavailable");
+    for (const auto &point : points) {
+        auto *item = cJSON_CreateObject();
+        char boot[17];
+        std::snprintf(boot, sizeof(boot), "%016llx",
+                      static_cast<unsigned long long>(point.boot_id));
+        bool built =
+            item && cJSON_AddStringToObject(item, "boot_id", boot) &&
+            cJSON_AddStringToObject(item, "rom_id", rom_hex(point.rom).c_str()) &&
+            cJSON_AddNumberToObject(item, "start_ms", point.start_ms) &&
+            cJSON_AddNumberToObject(item, "end_ms", point.end_ms) &&
+            (point.utc_seconds ? cJSON_AddNumberToObject(item, "utc_seconds", *point.utc_seconds)
+                               : cJSON_AddNullToObject(item, "utc_seconds")) &&
+            cJSON_AddNumberToObject(item, "average_c", point.average) &&
+            cJSON_AddNumberToObject(item, "minimum_c", point.minimum) &&
+            cJSON_AddNumberToObject(item, "maximum_c", point.maximum) &&
+            cJSON_AddNumberToObject(item, "count", point.count) &&
+            cJSON_AddBoolToObject(item, "partial", point.partial) &&
+            cJSON_AddItemToArray(items, item);
+        if (!built) {
+            if (item)
+                cJSON_Delete(item);
+            allocation_failed = true;
+            break;
+        }
+    }
+    auto *gaps = cJSON_AddArrayToObject(output.get(), "gaps");
+    for (const auto &gap : history_gaps(points))
+        if (std::find_if(gap_records.begin(), gap_records.end(), [&](const auto &item) {
+                return item.boot_id == gap.boot_id && item.rom == gap.rom &&
+                       item.start_ms == gap.start_ms && item.end_ms == gap.end_ms;
+            }) == gap_records.end())
+            gap_records.push_back(gap);
+    if (gap_records.size() > 512) {
+        gap_records.resize(512);
+        cJSON_SetBoolValue(cJSON_GetObjectItemCaseSensitive(output.get(), "truncated"), true);
+    }
+    for (const auto &gap : gap_records) {
+        auto *item = cJSON_CreateObject();
+        char boot[17];
+        std::snprintf(boot, sizeof(boot), "%016llx", static_cast<unsigned long long>(gap.boot_id));
+        const bool built = item && gaps && cJSON_AddStringToObject(item, "boot_id", boot) &&
+                           cJSON_AddStringToObject(item, "rom_id", rom_hex(gap.rom).c_str()) &&
+                           cJSON_AddNumberToObject(item, "start_ms", gap.start_ms) &&
+                           cJSON_AddNumberToObject(item, "end_ms", gap.end_ms) &&
+                           cJSON_AddItemToArray(gaps, item);
+        if (!built) {
+            if (item)
+                cJSON_Delete(item);
+            allocation_failed = true;
+            break;
+        }
+    }
+    if (allocation_failed)
+        cJSON_SetBoolValue(cJSON_GetObjectItemCaseSensitive(output.get(), "truncated"), true);
+    return json(r, output.get());
+}
+PublicLimiter::Decision HttpApi::begin_public(PublicRequest kind, uint32_t client) {
+    std::lock_guard<std::mutex> lock(limiter_mutex_);
+    return limiter_.begin(kind, client, now());
+}
+void HttpApi::finish_public(PublicRequest kind) {
+    std::lock_guard<std::mutex> lock(limiter_mutex_);
+    limiter_.finish(kind);
+}
+void HttpApi::history_worker(void *context) {
+    auto &self = *static_cast<HttpApi *>(context);
+    for (;;) {
+        HistoryJob *job = nullptr;
+        if (xQueueReceive(self.history_queue_, &job, portMAX_DELAY) != pdTRUE || !job)
+            continue;
+        // A failure after part of the answer was sent leaves the response unusable: close it,
+        // as the HTTP server does when an ordinary handler fails.
+        if (self.serve_history(job->request, job->query, job->exporting) != ESP_OK)
+            httpd_sess_trigger_close(self.server_, httpd_req_to_sockfd(job->request));
+        self.finish_public(job->kind);
+        httpd_req_async_handler_complete(job->request);
+        delete job;
+    }
+}
 bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &history,
                     DeviceSettingsService &settings, uint64_t id, bool simulated,
                     bool sensor_settings_writable) {
@@ -319,9 +466,16 @@ bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &histor
     mutex_ = xSemaphoreCreateMutex();
     updates_ = xQueueCreate(4, sizeof(SensorUpdate *));
     login_queue_ = xQueueCreate(1, sizeof(LoginJob *)); // the throttle allows one derive at a time
-    if (!mutex_ || !updates_ || !login_queue_)
+    // The public limiter lets two history requests run at once; the worker takes them in turn.
+    history_queue_ = xQueueCreate(PublicLimiter::max_concurrent, sizeof(HistoryJob *));
+    if (!mutex_ || !updates_ || !login_queue_ || !history_queue_)
         return false;
     if (xTaskCreatePinnedToCore(login_worker, "login", 6144, this, 4, nullptr, 1) != pdPASS)
+        return false;
+    // Below the HTTP server's priority so it keeps answering while a query runs. The stack stays
+    // in internal RAM: the worker reads the history store from flash.
+    if (xTaskCreatePinnedToCore(history_worker, "history_http", 8192, this, 2, nullptr, 1) !=
+        pdPASS)
         return false;
     cJSON_Hooks hooks{};
     hooks.malloc_fn = [](size_t size) -> void * {
@@ -804,7 +958,7 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
             // History is public, so it is rate limited per client (one query per second, one
             // export per 30 s, two at a time overall); a refused request says when to retry.
             const auto kind = exporting ? PublicRequest::export_csv : PublicRequest::history;
-            const auto allowed = limiter_.begin(kind, client_id(r), now());
+            const auto allowed = begin_public(kind, client_id(r));
             if (!allowed.allow) {
                 char retry[24];
                 std::snprintf(retry, sizeof(retry), "%lld",
@@ -813,124 +967,23 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                 httpd_resp_set_hdr(r, "Retry-After", retry);
                 return error(r, "429 Too Many Requests", "Too many history requests; retry later");
             }
-            struct Finish {
-                PublicLimiter &limiter;
-                PublicRequest kind;
-                ~Finish() {
-                    limiter.finish(kind);
-                }
-            } finish{limiter_, kind};
-            if (exporting) {
-                bool started = false;
-                auto start = [&]() {
-                    if (started)
-                        return true;
-                    started = true;
-                    httpd_resp_set_type(r, "text/csv; charset=utf-8");
-                    httpd_resp_set_hdr(r, "Content-Disposition",
-                                       "attachment; filename=temperature-history.csv");
-                    httpd_resp_set_hdr(r, "Cache-Control", "no-store");
-                    return httpd_resp_send_chunk(r, history_csv_header(), HTTPD_RESP_USE_STRLEN) ==
-                           ESP_OK;
-                };
-                const bool ok = history_->visit(query, [&](const Bucket &bucket) {
-                    if (!start())
-                        return false;
-                    for (const auto &sensor : bucket.sensors) {
-                        if (!query.roms.empty() && std::find(query.roms.begin(), query.roms.end(),
-                                                             sensor.rom) == query.roms.end())
-                            continue;
-                        const auto row = history_csv_row(bucket, sensor, simulated_);
-                        if (httpd_resp_send_chunk(r, row.data(), row.size()) != ESP_OK)
-                            return false;
-                    }
-                    return true;
-                });
-                if (!ok) {
-                    if (!started)
-                        return error(r, "503 Service Unavailable", "History unavailable or busy");
-                    httpd_sess_trigger_close(server_, httpd_req_to_sockfd(r));
-                    return ESP_FAIL;
-                }
-                if (!start())
-                    return ESP_FAIL;
-                return httpd_resp_send_chunk(r, nullptr, 0);
-            }
-            std::vector<HistoryPoint> points;
-            std::vector<HistoryGap> gap_records;
-            bool truncated = false;
-            if (!history_->query(query, points, gap_records, truncated))
+            // The query or export runs on the history worker, so this task keeps answering other
+            // requests while it reads the store and sends the answer.
+            auto *job = new (std::nothrow) HistoryJob{nullptr, query, exporting, kind};
+            httpd_req_t *copy = nullptr;
+            if (!job || httpd_req_async_handler_begin(r, &copy) != ESP_OK) {
+                delete job;
+                finish_public(kind);
                 return error(r, "503 Service Unavailable", "History unavailable or busy");
-            Json output(cJSON_CreateObject(), cJSON_Delete);
-            cJSON_AddNumberToObject(output.get(), "schema_version", 1);
-            cJSON_AddBoolToObject(output.get(), "simulated", simulated_);
-            cJSON_AddBoolToObject(output.get(), "truncated", truncated);
-            cJSON_AddStringToObject(output.get(), "time_basis", query.boot_id ? "uptime" : "utc");
-            // An allocation failure while building the answer is reported as `truncated`, not
-            // hidden by silently dropping rows.
-            bool allocation_failed = false;
-            auto *items = cJSON_AddArrayToObject(output.get(), "points");
-            if (!items)
-                return error(r, "503 Service Unavailable", "History response memory unavailable");
-            for (const auto &point : points) {
-                auto *item = cJSON_CreateObject();
-                char boot[17];
-                std::snprintf(boot, sizeof(boot), "%016llx",
-                              static_cast<unsigned long long>(point.boot_id));
-                bool built = item && cJSON_AddStringToObject(item, "boot_id", boot) &&
-                             cJSON_AddStringToObject(item, "rom_id", rom_hex(point.rom).c_str()) &&
-                             cJSON_AddNumberToObject(item, "start_ms", point.start_ms) &&
-                             cJSON_AddNumberToObject(item, "end_ms", point.end_ms) &&
-                             (point.utc_seconds
-                                  ? cJSON_AddNumberToObject(item, "utc_seconds", *point.utc_seconds)
-                                  : cJSON_AddNullToObject(item, "utc_seconds")) &&
-                             cJSON_AddNumberToObject(item, "average_c", point.average) &&
-                             cJSON_AddNumberToObject(item, "minimum_c", point.minimum) &&
-                             cJSON_AddNumberToObject(item, "maximum_c", point.maximum) &&
-                             cJSON_AddNumberToObject(item, "count", point.count) &&
-                             cJSON_AddBoolToObject(item, "partial", point.partial) &&
-                             cJSON_AddItemToArray(items, item);
-                if (!built) {
-                    if (item)
-                        cJSON_Delete(item);
-                    allocation_failed = true;
-                    break;
-                }
             }
-            auto *gaps = cJSON_AddArrayToObject(output.get(), "gaps");
-            for (const auto &gap : history_gaps(points))
-                if (std::find_if(gap_records.begin(), gap_records.end(), [&](const auto &item) {
-                        return item.boot_id == gap.boot_id && item.rom == gap.rom &&
-                               item.start_ms == gap.start_ms && item.end_ms == gap.end_ms;
-                    }) == gap_records.end())
-                    gap_records.push_back(gap);
-            if (gap_records.size() > 512) {
-                gap_records.resize(512);
-                cJSON_SetBoolValue(cJSON_GetObjectItemCaseSensitive(output.get(), "truncated"),
-                                   true);
+            job->request = copy;
+            if (!history_queue_ || xQueueSend(history_queue_, &job, 0) != pdTRUE) {
+                httpd_req_async_handler_complete(copy);
+                delete job;
+                finish_public(kind);
+                return error(r, "503 Service Unavailable", "History unavailable or busy");
             }
-            for (const auto &gap : gap_records) {
-                auto *item = cJSON_CreateObject();
-                char boot[17];
-                std::snprintf(boot, sizeof(boot), "%016llx",
-                              static_cast<unsigned long long>(gap.boot_id));
-                const bool built =
-                    item && gaps && cJSON_AddStringToObject(item, "boot_id", boot) &&
-                    cJSON_AddStringToObject(item, "rom_id", rom_hex(gap.rom).c_str()) &&
-                    cJSON_AddNumberToObject(item, "start_ms", gap.start_ms) &&
-                    cJSON_AddNumberToObject(item, "end_ms", gap.end_ms) &&
-                    cJSON_AddItemToArray(gaps, item);
-                if (!built) {
-                    if (item)
-                        cJSON_Delete(item);
-                    allocation_failed = true;
-                    break;
-                }
-            }
-            if (allocation_failed)
-                cJSON_SetBoolValue(cJSON_GetObjectItemCaseSensitive(output.get(), "truncated"),
-                                   true);
-            return json(r, output.get());
+            return ESP_OK; // the history worker answers on the async copy
         }
         if ((path == "/api/v1/sensors" || path == "/api/v1/alerts" ||
              path.rfind("/api/v1/sensors/", 0) == 0)) {
