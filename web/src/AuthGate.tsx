@@ -12,10 +12,10 @@ import {
   Card,
   CardContent,
   Stack,
-  TextField,
   Typography,
 } from '@mui/material';
 import { authState, request, setCsrf } from './api/auth';
+import PasswordField from './PasswordField';
 import { AuthContext, useAuth, type AuthState } from './authContext';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -175,13 +175,12 @@ export default function AuthGate({
           ) : (
             <form onSubmit={submit}>
               <Stack spacing={2}>
-                <TextField
+                <PasswordField
                   label={
                     state.enrolled
                       ? 'Administrator password'
                       : 'Create administrator password'
                   }
-                  type="password"
                   autoComplete={
                     state.enrolled ? 'current-password' : 'new-password'
                   }

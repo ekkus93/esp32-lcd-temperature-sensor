@@ -218,3 +218,21 @@ it.each([
     expect(screen.queryByText('Protected dashboard')).not.toBeInTheDocument();
   },
 );
+
+it('lets the administrator show the password being typed', async () => {
+  vi.mocked(fetch).mockResolvedValueOnce({
+    ok: true,
+    json: async () => ({ enrolled: true, signed_in: false }),
+  } as Response);
+  render(
+    <AuthProvider>
+      <AuthGate>
+        <div>Protected dashboard</div>
+      </AuthGate>
+    </AuthProvider>,
+  );
+  const field = await screen.findByLabelText(/Administrator password/);
+  expect(field).toHaveAttribute('type', 'password');
+  fireEvent.click(screen.getByRole('button', { name: 'Show password' }));
+  expect(field).toHaveAttribute('type', 'text');
+});

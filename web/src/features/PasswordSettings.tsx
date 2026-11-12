@@ -1,3 +1,4 @@
+import PasswordField from '../PasswordField';
 import { useState } from 'react';
 import {
   Alert,
@@ -5,7 +6,6 @@ import {
   Card,
   CardContent,
   Stack,
-  TextField,
   Typography,
 } from '@mui/material';
 import { request, setCsrf } from '../api/auth';
@@ -59,26 +59,23 @@ export default function PasswordSettings() {
         )}
         <form onSubmit={submit}>
           <Stack spacing={2}>
-            <TextField
+            <PasswordField
               label="Current password"
-              type="password"
               autoComplete="current-password"
               required
               value={current}
               onChange={(e) => setCurrent(e.target.value)}
             />
-            <TextField
+            <PasswordField
               label="New password"
-              type="password"
               autoComplete="new-password"
               required
               value={next}
               onChange={(e) => setNext(e.target.value)}
               slotProps={{ htmlInput: { minLength: 12, maxLength: 128 } }}
             />
-            <TextField
+            <PasswordField
               label="Confirm new password"
-              type="password"
               autoComplete="new-password"
               required
               value={confirm}
