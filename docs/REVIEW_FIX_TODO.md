@@ -229,20 +229,32 @@ connected board.
 
 ## Phase R11 — Sensor calibration in an ice bath (feature, §17)
 
-Owner request, 2026-11-12: ice point only (D8). No API, schema or storage change.
+Owner request, 2026-11-12: ice point only (D8), with the probe's alerts paused while it is in the
+bath. API additions are additive within schema v1 (§17.3); no settings storage change.
 
-- [ ] **R11-01** Guided ice-bath calibration on each sensor's tab (§17.2): instructions, live
+- [ ] **R11-01** Calibration hold in the firmware and API (§17.3): `PUT`/`DELETE
+  /sensors/{rom_id}/calibration-hold`, kept in RAM with a 20-minute cap; while held, no high or
+  low alert and no history for that probe, disconnect and bus-fault alerts unchanged;
+  `calibrating` and `calibration_hold_ends_uptime_ms` in `GET /sensors` and the live feed;
+  `calibration` started/ended events; `CAL` on the LCD; contracts and `contracts/API.md` updated.
+  Acceptance: the host and display tests in §17.5 pass, and an older firmware's event journal is
+  confirmed to skip the new event kind.
+- [ ] **R11-02** Guided ice-bath calibration on each sensor's tab (§17.2): instructions, live
   measuring, the steadiness rule (12 readings within 0.125 °C), offset = 0 − mean uncalibrated
-  reading rounded to 0.1 °C, confirm and save through the existing `PATCH`, and the guards
-  (disconnect, bus fault, revision change, beyond ±12.7 °C refused, beyond ±2 °C warned, cancel,
-  10-minute give-up). Acceptance: the web tests in §17.5 pass; checked in a browser at 360 px
-  against the simulator.
-- [ ] **R11-02** User guide calibration section (§17.4): the ice bath, calibrating each probe as
-  installed, and probe placement in a grow room. `docs/WEB_UI_DESIGN_SPEC.md` describes the
-  flow. Acceptance: a reviewer can follow the guide without other documents.
-- [ ] **R11-03** [HW] Calibrate a real probe in a real ice bath with the new flow. Acceptance
+  reading rounded to 0.1 °C, the confirm screen with the change in readings and the reminder to
+  check the high and low limits, save through the existing `PATCH`, the hold started, renewed and
+  shortened to five minutes at Done or Cancel, and the guards (disconnect, bus fault, revision
+  change, beyond ±12.7 °C refused, beyond ±2 °C warned, 10-minute give-up). Acceptance: the web
+  tests in §17.5 pass; checked in a browser at 360 px against the simulator.
+- [ ] **R11-03** User guide calibration section (§17.4): the ice bath, calibrating each probe as
+  installed, what calibration changes and the limits reminder, the alert pause, and probe
+  placement in a grow room. `docs/WEB_UI_DESIGN_SPEC.md` describes the flow. Acceptance: a
+  reviewer can follow the guide without other documents.
+- [ ] **R11-04** [HW] Calibrate a real probe in a real ice bath with the new flow. Acceptance
   (§17.5): the probe then reads 0.0 ± 0.1 °C in the bath, `probe_calibration` is `stored` with the
-  new offset, and the offset survives a restart; recorded under `docs/validation/`.
+  new offset and survives a restart; during the bath no low alert for that probe, a gap in its
+  history, `CAL` on the LCD, and the hold's start and end in the event log. Recorded under
+  `docs/validation/`.
 
 ## Definition of done
 

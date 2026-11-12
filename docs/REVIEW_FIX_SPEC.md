@@ -398,8 +398,13 @@ wanted and the acceptance test.
 
 Owner request (2026-11-12). The monitor watches a grow room, about 18 to 30 °C. Calibration stays
 a single offset per probe (`calibration_c`, ±12.7 °C, also kept in the probe's own memory). This
-section adds a guided way to measure that offset in an ice bath, and instructions for doing it
-well.
+section adds a guided way to measure that offset in an ice bath, a pause of that probe's
+temperature alerts while it is in the bath, and instructions for doing it well.
+
+Calibration changes only `calibration_c` (and, through it, the copy in the probe's memory). Names,
+order, enable state, limits, hysteresis, persistence and the disconnect alert are not changed.
+Limits stay absolute temperatures compared with the corrected reading, and history already stored
+keeps the offset in force when it was recorded.
 
 ### 17.1 Why ice only (D8)
 
@@ -419,7 +424,8 @@ well.
 - Each sensor's tab has a **Calibrate in ice** button, shown to the signed-in owner while the
   probe is connected and sensor storage is writable.
 - The flow:
-  1. Instructions: make the ice bath (§17.4), put the probe in it, wait.
+  1. Instructions: make the ice bath (§17.4), put the probe in it, wait. Starting the flow starts
+     the probe's calibration hold (§17.3).
   2. Measuring: the page shows the live reading and collects the probe's readings from the live
      feed, each sample once. The uncalibrated reading is the live (calibrated) reading minus the
      probe's current `calibration_c`.
@@ -429,10 +435,17 @@ well.
      stir, check the probe is fully covered).
   4. Result: the new offset is 0 minus the mean of those 12 uncalibrated readings, rounded to
      0.1 °C, the step the probe's memory holds, so the monitor and the probe's copy agree exactly.
-     The page shows the current and new offsets and asks before saving.
+     The page shows the current and new offsets and how much every reading will change, and asks
+     before saving.
+     The confirm screen also shows the probe's current high and low limits, with the note: "Your
+     high and low limits are not changed. If you set them to allow for this probe reading high or
+     low, adjust them after saving." The flow offers a link to those fields on the same tab; it
+     never changes them itself.
   5. Saving uses the existing `PATCH /sensors/{rom_id}` with the sensor's current ETag; nothing
      else in the sensor's settings changes. Afterwards the page says the probe should now read
-     0.0 °C in the bath.
+     0.0 °C in the bath, and asks for the probe to be dried and put back.
+  6. **Done** (or **Cancel** at any step) shortens the hold so it ends five minutes later, while
+     the probe warms back up to room temperature.
 - Guards:
   - The probe disconnects, the sensor bus faults, or the sensor's revision or offset changes during
     measuring: measuring stops and must be started again.
@@ -443,10 +456,35 @@ well.
 - The readings and offsets are shown in the unit chosen by the page's °C/°F switch; the bath is
   still 0 °C (32 °F) and the saved offset is in °C.
 
-### 17.3 API and storage
+### 17.3 Alert pause during calibration (the calibration hold)
 
-- No change. The flow is in the web app, using the existing live feed, `GET /sensors` and
-  `PATCH /sensors/{rom_id}`. No schema version or storage change.
+A probe in an ice bath reads about 0 °C, which would raise a false low alert in a grow room and
+record the bath in that probe's history. The hold stops both, for that probe only.
+
+- `PUT /sensors/{rom_id}/calibration-hold` with `{"minutes": 1..20}` starts or renews the hold to
+  end that many minutes from now; `DELETE` ends it. Owner session and CSRF, like other sensor
+  changes, but no `If-Match`: the hold is not a setting. Refused (`409`) for a probe that is not
+  connected. At most one hold per probe; renewing replaces the end time.
+- The monitor keeps the hold in RAM only. It ends at its end time, on `DELETE`, on retirement, or
+  at restart; it is never saved, so a closed browser or a crash cannot leave alerts paused for
+  longer than 20 minutes. The web flow asks for 15 minutes and renews every 5 minutes while it is
+  open, and asks for 5 minutes at Done or Cancel.
+- While a probe is held:
+  - its high and low conditions are not raised, and an active high or low alert for it clears;
+  - its readings are not added to history, so the chart shows a gap there rather than the bath;
+  - the disconnect alert and sensor-bus fault reporting still work: a real unplug still matters;
+  - `GET /sensors` and the live feed report `calibrating: true` with `calibration_hold_ends_uptime_ms`,
+    and the web shows "Calibrating" for the probe instead of an alarm state. The LCD shows `CAL`
+    in the probe's state position instead of `HIGH` or `LOW`.
+- When the hold ends, alert checks resume with the normal hysteresis and persistence, so a probe
+  still warming up raises a low alert only if it stays low for its persistence time.
+- The event log records `calibration` events, `started` and `ended` (with the reason: finished,
+  expired, cancelled, disconnected, retired), so a gap in history has an explanation.
+- Contract decision: additive within schema v1, like `probe_calibration`: the new route, the two
+  read-only fields (refused by `PATCH`), and the `calibration` event kind. The web app ships in
+  the same image. Storage: no settings change; the event journal gains one event kind, and an
+  older firmware reached by rollback must skip an event kind it does not know rather than fail the
+  journal (checked before release).
 
 ### 17.4 User guide
 
@@ -456,6 +494,8 @@ well.
   just to below the ice surface, stirred, left a minute; the probe's metal tip at least 5 cm in,
   in the middle, not touching the container; stir while measuring; add ice if it floats free.
 - Calibrate each probe on its own cable as it will be installed. Dry it afterwards.
+- That calibration changes only the offset: check the high and low limits afterwards if they were
+  set to allow for a known error; alerts for that probe pause while it is in the bath.
 - Probe placement in a grow room, which matters more than calibration: shade the probe from the
   grow lights (a vented white shield or a white tube open at both ends), mount it at canopy
   height, away from heaters, fan outlets, walls and the lamp's hot spot, and where air moves past
@@ -463,10 +503,19 @@ well.
 
 ### 17.5 Acceptance
 
+- Host tests (firmware): a held probe raises no high or low condition and clears an active one;
+  its readings are not aggregated into history; disconnect and bus-fault alerts still occur; the
+  hold ends at its end time, on `DELETE`, on retirement and at restart; renewal replaces the end
+  time and the 20-minute cap holds; after the hold, persistence applies; the `started`/`ended`
+  events with their reasons; the route's auth, CSRF, `409` and range checks.
 - Web tests: the button's visibility rules; the steadiness rule (12 readings within 0.125 °C, a
   repeated sample counted once); the offset arithmetic with a non-zero current offset and its
-  rounding; each guard; cancel; that the save sends only `calibration_c` with the current ETag; and
-  the °F display.
+  rounding; each guard; cancel; that the save sends only `calibration_c` with the current ETag;
+  the °F display; the limits reminder on the confirm screen with the probe's current limits; the
+  hold started, renewed and shortened at Done and Cancel; "Calibrating" shown for a held probe.
+- Display test: `CAL` in a held probe's state position.
 - On the board, with a real probe in a real ice bath: the flow completes, the probe then reads
   0.0 ± 0.1 °C in the bath, the offset is saved on the probe (`stored`), and it survives a restart.
-  This is also the first board check of a non-zero offset written to a probe.
+  This is also the first board check of a non-zero offset written to a probe. During the bath no
+  low alert is raised for that probe (with its low limit above 0 °C), its history shows a gap,
+  the LCD shows `CAL`, and the event log shows the hold starting and ending.
