@@ -179,7 +179,12 @@ connected board.
   and the Settings page in a browser showed "ota_0 · OTA valid". The LCD's update-state footer is
   covered by the display test only; it was not looked at on the panel.
 - [ ] **R10-10** T10-05: profile heap, client counts, LVGL, flash writes and Wi-Fi traffic for leaks
-  and high-water marks (§16.7). Acceptance: a recorded profile with no growth over a soak run.
+  and high-water marks (§16.7). Acceptance: a recorded profile with no growth over a soak run. **First run
+  (2026-11-12, 45 min, `tools/device_soak_profile.py`):** all 2197 requests `200`, two WebSocket
+  viewers held throughout, no faults, no dropped display frames, internal RAM flat (median 57.7 KB),
+  PSRAM down 2.7 KB in two steps that match the trend cache filling toward its 24-hour cap
+  ([record](validation/device-soak-2026-11-12.md)). Still open: a run longer than 24 hours to show
+  PSRAM levels off, and LVGL pool and flash-write counts, which are not measured.
 - [x] **R10-11** T11-01: reconcile `SPEC.md`, `TODO.md`, the wiring document, the UI specs and the
   diagrams with the final pinout and measurements (§16.8). Acceptance: no conflicting statements
   remain, checked by a reviewer. Done
