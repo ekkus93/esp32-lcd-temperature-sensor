@@ -28,12 +28,13 @@ See [RELEASE_PROVENANCE.md](RELEASE_PROVENANCE.md).
   stable ROM-keyed sensor settings, temperature offsets and sensor/system
   fault alerts.
 - Five-minute aggregated LittleFS history, gap-aware JSON queries,
-  authenticated CSV export and bounded event-journal pagination.
-- Two normal read-only ST7789/LVGL screens (**Overview** and **Trends**),
+  public, rate-limited CSV export and bounded event-journal pagination.
+- Two normal read-only LVGL screens (**Overview** and **Trends**) on the 1.8-inch ST7735
+  (compact 128 × 160 layout) or the optional 240 × 320 ST7789,
   with Basic/Extended mode and configurable dwell periods.
 - Locally hosted React 19 web UI for live temperatures, trends, alerts,
   probe settings, Wi-Fi, system health and guarded firmware operations.
-- Protected first-run SoftAP, session-authenticated local HTTP/WebSocket,
+- Protected first-run SoftAP, public read-only HTTP/WebSocket with owner-only changes,
   candidate station configuration and dual-slot OTA boot-validity policy.
 
 These are implemented capabilities, **not** claims of successful physical

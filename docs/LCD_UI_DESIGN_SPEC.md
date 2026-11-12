@@ -2,15 +2,15 @@
 
 **Status:** Design baseline for implementation  
 **Date:** 2026-10-25  
-**Hardware:** ESP32-S3-N16R8 + SPI ST7789 IPS LCD, **240 × 320 pixels, portrait**  
+**Hardware:** ESP32-S3-N16R8 + SPI LCD: the connected 1.8-inch ST7735 (compact 128 × 160 layout, the default build), or the original ST7789 IPS, **240 × 320 pixels, portrait** (this document's baseline)  
 **Interaction model:** **Read-only LCD**; all configuration and control live in the Wi-Fi web application.  
 **Related artifacts:** `SPEC.md` (project-wide requirements), `TODO.md` (implementation checklist), `ESP32_S3_TEMPERATURE_MONITOR_WIRING.md` (wiring), `LCD_UI_MOCKUPS.png` (concept art)
 
 **Connected panel update (2026-11-03):** The owner's current panel is a
 1.8-inch ST7735 module, with 128 × 120 printed on the PCB. The firmware uses a
-compact 128 × 160 layout. In compact Trends, one larger sensor graph is shown
-at a time and the sensor rotates automatically every five seconds of visible
-Trends time. The 240 × 320 ST7789 design below remains the baseline for the
+compact 128 × 160 layout. Compact Trends draws every probe as its own coloured
+line on one graph with temperature and time axes and a two-column legend
+(described in `USER_GUIDE.md`); nothing rotates. The 240 × 320 ST7789 design below remains the baseline for the
 selectable larger panel; compact graph readability with real probes and
 physical acceptance are still open.
 
@@ -113,7 +113,7 @@ Display changes persist in NVS and apply without reboot when technically feasibl
 
 ## 7. LVGL and implementation notes
 
-- Target **LVGL 9** integrated through `esp_lvgl_port` and the ESP-IDF `esp_lcd` ST7789 SPI driver.
+- Target **LVGL 9** integrated through `esp_lvgl_port` and the ESP-IDF `esp_lcd` SPI driver for the selected panel (ST7735 by default, ST7789 optional).
 - Use one shared immutable/renderable snapshot of sensor state; send structured events to an LVGL UI task to prevent cross-thread LVGL access.
 - Screens should be persistent LVGL objects (Overview and Trends) to avoid frequent heap allocation on every dwell transition. Use a monotonic timer for dwell scheduling so NTP corrections cannot affect cycling.
 - Place fonts and large LVGL buffers in appropriate memory; size DMA-capable transfer buffers according to the LCD driver constraints. Profile RAM usage and refresh rate on the real board.

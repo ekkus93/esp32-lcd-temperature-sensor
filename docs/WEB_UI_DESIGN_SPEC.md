@@ -8,7 +8,7 @@
 
 ## 1. Scope and accepted decisions
 
-Build a **self-hosted, responsive, local-first browser application** for one **ESP32-S3-N16R8** temperature monitor. The device supports **up to five DS18B20 probes on one shared 1-Wire bus (GPIO4)**, a read-only 240 × 320 ST7789 LCD, Wi-Fi station mode, and first-run SoftAP provisioning.
+Build a **self-hosted, responsive, local-first browser application** for one **ESP32-S3-N16R8** temperature monitor. The device supports **up to five DS18B20 probes on one shared 1-Wire bus (GPIO4)**, a read-only 1.8-inch ST7735 LCD (128 × 160; an optional 240 × 320 ST7789 build exists), Wi-Fi station mode, and first-run SoftAP provisioning.
 
 Agreed technical direction:
 
@@ -25,7 +25,7 @@ Agreed technical direction:
 | LCD | Read-only; **Basic** mode = temperatures + status; **Extended** mode alternates Overview and five Trends sparklines |
 | Clock | SNTP/NTP over Wi-Fi, user-configurable timezone; display uncertainty when unsynchronized |
 | Network | First-run password-protected SoftAP + captive-portal setup; normal station operation afterward |
-| Authentication | Protect settings and administrative actions, including setup/reprovisioning; do not expose configuration to arbitrary LAN visitors |
+| Authentication | Protect settings changes and administrative actions, including setup/reprovisioning. Readings, history and display settings are public read-only; Wi-Fi details and the NTP server are owner-only |
 
 The website is the **only interactive UI**. Do not add touch controls, navigation buttons, or edit widgets to the LCD.
 
@@ -58,13 +58,14 @@ Normal application routes (SPA navigation; server must fall back to index for ap
 | `/` | Dashboard | Dashboard | Five live sensor cards, alert banner, recent small graph, device status |
 | `/history` | History | History | Detailed multi-sensor historical charts, timeframe, min/avg/max, export |
 | `/sensors` | Sensors | Sensors | Discover, identify, name, enable/disable, calibrate, set thresholds |
-| `/alerts` | Alerts | Alerts | Current alerts, acknowledgments if supported, historical events |
+| `/alerts` | Alerts | Alerts | Active alerts and when each began |
+| `/events` | Events | Events | The bounded event journal, paged |
 | `/settings` | Settings | Settings | Wi-Fi, LCD, time, units, storage/logging, security, firmware |
 | `/setup` | Dedicated onboarding view | Dedicated onboarding view | AP-mode Wi-Fi network selection and initial configuration |
 
 **Desktop ≥ 960 CSS px:** persistent left navigation rail/drawer, top app bar, fluid content area. Five cards can appear in one row on wide desktops; collapse to three/two as width decreases. Keep chart directly below cards.  
 **Tablet 600–959 px:** compact drawer or rail, responsive 2–3 column cards.  
-**Mobile < 600 px:** compact top bar with clear connection state, bottom navigation with Dashboard / History / Sensors / Alerts / Settings, and 1–2 cards per row depending on actual width and accessible text zoom. Do not clip names or threshold warnings. Honor safe areas.
+**Mobile < 600 px:** compact top bar with clear connection state, bottom navigation with Dashboard / History / Sensors / Alerts / Events / Settings, and 1–2 cards per row depending on actual width and accessible text zoom. Do not clip names or threshold warnings. Honor safe areas.
 
 **UI intent:** clean Material 3 cards, elevated/tonal surfaces, rounded corners, generous spacing, crisp tabular numeric readings, accessible status text. Light theme default; dark theme (system preference + selectable override) supported. No excessive motion.
 
@@ -255,10 +256,10 @@ The API is authoritative for alerts, status, thresholds and temperatures; the br
 
 ## 13. Authentication and safety of configuration
 
-- Use a per-device setup secret and a changeable administrator credential/session model; define credential storage and initial pairing precisely in the main security specification before shipping.
-- All mutating routes require authentication and CSRF-aware protections appropriate to local HTTP deployments (such as per-session CSRF tokens and origin/host checks); WebSocket upgrades must validate sessions and allowed origins.
+- The administrator password is created in the browser while the setup access point is open: at the first start of a device with no saved Wi-Fi network, or after a five-second BOOT hold; there is no separate setup code. Credential storage and pairing are specified in `SECURITY_DESIGN.md`.
+- All mutating routes require authentication and CSRF-aware protections appropriate to local HTTP deployments (such as per-session CSRF tokens and origin/host checks); the live WebSocket is public but must come from an allowed Origin, and a session only reserves the owner's slot.
 - Do not store Wi-Fi passwords in browser localStorage, URLs, debug logs or export files. Avoid secrets in crash reports.
-- Enforce input validation, rate limits, HTTP request/body limits, safe HTML handling, and OTA signature/integrity checks. Explicitly warn against exposing device HTTP ports to the public internet.
+- Enforce input validation, rate limits, HTTP request/body limits, safe HTML handling, and OTA image checks (ESP-IDF validation and the `project_name` check; images are not signed, see `SECURITY_DESIGN.md`). Explicitly warn against exposing device HTTP ports to the public internet.
 - In SoftAP mode, carefully scope unauthenticated operations to initial provisioning; after provision, lock down reconfiguration.
 
 ## 14. Loading, offline and edge-case behavior

@@ -81,7 +81,7 @@ Needs probes connected for the alert and trend checks.
    - Negative temperature readable: yes / no
    - Warning and fault rows distinguishable without relying on colour: yes / no
    - Contrast and brightness acceptable in room light and near a window: yes / no
-3. Trends: the single larger chart rotates every 5 s of visible Trends time and gaps for missing data are visible: yes / no. Is it readable at arm's length: yes / no
+3. Trends: one graph shows every probe as a coloured line with axes and a legend, and long gaps for missing data are visible: yes / no. Is it readable at arm's length: yes / no
 4. Trigger an alert (warm a probe past its threshold) and confirm it shows on the LCD: yes / no
 5. Soak: leave Extended mode running with five probes, LCD on and Wi-Fi connected for at least 24 hours (the T10-08 soak can be the same run). Record start and end uptime, whether the LCD ever froze, blanked or showed stale values, and the reboot count: ______
 6. List any font size, truncation or contrast changes needed: ______

@@ -45,7 +45,7 @@ entry below records the original design option, not the connected panel.
 | ESP32-S3-N16R8 development board | 1 | 16 MB flash, 8 MB PSRAM; photographed 44-pin, dual-USB-C board |
 | Waterproof DS18B20, three-wire probe | 1–5 | Externally powered at **3.3 V** (no parasite mode); approximately 1 m cable each |
 | 4.7 kΩ resistor | **1** | Pulls the single 1-Wire DATA line up to 3.3 V |
-| ST7735 SPI LCD, 1.8-inch | 1 | Connected panel; 128 × 160 firmware frame verified by corner pattern; PCB marked 128 × 120. Optional original ST7789 240 × 320 path remains selectable. |
+| ST7735 SPI LCD, 1.8-inch | 1 | Connected panel; the 128 × 160 test frame fit the panel by corner pattern (`validation/lcd-st7735-2026-11-03.md`), PCB marked 128 × 120; the full bench checklist is still open. Optional original ST7789 240 × 320 path remains selectable. |
 | Common wiring/junctions | As needed | Three-conductor shared bus and LCD SPI leads |
 | USB-C power | 1 | Adequate 3.3 V regulator and 5 V source; measure power budget during bring-up |
 
@@ -93,7 +93,7 @@ DS18B20 x 1..5 -- shared 1-Wire/RMT on GPIO4
              |         |          |
         alert FSM   5-min      display model
              |      buckets         |
-             |         |          LVGL 9 -> ST7789
+             |         |          LVGL 9 -> ST7735 (or ST7789)
              |       history
              |      LittleFS
              +---------+-------------------+
@@ -158,11 +158,11 @@ Missing configured ROM IDs should remain visible as disconnected when enabled. A
 
 Full specification: [`docs/LCD_UI_DESIGN_SPEC.md`](LCD_UI_DESIGN_SPEC.md). Mockups: [`docs/LCD_UI_MOCKUPS.svg`](LCD_UI_MOCKUPS.svg) and `.png`.
 
-- **Panel canvas:** 240 × 320 portrait; design for readability on a roughly 2-inch-class viewing experience. **Physical board printing reads “2.8 IPS 240×320”; verify diagonal**.
+- **Panel canvas:** the connected 1.8-inch ST7735 uses the compact 128 × 160 layout; the optional ST7789 path is 240 × 320 portrait. For the ST7789, design for readability on a roughly 2-inch-class viewing experience. **Physical board printing reads “2.8 IPS 240×320”; verify diagonal**.
 - **Basic mode (default):** persistently show one **Overview** screen with up to five rows: short name, current value and warning/disabled/disconnected indicator. Also show Wi-Fi connected/offline indicator and local clock; minimal logging-health cue.
-- **Extended mode:** automatically cycle **Overview → Trends → Overview**. Trends has five compact labeled sparklines (default lookback 60 minutes). No axes/toolbars/input targets; the browser has the detailed interactive charts.
+- **Extended mode:** automatically cycle **Overview → Trends → Overview**. Trends shows the probes over the lookback (default 60 minutes): on the ST7789 layout five compact labeled sparklines without axes; on the default compact ST7735 layout one graph with a line per probe, small axes and a legend. No toolbars or input targets; the browser has the detailed interactive charts.
 - **Default dwell:** Overview **20 s**, Trends **10 s**, independently configurable from web (suggested range 5–300 s). Basic mode does not cycle. First view is Overview. Use monotonic time for cycling.
-- **Provisioning system state:** temporarily display AP SSID, device-specific password/setup code as designed, and `http://192.168.4.1`. Not a third normal mode. Provide short, nonblocking status feedback for connecting/recovery.
+- **Provisioning system state:** temporarily display AP SSID, the device-specific Wi-Fi setup key, and `http://192.168.4.1`. Not a third normal mode. Provide short, nonblocking status feedback for connecting/recovery.
 - **Clock:** show localized `HH:MM` only with a trusted clock; otherwise `--:--`. Show offline status if Wi-Fi lost, while continuing readings.
 - **Absolutely no touchscreen or LCD navigation**. Only BOOT long-press is a physical control, reserved for Wi-Fi setup.
 - Implement with ESP-IDF `esp_lcd`, LVGL 9, `esp_lvgl_port`; use guarded buffer memory and avoid needless frame redraws.
@@ -172,7 +172,7 @@ Full specification: [`docs/LCD_UI_DESIGN_SPEC.md`](LCD_UI_DESIGN_SPEC.md). Mocku
 ### 7.1 Normal first-run onboarding
 
 1. With no saved usable Wi-Fi settings, run a password-protected **SoftAP** (example `TempMonitor-A3F2`; SSID suffix derived from device identity). Use unique device-specific setup credentials, not a universal factory password.
-2. LCD automatically displays the setup SSID/password or pairing code and URL (`http://192.168.4.1` by default).
+2. LCD automatically displays the setup SSID, Wi-Fi setup key and URL (`http://192.168.4.1` by default).
 3. On phone/laptop, connect to the AP; captive-portal detection may open a landing page. **Manual browser URL must always work** even where captive detection fails.
 4. Serve the setup application **entirely from local flash**, without CDNs, external fonts or internet. Scan SSIDs, accept password and timezone/admin setup where applicable, and attempt station association.
 5. Validate new Wi-Fi configuration while preserving the old stored credentials until the candidate successfully connects; using AP+STA concurrently during validation is preferred when feasible. Display progress/error and allow retries without trapping the user.
@@ -247,7 +247,7 @@ Detailed UX and API design: [`docs/WEB_UI_DESIGN_SPEC.md`](WEB_UI_DESIGN_SPEC.md
 
 - **React 19 + TypeScript + Vite**; static production bundle executing in browser, served by ESP-IDF `esp_http_server`. No Node.js on the microcontroller.
 - Style to **Material 3** principles, optionally using expressive details if lightweight and maintained; do not require Material 3 Expressive. Evaluate a React-compatible maintained component library with appropriate Material 3 theming.
-- Five pages: **Dashboard** (live sensor cards/status/sparklines), **History** (five-minute avg/min/max graphs, 1h/24h/7d/30d, multi-series, CSV), **Sensors** (name/identity/enable/calibration/alerts), **Alerts** (active and event history), **Settings** (Wi-Fi, LCD Basic/Extended, dwell times, time zone, units, logging/system/OTA).
+- Six pages: **Dashboard** (live sensor cards/status/sparklines), **History** (five-minute avg/min/max graphs, 1h/24h/7d/30d, multi-series, CSV), **Sensors** (name/identity/enable/calibration/alerts), **Alerts** (active conditions and when each began), **Events** (the bounded event journal), **Settings** (Wi-Fi, LCD Basic/Extended, dwell times, time zone, units, logging/system/OTA).
 - Desktop and phone are the **same responsive application**. Provisioning is a simplified flow and must work with no internet.
 - **WebSocket** `GET /api/v1/live` (upgrade) publishes a versioned snapshot after connection and delta/snapshot updates about every 5 s and on events; bounded clients, payloads and queues. **REST** serves snapshots, settings mutations, history queries, sensor registry, events and provisioning.
 - React client uses local assets, compressed/hashed bundles, browser cache, lazy-loaded charts/pages where useful, backoff/reconnect and REST resync following WebSocket gaps. UI explicitly marks stale or disconnected connections.
@@ -281,7 +281,7 @@ This device serves local HTTP and receives Wi-Fi passwords; implement **real** s
 
 - Setup AP must have a per-device unique WPA2/WPA3-compatible passphrase and a first-use pairing/admin bootstrap strategy. **Exact initial admin enrollment flow** is an implementation design gate: document it before authentication code is considered complete. Avoid universal default credentials.
 - Provide a changeable administrator password and sessions; store verifiers securely (salted, deliberately costed KDF, e.g. tuned PBKDF2-HMAC-SHA256 using vetted crypto primitives), not plaintext. Rate-limit login/setup and audit repeated failures without leaking secrets.
-- Protect **all** mutating API operations, provisioning/reprovisioning, exports when sensitive, WebSocket upgrades and OTA. Check Host/Origin and use suitable CSRF mitigation for cookie-based sessions. Scope initial setup exceptions narrowly.
+- Protect **all** mutating API operations, provisioning/reprovisioning, and OTA. Reads, CSV export and the live WebSocket are public (rate-limited; the WebSocket needs an allowed Origin). Check Host/Origin and use suitable CSRF mitigation for cookie-based sessions. Scope initial setup exceptions narrowly.
 - Never expose Wi-Fi passwords, session secrets or admin verifiers in logs, URLs, browser localStorage, CSV exports or OTA diagnostic pages.
 - Determine and document the LAN transport threat model: HTTPS with provisioned/accepted certificate is preferable for admin credentials; plain HTTP on an untrusted shared LAN does **not** provide confidentiality even with sessions. No WAN port-forwarding. If local HTTP is retained for v1, document the limitation clearly and require explicit acceptance before shipping.
 - OTA is authenticated, integrity-verified, size-bounded, applied to the inactive slot, and must have power-interruption and rollback tests. Signed firmware is preferred where practical; do not silently assert signature verification when only a checksum is implemented.
@@ -315,7 +315,7 @@ This device serves local HTTP and receives Wi-Fi passwords; implement **real** s
 - [ ] One 4.7 kΩ bus pull-up, no duplicate pull-ups; all physical probes discovered by ROM ID and CRC-validated.
 - [ ] Read-only LCD Basic/Extended modes and configured 20/10-second cycle work; all sensor errors/warnings clearly visible.
 - [ ] First-run SoftAP works offline, protects setup, and transitions to STA; 5-second runtime BOOT recovery works without breaking flashing.
-- [ ] Web app loads from ESP32 on phone and desktop, has the five pages, live WebSocket temperatures and meaningful network failure indicators.
+- [ ] Web app loads from ESP32 on phone and desktop, has the six pages, live WebSocket temperatures and meaningful network failure indicators.
 - [ ] Five-minute avg/min/max/count history retains and rotates cleanly with gaps, timestamp quality, CSV export and independent immediate alert events.
 - [ ] All settings/identity bindings persist over power cycles, and renamed/replaced sensors do not cross-contaminate data.
 - [ ] Flash layout and OTA image sizes verified against actual 16 MB hardware; rollback and unplanned power-loss tests pass.

@@ -36,9 +36,10 @@ class AuthService {
     bool enrolled() const {
         return enrolled_.load();
     }
-    // Creates the administrator password. Allowed only while the setup window is open (opened by a
-    // physical BOOT hold), before the device is enrolled, and not within five seconds of the last
-    // attempt. Each refusal says which rule refused it (see enrollment_reply()).
+    // Creates the administrator password. Allowed only while the setup access point is open (at the
+    // first start without saved Wi-Fi, or after a physical BOOT hold), before the device is
+    // enrolled, and not within five seconds of the last attempt. Each refusal says which rule
+    // refused it (see enrollment_reply()).
     enum class EnrollResult {
         enrolled,
         already_enrolled, // an administrator password exists

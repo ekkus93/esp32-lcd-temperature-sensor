@@ -14,11 +14,11 @@ Sensor calibration and alarm limits are entered in the unit you selected and
 stored in Celsius.
 
 **Who can see what.** Anyone who can reach the device can open the Dashboard,
-History and Alerts without a password. Changing anything needs the
+History, Alerts and Events without a password. Changing anything needs the
 administrator password: the Sensors page and the settings controls show a
 sign-in box until you sign in, and **Sign in** / **Sign out** sit at the top of
 the page. History is limited to one query per second and one CSV export per 30
-seconds per device, so a refused request just needs a moment before you retry.
+seconds for each computer or phone, so a refused request just needs a moment before you retry.
 
 ## Identify and configure probes
 
@@ -128,8 +128,9 @@ history. Save any needed export first; reset cannot be undone. To update, choose
 a compatible ESP-IDF `.bin` image no larger than 4 MiB,
 confirm installation, keep the device powered during upload, and wait for the
 restart message before reloading the page. The device validates an image before
-selecting its boot slot. Upload and rollback still require real-device
-acceptance; see [TODO.md](TODO.md).
+selecting its boot slot. After the restart Settings shows the new firmware
+being checked; if its services do not come up within two minutes it rolls back
+to the previous version by itself.
 
 The owner selected local HTTP and accepted its LAN confidentiality limitation.
 Authentication and CSRF checks protect actions, but HTTP does not encrypt

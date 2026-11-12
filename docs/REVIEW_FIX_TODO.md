@@ -180,9 +180,20 @@ connected board.
   covered by the display test only; it was not looked at on the panel.
 - [ ] **R10-10** T10-05: profile heap, client counts, LVGL, flash writes and Wi-Fi traffic for leaks
   and high-water marks (§16.7). Acceptance: a recorded profile with no growth over a soak run.
-- [ ] **R10-11** T11-01: reconcile `SPEC.md`, `TODO.md`, the wiring document, the UI specs and the
+- [x] **R10-11** T11-01: reconcile `SPEC.md`, `TODO.md`, the wiring document, the UI specs and the
   diagrams with the final pinout and measurements (§16.8). Acceptance: no conflicting statements
-  remain, checked by a reviewer.
+  remain, checked by a reviewer. Done
+  (2026-11-12): the pinout (GPIO4, 12, 11, 10, 9, 14, 15 conditional, 0) already agreed across
+  `SPEC.md`, the wiring document and SVG, the LCD spec, the bench checklist and `DEVELOPMENT.md`.
+  An independent review against the code found nine contradictions, all corrected: enrollment is
+  allowed while the setup access point is open (first start or a BOOT hold, not only a BOOT hold);
+  compact Trends is one multi-probe graph with axes, not a rotating single graph; six web pages
+  with Events; the live WebSocket, reads and CSV export are public; OTA images are not signed;
+  display settings are public; the README names the ST7735; the 128 × 160 corner-pattern check
+  cites its record; no LCD pairing code. `contracts/API.md` access notes now match
+  `route_access.cpp`, and the panel, login time and rate-limit wording elsewhere were corrected.
+  `docs/TODO.md` is left to R10-13 (owner approval); dated handoffs and validation records are
+  history and were not rewritten.
 - [ ] **R10-12** T11-08: publish versioned firmware binaries, web build provenance, checksums and
   release notes, with known issues, only after every item above is done (§16.9).
 - [ ] **R10-13** R09-08: correct `docs/TODO.md`. **Blocked until you approve the edit.**

@@ -113,7 +113,8 @@ disconnected probes. For bare-board tests with no probe fitted, build with the
 extra defaults file in a separate build directory and sdkconfig:
 `idf.py -B build-bareboard -D SDKCONFIG=sdkconfig.bareboard.resolved -D "SDKCONFIG_DEFAULTS=sdkconfig.defaults;sdkconfig.bareboard" build`.
 A build with the bus compiled out shows saved probes as disabled (OFF) and raises
-no disconnect alarms. The normal firmware initializes the ST7789 SPI/LVGL runtime on
+no disconnect alarms. The normal firmware initializes the selected panel (ST7735 by default, or
+ST7789) and the LVGL runtime on
 SCLK 12, MOSI 11, CS 10, DC 9 and RST 14 when the LCD is attached. It never
 drives GPIO15; leave the backlight unconnected until its electrical behavior is
 verified. Set `CONFIG_MONITOR_LCD_TEST_PATTERN=y` for color bars/corner markers
@@ -167,7 +168,7 @@ may contain sessions: use the test runner's sanitized reports, not raw captures.
 `--fresh-enrollment` is an explicit credential-recovery test for accounts marked
 as created by this test runner. Ordinary tests preserve existing accounts.
 Recovery removes only administrator credentials; sensor settings/history and
-Wi-Fi are separate. Login hashing currently takes about 15 seconds on this S3.
+Wi-Fi are separate. Login hashing takes about 4 seconds on this S3 (10,000 PBKDF2 rounds).
 
 The owner explicitly selected local HTTP and accepted LAN confidentiality limits.
 The USB bridge exercises the real device HTTP/auth stack through loopback; it
@@ -268,7 +269,7 @@ Install `libpng-dev` for host framebuffer exports. After ESP-IDF has resolved th
 pinned LVGL source, `tools/verify.sh` builds/runs both portable core suites and
 `firmware/display_tests`. Software PNGs are written under `.build/display/`;
 reviewed fixtures are in `docs/validation/lcd-simulation/`. The firmware compiles
-the shared view. The normal firmware also initializes `esp_lcd` ST7789 SPI and
+the shared view. The normal firmware also initializes the `esp_lcd` SPI panel (ST7735 or ST7789) and
 LVGL using two PSRAM/DMA buffers, with lock-protected updates. The optional
 `CONFIG_MONITOR_LCD_TEST_PATTERN` displays color bars and corner markers for
 panel bring-up. Neither host rendering nor compilation proves panel color,

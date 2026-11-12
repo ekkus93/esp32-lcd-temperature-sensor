@@ -15,7 +15,8 @@ The utility saves the response in `.build/device-setup.json` with mode 0600 and
 does not print credential values. Keep that file private. Join the named AP,
 then open `http://192.168.4.1` if the phone does not open its captive page. Create
 the administrator password there. Creating it is only allowed while the setup
-window is open (a five-second BOOT hold), and only once. If it is refused, the
+access point is open (as it is now on first start; later, a five-second BOOT
+hold reopens it), and only once. If it is refused, the
 page says why: open the setup window, wait five seconds, or sign in because a
 password already exists.
 

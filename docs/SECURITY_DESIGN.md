@@ -59,8 +59,9 @@ history; only changing things needs the password.
 
 ## Enrollment and recovery (common behavior)
 
-- The first administrator password is created only while the setup window is
-  open, which needs a physical five-second BOOT hold. No universal default
+- The first administrator password is created only while the setup access point
+  is open: at the first start of a device with no saved Wi-Fi network, or after a
+  physical five-second BOOT hold. No universal default
   administrator password; do not derive secrets solely from the MAC address.
 - Enroll a new administrator password; store a random salt and a deliberately
   costed PBKDF2-HMAC-SHA256 verifier using vetted crypto. Measure KDF latency on
@@ -101,13 +102,14 @@ moved to 10,000 on their next successful login. A known-answer check of the key 
 **The Wi-Fi setup key is short on purpose, because it is typed by hand from the LCD:**
 
 - **Wi-Fi setup key:** 12 characters from a 32-symbol alphabet without `0`, `1`, `I` and `O`:
-  60 bits. It protects the setup access point, which is only open for a limited time after a BOOT
-  hold (and for ten minutes after a failed Wi-Fi attempt), not permanently. Anyone who captures a
+  60 bits. It protects the setup access point, which is open while the device has no saved Wi-Fi
+  network, and otherwise only for a limited time after a BOOT hold (and for ten minutes after a
+  failed Wi-Fi attempt). Anyone who captures a
   join handshake while the access point is open could try keys offline; 60 random bits make that
   expensive, not impossible for a determined attacker with large resources, which is why the window
   is short.
-- **Administrator enrollment** has no separate code. It is allowed only while the setup window is
-  open (a five-second BOOT hold), only once, and starts a five-second spacing after each attempt.
+- **Administrator enrollment** has no separate code. It is allowed only while the setup access point
+  is open (first start without saved Wi-Fi, or a five-second BOOT hold), only once, and starts a five-second spacing after each attempt.
   A stale owner code left in storage by an older firmware is erased at the next start.
 
 **Login:** a wrong password makes that client wait 5, 10, 20, 40 and then 60 seconds, per client
