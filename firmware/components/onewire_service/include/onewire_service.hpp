@@ -10,6 +10,10 @@ class OneWireService {
   public:
     esp_err_t initialize();
     std::vector<Reading> read(int64_t now_ms, const std::vector<uint64_t> &managed);
+    // Writes `memory` to the probe's TH and TL bytes (with 12-bit resolution) and copies them to
+    // its EEPROM, then reloads the EEPROM and returns what it holds; empty if the bus failed.
+    // Takes about 30 ms. Call between reads, never during a conversion.
+    std::optional<ProbeMemory> store(uint64_t rom, ProbeMemory memory);
     ProbeScanStatus scan_status() const {
         return policy_.status();
     }
@@ -26,6 +30,8 @@ class OneWireService {
     }
 
   private:
+    bool select(uint64_t rom);
+    std::optional<std::array<uint8_t, 9>> read_scratchpad(uint64_t rom);
     onewire_bus_handle_t bus_ = nullptr;
     bool init_failed_ = false;
     ScanPolicy policy_;

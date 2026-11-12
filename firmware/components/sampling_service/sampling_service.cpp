@@ -17,6 +17,12 @@ std::vector<Reading> SamplingService::read(int64_t now_ms, const std::vector<uin
 #endif
 }
 
+std::optional<ProbeMemory> SamplingService::store_probe_memory(uint64_t rom, ProbeMemory memory) {
+    if (simulated_)
+        return std::nullopt;
+    return bus_.store(rom, memory);
+}
+
 bool SamplingService::fault() const {
     return !simulated_ && bus_.fault();
 }

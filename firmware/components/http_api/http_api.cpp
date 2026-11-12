@@ -1139,6 +1139,8 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                 else
                     cJSON_AddNullToObject(item, "high_c");
                 cJSON_AddStringToObject(item, "state", state_name(sensor.state));
+                cJSON_AddStringToObject(item, "probe_calibration",
+                                        probe_calibration_name(sensor.probe_calibration));
                 return item;
             };
             if (path == "/api/v1/sensors" && r->method == HTTP_GET) {

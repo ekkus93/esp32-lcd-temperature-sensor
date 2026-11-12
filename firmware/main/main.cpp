@@ -282,7 +282,21 @@ extern "C" void app_main() {
         if (sampling.enabled())
             sensor_diagnostics.observe(readings, sampling.fault(), read_ended_ms - read_started_ms);
         auto sampled_at = simulated ? int64_t(simulated_tick * 5000) : read_ended_ms;
-        registry.sample(readings, sampled_at, sampling.fault(), sampling.monitored());
+        if (registry.sample(readings, sampled_at, sampling.fault(), sampling.monitored()))
+            settings_dirty = true; // a new probe brought its own calibration offset
+        // At most one probe memory write per cycle, between conversions, and none during a fault.
+        if (!sampling.fault())
+            if (const auto write = registry.next_probe_write()) {
+                const auto held = sampling.store_probe_memory(write->rom, write->memory);
+                registry.probe_written(write->rom, held);
+                const auto &sensors = registry.sensors();
+                const auto it = std::find_if(sensors.begin(), sensors.end(),
+                                             [&](const auto &s) { return s.rom == write->rom; });
+                if (it != sensors.end())
+                    ESP_LOGI(tag, "Probe %s calibration memory: %s",
+                             monitor::rom_hex(write->rom).c_str(),
+                             monitor::probe_calibration_name(it->probe_calibration));
+            }
         for (const auto &event : registry.events()) {
             if (event.sequence <= last_event_sequence)
                 continue;

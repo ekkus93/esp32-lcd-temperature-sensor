@@ -11,9 +11,19 @@ class Registry {
     bool configure(uint64_t rom, const Settings &settings,
                    std::optional<int64_t> now_ms = std::nullopt);
     // `monitored` is false when this build cannot read probes at all (the sensor bus is compiled
-    // out): saved probes then show as disabled instead of raising disconnect alarms.
-    void sample(const std::vector<Reading> &readings, int64_t now_ms, bool bus_fault = false,
+    // out): saved probes then show as disabled instead of raising disconnect alarms. Returns true
+    // when a new probe's own memory changed its settings, which then need saving.
+    bool sample(const std::vector<Reading> &readings, int64_t now_ms, bool bus_fault = false,
                 bool monitored = true);
+    struct ProbeWrite {
+        uint64_t rom;
+        ProbeMemory memory;
+    };
+    // The next probe whose memory should be rewritten to hold its calibration offset, if any.
+    std::optional<ProbeWrite> next_probe_write() const;
+    // What the probe's memory held after a write, read back from its EEPROM; empty if the bus
+    // failed. A probe that still does not hold the offset counts a failed attempt.
+    void probe_written(uint64_t rom, std::optional<ProbeMemory> memory);
     void expire(int64_t now_ms);
     const std::vector<Sensor> &sensors() const;
     const std::vector<Event> &events() const;
@@ -24,6 +34,7 @@ class Registry {
 
   private:
     Sensor *find(uint64_t rom);
+    static void refresh_probe_calibration(Sensor &sensor);
     void transition(Sensor &sensor, State state, int64_t now_ms);
     void record(Event event);
     void event(uint64_t rom, State previous, State state, int64_t now_ms);

@@ -48,6 +48,28 @@ function numericText(sensor: SensorConfiguration, unit: Unit) {
     }),
   ) as Record<NumericKey, string>;
 }
+// What the probe's own memory holds, shown under the calibration offset. The probe keeps a copy
+// of the offset to the nearest 0.1 °C, so it stays with the probe on another monitor.
+function probeCalibrationText(
+  state: SensorConfiguration['probe_calibration'],
+  limit: number,
+  unit: string,
+) {
+  switch (state) {
+    case 'stored':
+      return 'Also saved on the probe itself, so it stays with the probe.';
+    case 'restored':
+      return "Read from the probe's own memory when it was first connected.";
+    case 'pending':
+      return 'Saving a copy on the probe…';
+    case 'out_of_range':
+      return `Not saved on the probe: it can hold offsets up to ±${limit} ${unit}.`;
+    case 'failed':
+      return 'Could not be saved on the probe. It may not support this.';
+    default:
+      return 'Not read from the probe yet.';
+  }
+}
 function SensorEditor({
   sensor,
   unit,
@@ -124,10 +146,12 @@ function SensorEditor({
         state: _state,
         etag,
         revision: _revision,
+        probe_calibration: _probe,
         ...patch
       } = parsed;
       void _state;
       void _revision;
+      void _probe;
       await saveSensor(id, patch, etag);
       setMessage('Update queued. It applies with the next measurement cycle.');
       // Keep the next edit tied to the applied revision, not the stale form.
@@ -177,7 +201,7 @@ function SensorEditor({
     const { rom_id: id, etag } = draft;
     if (
       !window.confirm(
-        `Retire disconnected probe ${id}? Its configuration mapping will be removed after saving. Existing history remains under this ROM, and a returning probe starts with default settings.`,
+        `Retire disconnected probe ${id}? Its configuration mapping will be removed after saving. Existing history remains under this ROM, and a returning probe starts with default settings, apart from a calibration offset saved on the probe itself.`,
       )
     )
       return;
@@ -276,6 +300,11 @@ function SensorEditor({
                 type="number"
                 value={numbers.calibration_c}
                 onChange={(e) => numeric('calibration_c', e.target.value)}
+                helperText={probeCalibrationText(
+                  sensor.probe_calibration,
+                  limit('calibration_c', 12.7),
+                  u,
+                )}
                 slotProps={{
                   htmlInput: {
                     min: limit('calibration_c', -20),

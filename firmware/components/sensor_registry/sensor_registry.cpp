@@ -1,5 +1,6 @@
 #include "sensor_registry.hpp"
 #include <algorithm>
+#include <cmath>
 
 namespace monitor {
 Sensor *Registry::find(uint64_t rom) {
@@ -48,6 +49,12 @@ bool Registry::configure(uint64_t rom, const Settings &settings, std::optional<i
                                   previous.hysteresis != settings.hysteresis ||
                                   previous.persistence_ms != settings.persistence_ms;
     sensor->settings = settings;
+    sensor->adopt_probe_calibration = false;
+    if (previous.calibration != settings.calibration) {
+        sensor->probe_write_failures = 0;
+        sensor->probe_calibration = ProbeCalibration::unknown; // drops "restored"
+        refresh_probe_calibration(*sensor);
+    }
     ++sensor->config_revision;
     if (behavior_changed) {
         sensor->pending_since.reset();
@@ -58,6 +65,40 @@ bool Registry::configure(uint64_t rom, const Settings &settings, std::optional<i
     }
     ++sequence_;
     return true;
+}
+
+void Registry::refresh_probe_calibration(Sensor &sensor) {
+    if (!sensor.probe_memory) {
+        sensor.probe_calibration = ProbeCalibration::unknown;
+        return;
+    }
+    if (*sensor.probe_memory != encode_probe_calibration(sensor.settings.calibration)) {
+        sensor.probe_calibration = sensor.probe_write_failures >= max_probe_write_attempts
+                                       ? ProbeCalibration::failed
+                                       : ProbeCalibration::pending;
+        return;
+    }
+    if (std::fabs(sensor.settings.calibration) > probe_calibration_limit)
+        sensor.probe_calibration = ProbeCalibration::out_of_range;
+    else if (sensor.probe_calibration != ProbeCalibration::restored)
+        sensor.probe_calibration = ProbeCalibration::stored;
+}
+std::optional<Registry::ProbeWrite> Registry::next_probe_write() const {
+    for (const auto &sensor : sensors_)
+        if (sensor.probe_calibration == ProbeCalibration::pending)
+            return ProbeWrite{sensor.rom, encode_probe_calibration(sensor.settings.calibration)};
+    return std::nullopt;
+}
+void Registry::probe_written(uint64_t rom, std::optional<ProbeMemory> memory) {
+    auto *sensor = find(rom);
+    if (!sensor)
+        return;
+    if (memory)
+        sensor->probe_memory = memory;
+    if (!memory || *memory != encode_probe_calibration(sensor->settings.calibration))
+        ++sensor->probe_write_failures;
+    refresh_probe_calibration(*sensor);
+    ++sequence_;
 }
 
 void Registry::event(uint64_t rom, State previous, State state, int64_t now_ms) {
@@ -86,8 +127,9 @@ void Registry::transition(Sensor &sensor, State state, int64_t now_ms) {
     if (auto transition = alerts_.transition(sensor, state, now_ms))
         record(*transition);
 }
-void Registry::sample(const std::vector<Reading> &readings, int64_t now_ms, bool fault,
+bool Registry::sample(const std::vector<Reading> &readings, int64_t now_ms, bool fault,
                       bool monitored) {
+    bool settings_changed = false;
     ++sequence_;
     if (fault != bus_fault_)
         event(0, bus_fault_ ? State::bus_fault : State::normal,
@@ -103,15 +145,32 @@ void Registry::sample(const std::vector<Reading> &readings, int64_t now_ms, bool
     std::sort(discovered.begin(), discovered.end());
     discovered.erase(std::unique(discovered.begin(), discovered.end()), discovered.end());
     for (auto rom : discovered)
-        discover(rom);
+        if (!find(rom) && discover(rom))
+            find(rom)->adopt_probe_calibration = true;
     for (auto &sensor : sensors_) {
         const auto it = std::find_if(readings.begin(), readings.end(),
                                      [&](const Reading &r) { return r.rom == sensor.rom; });
+        if (it != readings.end() && it->memory) {
+            // Before the reading is applied, so a restored offset already calibrates it.
+            if (sensor.adopt_probe_calibration) {
+                sensor.adopt_probe_calibration = false;
+                const auto stored = decode_probe_calibration(*it->memory);
+                if (stored && *stored != sensor.settings.calibration) {
+                    sensor.settings.calibration = *stored;
+                    sensor.probe_calibration = ProbeCalibration::restored;
+                    ++sensor.config_revision;
+                    settings_changed = true;
+                }
+            }
+            sensor.probe_memory = it->memory;
+            refresh_probe_calibration(sensor);
+        }
         auto generated =
             alerts_.update(sensor, it == readings.end() ? nullptr : &*it, fault, now_ms, monitored);
         if (generated)
             record(*generated);
     }
+    return settings_changed;
 }
 void Registry::expire(int64_t now_ms) {
     for (auto &sensor : sensors_) {

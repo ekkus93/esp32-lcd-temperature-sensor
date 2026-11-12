@@ -16,6 +16,7 @@ const sensor = {
   hysteresis_c: 0.5,
   persistence_seconds: 15,
   state: 'normal',
+  probe_calibration: 'stored',
 };
 beforeEach(() =>
   vi.stubGlobal(
@@ -60,7 +61,29 @@ it('submits ROM-keyed settings including negative calibration and disabled state
     calibration_c: -1.25,
   });
   expect(JSON.parse(last[1]?.body as string)).not.toHaveProperty('rom_id');
+  // The probe memory status is read-only; the device rejects it in a PATCH.
+  expect(JSON.parse(last[1]?.body as string)).not.toHaveProperty(
+    'probe_calibration',
+  );
 });
+it.each([
+  ['stored', 'C', /Also saved on the probe itself/],
+  ['restored', 'C', /Read from the probe's own memory/],
+  ['pending', 'C', /Saving a copy on the probe/],
+  ['failed', 'C', /Could not be saved on the probe/],
+  ['unknown', 'C', /Not read from the probe yet/],
+  ['out_of_range', 'C', /up to ±12.7 °C/],
+  ['out_of_range', 'F', /up to ±22.86 °F/],
+] as const)(
+  'explains probe memory state %s under the calibration offset (%s)',
+  async (probe_calibration, unit, text) => {
+    stubSensors([{ ...sensor, probe_calibration }]);
+    render(<SensorsView unit={unit} />);
+    expect(
+      await screen.findByLabelText(/Calibration offset/),
+    ).toHaveAccessibleDescription(text);
+  },
+);
 const limited = { ...sensor, low_c: 2, high_c: 8, calibration_c: 0.5 };
 function stubLimited() {
   vi.stubGlobal(

@@ -51,6 +51,33 @@ std::optional<double> decode_temperature(const std::array<uint8_t, 9> &data, boo
     return value;
 }
 namespace {
+// TL is TH XOR this; factory bytes (for example 0x4b and 0x46) rarely match it by chance.
+constexpr uint8_t probe_check_pattern = 0xa5;
+constexpr uint8_t probe_no_offset = 0x80;
+} // namespace
+ProbeMemory encode_probe_calibration(double calibration) {
+    const double tenths = std::round(calibration * 10);
+    const uint8_t th = std::isfinite(tenths) && std::fabs(tenths) <= 127
+                           ? static_cast<uint8_t>(static_cast<int8_t>(tenths))
+                           : probe_no_offset;
+    return {th, static_cast<uint8_t>(th ^ probe_check_pattern)};
+}
+std::optional<double> decode_probe_calibration(ProbeMemory memory) {
+    if ((memory.th ^ probe_check_pattern) != memory.tl || memory.th == probe_no_offset)
+        return std::nullopt;
+    return static_cast<int8_t>(memory.th) / 10.0;
+}
+std::optional<ProbeMemory> probe_memory(const std::array<uint8_t, 9> &scratchpad) {
+    if (crc8(scratchpad.data(), 8) != scratchpad[8])
+        return std::nullopt;
+    return ProbeMemory{scratchpad[2], scratchpad[3]};
+}
+const char *probe_calibration_name(ProbeCalibration state) {
+    static constexpr const char *names[] = {"unknown",  "pending",      "stored",
+                                            "restored", "out_of_range", "failed"};
+    return names[static_cast<unsigned>(state)];
+}
+namespace {
 bool label_text(const std::string &text) {
     for (std::size_t i = 0; i < text.size();) {
         unsigned char lead = text[i++];

@@ -135,6 +135,8 @@ const server = http.createServer((req, res) => {
           hysteresis_c: 0.5,
           persistence_seconds: 15,
           state: s.state,
+          // Simulated probes have no memory of their own.
+          probe_calibration: 'unknown',
         })),
       ),
     );

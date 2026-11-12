@@ -88,6 +88,31 @@ Retirement is explicit and separate from disabling monitoring. A probe must be
 disconnected, absent from the latest complete physical scan, and the client must
 submit its current sensor `ETag`; a replacement is admitted only after the
 retirement is durable. If a retired ROM later
-reappears, it is discovered with neutral defaults when capacity is available.
+reappears, it is discovered with neutral defaults when capacity is available,
+except for a calibration offset its own memory holds (below).
 History and event records keep their original ROM attribution and settings are
 never copied to another ROM.
+
+### Calibration stored on the probe
+
+Each DS18B20 has two user bytes (TH and TL) in its own EEPROM. The monitor
+keeps a copy of the probe's `calibration_c` there, so the offset stays with the
+probe when it moves to another monitor or after a factory reset. TH holds the
+offset in 0.1 °C steps (−12.7 to +12.7 °C) and TL is TH XOR `0xa5`; TH `0x80`
+means "no offset stored". The configuration byte is written as `0x7f`
+(12-bit resolution) at the same time.
+
+- A probe **new to the monitor** takes the offset its memory holds at its first
+  valid read, rounded to 0.1 °C. Configuring the sensor before that read wins.
+- For a **known probe** the monitor's setting is authoritative: when the
+  probe's bytes differ, the monitor writes them (at most one probe per
+  measurement cycle), copies them to EEPROM and reads them back from EEPROM.
+  Three failed attempts stop retries until the offset changes or the monitor
+  restarts. Writes happen only on a difference, so EEPROM wear is negligible.
+- An offset beyond ±12.7 °C is not stored; the probe is told it holds none.
+
+`GET /sensors` reports the result in the read-only `probe_calibration` field:
+`unknown` (no valid read yet), `pending`, `stored`, `restored` (taken from the
+probe this run), `out_of_range` or `failed`. `PATCH` does not accept it.
+Adding this response field is additive within schema version 1; the web client
+and firmware ship together.

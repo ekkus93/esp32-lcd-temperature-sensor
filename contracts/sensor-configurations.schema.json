@@ -21,7 +21,8 @@
       "persistence_seconds",
       "low_c",
       "high_c",
-      "state"
+      "state",
+      "probe_calibration"
     ],
     "properties": {
       "rom_id": { "type": "string", "pattern": "^28[0-9a-f]{14}$" },
@@ -52,6 +53,17 @@
           "stale",
           "invalid",
           "bus_fault"
+        ]
+      },
+      "probe_calibration": {
+        "description": "Whether the probe's own memory (DS18B20 TH/TL bytes) holds calibration_c, to the nearest 0.1 °C. Read-only; not accepted by PATCH.",
+        "enum": [
+          "unknown",
+          "pending",
+          "stored",
+          "restored",
+          "out_of_range",
+          "failed"
         ]
       }
     }

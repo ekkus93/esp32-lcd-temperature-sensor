@@ -74,24 +74,64 @@ std::vector<Reading> OneWireService::read(int64_t now_ms, const std::vector<uint
     for (auto rom : policy_.roms()) {
         std::optional<double> value;
         bool transaction_complete = false;
-        if (onewire_bus_reset(bus_) == ESP_OK) {
-            std::array<uint8_t, 10> command{};
-            command[0] = 0x55; // MATCH ROM.
-            for (unsigned i = 0; i < 8; ++i)
-                command[i + 1] = (rom >> (8 * i)) & 0xff;
-            command[9] = 0xbe; // READ SCRATCHPAD.
-            std::array<uint8_t, 9> data{};
-            if (onewire_bus_write_bytes(bus_, command.data(), command.size()) == ESP_OK &&
-                onewire_bus_read_bytes(bus_, data.data(), data.size()) == ESP_OK) {
-                transaction_complete = true;
-                value = decode_temperature(data, true);
-            }
+        std::optional<ProbeMemory> memory;
+        if (const auto data = read_scratchpad(rom)) {
+            transaction_complete = true;
+            value = decode_temperature(*data, true);
+            memory = probe_memory(*data);
         }
         completed_transactions += transaction_complete;
-        readings.push_back({rom, value, true});
+        readings.push_back({rom, value, true, memory});
         any_value_missing = any_value_missing || !value;
     }
     policy_.finish_reads(now_ms, completed_transactions, any_value_missing);
     return readings;
+}
+bool OneWireService::select(uint64_t rom) {
+    std::array<uint8_t, 9> command{};
+    command[0] = 0x55; // MATCH ROM.
+    for (unsigned i = 0; i < 8; ++i)
+        command[i + 1] = (rom >> (8 * i)) & 0xff;
+    return onewire_bus_reset(bus_) == ESP_OK &&
+           onewire_bus_write_bytes(bus_, command.data(), command.size()) == ESP_OK;
+}
+std::optional<std::array<uint8_t, 9>> OneWireService::read_scratchpad(uint64_t rom) {
+    const uint8_t read = 0xbe; // READ SCRATCHPAD.
+    std::array<uint8_t, 9> data{};
+    if (!select(rom) || onewire_bus_write_bytes(bus_, &read, 1) != ESP_OK ||
+        onewire_bus_read_bytes(bus_, data.data(), data.size()) != ESP_OK)
+        return std::nullopt;
+    return data;
+}
+std::optional<ProbeMemory> OneWireService::store(uint64_t rom, ProbeMemory memory) {
+    if (!bus_)
+        return std::nullopt;
+    // WRITE SCRATCHPAD: TH, TL and the configuration byte (0x7f is 12-bit resolution, which the
+    // 750 ms conversion wait assumes).
+    const uint8_t write[] = {0x4e, memory.th, memory.tl, 0x7f};
+    if (!select(rom) || onewire_bus_write_bytes(bus_, write, sizeof(write)) != ESP_OK)
+        return std::nullopt;
+    // Copy to EEPROM only bytes that arrived intact, so a garbled write is never made permanent.
+    const auto written = read_scratchpad(rom);
+    const auto arrived = written ? probe_memory(*written) : std::nullopt;
+    if (arrived && *arrived == memory) {
+        const uint8_t copy = 0x48; // COPY SCRATCHPAD.
+        if (!select(rom) || onewire_bus_write_bytes(bus_, &copy, 1) != ESP_OK)
+            return std::nullopt;
+        vTaskDelay(pdMS_TO_TICKS(20)); // The datasheet allows up to 10 ms; the probe is powered.
+    }
+    // RECALL E2 reloads the scratchpad from EEPROM, so the result (and later reads) show what the
+    // probe will keep after a power cut, not an uncopied write. The probe answers 1 when done.
+    const uint8_t recall = 0xb8;
+    if (!select(rom) || onewire_bus_write_bytes(bus_, &recall, 1) != ESP_OK)
+        return std::nullopt;
+    uint8_t done = 0;
+    for (unsigned poll = 0; poll < 200 && !done; ++poll) // up to about 14 ms
+        if (onewire_bus_read_bit(bus_, &done) != ESP_OK)
+            return std::nullopt;
+    if (!done)
+        return std::nullopt;
+    const auto kept = read_scratchpad(rom);
+    return kept ? probe_memory(*kept) : std::nullopt;
 }
 } // namespace monitor

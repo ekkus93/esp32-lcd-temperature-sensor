@@ -9,6 +9,8 @@ class SamplingService {
   public:
     esp_err_t initialize(bool simulated);
     std::vector<Reading> read(int64_t now_ms, const std::vector<uint64_t> &managed);
+    // See OneWireService::store. Simulated probes have no memory to write.
+    std::optional<ProbeMemory> store_probe_memory(uint64_t rom, ProbeMemory memory);
     bool fault() const;
     bool enabled() const;
     // False only for a build that cannot read probes at all (sensor bus compiled out); a driver

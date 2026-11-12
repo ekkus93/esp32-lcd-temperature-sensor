@@ -26,6 +26,11 @@ target_link_libraries(history_range_tests PRIVATE monitor_core)
 target_compile_options(history_range_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_test(NAME history_range COMMAND history_range_tests)
 
+add_executable(probe_calibration_tests probe_calibration_tests.cpp)
+target_link_libraries(probe_calibration_tests PRIVATE monitor_core)
+target_compile_options(probe_calibration_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
+add_test(NAME probe_calibration_memory COMMAND probe_calibration_tests)
+
 # Opt-in long-running profile of production segment rollover at realistic capacity.
 add_executable(history_retention_profile history_retention_profile.cpp)
 target_link_libraries(history_retention_profile PRIVATE monitor_core)

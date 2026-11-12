@@ -5137,6 +5137,7 @@ const schema19 = {
       'low_c',
       'high_c',
       'state',
+      'probe_calibration',
     ],
     properties: {
       rom_id: { type: 'string', pattern: '^28[0-9a-f]{14}$' },
@@ -5163,6 +5164,18 @@ const schema19 = {
           'stale',
           'invalid',
           'bus_fault',
+        ],
+      },
+      probe_calibration: {
+        description:
+          "Whether the probe's own memory (DS18B20 TH/TL bytes) holds calibration_c, to the nearest 0.1 °C. Read-only; not accepted by PATCH.",
+        enum: [
+          'unknown',
+          'pending',
+          'stored',
+          'restored',
+          'out_of_range',
+          'failed',
         ],
       },
     },
@@ -5215,7 +5228,9 @@ function validate18(
                   (missing0 = 'persistence_seconds')) ||
                 (data0.low_c === undefined && (missing0 = 'low_c')) ||
                 (data0.high_c === undefined && (missing0 = 'high_c')) ||
-                (data0.state === undefined && (missing0 = 'state'))
+                (data0.state === undefined && (missing0 = 'state')) ||
+                (data0.probe_calibration === undefined &&
+                  (missing0 = 'probe_calibration'))
               ) {
                 validate18.errors = [
                   {
@@ -6035,6 +6050,50 @@ function validate18(
                                               var valid1 = _errs30 === errors;
                                             } else {
                                               var valid1 = true;
+                                            }
+                                            if (valid1) {
+                                              if (
+                                                data0.probe_calibration !==
+                                                undefined
+                                              ) {
+                                                let data15 =
+                                                  data0.probe_calibration;
+                                                const _errs31 = errors;
+                                                if (!(
+                                                  data15 === 'unknown' ||
+                                                  data15 === 'pending' ||
+                                                  data15 === 'stored' ||
+                                                  data15 === 'restored' ||
+                                                  data15 === 'out_of_range' ||
+                                                  data15 === 'failed'
+                                                )) {
+                                                  validate18.errors = [
+                                                    {
+                                                      instancePath:
+                                                        instancePath +
+                                                        '/' +
+                                                        i0 +
+                                                        '/probe_calibration',
+                                                      schemaPath:
+                                                        '#/items/properties/probe_calibration/enum',
+                                                      keyword: 'enum',
+                                                      params: {
+                                                        allowedValues:
+                                                          schema19.items
+                                                            .properties
+                                                            .probe_calibration
+                                                            .enum,
+                                                      },
+                                                      message:
+                                                        'must be equal to one of the allowed values',
+                                                    },
+                                                  ];
+                                                  return false;
+                                                }
+                                                var valid1 = _errs31 === errors;
+                                              } else {
+                                                var valid1 = true;
+                                              }
                                             }
                                           }
                                         }
