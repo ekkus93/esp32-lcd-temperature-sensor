@@ -256,6 +256,39 @@ bath. API additions are additive within schema v1 (§17.3); no settings storage 
   history, `CAL` on the LCD, and the hold's start and end in the event log. Recorded under
   `docs/validation/`.
 
+## Phase R12 — Material 3 redesign of the web app (feature, §18)
+
+Owner request, 2026-11-12: real Material 3, a slicker and more professional look, Roboto Flex
+(D9), seed `#2F6B4F` (D10), Events as a tab of Alerts with Alerts first and default (D11). No API
+or storage change. R12-01 comes first; if R11-02 is built after it, it uses the new components.
+
+- [ ] **R12-01** Material 3 foundation (§18.1, §18.2): token generator and committed tokens (light,
+  dark, status and chart colours), the MUI theme built from them, the type scale, Roboto Flex
+  subset with its licence and a `docs/FONTS.md` web section, icons, shape, spacing and motion, and
+  Material 3 component overrides. Acceptance: token and contrast tests pass; the size before and
+  after is measured and within the §18.8 budget.
+- [ ] **R12-02** Navigation and top bar (§18.3): rail at 840 px and wider, bottom bar below, five
+  destinations with icons, the Alerts badge, the compact top bar with theme and sign-in icon
+  buttons, and the status chips. Acceptance: navigation tests; no horizontal scroll at 360 px.
+- [ ] **R12-03** Alerts and Events as tabs of one Alerts page (§18.6): Alerts first and default,
+  `/alerts` and `/events` open their tabs, empty state. Acceptance: route and tab tests.
+- [ ] **R12-04** Dashboard (§18.4): probe cards with state chip, sparkline, today's min/max and the
+  limits bar, no ROM ID, skeletons, and the 24-hour chart within the history rate limit.
+  Acceptance: Dashboard tests; one history query per refresh.
+- [ ] **R12-05** History (§18.5): segmented range, icon toolbar, export menu, filter chips, time
+  axis, gridlines, hover or tap values, summary table, compact notices. Acceptance: History tests,
+  including the unsynchronised-clock axis.
+- [ ] **R12-06** Sensors, Settings and sign-in restyled (§18.7): Material 3 tabs and fields, the
+  °C/°F segmented button, the button rule, confirm dialogs for destructive actions, snackbars.
+  Acceptance: the existing tests pass, updated only for the new controls.
+- [ ] **R12-07** Quality pass and documents (§18.8, §18.9): skeletons, empty and error states,
+  reduced motion, focus and accessible names; before and after screenshots of every page in light
+  and dark at 390 and 1280 px under `docs/validation/`; `docs/WEB_UI_DESIGN_SPEC.md` and
+  `docs/USER_GUIDE.md` updated. Acceptance: a reviewer compares the screenshots with §18.
+- [ ] **R12-08** [HW] On the board: every page loads from the device with no internet, the font
+  comes from the device, the firmware fits both OTA slots, and a phone shows the bottom navigation
+  correctly. Recorded under `docs/validation/`.
+
 ## Definition of done
 
 - [ ] All P0 and P1 items pass with tests, and their `[HW]` checks are recorded.

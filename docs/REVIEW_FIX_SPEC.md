@@ -298,6 +298,9 @@ Confirmed by the owner on 2026-11-05: D1 to D7 are all accepted as proposed belo
 | D6 | Unprovisioned device: alternate setup and Overview on the LCD, or setup only? | Alternate |
 | D7 | Owner-code characters outside the alphabet (`0`, `1`, `I`, `O`): reject with a message, or map to look-alikes? | Reject with a message |
 | D8 | Sensor calibration: ice point only, or a second point (boiling water, a reference thermometer)? Decided by the owner on 2026-11-12 (§17). | Ice point only |
+| D9 | Web typeface: system font, or Roboto Flex built into the image? Decided 2026-11-12 (§18). | Roboto Flex, built in |
+| D10 | Web colour scheme. Owner asked for a palette to be chosen; decided 2026-11-12 (§18.2). | Material 3 tonal-spot scheme from seed `#2F6B4F` (evergreen) |
+| D11 | Events: its own page, or a tab of Alerts? Decided 2026-11-12 (§18.6). | A tab of Alerts; Alerts is the first tab and the default |
 
 ## 15. Verification
 
@@ -519,3 +522,162 @@ record the bath in that probe's history. The hold stops both, for that probe onl
   This is also the first board check of a non-zero offset written to a probe. During the bath no
   low alert is raised for that probe (with its low limit above 0 °C), its history shows a gap,
   the LCD shows `CAL`, and the event log shows the hold starting and ending.
+
+## 18. Material 3 redesign of the web app
+
+Owner request (2026-11-12): use Material Design 3 properly, and make the web app look slicker,
+more modern and professional. Today the app uses MUI 9 (`@mui/material`), whose components follow
+Material Design 2, with a few overrides that resemble Material 3 (pill buttons, no capitals, 20 px
+corners, flat outlined cards, a hand-picked green). It has no Material 3 colour roles, type scale,
+component styles or icons, and the navigation is a custom text-only sidebar. This section replaces
+that with a real Material 3 layer on MUI and redesigns the pages. Behaviour, routes, the API and
+the LCD do not change except where stated.
+
+### 18.1 Approach
+
+- Keep MUI and React. Material 3 comes from a generated theme and component style overrides, not
+  a new component library: Google's `@material/web` is in maintenance mode and not React, and no
+  maintained React library implements Material 3 fully.
+- New dependencies are pinned to exact versions like the others: `@material/material-color-utilities`
+  (dev only, to generate tokens), `@mui/icons-material` (one import per icon so only used icons are
+  built in), and the Roboto Flex font files.
+
+### 18.2 Foundation
+
+**Colour (D10).** A Material 3 tonal-spot scheme generated from seed `#2F6B4F`, a calm evergreen
+that suits a grow room. The generator script lives in `web/scripts/`, writes a committed token
+file, and a test checks that the file matches the script's output. Key roles:
+
+| Role | Light | Dark |
+| --- | --- | --- |
+| primary / on-primary | `#236A4C` / `#FFFFFF` | `#8FD5B0` / `#003824` |
+| primary-container / on- | `#AAF2CB` / `#005235` | `#005235` / `#AAF2CB` |
+| secondary-container / on- | `#D0E8D8` / `#364B3F` | `#364B3F` / `#D0E8D8` |
+| tertiary / tertiary-container | `#3C6472` / `#C0E9FA` | `#A4CDDE` / `#234C5A` |
+| error / error-container | `#BA1A1A` / `#FFDAD6` | `#FFB4AB` / `#93000A` |
+| surface / on-surface | `#F5FBF4` / `#171D19` | `#0F1511` / `#DEE4DE` |
+| surface-container low / mid / high | `#F0F5EF` / `#EAEFE9` / `#E4EAE3` | `#171D19` / `#1B211D` / `#262B27` |
+| on-surface-variant / outline / outline-variant | `#404943` / `#707973` / `#C0C9C1` | `#C0C9C1` / `#8A938C` / `#404943` |
+
+Status colours are Material 3 custom colours harmonised to the seed, each with a container pair:
+
+| Status | Light (colour / container) | Dark (colour / container) |
+| --- | --- | --- |
+| High (too warm) | `#9B4600` / `#FFDBC9` | `#FFB68D` / `#763300` |
+| Low (too cold) | `#006491` / `#C9E6FF` | `#8ACEFF` / `#004C6E` |
+| Warning (stale, no time, Wi-Fi lost, simulation) | `#775A00` / `#FFDF99` | `#F4BF2A` / `#5A4300` |
+| Fault (disconnected, bus fault, storage) | the error roles | the error roles |
+| Normal | primary-container roles | primary-container roles |
+
+Chart series, from the colour-blind-safe Okabe–Ito hues, at tone 45 (light) and 75 (dark), in
+probe display order: `#006FAE`/`#77BFFF`, `#8F6200`/`#F4AB18`, `#007A58`/`#51CE9F`,
+`#A24D7F`/`#FC9AD0`, `#B04D00`/`#FFA26F`. A probe keeps its colour on every page.
+
+The theme follows the system light/dark setting, with the existing override kept.
+
+**Type (D9).** Roboto Flex, built into the image and served by the device, so it works with no
+internet. Only the weight and optical-size axes are kept and the Latin set plus `°`, `±`, `−`,
+`…`, `·` and `–`; the WOFF2 file is at most 80 KB. `font-display: swap` with the system font as
+fallback. The licence (SIL OFL 1.1) is shipped beside it, and `docs/FONTS.md` gains a web section
+with the source, version, checksum and the subsetting command. The Material 3 type scale is used
+(display, headline, title, body and label, each large/medium/small). Temperatures use tabular
+figures so digits do not shift as values change.
+
+**Shape, spacing, elevation, motion.** The Material 3 shape scale (4, 8, 12, 16, 28 px and full),
+an 8 px spacing grid (4 px for fine adjustments), surfaces told apart by container tone rather
+than shadows, and Material 3 standard easing and durations for state changes, turned off when the
+system asks for reduced motion.
+
+**Icons.** Material icons (outlined set), each with a text label or an accessible name.
+
+**Components.** Styled to Material 3: filled, tonal, outlined and text buttons; icon buttons;
+segmented buttons (history range, °C/°F); primary and secondary tabs; switches; filter, assist
+and input chips; outlined text fields; filled and outlined cards; dialogs; snackbars; menus;
+progress indicators.
+
+### 18.3 Navigation and top bar
+
+- At 840 px and wider, a navigation rail on the left: the app's mark and name, then five
+  destinations, each an icon with a label and the Material 3 active indicator (pill behind the
+  icon).
+- Below 840 px, a navigation bar at the bottom with the same five destinations, icons with
+  labels. The page uses the full width; no horizontal scrolling at 360 px.
+- Destinations: Dashboard, History, Sensors, Alerts, Settings. Alerts shows a badge with the
+  number of active alerts.
+- A compact top app bar: the page title, the device's network name, and icon buttons for the
+  theme (light, dark, system) and signing in or out, with tooltips. The repeated "Local
+  temperature monitor" label goes.
+- Device status (Wi-Fi, time sync, history logging, simulation) is shown as assist chips with an
+  icon and the status colours of §18.2, only for conditions that need attention; when everything
+  is fine a single "All systems normal" chip shows instead.
+
+### 18.4 Dashboard
+
+- One card per enabled probe, in display order, in a responsive grid (one column on a phone, up
+  to five across on a wide screen). Each card shows:
+  - the probe's name, and its series colour as a small mark;
+  - the temperature, large, in tabular figures, with its unit;
+  - the state as a coloured chip with an icon (normal, high, low, disconnected, stale), using the
+    status colours;
+  - a 24-hour sparkline;
+  - today's minimum and maximum, and the low and high limits as a small range bar with the current
+    value marked;
+  - "Updated n s ago" in small text, highlighted when stale.
+- The ROM ID is not shown on the Dashboard.
+- Below the cards, a 24-hour chart of all probes (the History chart component, §18.5) with a link
+  to History. It uses one history query for all probes, refreshed every five minutes, within the
+  one-query-per-second limit; live readings extend it between refreshes.
+- While the first data loads, skeleton cards show in place of "Connecting…".
+
+### 18.5 History
+
+- A toolbar: the range as a segmented button (1 h, 24 h, 7 d, 30 d); zoom in, zoom out, earlier,
+  later and reset as icon buttons with tooltips, hidden rather than greyed when they do nothing;
+  refresh as an icon button; export in an overflow menu.
+- Probe selection as filter chips in the series colours; the ROM ID moves to the chip's tooltip.
+- The chart: a time axis with readable ticks (local time, or "elapsed since boot" when the clock
+  is not synchronised), temperature ticks at round values, light gridlines, smooth lines without a
+  dot on every point, gaps shaded, and hover or tap to show each probe's value at that time.
+- Each probe's minimum, maximum and average for the range in a compact table below the chart.
+- Notices (simulated history, unsynchronised clock) as one compact info line, not a large box.
+
+### 18.6 Alerts page with Alerts and Events tabs (D11)
+
+- The Alerts page has two tabs, **Alerts** first and selected by default, then **Events**.
+- `/alerts` opens the Alerts tab and `/events` opens the Events tab, so existing links and
+  bookmarks still work; switching tabs updates the address.
+- Alerts are listed with a status icon and colour, the probe or system part affected, the value
+  and limit where it applies, and how long ago it began. An empty list shows "No active alerts"
+  with an icon.
+- Events keep their current content and paging, restyled as a list with icons by kind.
+
+### 18.7 Sensors, Settings and sign-in
+
+- The existing tabs use Material 3 tabs; forms use outlined text fields with supporting text and
+  the °C/°F switch becomes a segmented button.
+- Actions follow one rule: the main action of a form is a filled button, secondary actions are
+  tonal or text buttons, and destructive actions (retire a probe, factory reset, restart) are
+  error-coloured and confirm in a dialog.
+- Save results show in a snackbar; field errors show under the field.
+- The sign-in form is a centred card with the app's mark.
+
+### 18.8 Quality bar
+
+- Text and essential icons meet WCAG 2.1 AA contrast in both themes (checked by a test over the
+  token pairs used), keyboard focus is always visible, and every control has an accessible name.
+- Layouts work at 360, 390, 768, 1280 and 1600 px with no horizontal scrolling.
+- Loading shows skeletons; empty states have an icon and a sentence; errors say what to do.
+- Size: the compressed web build grows by at most 150 KB, the font included, and the firmware
+  still fits both 4 MiB OTA slots. Measured before and after.
+
+### 18.9 Acceptance
+
+- Unit tests: the token file matches the generator; the contrast check; the navigation (five
+  destinations, rail or bar by width, the Alerts badge); `/alerts` and `/events` opening their tabs
+  with Alerts as default; the Dashboard card contents, without ROM IDs; the history toolbar, filter
+  chips and summary table; the existing behaviour tests updated, none dropped.
+- Screenshots of every page in light and dark at 390 and 1280 px, before and after, recorded under
+  `docs/validation/`, checked against the simulator.
+- On the board: the pages load from the device with no internet, the font is served from the
+  device, the measured size is recorded, and a phone shows the navigation bar correctly.
+- `docs/WEB_UI_DESIGN_SPEC.md` and `docs/USER_GUIDE.md` describe the new layout.
