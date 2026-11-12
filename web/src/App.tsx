@@ -25,6 +25,7 @@ import AuthGate, { AuthProvider } from './AuthGate';
 import { useAuth } from './authContext';
 import { subscribeLive } from './api/live';
 import { delayedError } from './api/delayedError';
+import { otaStateText } from './otaState';
 import type { Snapshot } from './api/generated';
 const NetworkSettings = lazy(() => import('./features/NetworkSettings'));
 const SensorsView = lazy(() => import('./features/SensorsView'));
@@ -376,7 +377,7 @@ function Shell() {
                   <Typography>
                     Firmware {snapshot?.firmware.version ?? 'unavailable'} ·{' '}
                     {snapshot?.firmware.partition ?? 'no active slot'} · OTA{' '}
-                    {snapshot?.firmware.ota_state ?? 'unknown'}
+                    {otaStateText(snapshot?.firmware.ota_state)}
                   </Typography>
                   <Typography>
                     {snapshot?.wifi.mdns_hostname ? (

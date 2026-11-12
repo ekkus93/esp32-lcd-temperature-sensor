@@ -169,9 +169,15 @@ connected board.
   four-probe record; forecast about 61 days at four probes when logging is continuous. The store has
   not filled yet, so retention under eviction is still the host profile's; `docs/TODO.md` T06-15 is
   left for R10-13.
-- [ ] **R10-09** T10-02: mark a new firmware valid only after startup health checks, roll back when
+- [x] **R10-09** T10-02: mark a new firmware valid only after startup health checks, roll back when
   they fail, and show the update status on the LCD and web UI (§16.6). Acceptance: host tests for
-  the health gate; on the board, the status shows in the web UI.
+  the health gate; on the board, the status shows in the web UI. Done: the
+  gate, the 120 s self-rollback and the `ota_boot_policy` host tests already existed (T10-02);
+  the web Settings line now says the state in words ("new firmware being checked (it rolls back if
+  the check fails)") with web tests. **Board (2026-11-12):** two over-the-air updates, `ota_0` to
+  `ota_1` and back: each reported `pending_verify` after the restart and `valid` 5 to 8 s later,
+  and the Settings page in a browser showed "ota_0 · OTA valid". The LCD's update-state footer is
+  covered by the display test only; it was not looked at on the panel.
 - [ ] **R10-10** T10-05: profile heap, client counts, LVGL, flash writes and Wi-Fi traffic for leaks
   and high-water marks (§16.7). Acceptance: a recorded profile with no growth over a soak run.
 - [ ] **R10-11** T11-01: reconcile `SPEC.md`, `TODO.md`, the wiring document, the UI specs and the

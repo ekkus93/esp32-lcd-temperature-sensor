@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import App from './App';
+import { otaStateText } from './otaState';
 import { empty } from './api/fixtures';
 vi.mock('./features/HistoryView', () => ({
   default: ({ timezone }: { timezone: string | null }) => (
@@ -667,4 +668,36 @@ it('shows the network name in the public Settings diagnostics, or says it is una
   expect(
     await screen.findByText(/Network name unavailable/),
   ).toBeInTheDocument();
+});
+
+it('says in words when new firmware is being checked', async () => {
+  const snapshot = {
+    ...empty,
+    firmware: {
+      ...empty.firmware,
+      partition: 'ota_1',
+      ota_state: 'pending_verify',
+    },
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({ ok: true, json: async () => snapshot }),
+  );
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  expect(
+    await screen.findByText(
+      /ota_1 · OTA new firmware being checked \(it rolls back if the check fails\)/,
+    ),
+  ).toBeInTheDocument();
+});
+
+it.each([
+  ['valid', 'valid'],
+  ['new', 'new firmware being checked (it rolls back if the check fails)'],
+  ['invalid', 'rejected by its health check'],
+  ['aborted', 'update aborted'],
+  [undefined, 'unknown'],
+])('describes the update state %s', (state, text) => {
+  expect(otaStateText(state)).toBe(text);
 });
