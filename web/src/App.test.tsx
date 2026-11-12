@@ -27,16 +27,27 @@ beforeEach(() => {
     vi.fn().mockResolvedValue({ ok: true, json: async () => empty }),
   );
 });
+// A probe's entry on the Dashboard's live readings panel.
+async function panelEntry(name: string) {
+  const list = await screen.findByRole('list', { name: 'Probes' });
+  const item = Array.from(list.querySelectorAll('li')).find((li) =>
+    li.textContent?.startsWith(name),
+  );
+  if (!item) throw new Error(`No panel entry for ${name}`);
+  return item;
+}
+
 it('shows empty sensors honestly without a fabricated reading', async () => {
   render(<App />);
   expect(await screen.findByText('No probes detected')).toBeInTheDocument();
   expect(
-    screen.getByText(/Explore five-minute averages, minima and maxima/),
+    screen.getByRole('heading', { name: 'Last 24 hours' }),
   ).toBeInTheDocument();
   expect(
     screen.queryByText(/No history available yet/),
   ).not.toBeInTheDocument();
-  expect(screen.queryByText('32.0 °F')).not.toBeInTheDocument();
+  expect(screen.queryByText('32.0')).not.toBeInTheDocument();
+  expect(screen.getByRole('list', { name: 'Probes' }).children).toHaveLength(0);
 });
 it('shows the age of the latest valid probe reading', async () => {
   const snapshot = {
@@ -60,7 +71,9 @@ it('shows the age of the latest valid probe reading', async () => {
   );
   render(<App />);
   expect(await screen.findByText('Updated 5 seconds ago')).toBeInTheDocument();
-  expect(screen.getByText('-1.3 °F')).toBeInTheDocument();
+  expect(await panelEntry('Freezer')).toHaveTextContent(/-1\.3\s*°F/);
+  // The ROM ID is not shown on the Dashboard.
+  expect(screen.queryByText(/2801000000000029/)).toBeNull();
 });
 it('shows all five probes with long labels without dropping readings', async () => {
   const sensors = Array.from({ length: 5 }, (_, index) => ({
@@ -81,9 +94,12 @@ it('shows all five probes with long labels without dropping readings', async () 
   );
   render(<App />);
   expect(
-    await screen.findByText('Probe 5 insulated utility room'),
-  ).toBeInTheDocument();
-  expect(screen.getByText('75.2 °F')).toBeInTheDocument();
+    await screen.findAllByText('Probe 5 insulated utility room'),
+  ).not.toHaveLength(0);
+  expect(screen.getByRole('list', { name: 'Probes' }).children).toHaveLength(5);
+  expect(await panelEntry('Probe 5 insulated utility room')).toHaveTextContent(
+    /75\.2\s*°F/,
+  );
 });
 it('keeps healthy sensors visible alongside bus and per-probe fault states', async () => {
   const snapshot = {
@@ -137,14 +153,14 @@ it('keeps healthy sensors visible alongside bus and per-probe fault states', asy
   expect(
     await screen.findByText(/Shared sensor bus fault/),
   ).toBeInTheDocument();
-  expect(screen.getByText('Warm room')).toBeInTheDocument();
-  expect(screen.getByText('Healthy room')).toBeInTheDocument();
-  expect(screen.getByText('Disabled probe')).toBeInTheDocument();
-  expect(screen.getByText('Missing probe')).toBeInTheDocument();
-  expect(screen.getByText('high')).toBeInTheDocument();
-  expect(screen.getByText('disabled')).toBeInTheDocument();
-  expect(screen.getByText('disconnected')).toBeInTheDocument();
-  expect(screen.getByText('69.8 °F')).toBeInTheDocument();
+  // The panel puts the bus fault first, and still shows each enabled probe and its state.
+  expect(screen.getByText('The sensor bus has a fault')).toBeInTheDocument();
+  expect(await panelEntry('Warm room')).toHaveTextContent('Too warm');
+  expect(await panelEntry('Healthy room')).toHaveTextContent(/69\.8\s*°F/);
+  expect(await panelEntry('Missing probe')).toHaveTextContent('Disconnected');
+  expect(await panelEntry('Missing probe')).toHaveTextContent('—');
+  // A disabled probe is not monitored, so it is not on the live panel.
+  expect(screen.queryByText('Disabled probe')).toBeNull();
 });
 it('reports excess and incomplete physical probe discovery', async () => {
   vi.stubGlobal(
@@ -310,7 +326,7 @@ it('keeps the dashboard history link neutral across populated and unsynchronized
       ...empty,
       boot_id: 'different-boot',
       uptime_ms: 300000,
-      clock: { ...empty.clock, synchronized: false, utc_seconds: null },
+      clock: { utc: null, synchronized: false },
     },
   ];
   for (const snapshot of snapshots) {
@@ -320,10 +336,12 @@ it('keeps the dashboard history link neutral across populated and unsynchronized
       vi.fn().mockResolvedValue({ ok: true, json: async () => snapshot }),
     );
     const view = render(<App />);
+    // The chart card is there whatever the clock and probes, and points to all events.
     expect(
-      await screen.findByText(
-        /Explore five-minute averages, minima and maxima/,
-      ),
+      await screen.findByRole('heading', { name: 'Last 24 hours' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'See all events' }),
     ).toBeInTheDocument();
     view.unmount();
   }
@@ -380,7 +398,7 @@ it('keeps the last readings visible, marked stale, when the live connection drop
     vi.fn().mockResolvedValue({ ok: true, json: async () => snapshot }),
   );
   render(<App />);
-  expect(await screen.findByText('-1.3 °F')).toBeInTheDocument();
+  expect(await panelEntry('Freezer')).toHaveTextContent(/-1\.3\s*°F/);
   // The feed stays down: the reconnect's reload fails too, so the readings really are stale.
   vi.mocked(fetch).mockRejectedValue(new Error('Live connection lost'));
   await act(async () => {
@@ -393,9 +411,10 @@ it('keeps the last readings visible, marked stale, when the live connection drop
       { timeout: 12000 },
     ),
   ).toBeInTheDocument();
-  // The reading stays on screen, flagged stale, instead of turning into a dash.
-  expect(screen.getByText('-1.3 °F')).toBeInTheDocument();
-  expect(screen.getByText('Stale')).toBeInTheDocument();
+  // The reading stays on screen, and the panel says it is out of date, instead of a dash.
+  expect(await panelEntry('Freezer')).toHaveTextContent(/-1\.3\s*°F/);
+  expect(screen.getByText('Readings are out of date')).toBeInTheDocument();
+  expect(screen.getByText('Live connection lost')).toBeInTheDocument();
 }, 20000);
 it('shows an error and retries when the display settings cannot be loaded', async () => {
   const snapshot = {
@@ -458,8 +477,9 @@ it('shows an error and retries when the display settings cannot be loaded', asyn
   ).toBeInTheDocument();
   // The retry succeeds: the saved unit applies and the notice goes away.
   expect(
-    await screen.findByText('-18.5 °C', {}, { timeout: 6000 }),
+    await screen.findByText('°C', {}, { timeout: 6000 }),
   ).toBeInTheDocument();
+  expect(await panelEntry('Freezer')).toHaveTextContent(/-18\.5\s*°C/);
   expect(
     screen.queryByText(/Display settings could not be loaded/),
   ).not.toBeInTheDocument();
@@ -552,8 +572,9 @@ function stubDevice(options: { signedIn: boolean }) {
                   lookback_minutes: 60,
                   timezone: 'UTC',
                 });
+          // Sensor configurations and storage state are public, as on the device
+          // (route_access.cpp); only changes need a session.
           if (path.endsWith('/sensors') || path.endsWith('/sensors/storage')) {
-            if (!state.signedIn) return denied();
             return ok(
               path.endsWith('/storage')
                 ? { schema_version: 1, state: 'ready', writable: true }
@@ -638,8 +659,8 @@ it('asks for the password on the Sensors page and shows the forms after signing 
   expect(
     screen.getByText(/Readings and history do not need a password/),
   ).toBeInTheDocument();
-  // The owner endpoints were not even requested while anonymous.
-  expect(calls.some((call) => call.endsWith('/sensors'))).toBe(false);
+  // The sensor editor did not load while anonymous: it asks for the storage state on opening.
+  expect(calls.some((call) => call.endsWith('/sensors/storage'))).toBe(false);
   fireEvent.change(screen.getByLabelText(/Administrator password/), {
     target: { value: 'an-example-password' },
   });

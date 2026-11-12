@@ -8,10 +8,8 @@ import {
 } from 'react';
 import {
   Alert,
-  Button,
   Card,
   CardContent,
-  Chip,
   CssBaseline,
   Stack,
   Tab,
@@ -28,7 +26,7 @@ import ThermostatOutlined from '@mui/icons-material/ThermostatOutlined';
 import Navigation, { type Destination } from './shell/Navigation';
 import TopBar, { DeviceConditions } from './shell/TopBar';
 import { useActiveAlerts } from './shell/useActiveAlerts';
-import { temperature } from './api/client';
+import Dashboard from './features/dashboard/Dashboard';
 import { getDisplaySettings } from './api/settings';
 import { getProbeScan, type ProbeScanStatus } from './api/probe-scan';
 import AuthGate, { AuthProvider } from './AuthGate';
@@ -63,7 +61,6 @@ const destinations: Destination[] = [
 ];
 // Events is the second tab of the Alerts page; /events opens it, so older links keep working.
 type AlertsTab = 'alerts' | 'events';
-const readable = (s: string) => s.replaceAll('_', ' ');
 type SettingsTab = 'preferences' | 'wifi' | 'system' | 'password';
 const settingsTabs: [SettingsTab, string][] = [
   ['preferences', 'Preferences'],
@@ -194,7 +191,6 @@ function Shell() {
     history.pushState({}, '', next);
     setPath(next);
   }
-  const sensors = snapshot?.sensors ?? [];
 
   return (
     <ThemeProvider theme={theme}>
@@ -250,66 +246,17 @@ function Shell() {
             </Alert>
           )}
           {index === 0 && (
-            <>
-              <div className="sensor-grid">
-                {sensors.map((s) => (
-                  <Card key={s.rom_id}>
-                    <CardContent>
-                      <Typography variant="subtitle1">{s.name}</Typography>
-                      <Typography
-                        className="reading"
-                        variant="displayMedium"
-                        sx={{ opacity: error ? 0.5 : 1 }}
-                      >
-                        {temperature(s.temperature_c, unit)}
-                      </Typography>
-                      <Chip
-                        size="small"
-                        label={error ? 'Stale' : readable(s.state)}
-                        color={
-                          ['high', 'low', 'disconnected'].includes(s.state)
-                            ? 'warning'
-                            : 'default'
-                        }
-                      />
-                      <Typography
-                        variant="caption"
-                        component="p"
-                        sx={{ mt: 2 }}
-                      >
-                        ROM {s.rom_id}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {s.last_seen_ms === null
-                          ? 'No valid reading yet'
-                          : `Updated ${Math.floor(Math.max(0, snapshot!.uptime_ms - s.last_seen_ms) / 1000)} seconds ago`}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-              {!sensors.length && (
-                <Card>
-                  <CardContent>
-                    <Typography variant="h6">No probes detected</Typography>
-                    <Typography color="text.secondary">
-                      Monitoring supports up to five probes. No alarms are
-                      generated for empty positions.
-                    </Typography>
-                  </CardContent>
-                </Card>
-              )}
-              <Card sx={{ mt: 3 }}>
-                <CardContent>
-                  <Typography variant="h6">Temperature history</Typography>
-                  <Typography color="text.secondary">
-                    Explore five-minute averages, minima and maxima in the
-                    history view.
-                  </Typography>
-                  <Button onClick={() => navigate(1)}>Open history</Button>
-                </CardContent>
-              </Card>
-            </>
+            <Dashboard
+              snapshot={snapshot}
+              unit={unit}
+              timezone={timezone}
+              stale={Boolean(error)}
+              alerts={activeAlerts}
+              onOpenEvents={() => {
+                history.pushState({}, '', '/events');
+                setPath('/events');
+              }}
+            />
           )}
           {index === 1 && snapshot && (
             <Suspense fallback={<Typography>Loading history…</Typography>}>

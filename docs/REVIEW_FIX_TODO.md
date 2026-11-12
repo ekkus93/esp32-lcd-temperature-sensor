@@ -305,9 +305,23 @@ or storage change. R12-01 comes first; if R11-02 is built after it, it uses the 
   an icon for their kind and the time beside them. App tests for the tabs, the default and the old
   `/events` link; Alerts and Events tests updated for the new wording. Checked in a browser against
   the simulator.
-- [ ] **R12-04** Dashboard (§18.4): probe cards with state chip, sparkline, today's min/max and the
+- [x] **R12-04** Dashboard (§18.4): probe cards with state chip, sparkline, today's min/max and the
   limits bar, no ROM ID, skeletons, and the 24-hour chart within the history rate limit.
-  Acceptance: Dashboard tests; one history query per refresh.
+  Acceptance: Dashboard tests; one history query per refresh. Done
+  (2026-11-12), following the approved concept: `web/src/features/dashboard/` has the live
+  readings panel (headline and detail from `roomState.ts`, large light readings, a gauge per probe
+  from the limits in `GET /sensors`, "Too warm", "Too cold", "Disconnected" tags, a pulsing live
+  dot), the chart card (`chart/TrendChart.tsx`: smooth lines in the series colours, round
+  gridlines, time ticks on round local times or counted back since boot, dashed limit lines for
+  out-of-range probes, probe filter chips, a 24 hours / 7 days / 30 days segmented button, one
+  history query per range or every five minutes) and the alerts card with a link to all events.
+  Skeletons until the first snapshot; no ROM IDs; disabled probes are not on the panel. Recent
+  events were left out (spec §18.4 says why). Tests: the room-state wording (six cases), chart
+  scales and ticks (five), the Dashboard (five: wording with limits and duration, one history
+  query across live updates, range switch and probe chip, alerts, skeletons), and the App
+  Dashboard tests rewritten for the panel. The test device now serves `GET /sensors` publicly,
+  as the firmware does. Checked against the simulator at 1440 px light, 1280 px dark and 390 px.
+  Packed web build 286,918 gzip bytes (+94,123 since R12 began; budget 150 KB).
 - [ ] **R12-05** History (§18.5): segmented range, icon toolbar, export menu, filter chips, time
   axis, gridlines, hover or tap values, summary table, compact notices. Acceptance: History tests,
   including the unsynchronised-clock axis.

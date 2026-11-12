@@ -132,13 +132,26 @@ main {
   font-weight: 500;
 }
 
-.sensor-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 16px;
+/* The live readings panel's "updated" dot: a gentle pulse while live, still when not. */
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--app-panel-text);
+  animation: live-pulse 2s ease-out infinite;
 }
-.reading {
-  margin: 20px 0 !important;
+.live-dot-still {
+  background: var(--app-panel-muted);
+  animation: none;
+}
+@keyframes live-pulse {
+  0% {
+    box-shadow: 0 0 0 0
+      color-mix(in srgb, var(--app-panel-text) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 9px transparent;
+  }
 }
 
 /* Navigation bar at the bottom below 840 px. */
@@ -183,9 +196,6 @@ main {
   }
   .app-network-name {
     display: none;
-  }
-  .sensor-grid {
-    grid-template-columns: 1fr;
   }
 }
 @media (max-width: 359px) {

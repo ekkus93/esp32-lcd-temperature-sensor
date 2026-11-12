@@ -641,8 +641,10 @@ The owner approved a concept on 2026-11-12 (desktop light and phone dark boards 
   (24 hours, 7 days, 30 days). It uses one history query for all probes, refreshed every five
   minutes, within the one-query-per-second limit.
 - **Alerts.** Beside the chart (below it on a phone): the active alerts, each with a status icon,
-  what is wrong and since when, or "No active alerts"; then the three most recent events; then a
-  link to all events.
+  what is wrong and since when, or "No active alerts", then a link to all events. Recent events
+  are not shown here: `GET /alerts` pages events from the oldest, and the journal holds about
+  2,000 (128 KiB of 60-byte records), so finding the newest three would take up to 44 requests
+  on every load. A newest-first query would allow it later.
 - The ROM ID is not shown on the Dashboard. Limits come from `GET /sensors`, refreshed every
   minute and after an edit on the Sensors page.
 - While the first data loads, skeletons show in place of the panel and cards.
