@@ -224,11 +224,20 @@ bool AuthService::save_password(const std::string &password) {
     }
     return ok;
 }
-AuthService::EnrollResult AuthService::enroll(const std::string &password, int64_t now_ms) {
+AuthService::EnrollResult AuthService::enroll(const std::string &password, int64_t now_ms,
+                                              bool setup_window_open) {
     {
         Guard guard(mutex_);
-        if (!ready_ || enrolled_ || now_ms < next_login_)
-            return EnrollResult::denied;
+        if (!ready_)
+            return EnrollResult::unavailable;
+        if (enrolled_)
+            return EnrollResult::already_enrolled;
+        if (!setup_window_open)
+            return EnrollResult::window_closed;
+        if (password.size() < 12 || password.size() > 128)
+            return EnrollResult::bad_password;
+        if (now_ms < next_login_)
+            return EnrollResult::too_soon;
         next_login_ = now_ms + 5000;
     }
     const bool ok = save_password(password);
@@ -236,7 +245,26 @@ AuthService::EnrollResult AuthService::enroll(const std::string &password, int64
         Guard guard(mutex_);
         next_login_ = now_ms;
     }
-    return ok ? EnrollResult::enrolled : EnrollResult::denied;
+    return ok ? EnrollResult::enrolled : EnrollResult::unavailable;
+}
+EnrollReply enrollment_reply(AuthService::EnrollResult result) {
+    using Result = AuthService::EnrollResult;
+    switch (result) {
+    case Result::enrolled:
+        return {"201 Created", "", 0};
+    case Result::already_enrolled:
+        return {"409 Conflict", "An administrator password already exists", 0};
+    case Result::window_closed:
+        return {"403 Forbidden", "Hold BOOT for five seconds to open setup, then try again", 0};
+    case Result::too_soon:
+        return {"429 Too Many Requests", "Wait five seconds and try again", 5};
+    case Result::bad_password:
+        return {"400 Bad Request", "The password must be 12 to 128 characters", 0};
+    case Result::unavailable:
+        break;
+    }
+    return {"503 Service Unavailable",
+            "The device could not save the password just now; try again in a few seconds", 5};
 }
 AuthService::PasswordCheck AuthService::check_password_result(const std::string &password) {
     if (!ready_ || !enrolled_ || password.size() > 128)

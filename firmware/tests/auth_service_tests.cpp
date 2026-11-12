@@ -37,7 +37,7 @@ struct Fresh {
     }
 };
 void enroll_admin(AuthService &auth, int64_t now = T0) {
-    CHECK(auth.enroll(good_password, now) == AuthService::EnrollResult::enrolled);
+    CHECK(auth.enroll(good_password, now, true) == AuthService::EnrollResult::enrolled);
 }
 } // namespace
 
@@ -56,27 +56,52 @@ int main() {
         CHECK(!FakeNvs::has("verifier2"));
         CHECK(!FakeNvs::has("bootstrap"));
     }
-    // Enrollment: a short password is refused, the 5 second spacing applies, and once enrolled
-    // it cannot be done again.
+    // Enrollment says why it was refused: setup window closed, a password that is too short (not
+    // counted as an attempt), the five-second spacing after an attempt, and a repeat enrollment.
     {
+        using R = AuthService::EnrollResult;
         Fresh f;
         auto &a = f.auth;
-        CHECK(a.enroll("short", T0) == AuthService::EnrollResult::denied);
+        CHECK(a.enroll(good_password, T0, false) == R::window_closed);
+        CHECK(a.enroll("short", T0, true) == R::bad_password);
+        CHECK(a.enroll(std::string(129, 'x'), T0, true) == R::bad_password);
         CHECK(!a.enrolled() && !FakeNvs::has("verifier2"));
-        CHECK(a.enroll(good_password, T0 + 1000) == AuthService::EnrollResult::denied);
+        FakeNvs::fail_commit = true; // an attempt that fails to store starts the spacing
+        CHECK(a.enroll(good_password, T0, true) == R::unavailable);
+        FakeNvs::fail_commit = false;
+        CHECK(a.enroll(good_password, T0 + 1000, true) == R::too_soon);
         CHECK(!a.enrolled());
-        CHECK(a.enroll(good_password, T0 + 6000) == AuthService::EnrollResult::enrolled);
+        CHECK(a.enroll(good_password, T0 + 6000, true) == R::enrolled);
         CHECK(a.enrolled() && FakeNvs::has("verifier2"));
-        CHECK(a.enroll("another-long-password", T0 + 40000) == AuthService::EnrollResult::denied);
+        CHECK(a.enroll("another-long-password", T0 + 40000, true) == R::already_enrolled);
+        CHECK(a.enroll("another-long-password", T0 + 40000, false) == R::already_enrolled);
+    }
+    // Each result has its own HTTP status and message.
+    {
+        using R = AuthService::EnrollResult;
+        const auto reply = [](R result) { return enrollment_reply(result); };
+        CHECK(std::string(reply(R::enrolled).status) == "201 Created");
+        CHECK(std::string(reply(R::already_enrolled).status) == "409 Conflict");
+        CHECK(std::string(reply(R::already_enrolled).message) ==
+              "An administrator password already exists");
+        CHECK(std::string(reply(R::window_closed).status) == "403 Forbidden");
+        CHECK(std::string(reply(R::window_closed).message) ==
+              "Hold BOOT for five seconds to open setup, then try again");
+        CHECK(std::string(reply(R::too_soon).status) == "429 Too Many Requests");
+        CHECK(std::string(reply(R::too_soon).message) == "Wait five seconds and try again");
+        CHECK(reply(R::too_soon).retry_after == 5);
+        CHECK(std::string(reply(R::bad_password).status) == "400 Bad Request");
+        CHECK(std::string(reply(R::unavailable).status) == "503 Service Unavailable");
     }
     // A storage failure while enrolling leaves the device unenrolled; a retry later works.
     {
         Fresh f;
         FakeNvs::fail_commit = true;
-        CHECK(f.auth.enroll(good_password, T0) == AuthService::EnrollResult::denied);
+        CHECK(f.auth.enroll(good_password, T0, true) == AuthService::EnrollResult::unavailable);
         CHECK(!f.auth.enrolled());
         FakeNvs::fail_commit = false;
-        CHECK(f.auth.enroll(good_password, T0 + 10000) == AuthService::EnrollResult::enrolled);
+        CHECK(f.auth.enroll(good_password, T0 + 10000, true) ==
+              AuthService::EnrollResult::enrolled);
     }
     // Login: right and wrong passwords, per-client backoff, one derive at a time, abort.
     {
@@ -196,7 +221,8 @@ int main() {
         CHECK(restarted.enrolled());
         CHECK(restarted.login_begin(1, T0).gate == LoginGate::allow);
         CHECK(restarted.login_complete(good_password, 1, T0));
-        CHECK(restarted.enroll(good_password, T0 + 9000) == AuthService::EnrollResult::denied);
+        CHECK(restarted.enroll(good_password, T0 + 9000, true) ==
+              AuthService::EnrollResult::already_enrolled);
     }
     // A leftover owner code from older firmware is erased at startup, and the stored password is
     // left exactly as it was. A device that is not enrolled yet loses the code as well.
@@ -240,7 +266,7 @@ int main() {
         FakeNvs::fail_open = true;
         AuthService broken;
         CHECK(broken.initialize() != ESP_OK);
-        CHECK(broken.enroll(good_password, T0) == AuthService::EnrollResult::denied);
+        CHECK(broken.enroll(good_password, T0, true) == AuthService::EnrollResult::unavailable);
         FakeNvs::fail_open = false;
     }
     // A broken crypto engine at start is caught by the known-answer self-test.

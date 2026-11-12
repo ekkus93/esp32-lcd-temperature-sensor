@@ -523,12 +523,18 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
         if (!input)
             return error(r, "400 Bad Request", "Expected bounded JSON object");
         if (path == "/api/v1/auth/enroll") {
-            if (!wifi_->info().provisioning)
-                return error(r, "403 Forbidden", "Enrollment denied; retry after 5 seconds");
-            const auto enrolled = auth_->enroll(string(input.get(), "password"), now());
-            if (enrolled != AuthService::EnrollResult::enrolled)
-                return error(r, "403 Forbidden", "Enrollment denied; retry after 5 seconds");
-            httpd_resp_set_status(r, "201 Created");
+            const auto result =
+                auth_->enroll(string(input.get(), "password"), now(), wifi_->info().provisioning);
+            const auto reply = enrollment_reply(result);
+            if (result != AuthService::EnrollResult::enrolled) {
+                char retry[12];
+                if (reply.retry_after > 0) {
+                    std::snprintf(retry, sizeof(retry), "%d", reply.retry_after);
+                    httpd_resp_set_hdr(r, "Retry-After", retry);
+                }
+                return error(r, reply.status, reply.message);
+            }
+            httpd_resp_set_status(r, reply.status);
             return httpd_resp_send(r, "{}", 2);
         }
         // Login: the slow password check runs on a worker so other requests keep being served.

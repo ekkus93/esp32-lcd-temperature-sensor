@@ -13,6 +13,13 @@ namespace monitor {
 std::string secure_token(size_t bytes = 24);
 // Random code from the unambiguous typing alphabet (the Wi-Fi setup password); empty on failure.
 std::string readable_secret(size_t length);
+// The HTTP status line and message for an enrollment result; `retry_after` asks for a
+// Retry-After header (seconds, 0 for none).
+struct EnrollReply {
+    const char *status;
+    const char *message;
+    int retry_after;
+};
 class AuthService {
   public:
     // PBKDF2-HMAC-SHA256 rounds for a new password. A login checks it in a few seconds on the
@@ -30,10 +37,17 @@ class AuthService {
         return enrolled_.load();
     }
     // Creates the administrator password. Allowed only while the setup window is open (opened by a
-    // physical BOOT hold) and before the device is enrolled. `denied`: not allowed now, or storing
-    // failed.
-    enum class EnrollResult { enrolled, denied };
-    EnrollResult enroll(const std::string &password, int64_t now_ms);
+    // physical BOOT hold), before the device is enrolled, and not within five seconds of the last
+    // attempt. Each refusal says which rule refused it (see enrollment_reply()).
+    enum class EnrollResult {
+        enrolled,
+        already_enrolled, // an administrator password exists
+        window_closed,    // the setup window is not open
+        too_soon,         // within five seconds of the previous attempt
+        bad_password,     // not 12 to 128 characters; not counted as an attempt
+        unavailable,      // storage or crypto failed, or authentication did not start
+    };
+    EnrollResult enroll(const std::string &password, int64_t now_ms, bool setup_window_open);
     // Login is split so the slow password check can run on a worker task instead of the HTTP
     // task. login_begin() asks the throttle (per client, one derive at a time); on `allow` the
     // caller must follow with login_complete() or login_abort().
@@ -78,4 +92,5 @@ class AuthService {
     SemaphoreHandle_t mutex_ = nullptr;
     SemaphoreHandle_t kdf_mutex_ = nullptr;
 };
+EnrollReply enrollment_reply(AuthService::EnrollResult result);
 } // namespace monitor

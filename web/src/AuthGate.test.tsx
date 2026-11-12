@@ -177,3 +177,44 @@ it('tells the user the login is in progress while the device checks the password
   ).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Logging in…' })).toBeDisabled();
 });
+
+it.each([
+  [403, 'Hold BOOT for five seconds to open setup, then try again'],
+  [409, 'An administrator password already exists'],
+  [429, 'Wait five seconds and try again'],
+])(
+  'shows why the device refused to create the administrator (HTTP %i)',
+  async (status, message) => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ enrolled: false, signed_in: false }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        status,
+        json: async () => ({ error: message }),
+      } as Response)
+      // The form rechecks the device state after a failed enrollment.
+      .mockResolvedValue({
+        ok: true,
+        json: async () => ({ enrolled: false, signed_in: false }),
+      } as Response);
+    render(
+      <AuthProvider>
+        <AuthGate>
+          <div>Protected dashboard</div>
+        </AuthGate>
+      </AuthProvider>,
+    );
+    fireEvent.change(
+      await screen.findByLabelText(/Create administrator password/),
+      { target: { value: 'correct horse battery' } },
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create administrator' }),
+    );
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.queryByText('Protected dashboard')).not.toBeInTheDocument();
+  },
+);

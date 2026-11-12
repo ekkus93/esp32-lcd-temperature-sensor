@@ -145,9 +145,12 @@ connected board.
   (2026-11-11):** before the flash `monitor_auth` held `bootstrap` and `verifier2`; after one boot
   only `verifier2` (read from the NVS dump, key names only), and the administrator login still
   succeeded.
-- [ ] **R10-06** Enrollment refusal says why it was refused: setup window closed (hold BOOT for five
+- [x] **R10-06** Enrollment refusal says why it was refused: setup window closed (hold BOOT for five
   seconds), repeat enrollment, or spacing after an attempt (§16.4). Acceptance: each cause has its
-  own message in the API and the sign-in form, with a test for each.
+  own message in the API and the sign-in form, with a test for each. Done (host
+  and web tests; API status codes 403, 409, 429, 400 and 503, documented in `contracts/API.md`).
+  The board was already enrolled, so on the board only the 409 repeat-enrollment reply was
+  checked, by `device_api_test.py`.
 - [ ] **R10-07** Display cleanups from R03-07 (comment fix, blank screen before destroying the view,
   flush-diagnostic callback check, single compact footer). Acceptance: the display tests pass and
   each cleanup is covered by a test or noted as build-only.

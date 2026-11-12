@@ -197,7 +197,8 @@ try:
                 if attempt['status'] == 201:
                     result = attempt
                     break
-                if attempt['status'] != 403:
+                # 403: the setup window is not open yet; 429: within five seconds of an attempt.
+                if attempt['status'] not in (403, 429):
                     raise RuntimeError(f'enrollment returned HTTP {attempt["status"]}')
                 time.sleep(2)
             check(result is not None,'administrator enrollment after BOOT provisioning')
@@ -503,7 +504,9 @@ try:
           and call('/api/v1/wifi/connect','POST',oversized_json,authorized)['status']==400,
           'oversized JSON request body rejected')
     check(call('/api/v1/wifi/connect','POST',{'ssid':'x'*33,'password':'irrelevant-password'},authorized)['status']==400,'oversized SSID rejected')
-    check(call('/api/v1/auth/enroll','POST',{'password':password},origin)['status']==403,'enrollment cannot be repeated')
+    repeat=call('/api/v1/auth/enroll','POST',{'password':password},origin)
+    check(repeat['status']==409 and json.loads(repeat['body']).get('error')=='An administrator password already exists',
+          'enrollment cannot be repeated, and says why')
     check(call('/api/v1/system/reboot','POST',None,origin)['status']==401,
           'anonymous safe-restart request rejected')
     check(call('/api/v1/system/reboot','POST',None,
