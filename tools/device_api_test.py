@@ -19,6 +19,7 @@ from pathlib import Path
 import serial
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from device_expectations import expected_sensor_count  # noqa: E402
 from setup_file import save_setup_response  # noqa: E402
 
 parser = argparse.ArgumentParser()
@@ -33,7 +34,12 @@ parser.add_argument('--candidate-failure', action='store_true', help='Test a non
 parser.add_argument('--slow-client', action='store_true', help='Hold a tiny-window WebSocket client open while checking HTTP responsiveness')
 parser.add_argument('--slow-client-seconds', type=int, default=30, help='Duration for --slow-client (5..300 seconds)')
 parser.add_argument('--expect-simulation', action='store_true', help='Expect five explicit fake providers on an isolated simulation image')
+parser.add_argument('--expect-sensors', type=int, help='Exact number of probes saved on this board (0..5); required unless --expect-simulation')
 args = parser.parse_args()
+try:
+    expected_sensors = expected_sensor_count(args.expect_simulation, args.expect_sensors)
+except ValueError as problem:
+    parser.error(str(problem))
 os.umask(0o077)
 setup = json.loads(Path(args.setup_file).read_text())
 admin_path = Path(args.admin_file)
@@ -147,7 +153,7 @@ def check(condition, name):
     print('PASS:',name,flush=True)
 
 def sensor_count_ok(count):
-    return count == 5 if args.expect_simulation else 0 <= count <= 5
+    return count == expected_sensors
 
 origin = {'Origin':'http://192.168.4.1'}
 try:
@@ -330,8 +336,8 @@ try:
           'authenticated device WebSocket sends live frames')
     live_frames = [json.loads(frame) for frame in live['frames']]
     expected_simulated = bool(args.expect_simulation)
-    # A simulation image always has five fake probes; a physical board lists whatever probes are
-    # saved (up to five), so the count is only bounded there.
+    # A simulation image always has five fake probes; a physical board lists the probes saved on it,
+    # given with --expect-sensors.
     check(all(frame.get('version') == 1 and frame.get('boot_id') and
               sensor_count_ok(len(frame.get('sensors', []))) and
               frame.get('simulated') is expected_simulated and

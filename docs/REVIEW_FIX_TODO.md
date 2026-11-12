@@ -132,8 +132,12 @@ connected board.
   Wi-Fi, medians of 8):** a 1-hour query 0.34 s (1.41 s before), 24 hours 0.86 s, 30 days 1.43 s
   (it covers most of the store); `device_api_test.py` passed "second history query within one
   second is rate limited", and 4 of 4 manual trials were refused.
-- [ ] **R10-04** The device test expects the sensor count it is told to expect, not a range of zero
-  to five (§16.2). Acceptance: the test fails when the count differs from `--expect-sensors`.
+- [x] **R10-04** The device test expects the sensor count it is told to expect, not a range of zero
+  to five (§16.2). Acceptance: the test fails when the count differs from `--expect-sensors`. Done:
+  `--expect-sensors` is required on a board (a simulation image is always five), checked in
+  `device_expectations.py` with unit tests. **Board (2026-11-11):** with no count the test refuses
+  to start; with `--expect-sensors 3` it failed at "device WebSocket frames are complete bare-board
+  snapshots"; with `--expect-sensors 4` all 455 checks passed.
 - [ ] **R10-05** Erase the stale owner code (`bootstrap` key) from storage once at startup, and
   remove the test that asserts it is ignored (§16.3). Acceptance: host test shows the key is gone
   after startup; on the board the key is absent after one reboot.

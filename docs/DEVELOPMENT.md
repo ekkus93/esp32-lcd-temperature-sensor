@@ -151,9 +151,12 @@ check tasks only when acceptance criteria pass. Record evidence in
 
 ```bash
 python tools/device_setup.py --port /dev/ttyACM0
-python tools/device_api_test.py --port /dev/ttyACM0
+python tools/device_api_test.py --port /dev/ttyACM0 --expect-sensors 4
 python tools/check-secret-leaks.py
 ```
+
+`--expect-sensors` is the number of probes saved on the board (the Sensors page lists them,
+connected or not); the test fails if the board reports a different number.
 
 Setup credentials and the development administrator password are kept only in
 mode-0600 files under ignored `.build/`. The API test enrolls a randomly generated
