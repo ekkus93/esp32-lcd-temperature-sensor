@@ -593,8 +593,40 @@ it('shows the dashboard and alerts without signing in', async () => {
   expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Alerts' }));
-  expect(await screen.findByText('No active alerts.')).toBeInTheDocument();
+  expect(await screen.findByText('No active alerts')).toBeInTheDocument();
   expect(screen.queryByLabelText(/Administrator password/)).toBeNull();
+});
+
+it('shows Alerts and Events as tabs of one page, Alerts first and by default', async () => {
+  stubDevice({ signedIn: false });
+  render(<App />);
+  await screen.findByText('No probes detected');
+  // Events is no longer a page of its own.
+  expect(screen.queryByRole('button', { name: 'Events' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Alerts' }));
+  expect(
+    await screen.findByRole('tab', { name: 'Alerts', selected: true }),
+  ).toBeInTheDocument();
+  expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+    'Alerts',
+    'Events',
+  ]);
+  expect(location.pathname).toBe('/alerts');
+  fireEvent.click(screen.getByRole('tab', { name: 'Events' }));
+  expect(await screen.findByText('No recent events.')).toBeInTheDocument();
+  expect(location.pathname).toBe('/events');
+  expect(screen.queryByText('No active alerts')).toBeNull();
+});
+
+it('opens the Events tab from an old /events link', async () => {
+  stubDevice({ signedIn: false });
+  history.replaceState({}, '', '/events');
+  render(<App />);
+  expect(
+    await screen.findByRole('tab', { name: 'Events', selected: true }),
+  ).toBeInTheDocument();
+  expect(await screen.findByText('No recent events.')).toBeInTheDocument();
+  expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Alerts');
 });
 
 it('asks for the password on the Sensors page and shows the forms after signing in', async () => {

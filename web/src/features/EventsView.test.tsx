@@ -96,11 +96,11 @@ it('formats synchronized events in the configured device timezone', async () => 
     }),
   );
   render(<EventsView timezone="America/Los_Angeles" />);
-  expect(
-    await screen.findByText(
-      /Jan 1, 2026, 4:00 AM PST \(America\/Los_Angeles\): Device started/,
-    ),
-  ).toBeInTheDocument();
+  // Each event is one list row: what happened, and when.
+  const row = (await screen.findByText('Device started')).closest('li');
+  expect(row).toHaveTextContent(
+    'Jan 1, 2026, 4:00 AM PST (America/Los_Angeles)',
+  );
 });
 
 it('keeps unsynchronized events boot-relative when the device timezone is unknown', async () => {
@@ -131,9 +131,8 @@ it('keeps unsynchronized events boot-relative when the device timezone is unknow
     }),
   );
   render(<EventsView timezone={null} />);
-  expect(
-    await screen.findByText(/Boot 01234567 · \+13 seconds: Device started/),
-  ).toBeInTheDocument();
+  const row = (await screen.findByText('Device started')).closest('li');
+  expect(row).toHaveTextContent('Boot 01234567 · +13 seconds');
   expect(
     screen.getByText(/Device timezone unavailable; synchronized times use UTC/),
   ).toBeInTheDocument();

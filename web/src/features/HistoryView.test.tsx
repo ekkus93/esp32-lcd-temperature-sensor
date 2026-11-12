@@ -1,23 +1,10 @@
-import type { ReactElement, ReactNode } from 'react';
-import { ThemeProvider } from '@mui/material/styles';
-import {
-  fireEvent,
-  render as renderPlain,
-  screen,
-} from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import HistoryView from './HistoryView';
 import { empty } from '../api/fixtures';
 import { parseSnapshot } from '../api/client';
-import { createAppTheme } from '../theme/theme';
+import { renderThemed as render } from '../renderThemed';
 import { tokens } from '../theme/tokens.generated';
-
-// The view takes its probe colours from the app theme, as it does inside the app.
-const lightTheme = createAppTheme('light');
-const AppTheme = ({ children }: { children: ReactNode }) => (
-  <ThemeProvider theme={lightTheme}>{children}</ThemeProvider>
-);
-const render = (ui: ReactElement) => renderPlain(ui, { wrapper: AppTheme });
 
 afterEach(() => vi.unstubAllGlobals());
 

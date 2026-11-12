@@ -1,5 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Card, CardContent, Stack, Typography } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Card,
+  CardContent,
+  Stack,
+  Typography,
+} from '@mui/material';
+import type { ReactNode } from 'react';
+import ThermostatOutlined from '@mui/icons-material/ThermostatOutlined';
+import WifiOutlined from '@mui/icons-material/WifiOutlined';
+import ScheduleOutlined from '@mui/icons-material/ScheduleOutlined';
+import RestartAltOutlined from '@mui/icons-material/RestartAltOutlined';
+import SdCardAlertOutlined from '@mui/icons-material/SdCardAlertOutlined';
 import { getAlerts, type AlertData } from '../api/alerts';
 import { formatDeviceTime } from '../api/time';
 
@@ -18,6 +31,14 @@ function description(event: AlertData['events'][number]) {
     return `Clock ${event.detail ? 'synchronized' : 'lost synchronization'}`;
   if (event.kind === 'reboot') return 'Device started';
   return 'History storage write failed';
+}
+
+function kindIcon(kind: AlertData['events'][number]['kind']): ReactNode {
+  if (kind === 'sensor_state') return <ThermostatOutlined fontSize="small" />;
+  if (kind === 'wifi_state') return <WifiOutlined fontSize="small" />;
+  if (kind === 'clock_sync') return <ScheduleOutlined fontSize="small" />;
+  if (kind === 'reboot') return <RestartAltOutlined fontSize="small" />;
+  return <SdCardAlertOutlined fontSize="small" />;
 }
 
 function timestamp(
@@ -93,8 +114,11 @@ export default function EventsView({ timezone }: { timezone: string | null }) {
       {error && <Alert severity="warning">{error}</Alert>}
       <Card>
         <CardContent>
-          <Typography variant="h6">Events</Typography>
-          <Typography color="text.secondary" variant="body2" sx={{ my: 1 }}>
+          <Typography
+            color="text.secondary"
+            variant="bodyMedium"
+            sx={{ mb: 2 }}
+          >
             What happened: device starts, clock and Wi-Fi changes, and probe
             state changes. An event is a record, not an ongoing problem. Events
             are stored in a bounded local journal across reboots.{' '}
@@ -114,14 +138,47 @@ export default function EventsView({ timezone }: { timezone: string | null }) {
               Some older events have left the bounded event history.
             </Alert>
           )}
-          {data?.events
-            .slice()
-            .reverse()
-            .map((item) => (
-              <Typography key={item.sequence} sx={{ py: 1 }}>
-                {timestamp(item, timezone)}: {description(item)}
-              </Typography>
-            ))}
+          {data && data.events.length > 0 && (
+            <Box component="ul" aria-label="Events" sx={{ m: 0, p: 0 }}>
+              {data.events
+                .slice()
+                .reverse()
+                .map((item, i) => (
+                  <Box
+                    component="li"
+                    key={item.sequence}
+                    sx={{
+                      listStyle: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      columnGap: 1.5,
+                      rowGap: 0.25,
+                      minHeight: 56,
+                      py: 1,
+                      borderTop: i ? 1 : 0,
+                      borderColor: 'divider',
+                    }}
+                  >
+                    <Box
+                      aria-hidden="true"
+                      sx={{ display: 'flex', color: 'text.secondary' }}
+                    >
+                      {kindIcon(item.kind)}
+                    </Box>
+                    <Typography
+                      variant="bodyLarge"
+                      sx={{ flex: '1 1 240px', minWidth: 0 }}
+                    >
+                      {description(item)}
+                    </Typography>
+                    <Typography variant="bodySmall" color="text.secondary">
+                      {timestamp(item, timezone)}
+                    </Typography>
+                  </Box>
+                ))}
+            </Box>
+          )}
           {data && !data.events.length && (
             <Typography>No recent events.</Typography>
           )}

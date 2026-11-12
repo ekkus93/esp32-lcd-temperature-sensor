@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderThemed as render } from '../renderThemed';
 import { afterEach, expect, it, vi } from 'vitest';
 import AlertsView from './AlertsView';
 
@@ -36,15 +37,12 @@ it('shows bus, Wi-Fi and probe conditions as active alerts', async () => {
     vi.fn().mockResolvedValue({ ok: true, json: async () => response }),
   );
   render(<AlertsView timezone={null} />);
-  expect(
-    await screen.findByText(/Shared sensor bus fault/),
-  ).toBeInTheDocument();
-  expect(screen.getByText(/Wi-Fi disconnected/)).toBeInTheDocument();
-  expect(screen.getByText(/Freezer: disconnected/)).toBeInTheDocument();
+  expect(await screen.findByText('Sensor bus fault')).toBeInTheDocument();
+  expect(screen.getByText('Wi-Fi disconnected')).toBeInTheDocument();
+  expect(screen.getByText('Freezer is disconnected')).toBeInTheDocument();
   expect(screen.queryByText(/Device started/)).toBeNull();
-  expect(
-    screen.getByText(/Freezer: disconnected · since boot \+12 seconds/),
-  ).toBeInTheDocument();
+  expect(screen.getAllByRole('listitem')).toHaveLength(3);
+  expect(screen.getByText('Since boot +12 seconds')).toBeInTheDocument();
   expect(vi.mocked(fetch).mock.calls[0][0]).toContain('limit=1');
 });
 
@@ -64,7 +62,7 @@ it('says so when nothing needs attention', async () => {
     }),
   );
   render(<AlertsView timezone={null} />);
-  expect(await screen.findByText('No active alerts.')).toBeInTheDocument();
+  expect(await screen.findByText('No active alerts')).toBeInTheDocument();
 });
 
 it('dates an active alert in the device timezone once the clock is trusted', async () => {
@@ -91,9 +89,10 @@ it('dates an active alert in the device timezone once the clock is trusted', asy
     }),
   );
   render(<AlertsView timezone="America/Los_Angeles" />);
+  expect(await screen.findByText('Freezer is too warm')).toBeInTheDocument();
   expect(
     await screen.findByText(
-      /Freezer: high · since Jan 1, 2026, 4:00 AM PST \(America\/Los_Angeles\)/,
+      /^Since Jan 1, 2026, 4:00 AM PST \(America\/Los_Angeles\)$/,
     ),
   ).toBeInTheDocument();
 });

@@ -286,8 +286,15 @@ or storage change. R12-01 comes first; if R11-02 is built after it, it uses the 
 - [ ] **R12-02** Navigation and top bar (§18.3): rail at 840 px and wider, bottom bar below, five
   destinations with icons, the Alerts badge, the compact top bar with theme and sign-in icon
   buttons, and the status chips. Acceptance: navigation tests; no horizontal scroll at 360 px.
-- [ ] **R12-03** Alerts and Events as tabs of one Alerts page (§18.6): Alerts first and default,
-  `/alerts` and `/events` open their tabs, empty state. Acceptance: route and tab tests.
+- [x] **R12-03** Alerts and Events as tabs of one Alerts page (§18.6): Alerts first and default,
+  `/alerts` and `/events` open their tabs, empty state. Acceptance: route and tab tests. Done
+  (2026-11-12): Events left the navigation; the Alerts page has Alerts and Events tabs, Alerts
+  first and selected by default, `/events` opens the Events tab and switching tabs updates the
+  address. Active alerts are list items with an icon and their status colours (too warm, too cold,
+  disconnected, bus fault, Wi-Fi) and a "No active alerts" empty state; events are list rows with
+  an icon for their kind and the time beside them. App tests for the tabs, the default and the old
+  `/events` link; Alerts and Events tests updated for the new wording. Checked in a browser against
+  the simulator.
 - [ ] **R12-04** Dashboard (§18.4): probe cards with state chip, sparkline, today's min/max and the
   limits bar, no ROM ID, skeletons, and the 24-hour chart within the history rate limit.
   Acceptance: Dashboard tests; one history query per refresh.

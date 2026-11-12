@@ -43,10 +43,11 @@ const pages = [
   'History',
   'Sensors',
   'Alerts',
-  'Events',
   'Settings',
 ] as const;
-const routes = ['/', '/history', '/sensors', '/alerts', '/events', '/settings'];
+const routes = ['/', '/history', '/sensors', '/alerts', '/settings'];
+// Events is the second tab of the Alerts page; /events opens it, so older links keep working.
+type AlertsTab = 'alerts' | 'events';
 const readable = (s: string) => s.replaceAll('_', ' ');
 type SettingsTab = 'preferences' | 'wifi' | 'system' | 'password';
 const settingsTabs: [SettingsTab, string][] = [
@@ -165,7 +166,18 @@ function Shell() {
     history.pushState({}, '', routes[index]);
     setPath(routes[index]);
   }
-  const index = path === '/setup' ? 5 : Math.max(0, routes.indexOf(path));
+  const index =
+    path === '/setup'
+      ? 4
+      : path === '/events'
+        ? 3
+        : Math.max(0, routes.indexOf(path));
+  const alertsTab: AlertsTab = path === '/events' ? 'events' : 'alerts';
+  function showAlertsTab(tab: AlertsTab) {
+    const next = tab === 'events' ? '/events' : '/alerts';
+    history.pushState({}, '', next);
+    setPath(next);
+  }
   const sensors = snapshot?.sensors ?? [];
 
   return (
@@ -206,7 +218,7 @@ function Shell() {
               {auth.state?.signed_in ? (
                 <Button onClick={() => void auth.signOut()}>Sign out</Button>
               ) : (
-                <Button onClick={() => navigate(5)}>Sign in</Button>
+                <Button onClick={() => navigate(4)}>Sign in</Button>
               )}
               <Button
                 onClick={() => setDark(!dark)}
@@ -345,16 +357,49 @@ function Shell() {
             </AuthGate>
           )}
           {index === 3 && (
-            <Suspense fallback={<Typography>Loading alerts…</Typography>}>
-              <AlertsView timezone={timezone} />
-            </Suspense>
+            <Stack spacing={3}>
+              <Tabs
+                value={alertsTab}
+                onChange={(_, tab: AlertsTab) => showAlertsTab(tab)}
+                aria-label="Alerts and events"
+              >
+                <Tab
+                  value="alerts"
+                  label="Alerts"
+                  id="alerts-tab-alerts"
+                  aria-controls="alerts-panel"
+                />
+                <Tab
+                  value="events"
+                  label="Events"
+                  id="alerts-tab-events"
+                  aria-controls="alerts-panel"
+                />
+              </Tabs>
+              <div
+                role="tabpanel"
+                id="alerts-panel"
+                aria-labelledby={`alerts-tab-${alertsTab}`}
+              >
+                <Suspense
+                  fallback={
+                    <Typography>
+                      {alertsTab === 'alerts'
+                        ? 'Loading alerts…'
+                        : 'Loading events…'}
+                    </Typography>
+                  }
+                >
+                  {alertsTab === 'alerts' ? (
+                    <AlertsView timezone={timezone} />
+                  ) : (
+                    <EventsView timezone={timezone} />
+                  )}
+                </Suspense>
+              </div>
+            </Stack>
           )}
           {index === 4 && (
-            <Suspense fallback={<Typography>Loading events…</Typography>}>
-              <EventsView timezone={timezone} />
-            </Suspense>
-          )}
-          {index === 5 && (
             <Stack spacing={3}>
               <Tabs
                 value={settingsTab}
