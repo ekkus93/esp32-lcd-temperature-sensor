@@ -28,12 +28,17 @@
 #include "settings_service.hpp"
 #include "wifi_service.hpp"
 #include <algorithm>
+#include <memory>
+#include <utility>
 #include <vector>
 
 namespace {
 struct DisplayFrame {
     monitor::Registry registry;
-    monitor::TrendCache trend_cache;
+    // Shared and never modified: the main loop hands over a new snapshot only when the trends
+    // change (every five minutes), instead of copying a day of points every five seconds.
+    std::shared_ptr<const monitor::TrendCache> trend_cache =
+        std::make_shared<const monitor::TrendCache>();
     monitor::DeviceOptions options;
     monitor::DisplayStatus status;
     monitor::ProbeScanStatus scan_status;
@@ -112,7 +117,7 @@ void display_refresh_task(void *argument) {
                                      context.frame.logging, context.frame.synchronized,
                                      context.frame.utc))
                 context.api_publish_pending = false;
-            context.display->update(context.frame.registry, context.frame.trend_cache,
+            context.display->update(context.frame.registry, *context.frame.trend_cache,
                                     context.frame.options, context.frame.status, uptime_ms,
                                     context.frame.provisioning, context.frame.ssid,
                                     context.frame.wifi_key, context.frame.local_name);
@@ -206,6 +211,12 @@ extern "C" void app_main() {
     if (display.ready() && !display_task_started)
         ESP_LOGE(tag, "Independent display refresh unavailable; using acquisition cadence");
     monitor::TrendCache trend_cache;
+    // What the display task last received, rebuilt only after trend_cache changes.
+    std::shared_ptr<const monitor::TrendCache> trend_snapshot =
+        std::make_shared<const monitor::TrendCache>();
+    bool trend_changed = false;
+    // Display frames not handed over because the display task held the frame for over 100 ms.
+    unsigned display_frames_dropped = 0;
     TrendRestore trend_restore;
     trend_restore.history = &history;
     trend_restore.mutex = xSemaphoreCreateMutex();
@@ -338,6 +349,7 @@ extern "C" void app_main() {
                 trend_restore.applied = true;
                 if (const auto utc = monitor::trusted_utc()) {
                     trend_cache.restore(monitor::rebase_stored_trends(stored, *utc * 1000, now));
+                    trend_changed = true;
                     ESP_LOGI(tag, "Trends restored from history");
                 }
             }
@@ -345,6 +357,7 @@ extern "C" void app_main() {
         if (auto bucket = aggregator.add(registry, sampled_at,
                                          simulated ? std::nullopt : monitor::trusted_utc())) {
             trend_cache.add(*bucket);
+            trend_changed = true;
             if (!history.submit(*bucket))
                 ESP_LOGE(tag, "History queue unavailable/full");
         }
@@ -378,9 +391,16 @@ extern "C" void app_main() {
             display_status.button_progress = monitor::boot_hold_progress();
             display_status.ota_state = monitor::ota_status().state;
             if (display_task_started) {
+                if (trend_changed) {
+                    trend_snapshot = std::make_shared<const monitor::TrendCache>(trend_cache);
+                    trend_changed = false;
+                }
+                // Copy outside the lock and swap in, so the display task waits only for the swap;
+                // the frame it replaces is freed after the lock is released.
+                auto next_registry = registry;
                 if (xSemaphoreTake(display_context.mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-                    display_context.frame.registry = registry;
-                    display_context.frame.trend_cache = trend_cache;
+                    std::swap(display_context.frame.registry, next_registry);
+                    display_context.frame.trend_cache = trend_snapshot;
                     display_context.frame.options = options;
                     display_context.frame.status = display_status;
                     display_context.frame.scan_status = sampling.scan_status();
@@ -395,6 +415,8 @@ extern "C" void app_main() {
                     display_context.frame.wifi_key = wifi.ap_password();
                     display_context.frame.local_name = local_name;
                     xSemaphoreGive(display_context.mutex);
+                } else {
+                    ++display_frames_dropped;
                 }
             } else {
                 display.update(registry, trend_cache, options, display_status, sampled_at,
@@ -449,7 +471,7 @@ extern "C" void app_main() {
             ESP_LOGI(tag,
                      "HEALTH uptime_ms=%lld sensors=%u bus=%s clock=%s history=%d heap=%u "
                      "internal_free=%u internal_min=%u internal_largest=%u psram_free=%u "
-                     "psram_min=%u main_stack_min=%u",
+                     "psram_min=%u main_stack_min=%u display_dropped=%u",
                      static_cast<long long>(now), static_cast<unsigned>(registry.sensors().size()),
                      simulated ? "SIMULATED"
                                : (sampling.enabled() ? (sampling.fault() ? "fault" : "ready")
@@ -460,7 +482,8 @@ extern "C" void app_main() {
                      int(history.healthy()), static_cast<unsigned>(esp_get_free_heap_size()),
                      static_cast<unsigned>(internal_free), static_cast<unsigned>(internal_min),
                      static_cast<unsigned>(internal_largest), static_cast<unsigned>(psram_free),
-                     static_cast<unsigned>(psram_min), static_cast<unsigned>(stack_min));
+                     static_cast<unsigned>(psram_min), static_cast<unsigned>(stack_min),
+                     display_frames_dropped);
             // Numeric-only physical-bus evidence. Never log ROM IDs,
             // credentials, network names or fabricated simulated readings.
             if (sampling.enabled()) {
