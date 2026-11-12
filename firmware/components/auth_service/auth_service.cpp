@@ -130,6 +130,16 @@ esp_err_t AuthService::initialize() {
     // Not enrolled yet is a normal state: the administrator is created during setup.
     if (result == ESP_ERR_NVS_NOT_FOUND)
         result = ESP_OK;
+    // Older firmware stored a one-time owner code under "bootstrap". It is no longer used; remove
+    // it so no secret is left in storage. Failing to remove it does not stop startup.
+    if (result == ESP_OK) {
+        const auto stale = nvs_erase_key(handle, "bootstrap");
+        if (stale == ESP_OK && nvs_commit(handle) == ESP_OK)
+            ESP_LOGI("auth", "Removed the unused owner setup code from storage");
+        else if (stale != ESP_ERR_NVS_NOT_FOUND)
+            ESP_LOGW("auth", "Could not remove the unused owner setup code (error %d)",
+                     int(stale == ESP_OK ? ESP_FAIL : stale));
+    }
     nvs_close(handle);
     ready_ = result == ESP_OK;
     return result;

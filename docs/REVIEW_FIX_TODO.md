@@ -138,9 +138,13 @@ connected board.
   `device_expectations.py` with unit tests. **Board (2026-11-11):** with no count the test refuses
   to start; with `--expect-sensors 3` it failed at "device WebSocket frames are complete bare-board
   snapshots"; with `--expect-sensors 4` all 455 checks passed.
-- [ ] **R10-05** Erase the stale owner code (`bootstrap` key) from storage once at startup, and
+- [x] **R10-05** Erase the stale owner code (`bootstrap` key) from storage once at startup, and
   remove the test that asserts it is ignored (§16.3). Acceptance: host test shows the key is gone
-  after startup; on the board the key is absent after one reboot.
+  after startup; on the board the key is absent after one reboot. Done: startup erases
+  the key and leaves the verifier untouched (host test replaces the "ignored" one). **Board
+  (2026-11-11):** before the flash `monitor_auth` held `bootstrap` and `verifier2`; after one boot
+  only `verifier2` (read from the NVS dump, key names only), and the administrator login still
+  succeeded.
 - [ ] **R10-06** Enrollment refusal says why it was refused: setup window closed (hold BOOT for five
   seconds), repeat enrollment, or spacing after an attempt (§16.4). Acceptance: each cause has its
   own message in the API and the sign-in form, with a test for each.

@@ -198,14 +198,24 @@ int main() {
         CHECK(restarted.login_complete(good_password, 1, T0));
         CHECK(restarted.enroll(good_password, T0 + 9000) == AuthService::EnrollResult::denied);
     }
-    // A leftover owner code from an older firmware is ignored: it does not block or change setup.
+    // A leftover owner code from older firmware is erased at startup, and the stored password is
+    // left exactly as it was. A device that is not enrolled yet loses the code as well.
     {
+        Fresh f;
+        enroll_admin(f.auth);
+        const auto verifier = FakeNvs::get("verifier2");
+        FakeNvs::put("bootstrap", "ABCDEFGHJKLMNPQR");
+        AuthService restarted;
+        CHECK(restarted.initialize() == ESP_OK && restarted.enrolled());
+        CHECK(!FakeNvs::has("bootstrap"));
+        CHECK(FakeNvs::get("verifier2") == verifier);
         FakeNvs::reset();
         FakeNvs::put("bootstrap", "ABCDEFGHJKLMNPQR");
-        AuthService old_firmware;
-        CHECK(old_firmware.initialize() == ESP_OK);
-        CHECK(!old_firmware.enrolled());
-        CHECK(old_firmware.enroll(good_password, T0) == AuthService::EnrollResult::enrolled);
+        AuthService unenrolled;
+        CHECK(unenrolled.initialize() == ESP_OK && !unenrolled.enrolled());
+        CHECK(!FakeNvs::has("bootstrap"));
+        AuthService again; // nothing left to erase is fine
+        CHECK(again.initialize() == ESP_OK);
     }
     // USB recovery removes the password whichever record holds it, and leaves the device ready to
     // enroll again.

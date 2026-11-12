@@ -108,7 +108,7 @@ moved to 10,000 on their next successful login. A known-answer check of the key 
   is short.
 - **Administrator enrollment** has no separate code. It is allowed only while the setup window is
   open (a five-second BOOT hold), only once, and starts a five-second spacing after each attempt.
-  A stale owner code left in storage by an older firmware is ignored.
+  A stale owner code left in storage by an older firmware is erased at the next start.
 
 **Login:** a wrong password makes that client wait 5, 10, 20, 40 and then 60 seconds, per client
 address, so one address cannot lock the owner out from another; only one password check runs at a
