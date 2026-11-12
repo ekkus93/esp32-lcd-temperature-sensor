@@ -185,7 +185,12 @@ function Editor({
               autoCapitalize: 'none',
               spellCheck: false,
             },
-            input: { endAdornment: <span>.local</span> },
+            // `nowrap` keeps the suffix on one line; in a flex row it wrapped as ".loca" / "l".
+            input: {
+              endAdornment: (
+                <span style={{ whiteSpace: 'nowrap' }}>.local</span>
+              ),
+            },
           }}
         />
         <Button type="submit" variant="contained" disabled={readOnly}>
