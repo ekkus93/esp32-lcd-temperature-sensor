@@ -196,7 +196,7 @@ it('shows storage capacity and five-minute policy in Settings diagnostics', asyn
     vi.fn().mockResolvedValue({ ok: true, json: async () => snapshot }),
   );
   render(<App />);
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  fireEvent.click(screen.getByRole('link', { name: 'Settings' }));
   fireEvent.click(await screen.findByRole('tab', { name: 'System' }));
   expect(
     await screen.findByText('Storage and diagnostics'),
@@ -268,7 +268,7 @@ it('applies a saved timezone to History without reloading the app', async () => 
       ),
   );
   const app = render(<App />);
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  fireEvent.click(screen.getByRole('link', { name: 'Settings' }));
   fireEvent.mouseDown(await screen.findByLabelText('Device timezone'));
   fireEvent.click(
     await screen.findByRole('option', { name: 'America/Los Angeles' }),
@@ -277,13 +277,13 @@ it('applies a saved timezone to History without reloading the app', async () => 
     screen.getByRole('button', { name: 'Save device preferences' }),
   );
   await screen.findByText('Device preferences saved.');
-  fireEvent.click(screen.getByRole('button', { name: 'History' }));
+  fireEvent.click(screen.getByRole('link', { name: 'History' }));
   expect(
     await screen.findByText('Selected zone: America/Los_Angeles'),
   ).toBeInTheDocument();
   app.unmount();
   render(<App />);
-  fireEvent.click(screen.getByRole('button', { name: 'History' }));
+  fireEvent.click(screen.getByRole('link', { name: 'History' }));
   expect(
     await screen.findByText('Selected zone: America/Los_Angeles'),
   ).toBeInTheDocument();
@@ -330,7 +330,7 @@ it('keeps the dashboard history link neutral across populated and unsynchronized
 });
 it('explains unavailable storage without implying healthy logging', async () => {
   render(<App />);
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  fireEvent.click(screen.getByRole('link', { name: 'Settings' }));
   fireEvent.click(await screen.findByRole('tab', { name: 'System' }));
   expect(
     await screen.findByText('Storage and diagnostics'),
@@ -466,15 +466,15 @@ it('shows an error and retries when the display settings cannot be loaded', asyn
 });
 it('remembers the chosen theme across reloads', async () => {
   const first = render(<App />);
-  fireEvent.click(screen.getByRole('button', { name: 'Toggle dark theme' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Switch to dark theme' }));
   expect(
-    screen.getByRole('button', { name: 'Toggle dark theme' }),
-  ).toHaveTextContent('Light theme');
+    screen.getByRole('button', { name: 'Switch to light theme' }),
+  ).toBeInTheDocument();
   first.unmount();
   render(<App />);
   expect(
-    screen.getByRole('button', { name: 'Toggle dark theme' }),
-  ).toHaveTextContent('Light theme');
+    screen.getByRole('button', { name: 'Switch to light theme' }),
+  ).toBeInTheDocument();
 });
 it('announces a shared sensor bus fault as an alert', async () => {
   vi.stubGlobal(
@@ -592,7 +592,7 @@ it('shows the dashboard and alerts without signing in', async () => {
   expect(await screen.findByText('No probes detected')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Alerts' }));
+  fireEvent.click(screen.getByRole('link', { name: 'Alerts' }));
   expect(await screen.findByText('No active alerts')).toBeInTheDocument();
   expect(screen.queryByLabelText(/Administrator password/)).toBeNull();
 });
@@ -602,8 +602,8 @@ it('shows Alerts and Events as tabs of one page, Alerts first and by default', a
   render(<App />);
   await screen.findByText('No probes detected');
   // Events is no longer a page of its own.
-  expect(screen.queryByRole('button', { name: 'Events' })).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Alerts' }));
+  expect(screen.queryByRole('link', { name: 'Events' })).toBeNull();
+  fireEvent.click(screen.getByRole('link', { name: 'Alerts' }));
   expect(
     await screen.findByRole('tab', { name: 'Alerts', selected: true }),
   ).toBeInTheDocument();
@@ -633,7 +633,7 @@ it('asks for the password on the Sensors page and shows the forms after signing 
   const calls = stubDevice({ signedIn: false });
   render(<App />);
   await screen.findByText('No probes detected');
-  fireEvent.click(screen.getByRole('button', { name: 'Sensors' }));
+  fireEvent.click(screen.getByRole('link', { name: 'Sensors' }));
   expect(await screen.findByText('Administrator sign in')).toBeInTheDocument();
   expect(
     screen.getByText(/Readings and history do not need a password/),
@@ -656,7 +656,7 @@ it('keeps the Settings diagnostics public and gates the owner controls', async (
   stubDevice({ signedIn: false });
   render(<App />);
   await screen.findByText('No probes detected');
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  fireEvent.click(screen.getByRole('link', { name: 'Settings' }));
   // Settings opens on Preferences, which asks for the password before showing the form.
   expect(await screen.findByText('Administrator sign in')).toBeInTheDocument();
   expect(
@@ -720,7 +720,7 @@ it('shows the network name in the public Settings diagnostics, or says it is una
     vi.fn().mockResolvedValue({ ok: true, json: async () => named }),
   );
   const first = render(<App />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+  fireEvent.click(await screen.findByRole('link', { name: 'Settings' }));
   fireEvent.click(await screen.findByRole('tab', { name: 'System' }));
   expect(await screen.findByText('http://garage-2.local')).toBeInTheDocument();
   first.unmount();
@@ -730,7 +730,7 @@ it('shows the network name in the public Settings diagnostics, or says it is una
     vi.fn().mockResolvedValue({ ok: true, json: async () => empty }),
   );
   render(<App />);
-  fireEvent.click(await screen.findByRole('button', { name: 'Settings' }));
+  fireEvent.click(await screen.findByRole('link', { name: 'Settings' }));
   fireEvent.click(await screen.findByRole('tab', { name: 'System' }));
   expect(
     await screen.findByText(/Network name unavailable/),
@@ -751,7 +751,7 @@ it('says in words when new firmware is being checked', async () => {
     vi.fn().mockResolvedValue({ ok: true, json: async () => snapshot }),
   );
   render(<App />);
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  fireEvent.click(screen.getByRole('link', { name: 'Settings' }));
   fireEvent.click(await screen.findByRole('tab', { name: 'System' }));
   expect(
     await screen.findByText(
@@ -768,4 +768,103 @@ it.each([
   [undefined, 'unknown'],
 ])('describes the update state %s', (state, text) => {
   expect(otaStateText(state)).toBe(text);
+});
+
+it('navigates with five linked destinations and marks the current page', async () => {
+  stubDevice({ signedIn: false });
+  render(<App />);
+  await screen.findByText('No probes detected');
+  const nav = screen.getByRole('navigation', { name: 'Main navigation' });
+  const links = Array.from(nav.querySelectorAll('a'));
+  expect(links.map((link) => link.textContent)).toEqual([
+    'Dashboard',
+    'History',
+    'Sensors',
+    'Alerts',
+    'Settings',
+  ]);
+  expect(links.map((link) => link.getAttribute('href'))).toEqual([
+    '/',
+    '/history',
+    '/sensors',
+    '/alerts',
+    '/settings',
+  ]);
+  expect(links[0]).toHaveAttribute('aria-current', 'page');
+  fireEvent.click(links[1]);
+  expect(location.pathname).toBe('/history');
+  expect(links[1]).toHaveAttribute('aria-current', 'page');
+  expect(links[0]).not.toHaveAttribute('aria-current');
+  // The old overline label is gone; the page title is the only heading in the bar.
+  expect(screen.queryByText(/local temperature monitor/i)).toBeNull();
+});
+
+it('counts active alerts on the Alerts destination', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () =>
+        url.includes('/alerts')
+          ? {
+              active: [
+                {
+                  rom_id: '2801000000000029',
+                  name: 'Exhaust',
+                  state: 'high',
+                  since_uptime_ms: 1000,
+                  since_utc_seconds: null,
+                },
+                {
+                  state: 'wifi_disconnected',
+                  since_uptime_ms: 2000,
+                  since_utc_seconds: null,
+                },
+              ],
+              events: [],
+              next_after: 0,
+              has_more: false,
+              oldest_available: null,
+              event_log_healthy: true,
+            }
+          : empty,
+    })),
+  );
+  render(<App />);
+  expect(
+    await screen.findByRole('link', { name: 'Alerts, 2 active' }),
+  ).toBeInTheDocument();
+});
+
+it('shows only the device conditions that need attention, and the network name', async () => {
+  const healthy = {
+    ...empty,
+    simulated: false,
+    clock: { utc: '2026-11-12T10:00:00Z', synchronized: true },
+    wifi: { state: 'connected', mdns_hostname: 'grow-room' },
+    logging: { ...empty.logging, healthy: true },
+  };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({ ok: true, json: async () => healthy }),
+  );
+  const view = render(<App />);
+  expect(await screen.findByText('grow-room.local')).toBeInTheDocument();
+  expect(screen.queryByRole('list', { name: 'Device conditions' })).toBeNull();
+  view.unmount();
+
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({ ok: true, json: async () => empty }),
+  );
+  render(<App />);
+  const list = await screen.findByRole('list', { name: 'Device conditions' });
+  expect(
+    Array.from(list.querySelectorAll('li')).map((item) => item.textContent),
+  ).toEqual([
+    'Wi-Fi offline',
+    'Clock not synchronized',
+    'History logging unavailable',
+    'Simulated readings',
+  ]);
 });

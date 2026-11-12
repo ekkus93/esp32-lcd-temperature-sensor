@@ -89,8 +89,17 @@ export interface Scheme {
   status: Record<Status, StatusColor>;
   series: string[];
 }
+// The Dashboard's live readings panel and the app's mark (spec §18.4): the seed's primary palette
+// at tone 20, with text at tones 98, 90 and 80. The same in both themes.
+export interface Panel {
+  background: string;
+  strong: string;
+  text: string;
+  muted: string;
+}
 export interface Tokens {
   seed: string;
+  panel: Panel;
   light: Scheme;
   dark: Scheme;
 }
@@ -134,6 +143,17 @@ function scheme(dark: boolean): Scheme {
   return { roles: rolesOut, status, series };
 }
 
+function panel(): Panel {
+  const primary = new SchemeTonalSpot(Hct.fromInt(argbFromHex(seed)), false, 0)
+    .primaryPalette;
+  return {
+    background: hex(primary.tone(20)),
+    strong: hex(primary.tone(98)),
+    text: hex(primary.tone(90)),
+    muted: hex(primary.tone(80)),
+  };
+}
+
 export function buildTokens(): Tokens {
-  return { seed, light: scheme(false), dark: scheme(true) };
+  return { seed, panel: panel(), light: scheme(false), dark: scheme(true) };
 }

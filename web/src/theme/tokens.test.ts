@@ -150,6 +150,18 @@ describe('Material 3 colour tokens', () => {
   }
 });
 
+describe('the live readings panel', () => {
+  it('is the seed palette at tone 20 with readable text, in both themes', () => {
+    expect(tokens.panel.background).toBe('#003824');
+    const { background, strong, text, muted } = tokens.panel;
+    for (const colour of [strong, text, muted])
+      expect(contrast(colour, background)).toBeGreaterThanOrEqual(4.5);
+    // Out-of-range readings on the panel use the dark theme's status colours.
+    for (const status of Object.values(tokens.dark.status))
+      expect(contrast(status.color, background)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
 describe('the app theme', () => {
   it('takes its palette from the tokens for each mode', () => {
     for (const mode of ['light', 'dark'] as const) {
@@ -187,6 +199,9 @@ describe('the app theme', () => {
       `--app-status-high-container: ${tokens.dark.status.high.container};`,
     );
     expect(css).toContain(`--app-series-5: ${tokens.dark.series[4]};`);
+    expect(css).toContain(
+      `--app-panel-background: ${tokens.panel.background};`,
+    );
   });
 
   it('mixes state-layer colours', () => {

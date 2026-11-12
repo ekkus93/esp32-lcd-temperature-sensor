@@ -283,9 +283,19 @@ or storage change. R12-01 comes first; if R11-02 is built after it, it uses the 
   about 3,100), within the 150 KB budget. Checked in a browser against the simulator at 1280 and
   390 px, light and dark: Roboto Flex loaded, no horizontal scroll. `verify.sh --firmware` passed
   (39 host and 175 web tests); the firmware is 2,138,336 bytes, 49% of each OTA slot free.
-- [ ] **R12-02** Navigation and top bar (§18.3): rail at 840 px and wider, bottom bar below, five
+- [x] **R12-02** Navigation and top bar (§18.3): rail at 840 px and wider, bottom bar below, five
   destinations with icons, the Alerts badge, the compact top bar with theme and sign-in icon
-  buttons, and the status chips. Acceptance: navigation tests; no horizontal scroll at 360 px.
+  buttons, and the status chips. Acceptance: navigation tests; no horizontal scroll at 360 px. Done
+  (2026-11-12): `web/src/shell/Navigation.tsx` is a rail (96 px, the app's leaf mark on the panel
+  evergreen) at 840 px and wider and a bottom bar below, with five linked destinations (Dashboard,
+  History, Sensors, Alerts, Settings), Material 3 active indicators and an active-alert badge on
+  Alerts (`GET /alerts` every 10 s; the link reads "Alerts, n active"). `TopBar.tsx` has the page
+  title, the network name (hidden on a phone) and icon buttons with tooltips for the theme and for
+  signing in or out; only conditions that need attention show, as amber chips with icons. The panel
+  colours are generated tokens (`panel`, tone 20 with text at 98, 90 and 80) with a contrast test.
+  App tests for the destinations, the current page, the badge, the conditions and the network name;
+  older tests updated from buttons to links. Rail and bar checked in a browser at 1280 and 390 px
+  (no horizontal scroll).
 - [x] **R12-03** Alerts and Events as tabs of one Alerts page (§18.6): Alerts first and default,
   `/alerts` and `/events` open their tabs, empty state. Acceptance: route and tab tests. Done
   (2026-11-12): Events left the navigation; the Alerts page has Alerts and Events tabs, Alerts

@@ -7,7 +7,7 @@ import {
 } from '@mui/material/styles';
 import robotoFlex from '../assets/fonts/roboto-flex-latin.woff2';
 import { tokens } from './tokens.generated';
-import type { Role, Scheme, Status, StatusColor } from './tokenSource';
+import type { Panel, Role, Scheme, Status, StatusColor } from './tokenSource';
 
 export type Mode = 'light' | 'dark';
 type TypeRole =
@@ -29,11 +29,13 @@ type TypeRole =
 
 declare module '@mui/material/styles' {
   interface Palette {
+    panel: Panel;
     m3: Record<Role, string>;
     status: Record<Status, StatusColor>;
     series: string[];
   }
   interface PaletteOptions {
+    panel?: Panel;
     m3?: Record<Role, string>;
     status?: Record<Status, StatusColor>;
     series?: string[];
@@ -184,6 +186,9 @@ export function cssVariables(scheme: Scheme): string {
       ),
     ),
     ...scheme.series.map((value, i) => `--app-series-${i + 1}: ${value};`),
+    ...Object.entries(tokens.panel).map(
+      ([part, value]) => `--app-panel-${kebab(part)}: ${value};`,
+    ),
   ];
   return `:root { ${lines.join(' ')} }`;
 }
@@ -238,6 +243,7 @@ export function createAppTheme(mode: Mode): Theme {
         disabledBackground: withAlpha(c.onSurface, 0.12),
       },
       m3: c,
+      panel: tokens.panel,
       status: scheme.status,
       series: scheme.series,
     },

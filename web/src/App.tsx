@@ -20,6 +20,14 @@ import {
   Typography,
 } from '@mui/material';
 import { createAppTheme } from './theme/theme';
+import DashboardOutlined from '@mui/icons-material/DashboardOutlined';
+import NotificationsOutlined from '@mui/icons-material/NotificationsOutlined';
+import SettingsOutlined from '@mui/icons-material/SettingsOutlined';
+import ShowChartOutlined from '@mui/icons-material/ShowChartOutlined';
+import ThermostatOutlined from '@mui/icons-material/ThermostatOutlined';
+import Navigation, { type Destination } from './shell/Navigation';
+import TopBar, { DeviceConditions } from './shell/TopBar';
+import { useActiveAlerts } from './shell/useActiveAlerts';
 import { temperature } from './api/client';
 import { getDisplaySettings } from './api/settings';
 import { getProbeScan, type ProbeScanStatus } from './api/probe-scan';
@@ -46,6 +54,13 @@ const pages = [
   'Settings',
 ] as const;
 const routes = ['/', '/history', '/sensors', '/alerts', '/settings'];
+const destinations: Destination[] = [
+  { label: 'Dashboard', href: '/', icon: <DashboardOutlined /> },
+  { label: 'History', href: '/history', icon: <ShowChartOutlined /> },
+  { label: 'Sensors', href: '/sensors', icon: <ThermostatOutlined /> },
+  { label: 'Alerts', href: '/alerts', icon: <NotificationsOutlined /> },
+  { label: 'Settings', href: '/settings', icon: <SettingsOutlined /> },
+];
 // Events is the second tab of the Alerts page; /events opens it, so older links keep working.
 type AlertsTab = 'alerts' | 'events';
 const readable = (s: string) => s.replaceAll('_', ' ');
@@ -87,6 +102,7 @@ function Shell() {
   const [unit, setUnit] = useState<'C' | 'F'>('F');
   const [timezone, setTimezone] = useState<string | null>(null);
   const [probeScan, setProbeScan] = useState<ProbeScanStatus | null>(null);
+  const activeAlerts = useActiveAlerts();
   const applySettings = useCallback(
     (nextUnit: 'C' | 'F', nextTimezone: string) => {
       setUnit(nextUnit);
@@ -184,68 +200,23 @@ function Shell() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <div className="app-shell">
-        <nav
-          aria-label="Main navigation"
-          style={{ background: theme.palette.background.paper }}
-        >
-          <div className="brand">
-            Temperature
-            <br />
-            <strong>Monitor</strong>
-          </div>
-          {pages.map((page, i) => (
-            <Button
-              key={page}
-              variant={i === index ? 'contained' : 'text'}
-              onClick={() => navigate(i)}
-              aria-current={i === index ? 'page' : undefined}
-            >
-              {page}
-            </Button>
-          ))}
-        </nav>
+        <Navigation
+          destinations={destinations}
+          current={index}
+          onNavigate={navigate}
+          badges={{ 3: activeAlerts?.length ?? 0 }}
+        />
         <main>
-          <header>
-            <div>
-              <Typography variant="overline">
-                LOCAL TEMPERATURE MONITOR
-              </Typography>
-              <Typography variant="h4" component="h1">
-                {pages[index]}
-              </Typography>
-            </div>
-            <Stack direction="row" sx={{ gap: 1 }}>
-              {auth.state?.signed_in ? (
-                <Button onClick={() => void auth.signOut()}>Sign out</Button>
-              ) : (
-                <Button onClick={() => navigate(4)}>Sign in</Button>
-              )}
-              <Button
-                onClick={() => setDark(!dark)}
-                aria-label="Toggle dark theme"
-              >
-                {dark ? 'Light' : 'Dark'} theme
-              </Button>
-            </Stack>
-          </header>
-          <Stack direction="row" sx={{ my: 3, gap: 1, flexWrap: 'wrap' }}>
-            <Chip label={`Wi-Fi: ${snapshot?.wifi.state ?? 'unknown'}`} />
-            <Chip
-              label={
-                snapshot?.clock.synchronized
-                  ? 'Clock synchronized'
-                  : 'Time not synchronized'
-              }
-            />
-            <Chip
-              label={
-                snapshot?.logging.healthy
-                  ? 'Logging healthy · 5 min'
-                  : 'History logging unavailable'
-              }
-            />
-            {snapshot?.simulated && <Chip label="SIMULATION" color="warning" />}
-          </Stack>
+          <TopBar
+            title={pages[index]}
+            hostname={snapshot?.wifi.mdns_hostname ?? null}
+            dark={dark}
+            onToggleTheme={() => setDark(!dark)}
+            signedIn={Boolean(auth.state?.signed_in)}
+            onSignIn={() => navigate(4)}
+            onSignOut={() => void auth.signOut()}
+          />
+          <DeviceConditions snapshot={snapshot} />
           {settingsFailed && (
             <Alert severity="info" sx={{ mb: 2 }} role="status">
               Display settings could not be loaded, so temperatures are shown in

@@ -3,6 +3,12 @@ import type { Tokens } from './tokenSource';
 
 export const tokens: Tokens = {
   seed: '#2F6B4F',
+  panel: {
+    background: '#003824',
+    strong: '#E8FFEF',
+    text: '#AAF2CB',
+    muted: '#8FD5B0',
+  },
   light: {
     roles: {
       primary: '#236A4C',
