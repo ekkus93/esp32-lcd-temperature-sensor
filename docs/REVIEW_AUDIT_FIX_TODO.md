@@ -254,14 +254,16 @@ hold points and preserve device data during experiments.
 
 ## Phase F — Integration and disposition
 
-- [ ] **A21 — H13: Verify and reconcile the final implementation** (spec §14).
-  - [ ] **A21.1** Run focused regressions and `./tools/verify.sh`; with pinned
+- [x] **A21 — H13: Verify and reconcile the final implementation** (spec §14).
+  - [x] **A21.1** Run focused regressions and `./tools/verify.sh`; with pinned
     ESP-IDF activated, pass `./tools/verify.sh --firmware` for firmware changes.
-  - [ ] **A21.2** Record exact-final-code-SHA CI, contract freshness, artifact
+  - [x] **A21.2** Record exact-final-code-SHA CI, contract freshness, artifact
     provenance, slot size and relevant memory/performance results.
-  - [ ] **A21.3** Reconcile new/old task status and all five original done
+  - [x] **A21.3** Reconcile new/old task status and all five original done
     gates; list every remaining H gate, missing prerequisite and owner decision.
     A local pass or old CI record does not replace exact-commit evidence.
+    Done: code `3c52431`, CI run 43399938296 passed; record
+    `docs/validation/review-audit-final-2026-11-13.md` (remaining gates and owner decisions).
 
 - [ ] **A22 — H13: Record release disposition** (R10-12).
   - [ ] **A22.1** Update release notes with fixed findings and residual
@@ -278,7 +280,7 @@ hold points and preserve device data during experiments.
   coverage; all required regressions pass and current guidance agrees with code.
 - [ ] **G2 — Physical acceptance:** A13–A20 have recorded evidence for each
   required gate, or explicit owner-approved scope decisions with residuals named.
-- [ ] **G3 — Final validation:** A21 is complete; no unreported failed checks,
+- [x] **G3 — Final validation:** A21 is complete; no unreported failed checks,
   stale exact-commit claims or tracker/count discrepancies remain.
 - [ ] **G4 — Release:** A22's disposition is recorded; actual publication is
   claimed only when authorized and successfully completed.
