@@ -88,10 +88,17 @@ time. Incomplete or timed-out connections are closed; the time spent hashing a
 password and OTA upload handling has separate limits.
 
 Sensor storage status is `ready` only after a valid load or when no saved
-configuration exists. Load or commit failure switches it to `read_only`; the
-API rejects subsequent sensor edits. Queued sensor edits are persisted before
-the updated revision is published. If commit fails, the runtime registry rolls
-back to the last committed configuration.
+configuration exists. A load failure (damaged or unsupported stored data, or NVS
+that cannot be opened) makes it `read_only` for the rest of the boot, with the
+stored data preserved. A failed write (open, set or commit) rolls the runtime
+registry back to the last committed configuration, revision included, and makes
+the status `read_only` for a pause of 30 seconds, doubling with each further
+failure up to 10 minutes; after it the status returns to `ready` and the next
+edit is stored normally, without a restart. While the status is `read_only` the
+API rejects sensor edits. A client that sees its edit's revision unchanged and
+the status `read_only` knows the edit was not committed. Queued sensor edits are
+persisted before the updated revision is published. Automatic saves (a newly
+discovered probe) wait for the same pause instead of retrying every cycle.
 
 Retirement is explicit and separate from disabling monitoring. A probe must be
 disconnected, absent from the latest complete physical scan, and the client must

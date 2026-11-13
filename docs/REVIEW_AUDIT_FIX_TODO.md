@@ -61,17 +61,19 @@ prior validation are inputs, not proof that these regressions or gates pass.
 
 ## Phase B — Firmware integration and bounded resources
 
-- [ ] **A03 — F3: Retry sensor settings after transient storage errors**
+- [x] **A03 — F3: Retry sensor settings after transient storage errors**
   (spec §6; R04-08).
-  - [ ] **A03.1** Reproduce the main/API permanent lockout after open, set and
+  - [x] **A03.1** Reproduce the main/API permanent lockout after open, set and
     commit failures, even though the lower-layer service remains writable.
-  - [ ] **A03.2** Keep loaded corrupt storage read-only; let a subsequent edit
+  - [x] **A03.2** Keep loaded corrupt storage read-only; let a subsequent edit
     retry after transient failure. Restore committed state/revision and clear
     pending state without false success or breaking If-Match behavior.
-  - [ ] **A03.3** Cover both user-update and discovery/calibration persistence
+  - [x] **A03.3** Cover both user-update and discovery/calibration persistence
     paths; bound/back off any automatic retries and keep acquisition operating.
-  - [ ] **A03.4** Prove second-edit success without reboot, durable contents,
+  - [x] **A03.4** Prove second-edit success without reboot, durable contents,
     truthful writable/applied status and retained corrupt-load protection.
+    Done: `SensorSettingsPersistence`, main loop and Sensors page; v1 kept (timed `read_only`
+    pause); record `docs/validation/review-audit-settings-retry-2026-11-12.md`.
 
 - [ ] **A04 — F4: Cancel expired history work cooperatively**
   (spec §7; R02-05, R07-04, R10-03). Coordinate outcomes with A02.

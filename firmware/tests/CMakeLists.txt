@@ -65,7 +65,7 @@ target_compile_options(bounded_body_reader_tests PRIVATE -Wall -Wextra -Werror -
 add_test(NAME bounded_http_body_receipt COMMAND bounded_body_reader_tests)
 
 # Fault-inject the production sensor SettingsService NVS load/commit boundary.
-add_executable(settings_service_tests settings_service_tests.cpp ../components/settings_service/settings_service.cpp)
+add_executable(settings_service_tests settings_service_tests.cpp ../components/settings_service/settings_service.cpp ../components/settings_service/sensor_settings_persistence.cpp)
 target_include_directories(settings_service_tests PRIVATE settings_mocks ../components/settings_service/include)
 target_link_libraries(settings_service_tests PRIVATE monitor_core)
 target_compile_options(settings_service_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)

@@ -1,6 +1,8 @@
 #include "nvs.h"
+#include "sensor_settings_persistence.hpp"
 #include "settings_codec.hpp"
 #include "settings_service.hpp"
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -12,6 +14,7 @@ bool namespace_exists = false;
 bool fail_open = false, fail_set = false, fail_commit = false;
 int fail_get_call = 0;
 int get_calls = 0;
+int open_calls = 0;
 std::map<nvs_handle_t, std::string> handles;
 std::map<nvs_handle_t, std::string> staged;
 uint32_t next_handle = 1;
@@ -30,6 +33,7 @@ uint64_t rom(unsigned serial) {
 }
 } // namespace
 extern "C" esp_err_t nvs_open(const char *name, int mode, nvs_handle_t *out) {
+    ++open_calls;
     if (fail_open)
         return ESP_FAIL;
     if (!namespace_exists && mode == NVS_READONLY) {
@@ -185,6 +189,130 @@ int main() {
     CHECK(unavailable.load(uninitialized) == ESP_FAIL && !unavailable.writable());
     CHECK(durable == committed);
     check_monitoring_survives(uninitialized, 11);
-    std::cout << "PASS: sensor settings missing/corrupt/future preservation and NVS "
-                 "read/open/set/commit failures\n";
+
+    // Review audit F3: the main loop's policy. A failed write rolls the edit back and pauses edits;
+    // a later edit is stored without a restart. Corrupt stored data stays read-only.
+    const auto stored_name = []() {
+        const auto decoded = decode_settings(durable);
+        CHECK(decoded && !decoded->empty());
+        return (*decoded)[0].settings.name;
+    };
+    const auto edit = [](Registry &registry, const char *name) {
+        auto updated = registry.sensors()[0].settings;
+        updated.name = name;
+        CHECK(registry.configure(registry.sensors()[0].rom, updated));
+    };
+    for (const auto mode : {0, 1, 2}) {
+        reset(committed, true);
+        SettingsService service("test");
+        Registry registry;
+        CHECK(service.load(registry) == ESP_OK);
+        SensorSettingsPersistence persistence(service);
+        const int64_t t0 = 1000000;
+        CHECK(persistence.accepting_edits(t0));
+        const auto committed_registry = registry;
+        const auto committed_revision = registry.sensors()[0].config_revision;
+        edit(registry, "First edit");
+        CHECK(registry.sensors()[0].config_revision != committed_revision);
+        fail_open = mode == 0;
+        fail_set = mode == 1;
+        fail_commit = mode == 2;
+        CHECK(persistence.commit_edits(registry, committed_registry, t0) != ESP_OK);
+        fail_open = fail_set = fail_commit = false;
+        // Rolled back, revision included; nothing reached storage; edits pause, then resume.
+        CHECK(registry.sensors()[0].settings.name == committed_registry.sensors()[0].settings.name);
+        CHECK(registry.sensors()[0].config_revision == committed_revision);
+        CHECK(durable == committed);
+        CHECK(!persistence.accepting_edits(t0));
+        CHECK(!persistence.accepting_edits(t0 + SensorSettingsPersistence::first_backoff_ms - 1));
+        const int64_t t1 = t0 + SensorSettingsPersistence::first_backoff_ms;
+        CHECK(persistence.accepting_edits(t1));
+        // Acquisition carried on meanwhile.
+        registry.sample({Reading{registry.sensors()[0].rom, 20.0, true}}, 5000);
+        CHECK(registry.sensors()[0].temperature == 20.0);
+        // The second edit is stored, durably, without a restart.
+        const auto second_committed = registry;
+        edit(registry, "Second edit");
+        CHECK(persistence.commit_edits(registry, second_committed, t1) == ESP_OK);
+        CHECK(registry.sensors()[0].settings.name == "Second edit");
+        CHECK(stored_name() == "Second edit");
+        CHECK(persistence.accepting_edits(t1) && !persistence.unsaved());
+        SettingsService reloaded("test");
+        Registry after_restart;
+        CHECK(reloaded.load(after_restart) == ESP_OK && reloaded.writable());
+        CHECK(after_restart.sensors()[0].settings.name == "Second edit");
+    }
+    // The pause doubles per consecutive failure up to ten minutes; a success clears it.
+    {
+        reset(committed, true);
+        SettingsService service("test");
+        Registry registry;
+        CHECK(service.load(registry) == ESP_OK);
+        SensorSettingsPersistence persistence(service);
+        fail_commit = true;
+        int64_t now = 0;
+        int64_t expected = SensorSettingsPersistence::first_backoff_ms;
+        for (int failure = 0; failure < 8; ++failure) {
+            const auto before = registry;
+            edit(registry, failure % 2 ? "Odd" : "Even");
+            CHECK(persistence.commit_edits(registry, before, now) != ESP_OK);
+            CHECK(persistence.retry_at_ms() == now + expected);
+            now = persistence.retry_at_ms();
+            expected = std::min(expected * 2, SensorSettingsPersistence::max_backoff_ms);
+        }
+        fail_commit = false;
+        const auto before = registry;
+        edit(registry, "Recovered");
+        CHECK(persistence.commit_edits(registry, before, now) == ESP_OK);
+        const auto after = registry;
+        edit(registry, "Fails once");
+        fail_commit = true;
+        CHECK(persistence.commit_edits(registry, after, now) != ESP_OK);
+        CHECK(persistence.retry_at_ms() == now + SensorSettingsPersistence::first_backoff_ms);
+        fail_commit = false;
+    }
+    // Automatic persistence (a discovered probe) is retried after the pause, not every cycle.
+    {
+        reset(committed, true);
+        SettingsService service("test");
+        Registry registry;
+        CHECK(service.load(registry) == ESP_OK);
+        SensorSettingsPersistence persistence(service);
+        CHECK(registry.discover(rom(5)));
+        fail_set = true;
+        CHECK(persistence.persist(registry, true, 0) == ESP_FAIL);
+        CHECK(persistence.unsaved() && !persistence.accepting_edits(0));
+        fail_set = false;
+        open_calls = 0;
+        for (int64_t cycle = 5000; cycle < SensorSettingsPersistence::first_backoff_ms;
+             cycle += 5000)
+            CHECK(persistence.persist(registry, false, cycle) == ESP_ERR_NOT_FINISHED);
+        CHECK(open_calls == 0 && durable == committed);
+        CHECK(persistence.persist(registry, false, SensorSettingsPersistence::first_backoff_ms) ==
+              ESP_OK);
+        CHECK(!persistence.unsaved() && open_calls == 1);
+        const auto decoded = decode_settings(durable);
+        CHECK(decoded && decoded->size() == 2);
+        // Nothing changed: nothing is written.
+        CHECK(persistence.persist(registry, false, 1 << 30) == ESP_OK && open_calls == 1);
+    }
+    // Damaged stored settings stay read-only and untouched however long the device runs.
+    {
+        reset("corrupt-settings-v99", true);
+        SettingsService service("test");
+        Registry registry;
+        registry.discover(rom(8));
+        CHECK(service.load(registry) == ESP_ERR_INVALID_CRC);
+        SensorSettingsPersistence persistence(service);
+        CHECK(!persistence.accepting_edits(0) && !persistence.accepting_edits(INT64_MAX));
+        CHECK(persistence.persist(registry, true, 0) == ESP_ERR_INVALID_STATE);
+        const auto before = registry;
+        edit(registry, "Not stored");
+        CHECK(persistence.commit_edits(registry, before, 0) == ESP_ERR_INVALID_STATE);
+        CHECK(registry.sensors()[0].settings.name == before.sensors()[0].settings.name);
+        CHECK(durable == "corrupt-settings-v99");
+        CHECK(!persistence.accepting_edits(INT64_MAX));
+    }
+    std::cout << "PASS: sensor settings missing/corrupt/future preservation, NVS "
+                 "read/open/set/commit failures and retry after a transient failure\n";
 }

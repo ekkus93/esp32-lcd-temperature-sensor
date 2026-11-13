@@ -25,6 +25,7 @@
 #include "provisioning_service.hpp"
 #include "sampling_service.hpp"
 #include "sensor_diagnostics.hpp"
+#include "sensor_settings_persistence.hpp"
 #include "settings_service.hpp"
 #include "wifi_service.hpp"
 #include <algorithm>
@@ -151,7 +152,8 @@ extern "C" void app_main() {
     monitor::Registry registry;
     monitor::SettingsService settings(simulated ? "monitor_sim" : "temp_monitor");
     auto load = settings.load(registry);
-    bool sensor_settings_writable = settings.writable();
+    monitor::SensorSettingsPersistence persistence(settings);
+    const bool sensor_settings_writable = settings.writable();
     if (!sensor_settings_writable)
         ESP_LOGE(tag, "Sensor settings unavailable: %s; original data preserved",
                  esp_err_to_name(load));
@@ -235,7 +237,6 @@ extern "C" void app_main() {
     if (!simulated)
         boot_event.utc_seconds = monitor::trusted_utc();
     history.submit_event(boot_event);
-    bool settings_dirty = false;
     uint64_t simulated_tick = 0;
     uint64_t last_event_sequence = 0;
     std::string prior_wifi_state = wifi.info().state;
@@ -257,22 +258,14 @@ extern "C" void app_main() {
                     ? registry.retire(changed_rom)
                     : registry.configure(changed_rom, changed_settings,
                                          simulated ? int64_t(simulated_tick * 5000) : now);
-            if (changed) {
-                settings_dirty = true;
+            if (changed)
                 configuration_update = true;
-            }
         }
         if (configuration_update) {
-            const auto saved = settings.save_or_restore(registry, committed_registry);
-            if (saved != ESP_OK) {
-                settings_dirty = false;
-                sensor_settings_writable = false;
-                api.set_sensor_settings_writable(false);
-                ESP_LOGE(tag, "Sensor settings commit failed; edit rejected: %s",
+            const auto saved = persistence.commit_edits(registry, committed_registry, now);
+            if (saved != ESP_OK)
+                ESP_LOGE(tag, "Sensor settings commit failed; edit rolled back: %s",
                          esp_err_to_name(saved));
-            } else {
-                settings_dirty = false;
-            }
         }
         // Ice-bath calibration holds (spec 17.3) are RAM only: they take effect from this cycle.
         uint64_t hold_rom = 0;
@@ -296,8 +289,9 @@ extern "C" void app_main() {
         if (sampling.enabled())
             sensor_diagnostics.observe(readings, sampling.fault(), read_ended_ms - read_started_ms);
         auto sampled_at = simulated ? int64_t(simulated_tick * 5000) : read_ended_ms;
-        if (registry.sample(readings, sampled_at, sampling.fault(), sampling.monitored()))
-            settings_dirty = true; // a new probe brought its own calibration offset
+        // A new probe, or one that brought its own calibration offset, is stored automatically.
+        bool automatic_change =
+            registry.sample(readings, sampled_at, sampling.fault(), sampling.monitored());
         // At most one probe memory write per cycle, between conversions, and none during a fault.
         if (!sampling.fault())
             if (const auto write = registry.next_probe_write()) {
@@ -400,18 +394,16 @@ extern "C" void app_main() {
             if (!history.submit(*bucket))
                 ESP_LOGE(tag, "History queue unavailable/full");
         }
-        settings_dirty = settings_dirty || registry.sensors().size() != before;
-        if (sensor_settings_writable) {
-            if (settings_dirty) {
-                auto saved = settings.save(registry);
-                if (saved != ESP_OK) {
-                    ESP_LOGE(tag, "Settings save failed: %s", esp_err_to_name(saved));
-                    sensor_settings_writable = false;
-                    api.set_sensor_settings_writable(false);
-                } else
-                    settings_dirty = false;
-            }
+        automatic_change = automatic_change || registry.sensors().size() != before;
+        if (settings.writable()) {
+            const auto saved = persistence.persist(registry, automatic_change, now);
+            if (saved != ESP_OK && saved != ESP_ERR_NOT_FINISHED)
+                ESP_LOGE(tag, "Settings save failed: %s; retrying after a pause",
+                         esp_err_to_name(saved));
         }
+        // Edits pause after a failed write and resume on their own; damaged stored data stays
+        // read-only.
+        api.set_sensor_settings_writable(persistence.accepting_edits(now));
         api.publish(registry, sampling.scan_status(), sampled_at, history.healthy(),
                     (!simulated && monitor::clock_synchronized()),
                     simulated ? std::string{} : monitor::utc_text());

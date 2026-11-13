@@ -26,6 +26,8 @@ import {
   type SensorConfiguration,
 } from '../api/sensors';
 import LoadingBlock from './LoadingBlock';
+
+const STORAGE_RECHECK_MS = 15000;
 const numericFields = [
   'calibration_c',
   'hysteresis_c',
@@ -524,6 +526,21 @@ export default function SensorsView({
       active = false;
     };
   }, [refresh]);
+  // After a failed save the device pauses edits for a while (30 seconds at first), then accepts
+  // them again; damaged stored settings stay read-only. Check back so editing resumes on its own.
+  useEffect(() => {
+    if (writable !== false) return;
+    const timer = setInterval(() => {
+      getSensorStorageStatus()
+        .then((storage) => {
+          if (!storage.writable) return;
+          setWritable(true);
+          setRefresh((count) => count + 1);
+        })
+        .catch(() => undefined); // retried at the next interval
+    }, STORAGE_RECHECK_MS);
+    return () => clearInterval(timer);
+  }, [writable]);
   const ordered = sensors ? [...sensors].sort(byPosition) : [];
   const current = ordered.some((item) => item.rom_id === selected)
     ? selected
@@ -547,7 +564,9 @@ export default function SensorsView({
       {writable === false && (
         <Alert severity="error" role="alert">
           Sensor settings are read-only because stored configuration could not
-          be safely opened or saved. Existing data is preserved for recovery.
+          be safely opened or saved. Existing data is preserved for recovery. If
+          a save just failed, editing resumes on its own once the device can
+          store settings again.
         </Alert>
       )}
       <Button

@@ -563,3 +563,89 @@ it('offers the ice-bath calibration only for a probe with a reading and while se
   await screen.findByRole('tab', { name: sensor.name });
   expect(screen.queryByRole('button', { name: 'Calibrate in ice' })).toBeNull();
 });
+
+// Review audit F3: a failed commit is reported as not committed, and a later edit can be saved
+// once the device accepts edits again, without a restart or a manual refresh.
+it('reports a failed commit and lets a later edit save once storage is writable again', async () => {
+  vi.useFakeTimers();
+  let storageWritable = true;
+  let current = sensor;
+  let failNextCommit = true;
+  vi.stubGlobal(
+    'fetch',
+    vi
+      .fn()
+      .mockImplementation(
+        async (input: RequestInfo | URL, init?: RequestInit) => {
+          if (init?.method === 'PATCH') {
+            const body = JSON.parse(String(init.body)) as { name: string };
+            if (failNextCommit) {
+              // The device rolls the edit back and pauses edits.
+              failNextCommit = false;
+              storageWritable = false;
+            } else
+              current = {
+                ...current,
+                name: body.name,
+                revision: current.revision + 1,
+                etag: `"simulator:${current.rom_id}:${current.revision + 1}"`,
+              };
+            return {
+              ok: true,
+              status: 202,
+              json: async () => ({ status: 'queued' }),
+            };
+          }
+          return {
+            ok: true,
+            status: 200,
+            json: async () =>
+              String(input).endsWith('/sensors/storage')
+                ? {
+                    schema_version: 1,
+                    state: storageWritable ? 'ready' : 'read_only',
+                    writable: storageWritable,
+                  }
+                : [current],
+          };
+        },
+      ),
+  );
+  // Steps fake time so each poll's fetch settles (findBy and waitFor would wait on faked timers).
+  const step = async (ms: number) => {
+    for (let elapsed = 0; elapsed < ms; elapsed += 250)
+      await vi.advanceTimersByTimeAsync(250);
+  };
+  render(<SensorsView unit="C" />);
+  await step(1000);
+  fireEvent.change(screen.getByLabelText(/Sensor name/), {
+    target: { value: 'Freezer' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Save sensor settings' }));
+  await step(7000);
+  expect(
+    screen.getByText(
+      'Settings were not committed. The previous stored configuration was restored.',
+    ),
+  ).toBeInTheDocument();
+  expect(screen.queryByText('Settings committed and applied.')).toBeNull();
+  expect(
+    screen.getByRole('button', { name: 'Save sensor settings' }),
+  ).toBeDisabled();
+  // The device accepts edits again after its pause; the page notices on its own.
+  storageWritable = true;
+  await step(15500);
+  expect(screen.getByLabelText(/Sensor name/)).not.toBeDisabled();
+  expect(
+    screen.queryByText(/stored configuration could not be safely opened/),
+  ).toBeNull();
+  fireEvent.change(screen.getByLabelText(/Sensor name/), {
+    target: { value: 'Freezer' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Save sensor settings' }));
+  await step(1500);
+  expect(
+    screen.getByText('Settings committed and applied.'),
+  ).toBeInTheDocument();
+  expect(current.name).toBe('Freezer');
+});
