@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { renderThemed as render } from '../renderThemed';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { ClockDiagnostics } from '../api/clock';
@@ -17,44 +17,101 @@ const settings = {
   ntp_server: 'pool.ntp.org',
   hostname: 'temperature-monitor',
 };
-afterEach(() => vi.unstubAllGlobals());
-it('saves device preferences with an update precondition and applies shared settings', async () => {
-  const applied = vi.fn();
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue({ ok: true, json: async () => settings }),
-  );
-  render(<DeviceSettings onApplied={applied} />);
-  fireEvent.change(await screen.findByLabelText(/Overview duration/), {
-    target: { value: '25' },
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+// Requests are told apart by URL and method, never by order: the clock is polled every five
+// seconds and can land before, during or after a save (review audit F8).
+function routedDevice(patchAnswer: () => Promise<unknown>) {
+  const clock: ClockDiagnostics = {
+    schema_version: 1,
+    synchronized: false,
+    last_sync_utc_seconds: null,
+    sync_age_ms: null,
+  };
+  return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const path = String(input);
+    const method = init?.method ?? 'GET';
+    const body =
+      path === '/api/v1/clock' && method === 'GET'
+        ? Promise.resolve(clock)
+        : path === '/api/v1/settings' && method === 'GET'
+          ? Promise.resolve(settings)
+          : path === '/api/v1/settings' && method === 'PATCH'
+            ? patchAnswer()
+            : Promise.reject(new Error(`unexpected ${method} ${path}`));
+    return body.then(
+      (json) => ({ ok: true, json: async () => json }) as Response,
+    );
   });
-  fireEvent.mouseDown(screen.getByLabelText('Temperature units'));
-  fireEvent.click(
-    await screen.findByRole('option', { name: 'Fahrenheit (°F)' }),
-  );
-  vi.mocked(fetch).mockResolvedValueOnce({
-    ok: true,
-    json: async () => ({
+}
+const patches = () =>
+  vi
+    .mocked(fetch)
+    .mock.calls.filter(
+      ([url, init]) =>
+        String(url) === '/api/v1/settings' && init?.method === 'PATCH',
+    );
+const clockPolls = () =>
+  vi.mocked(fetch).mock.calls.filter(([url]) => String(url) === '/api/v1/clock')
+    .length;
+
+it('saves device preferences with an update precondition and applies shared settings', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    const applied = vi.fn();
+    let answer: (value: unknown) => void = () => {};
+    vi.stubGlobal(
+      'fetch',
+      routedDevice(() => new Promise((resolve) => (answer = resolve))),
+    );
+    render(<DeviceSettings onApplied={applied} />);
+    fireEvent.change(await screen.findByLabelText(/Overview duration/), {
+      target: { value: '25' },
+    });
+    fireEvent.mouseDown(screen.getByLabelText('Temperature units'));
+    fireEvent.click(
+      await screen.findByRole('option', { name: 'Fahrenheit (°F)' }),
+    );
+    // A clock poll before the save...
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    const before = clockPolls();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Save device preferences' }),
+    );
+    // ...one while the save is waiting for the device...
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(clockPolls()).toBeGreaterThan(before);
+    expect(applied).not.toHaveBeenCalledWith('F', 'UTC');
+    answer({
       ...settings,
       units: 'F',
       overview_seconds: 25,
       revision: 2,
       etag: '"test:settings:2"',
-    }),
-  } as Response);
-  fireEvent.click(
-    screen.getByRole('button', { name: 'Save device preferences' }),
-  );
-  await screen.findByText('Device preferences saved.');
-  expect(applied).toHaveBeenLastCalledWith('F', 'UTC');
-  const last = vi.mocked(fetch).mock.calls.at(-1)!;
-  expect(last[0]).toBe('/api/v1/settings');
-  expect(last[1]?.headers).toMatchObject({ 'If-Match': settings.etag });
-  expect(JSON.parse(last[1]?.body as string)).toMatchObject({
-    overview_seconds: 25,
-    units: 'F',
-  });
-  expect(JSON.parse(last[1]?.body as string)).not.toHaveProperty('revision');
+    });
+    await screen.findByText('Device preferences saved.');
+    // ...and one after it.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(applied).toHaveBeenLastCalledWith('F', 'UTC');
+    expect(patches()).toHaveLength(1);
+    const [, init] = patches()[0];
+    expect(init?.headers).toMatchObject({ 'If-Match': settings.etag });
+    const sent = JSON.parse(init?.body as string);
+    expect(sent).toMatchObject({ overview_seconds: 25, units: 'F' });
+    for (const field of ['revision', 'etag', 'writable', 'schema_version'])
+      expect(sent).not.toHaveProperty(field);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 it('prevents writes when existing device settings are preserved read-only', async () => {
   vi.stubGlobal(
@@ -135,28 +192,24 @@ it('shows an honest unknown clock state and a UTC sync age after synchronization
 it('renames the device network name, lowercased, and sends it with the other settings', async () => {
   vi.stubGlobal(
     'fetch',
-    vi.fn().mockResolvedValue({ ok: true, json: async () => settings }),
+    routedDevice(async () => ({
+      ...settings,
+      hostname: 'garage-1',
+      revision: 2,
+      etag: '"test:settings:2"',
+    })),
   );
   render(<DeviceSettings onApplied={vi.fn()} />);
   const field = await screen.findByLabelText(/Network name/);
   expect(field).toHaveValue('temperature-monitor');
   fireEvent.change(field, { target: { value: 'Garage-1' } });
   expect(field).toHaveValue('garage-1');
-  vi.mocked(fetch).mockResolvedValueOnce({
-    ok: true,
-    json: async () => ({
-      ...settings,
-      hostname: 'garage-1',
-      revision: 2,
-      etag: '"test:settings:2"',
-    }),
-  } as Response);
   fireEvent.click(
     screen.getByRole('button', { name: 'Save device preferences' }),
   );
   await screen.findByText('Device preferences saved.');
-  const last = vi.mocked(fetch).mock.calls.at(-1)!;
-  expect(JSON.parse(last[1]?.body as string)).toMatchObject({
+  expect(patches()).toHaveLength(1);
+  expect(JSON.parse(patches()[0][1]?.body as string)).toMatchObject({
     hostname: 'garage-1',
   });
 });

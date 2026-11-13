@@ -132,13 +132,15 @@ prior validation are inputs, not proof that these regressions or gates pass.
     Done: `Dashboard.tsx` history entry with request context and bounds; record
     `docs/validation/review-audit-dashboard-history-2026-11-13.md`.
 
-- [ ] **A08 — F8: Stabilize Settings save tests** (spec §11; R06-08, R12-06).
-  - [ ] **A08.1** Deliberately interleave `/clock` polling with a settings save
+- [x] **A08 — F8: Stabilize Settings save tests** (spec §11; R06-08, R12-06).
+  - [x] **A08.1** Deliberately interleave `/clock` polling with a settings save
     to expose the existing last-fetch assumption deterministically.
-  - [ ] **A08.2** Route mocks by URL/method and assert the PATCH request,
+  - [x] **A08.2** Route mocks by URL/method and assert the PATCH request,
     precondition/payload and applied callback; restore timers/mocks after each test.
-  - [ ] **A08.3** Pass focused and full web suites, including controlled poll
+  - [x] **A08.3** Pass focused and full web suites, including controlled poll
     interleaving, without dropping existing behavioral coverage.
+    Done: routed mocks and forced clock interleaving; record
+    `docs/validation/review-audit-settings-test-2026-11-13.md`.
 
 ## Phase D — Documentation and acceptance integrity
 
