@@ -251,6 +251,11 @@ bath. API additions are additive within schema v1 (§17.3); no settings storage 
   (`calibration_started`, `calibration_ended`, with the reasons in spec §17.3), shown on the Events
   tab. **Not yet checked:** the 409 and 1-to-20-minute refusals in the HTTP handler (device-only
   code, so they need a board test), and an older build skipping these kinds on the board.
+  **Board (2026-11-12, no probes):** the hold route refuses a request without the device's origin
+  (403), without a session (401) and without the CSRF token (401), and answers 404 for an unknown
+  probe; the journal written by the previous build recovered under the new reader. The 409 and
+  the 1-to-20-minute check still need a connected probe. See
+  `docs/validation/device-bare-board-2026-11-12.md`.
 - [x] **R11-02** Guided ice-bath calibration on each sensor's tab (§17.2): instructions, live
   measuring, the steadiness rule (12 readings within 0.125 °C), offset = 0 − mean uncalibrated
   reading rounded to 0.1 °C, the confirm screen with the change in readings and the reminder to
@@ -391,6 +396,10 @@ or storage change. R12-01 comes first; if R11-02 is built after it, it uses the 
 - [ ] **R12-08** [HW] On the board: every page loads from the device with no internet, the font
   comes from the device, the firmware fits both OTA slots, and a phone shows the bottom navigation
   correctly. Recorded under `docs/validation/`.
+  **Partly done (2026-11-12, bare board):** the device serves the same build as the local one, the
+  font as `font/woff2` and its licence; firmware 0.2.0 valid with 48 % of each slot free; the owner
+  loaded the pages and signed in. Still open: a computer with no internet at all, and a phone. See
+  `docs/validation/device-bare-board-2026-11-12.md`.
 
 ## Definition of done
 
