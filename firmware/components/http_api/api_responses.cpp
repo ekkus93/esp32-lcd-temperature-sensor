@@ -110,6 +110,14 @@ Json read_json_body(HttpExchange &exchange) {
         return {nullptr, cJSON_Delete};
     return value;
 }
+esp_err_t send_text(HttpExchange &exchange, const char *text) {
+    return exchange.send(text, std::char_traits<char>::length(text));
+}
+std::string url_query(const HttpExchange &exchange) {
+    const auto uri = exchange.uri();
+    const auto mark = uri.find('?');
+    return mark == std::string::npos ? std::string() : uri.substr(mark + 1);
+}
 std::string json_string(const cJSON *object, const char *key) {
     const auto *value = cJSON_GetObjectItemCaseSensitive(object, key);
     return cJSON_IsString(value) ? value->valuestring : "";

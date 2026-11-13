@@ -32,30 +32,6 @@ namespace {
 int64_t now() {
     return esp_timer_get_time() / 1000;
 }
-// Wrappers for code that still holds the raw request (God file refactor G01.1; removed in G01.2).
-std::string header(httpd_req_t *r, const char *name, size_t limit = 512) {
-    IdfExchange exchange(r);
-    return exchange.header(name, limit);
-}
-uint32_t client_id(httpd_req_t *r) {
-    IdfExchange exchange(r);
-    return exchange.client();
-}
-esp_err_t error(httpd_req_t *r, const char *status, const char *message) {
-    IdfExchange exchange(r);
-    return send_error(exchange, status, message);
-}
-esp_err_t json(httpd_req_t *r, cJSON *object) {
-    IdfExchange exchange(r);
-    return send_json(exchange, object);
-}
-Json body(httpd_req_t *r) {
-    IdfExchange exchange(r);
-    return read_json_body(exchange);
-}
-std::string string(cJSON *object, const char *key) {
-    return json_string(object, key);
-}
 const char *event_kind_name(EventKind kind) {
     switch (kind) {
     case EventKind::sensor_state:
@@ -91,13 +67,9 @@ std::string boot_text(uint64_t boot_id) {
     std::snprintf(value, sizeof(value), "%016llx", static_cast<unsigned long long>(boot_id));
     return value;
 }
-std::string cookie(httpd_req_t *r) {
-    IdfExchange exchange(r);
-    return session_cookie(exchange);
-}
 } // namespace
-bool HttpApi::origin(httpd_req_t *r, bool required) {
-    auto host = header(r, "Host", 128);
+bool HttpApi::origin(HttpExchange &ex, bool required) {
+    auto host = ex.header("Host", 128);
     HostRules rules;
     rules.station_ip = wifi_->info().ip;
     {
@@ -108,7 +80,7 @@ bool HttpApi::origin(httpd_req_t *r, bool required) {
     rules.active_name = wifi_->mdns_hostname();
     if (!host_allowed(host, rules))
         return false;
-    auto source = header(r, "Origin", 256);
+    auto source = ex.header("Origin", 256);
     return source.empty() ? !required : source == "http://" + host;
 }
 void HttpApi::apply_hostname(const std::string &name) {
@@ -121,10 +93,10 @@ void HttpApi::apply_hostname(const std::string &name) {
     // Rename without a reboot; existing sessions are unaffected.
     wifi_->mdns_rename(name);
 }
-std::optional<Session> HttpApi::session(httpd_req_t *r, bool csrf) {
-    auto value = auth_->authorize(cookie(r), now());
+std::optional<Session> HttpApi::session(HttpExchange &ex, bool csrf) {
+    auto value = auth_->authorize(session_cookie(ex), now());
     if (!session_accepted(value.has_value(), csrf,
-                          value && constant_equal(header(r, "X-CSRF-Token", 128), value->csrf)))
+                          value && constant_equal(ex.header("X-CSRF-Token", 128), value->csrf)))
         return std::nullopt;
     return value;
 }
@@ -138,48 +110,48 @@ void HttpApi::login_worker(void *context) {
         const auto session =
             self.auth_->login_complete(job->password, job->client, now(), &failure);
         std::fill(job->password.begin(), job->password.end(), '\0');
+        auto &ex = *job->exchange;
         if (!session && failure == AuthService::LoginFailure::wrong_password) {
-            httpd_resp_set_hdr(job->request, "Retry-After", "5");
-            error(job->request, "401 Unauthorized", "Login denied; retry after 5 seconds");
+            ex.set_header("Retry-After", "5");
+            send_error(ex, "401 Unauthorized", "Login denied; retry after 5 seconds");
         } else if (!session) {
             // Not the password's fault: say so, so nobody retypes a correct password.
-            httpd_resp_set_hdr(job->request, "Retry-After", "5");
-            error(job->request, "503 Service Unavailable",
-                  "The device could not check the password just now; try again in a few seconds");
+            ex.set_header("Retry-After", "5");
+            send_error(ex, "503 Service Unavailable",
+                       "The device could not check the password just now; try again in a few "
+                       "seconds");
         } else {
-            std::string value = "tm_session=" + session->token +
-                                "; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600";
-            httpd_resp_set_hdr(job->request, "Set-Cookie", value.c_str());
+            ex.set_header("Set-Cookie", "tm_session=" + session->token +
+                                            "; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600");
             Json object(cJSON_CreateObject(), cJSON_Delete);
             cJSON_AddStringToObject(object.get(), "csrf", session->csrf.c_str());
-            json(job->request, object.get());
+            send_json(ex, object.get());
         }
-        httpd_req_async_handler_complete(job->request);
-        delete job;
+        delete job; // completes the request
     }
 }
 // Answers one history query or CSV export on the history worker (never on the HTTP task).
-esp_err_t HttpApi::serve_history(httpd_req_t *r, const HistoryQuery &query, bool exporting) {
+esp_err_t HttpApi::serve_history(HttpExchange &ex, const HistoryQuery &query, bool exporting) {
     if (exporting) {
         // The HTTP response as the export's destination.
         struct HttpCsvSink final : CsvExportSink {
-            httpd_req_t *request;
-            explicit HttpCsvSink(httpd_req_t *r) : request(r) {}
+            HttpExchange &exchange;
+            explicit HttpCsvSink(HttpExchange &e) : exchange(e) {}
             bool begin() override {
-                httpd_resp_set_type(request, "text/csv; charset=utf-8");
-                httpd_resp_set_hdr(request, "Content-Disposition",
-                                   "attachment; filename=temperature-history.csv");
-                httpd_resp_set_hdr(request, "Cache-Control", "no-store");
-                return httpd_resp_send_chunk(request, history_csv_header(),
-                                             HTTPD_RESP_USE_STRLEN) == ESP_OK;
+                exchange.set_type("text/csv; charset=utf-8");
+                exchange.set_header("Content-Disposition",
+                                    "attachment; filename=temperature-history.csv");
+                exchange.set_header("Cache-Control", "no-store");
+                const char *header = history_csv_header();
+                return exchange.send_chunk(header, std::strlen(header)) == ESP_OK;
             }
             bool send(const char *data, std::size_t size) override {
-                return httpd_resp_send_chunk(request, data, size) == ESP_OK;
+                return exchange.send_chunk(data, size) == ESP_OK;
             }
             bool finish() override {
-                return httpd_resp_send_chunk(request, nullptr, 0) == ESP_OK;
+                return exchange.send_chunk(nullptr, 0) == ESP_OK;
             }
-        } sink(r);
+        } sink(ex);
         const auto result = export_history_csv(
             [&](const std::function<bool(const Bucket &)> &visitor,
                 const HistoryVisitOptions &options) {
@@ -192,14 +164,15 @@ esp_err_t HttpApi::serve_history(httpd_req_t *r, const HistoryQuery &query, bool
         case CsvExportEnd::refused:
             switch (result.visit.end) {
             case HistoryVisitEnd::skipped_damaged:
-                return error(r, "503 Service Unavailable",
-                             "Part of the stored history in this range is damaged, so a complete "
-                             "export is not possible. The chart still shows what can be read.");
+                return send_error(
+                    ex, "503 Service Unavailable",
+                    "Part of the stored history in this range is damaged, so a complete "
+                    "export is not possible. The chart still shows what can be read.");
             case HistoryVisitEnd::deadline:
-                return error(r, "503 Service Unavailable",
-                             "The export took too long. Try a shorter range.");
+                return send_error(ex, "503 Service Unavailable",
+                                  "The export took too long. Try a shorter range.");
             default:
-                return error(r, "503 Service Unavailable", "History unavailable or busy");
+                return send_error(ex, "503 Service Unavailable", "History unavailable or busy");
             }
         case CsvExportEnd::aborted:
             break;
@@ -209,28 +182,28 @@ esp_err_t HttpApi::serve_history(httpd_req_t *r, const HistoryQuery &query, bool
         ESP_LOGW("http",
                  "History export incomplete (end %u, %u damaged segment(s)); connection closed",
                  unsigned(result.visit.end), unsigned(result.visit.skipped_segments));
-        httpd_sess_trigger_close(server_, httpd_req_to_sockfd(r));
+        ex.close_connection();
         return ESP_FAIL;
     }
     std::vector<HistoryPoint> points;
     std::vector<HistoryGap> gap_records;
     bool truncated = false;
     if (!history_->query(query, points, gap_records, truncated))
-        return error(r, "503 Service Unavailable", "History unavailable or busy");
+        return send_error(ex, "503 Service Unavailable", "History unavailable or busy");
     char *text = build_history_json(points, std::move(gap_records), truncated, simulated_,
                                     query.boot_id.has_value());
     if (!text) {
         // No schema-valid answer could be built. The reply must not need the allocator that just
         // failed, so its body is a constant.
-        httpd_resp_set_status(r, "503 Service Unavailable");
-        httpd_resp_set_type(r, "application/json");
-        httpd_resp_set_hdr(r, "Cache-Control", "no-store");
-        return httpd_resp_send(r, "{\"error\":\"History response memory unavailable\"}",
-                               HTTPD_RESP_USE_STRLEN);
+        ex.set_status("503 Service Unavailable");
+        ex.set_type("application/json");
+        ex.set_header("Cache-Control", "no-store");
+        constexpr char body[] = "{\"error\":\"History response memory unavailable\"}";
+        return ex.send(body, sizeof(body) - 1);
     }
-    httpd_resp_set_type(r, "application/json");
-    httpd_resp_set_hdr(r, "Cache-Control", "no-store");
-    const auto sent = httpd_resp_send(r, text, HTTPD_RESP_USE_STRLEN);
+    ex.set_type("application/json");
+    ex.set_header("Cache-Control", "no-store");
+    const auto sent = ex.send(text, std::strlen(text));
     cJSON_free(text);
     return sent;
 }
@@ -251,9 +224,10 @@ void HttpApi::history_worker(void *context) {
         // A failure after part of the answer was sent leaves the response unusable: close it,
         // as the HTTP server does when an ordinary handler fails.
         const int64_t started_us = esp_timer_get_time();
-        const bool served = self.serve_history(job->request, job->query, job->exporting) == ESP_OK;
+        const bool served =
+            self.serve_history(*job->exchange, job->query, job->exporting) == ESP_OK;
         if (!served)
-            httpd_sess_trigger_close(self.server_, httpd_req_to_sockfd(job->request));
+            job->exchange->close_connection();
         // Total time on the worker: the history service's lock wait and run time (logged by it)
         // plus building and sending the response.
         ESP_LOGI("http", "History %s %s in %lld ms", job->exporting ? "export" : "query",
@@ -261,8 +235,7 @@ void HttpApi::history_worker(void *context) {
                  (long long)((esp_timer_get_time() - started_us) / 1000));
         // The admission slot is returned on every outcome.
         self.finish_public(job->kind);
-        httpd_req_async_handler_complete(job->request);
-        delete job;
+        delete job; // completes the request
     }
 }
 bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &history,
@@ -459,20 +432,22 @@ std::string HttpApi::snapshot() {
     return result;
 }
 esp_err_t HttpApi::dispatch(httpd_req_t *request) {
-    return static_cast<HttpApi *>(request->user_ctx)->handle(request);
+    IdfExchange exchange(request);
+    return static_cast<HttpApi *>(request->user_ctx)->handle(exchange);
 }
 esp_err_t HttpApi::ws_pre(httpd_req_t *r) {
     auto &self = *static_cast<HttpApi *>(r->user_ctx);
+    IdfExchange ex(r);
     // Live readings are public, but the upgrade still needs the device's own Origin so another
     // site's page cannot read the stream. A session, when present, is kept (for the owner slot).
-    auto session = self.session(r, false);
-    if (!self.origin(r, true)) {
-        error(r, "403 Forbidden", "WebSocket authorization failed");
+    auto session = self.session(ex, false);
+    if (!self.origin(ex, true)) {
+        send_error(ex, "403 Forbidden", "WebSocket authorization failed");
         return ESP_FAIL;
     }
     const int fd = httpd_req_to_sockfd(r);
     if (!self.ws_live_.add_client(fd, session ? session->token : std::string{})) {
-        error(r, "503 Service Unavailable", "Socket limit");
+        send_error(ex, "503 Service Unavailable", "Socket limit");
         return ESP_FAIL;
     }
     self.ws_live_.welcome();
@@ -481,8 +456,8 @@ esp_err_t HttpApi::ws_pre(httpd_req_t *r) {
 esp_err_t HttpApi::live(httpd_req_t *r) {
     return static_cast<HttpApi *>(r->user_ctx)->ws_live_.receive(r);
 }
-esp_err_t HttpApi::handle(httpd_req_t *r) {
-    std::string path = r->uri;
+esp_err_t HttpApi::handle(HttpExchange &ex) {
+    std::string path = ex.uri();
     auto query = path.find('?');
     if (query != std::string::npos)
         path.resize(query);
@@ -490,96 +465,96 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
     const bool portal_probe = path == "/generate_204" || path == "/gen_204" ||
                               path == "/hotspot-detect.html" || path == "/connecttest.txt" ||
                               path == "/ncsi.txt";
-    if (portal_probe && r->method == HTTP_GET && wifi_->info().provisioning) {
+    if (portal_probe && ex.method() == HttpMethod::get && wifi_->info().provisioning) {
         // Only OS connectivity probes bypass Host checking; APIs never do.
-        httpd_resp_set_status(r, "302 Found");
-        httpd_resp_set_hdr(r, "Location", "http://192.168.4.1/setup");
-        httpd_resp_set_hdr(r, "Cache-Control", "no-store");
-        return httpd_resp_send(r, "", 0);
+        ex.set_status("302 Found");
+        ex.set_header("Location", "http://192.168.4.1/setup");
+        ex.set_header("Cache-Control", "no-store");
+        return ex.send("", 0);
     }
-    if (api && !origin(r, r->method != HTTP_GET))
-        return error(r, "403 Forbidden", "Invalid host/origin");
-    if (path == "/api/v1/auth/state" && r->method == HTTP_GET) {
+    if (api && !origin(ex, ex.method() != HttpMethod::get))
+        return send_error(ex, "403 Forbidden", "Invalid host/origin");
+    if (path == "/api/v1/auth/state" && ex.method() == HttpMethod::get) {
         Json object(cJSON_CreateObject(), cJSON_Delete);
         cJSON_AddBoolToObject(object.get(), "enrolled", auth_->enrolled());
-        const auto signed_in = session(r, false);
+        const auto signed_in = session(ex, false);
         cJSON_AddBoolToObject(object.get(), "signed_in", signed_in.has_value());
         if (signed_in)
             cJSON_AddStringToObject(object.get(), "csrf", signed_in->csrf.c_str());
-        return json(r, object.get());
+        return send_json(ex, object.get());
     }
-    if ((path == "/api/v1/auth/enroll" || path == "/api/v1/auth/login") && r->method == HTTP_POST) {
-        auto input = body(r);
+    if ((path == "/api/v1/auth/enroll" || path == "/api/v1/auth/login") &&
+        ex.method() == HttpMethod::post) {
+        auto input = read_json_body(ex);
         if (!input)
-            return error(r, "400 Bad Request", "Expected bounded JSON object");
+            return send_error(ex, "400 Bad Request", "Expected bounded JSON object");
         if (path == "/api/v1/auth/enroll") {
-            const auto result =
-                auth_->enroll(string(input.get(), "password"), now(), wifi_->info().provisioning);
+            const auto result = auth_->enroll(json_string(input.get(), "password"), now(),
+                                              wifi_->info().provisioning);
             const auto reply = enrollment_reply(result);
             if (result != AuthService::EnrollResult::enrolled) {
                 char retry[12];
                 if (reply.retry_after > 0) {
                     std::snprintf(retry, sizeof(retry), "%d", reply.retry_after);
-                    httpd_resp_set_hdr(r, "Retry-After", retry);
+                    ex.set_header("Retry-After", retry);
                 }
-                return error(r, reply.status, reply.message);
+                return send_error(ex, reply.status, reply.message);
             }
-            httpd_resp_set_status(r, reply.status);
-            return httpd_resp_send(r, "{}", 2);
+            ex.set_status(reply.status);
+            return ex.send("{}", 2);
         }
         // Login: the slow password check runs on a worker so other requests keep being served.
-        std::string password = string(input.get(), "password");
-        const uint32_t client = client_id(r);
+        std::string password = json_string(input.get(), "password");
+        const uint32_t client = ex.client();
         const auto decision = auth_->login_begin(client, now());
         if (decision.gate != LoginGate::allow) {
             char retry[24];
             std::snprintf(retry, sizeof(retry), "%lld",
                           static_cast<long long>(
                               std::max<int64_t>(1, (decision.retry_after_ms + 999) / 1000)));
-            httpd_resp_set_hdr(r, "Retry-After", retry);
-            return error(r, "429 Too Many Requests",
-                         decision.gate == LoginGate::busy
-                             ? "Another login is being checked; retry shortly"
-                             : "Too many failed logins; retry later");
+            ex.set_header("Retry-After", retry);
+            return send_error(ex, "429 Too Many Requests",
+                              decision.gate == LoginGate::busy
+                                  ? "Another login is being checked; retry shortly"
+                                  : "Too many failed logins; retry later");
         }
         auto *job = new (std::nothrow) LoginJob{nullptr, std::move(password), client};
-        httpd_req_t *copy = nullptr;
-        if (!job || httpd_req_async_handler_begin(r, &copy) != ESP_OK) {
+        if (job)
+            job->exchange = ex.begin_async();
+        if (!job || !job->exchange) {
             delete job;
             auth_->login_abort(client);
-            return error(r, "503 Service Unavailable", "Login unavailable; retry shortly");
+            return send_error(ex, "503 Service Unavailable", "Login unavailable; retry shortly");
         }
-        job->request = copy;
         if (!login_queue_ || xQueueSend(login_queue_, &job, 0) != pdTRUE) {
-            httpd_req_async_handler_complete(copy);
-            delete job;
+            delete job; // completes the async copy
             auth_->login_abort(client);
-            return error(r, "503 Service Unavailable", "Login unavailable; retry shortly");
+            return send_error(ex, "503 Service Unavailable", "Login unavailable; retry shortly");
         }
         return ESP_OK; // the worker answers on the async copy
     }
     if (api) {
         // One place decides who may call what (route_access.hpp). A route that is not in the
         // table is a 404 for everyone, so no handler below is reachable by accident.
-        const char *method_name = r->method == HTTP_GET      ? "GET"
-                                  : r->method == HTTP_POST   ? "POST"
-                                  : r->method == HTTP_PATCH  ? "PATCH"
-                                  : r->method == HTTP_PUT    ? "PUT"
-                                  : r->method == HTTP_DELETE ? "DELETE"
-                                                             : "";
+        const char *method_name = ex.method() == HttpMethod::get     ? "GET"
+                                  : ex.method() == HttpMethod::post  ? "POST"
+                                  : ex.method() == HttpMethod::patch ? "PATCH"
+                                  : ex.method() == HttpMethod::put   ? "PUT"
+                                  : ex.method() == HttpMethod::del   ? "DELETE"
+                                                                     : "";
         const auto access = route_access(method_name, path);
         // Owner routes need a session (and, for changes, the CSRF token). Open routes work
         // without one; a signed-in owner is still recognised so owner-only fields can be added.
-        const auto s = session(r, route_needs_csrf(access, method_name));
+        const auto s = session(ex, route_needs_csrf(access, method_name));
         switch (api_gate(access, s.has_value())) {
         case ApiGate::not_found:
-            return error(r, "404 Not Found", "Unknown API route");
+            return send_error(ex, "404 Not Found", "Unknown API route");
         case ApiGate::unauthorized:
-            return error(r, "401 Unauthorized", "Administrator session required");
+            return send_error(ex, "401 Unauthorized", "Administrator session required");
         case ApiGate::proceed:
             break;
         }
-        if (path == "/api/v1/clock" && r->method == HTTP_GET) {
+        if (path == "/api/v1/clock" && ex.method() == HttpMethod::get) {
             const auto status = clock_sync_diagnostics();
             Json output(cJSON_CreateObject(), cJSON_Delete);
             cJSON_AddNumberToObject(output.get(), "schema_version", 1);
@@ -593,12 +568,12 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                 cJSON_AddNumberToObject(output.get(), "sync_age_ms", *status.sync_age_ms);
             else
                 cJSON_AddNullToObject(output.get(), "sync_age_ms");
-            return json(r, output.get());
+            return send_json(ex, output.get());
         }
-        if (path == "/api/v1/probe-scan" && r->method == HTTP_GET) {
+        if (path == "/api/v1/probe-scan" && ex.method() == HttpMethod::get) {
             ProbeScanStatus status;
             if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10)) != pdTRUE)
-                return error(r, "503 Service Unavailable", "Probe scan status busy");
+                return send_error(ex, "503 Service Unavailable", "Probe scan status busy");
             status = probe_scan_;
             xSemaphoreGive(mutex_);
             Json object(cJSON_CreateObject(), cJSON_Delete);
@@ -607,63 +582,66 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
             cJSON_AddBoolToObject(object.get(), "complete", status.complete);
             cJSON_AddNumberToObject(object.get(), "discovered_count", status.discovered_count);
             cJSON_AddBoolToObject(object.get(), "overflow", status.overflow);
-            return json(r, object.get());
+            return send_json(ex, object.get());
         }
-        if (path == "/api/v1/ota" && r->method == HTTP_POST)
-            return handle_ota_upload(r);
-        if (path == "/api/v1/system/reboot" && r->method == HTTP_POST) {
-            if (r->content_len != 0) {
-                auto result = error(r, "400 Bad Request", "Reboot request must not include a body");
-                httpd_sess_trigger_close(server_, httpd_req_to_sockfd(r));
+        if (path == "/api/v1/ota" && ex.method() == HttpMethod::post)
+            return handle_ota_upload(static_cast<httpd_req_t *>(ex.native_handle()));
+        if (path == "/api/v1/system/reboot" && ex.method() == HttpMethod::post) {
+            if (ex.content_length() != 0) {
+                auto result =
+                    send_error(ex, "400 Bad Request", "Reboot request must not include a body");
+                ex.close_connection();
                 return result;
             }
             if (!reboot_available())
-                return error(r, "503 Service Unavailable", "Could not schedule restart");
-            httpd_resp_set_status(r, "202 Accepted");
-            httpd_resp_set_type(r, "application/json");
-            httpd_resp_set_hdr(r, "Cache-Control", "no-store");
-            const auto result =
-                httpd_resp_send(r, "{\"status\":\"rebooting\"}", HTTPD_RESP_USE_STRLEN);
+                return send_error(ex, "503 Service Unavailable", "Could not schedule restart");
+            ex.set_status("202 Accepted");
+            ex.set_type("application/json");
+            ex.set_header("Cache-Control", "no-store");
+            const auto result = send_text(ex, "{\"status\":\"rebooting\"}");
             if (!schedule_reboot())
                 esp_restart();
             return result;
         }
-        if (path == "/api/v1/system/factory-reset" && r->method == HTTP_POST) {
-            auto input = body(r);
+        if (path == "/api/v1/system/factory-reset" && ex.method() == HttpMethod::post) {
+            auto input = read_json_body(ex);
             if (!input || cJSON_GetArraySize(input.get()) != 1)
-                return error(r, "400 Bad Request", "Expected erase_history boolean");
+                return send_error(ex, "400 Bad Request", "Expected erase_history boolean");
             auto *erase = cJSON_GetObjectItemCaseSensitive(input.get(), "erase_history");
             if (!cJSON_IsBool(erase))
-                return error(r, "400 Bad Request", "Expected erase_history boolean");
+                return send_error(ex, "400 Bad Request", "Expected erase_history boolean");
             if (!schedule_factory_reset(cJSON_IsTrue(erase)))
-                return error(r, "503 Service Unavailable", "Could not schedule factory reset");
-            httpd_resp_set_status(r, "202 Accepted");
-            httpd_resp_set_type(r, "application/json");
-            httpd_resp_set_hdr(r, "Cache-Control", "no-store");
-            return httpd_resp_send(r, "{\"status\":\"resetting\"}", HTTPD_RESP_USE_STRLEN);
+                return send_error(ex, "503 Service Unavailable",
+                                  "Could not schedule factory reset");
+            ex.set_status("202 Accepted");
+            ex.set_type("application/json");
+            ex.set_header("Cache-Control", "no-store");
+            return send_text(ex, "{\"status\":\"resetting\"}");
         }
-        if (path == "/api/v1/settings" && (r->method == HTTP_GET || r->method == HTTP_PATCH)) {
+        if (path == "/api/v1/settings" &&
+            (ex.method() == HttpMethod::get || ex.method() == HttpMethod::patch)) {
             DeviceOptions options;
             uint64_t revision = 0;
             bool writable = false;
             if (!settings_->get(options, revision, writable))
-                return error(r, "503 Service Unavailable", "Settings busy");
+                return send_error(ex, "503 Service Unavailable", "Settings busy");
             auto etag = [&]() {
                 return "\"" + boot_id_ + ":settings:" + std::to_string(revision) + "\"";
             };
-            if (r->method == HTTP_PATCH) {
+            if (ex.method() == HttpMethod::patch) {
                 if (!writable)
-                    return error(r, "503 Service Unavailable",
-                                 "Stored settings damaged; preserved for recovery");
-                auto match = header(r, "If-Match", 128);
+                    return send_error(ex, "503 Service Unavailable",
+                                      "Stored settings damaged; preserved for recovery");
+                auto match = ex.header("If-Match", 128);
                 if (match.empty())
-                    return error(r, "428 Precondition Required", "Refresh settings before saving");
+                    return send_error(ex, "428 Precondition Required",
+                                      "Refresh settings before saving");
                 if (match != etag())
-                    return error(r, "412 Precondition Failed",
-                                 "Settings changed; refresh before saving");
-                auto input = body(r);
+                    return send_error(ex, "412 Precondition Failed",
+                                      "Settings changed; refresh before saving");
+                auto input = read_json_body(ex);
                 if (!input)
-                    return error(r, "400 Bad Request", "Expected bounded JSON object");
+                    return send_error(ex, "400 Bad Request", "Expected bounded JSON object");
                 std::vector<std::string> keys;
                 cJSON *field = nullptr;
                 bool valid = true;
@@ -721,16 +699,17 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                 }
                 // The schema requires at least one property (minProperties: 1).
                 if (!valid || keys.empty() || !valid_device_options(options))
-                    return error(r, "400 Bad Request", "Invalid device settings");
+                    return send_error(ex, "400 Bad Request", "Invalid device settings");
                 if (settings_->save(options, revision) != ESP_OK)
-                    return error(r, "503 Service Unavailable", "Settings could not be committed");
+                    return send_error(ex, "503 Service Unavailable",
+                                      "Settings could not be committed");
                 apply_hostname(options.hostname);
                 if (!configure_clock(options))
-                    return error(r, "503 Service Unavailable",
-                                 "Settings saved; clock configuration unavailable");
+                    return send_error(ex, "503 Service Unavailable",
+                                      "Settings saved; clock configuration unavailable");
                 if (!settings_->get(options, revision, writable))
-                    return error(r, "503 Service Unavailable",
-                                 "Settings saved; refresh to confirm");
+                    return send_error(ex, "503 Service Unavailable",
+                                      "Settings saved; refresh to confirm");
             }
             Json output(cJSON_CreateObject(), cJSON_Delete);
             cJSON_AddNumberToObject(output.get(), "schema_version", 1);
@@ -752,19 +731,20 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
             // The NTP server is the owner's: anonymous readers get the display fields only.
             if (s)
                 cJSON_AddStringToObject(output.get(), "ntp_server", options.ntp_server.c_str());
-            return json(r, output.get());
+            return send_json(ex, output.get());
         }
-        if (path == "/api/v1/wifi/scan" && r->method == HTTP_POST) {
+        if (path == "/api/v1/wifi/scan" && ex.method() == HttpMethod::post) {
             if (!wifi_->scan())
-                return error(r, "429 Too Many Requests", "Scan busy; wait at least 10 seconds");
-            httpd_resp_set_status(r, "202 Accepted");
-            return httpd_resp_send(r, "{}", 2);
+                return send_error(ex, "429 Too Many Requests",
+                                  "Scan busy; wait at least 10 seconds");
+            ex.set_status("202 Accepted");
+            return ex.send("{}", 2);
         }
-        if (path == "/api/v1/wifi/scan" && r->method == HTTP_GET) {
+        if (path == "/api/v1/wifi/scan" && ex.method() == HttpMethod::get) {
             std::vector<ScannedNetwork> networks;
             bool scanning = false;
             if (!wifi_->scan_results(networks, scanning))
-                return error(r, "503 Service Unavailable", "Scan results busy");
+                return send_error(ex, "503 Service Unavailable", "Scan results busy");
             Json output(cJSON_CreateObject(), cJSON_Delete);
             cJSON_AddBoolToObject(output.get(), "scanning", scanning);
             auto *items = cJSON_AddArrayToObject(output.get(), "networks");
@@ -776,53 +756,49 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                 cJSON_AddBoolToObject(item, "secure", network.secure);
                 cJSON_AddItemToArray(items, item);
             }
-            return json(r, output.get());
+            return send_json(ex, output.get());
         }
         if ((path == "/api/v1/history" || path == "/api/v1/history/export") &&
-            r->method == HTTP_GET) {
-            const auto length = httpd_req_get_url_query_len(r);
-            if (!length || length > 256)
-                return error(r, "400 Bad Request", "Bounded history query required");
-            std::string query_text(length + 1, '\0');
-            if (httpd_req_get_url_query_str(r, query_text.data(), query_text.size()) != ESP_OK)
-                return error(r, "400 Bad Request", "Invalid history query");
-            query_text.resize(length);
+            ex.method() == HttpMethod::get) {
+            const auto query_text = url_query(ex);
+            if (query_text.empty() || query_text.size() > 256)
+                return send_error(ex, "400 Bad Request", "Bounded history query required");
             bool has_max_points = false;
             auto parsed_query = parse_history_query(query_text, &has_max_points);
             if (!parsed_query)
-                return error(r, "400 Bad Request", "Invalid history bounds or selector");
+                return send_error(ex, "400 Bad Request", "Invalid history bounds or selector");
             const auto &query = *parsed_query;
             const bool exporting = path == "/api/v1/history/export";
             if (exporting && has_max_points)
-                return error(r, "400 Bad Request",
-                             "CSV exports full five-minute records; omit max_points");
+                return send_error(ex, "400 Bad Request",
+                                  "CSV exports full five-minute records; omit max_points");
             // History is public, so it is rate limited per client (one query per second, one
             // export per 30 s, two at a time overall); a refused request says when to retry.
             const auto kind = exporting ? PublicRequest::export_csv : PublicRequest::history;
-            const auto allowed = begin_public(kind, client_id(r));
+            const auto allowed = begin_public(kind, ex.client());
             if (!allowed.allow) {
                 char retry[24];
                 std::snprintf(retry, sizeof(retry), "%lld",
                               static_cast<long long>(
                                   std::max<int64_t>(1, (allowed.retry_after_ms + 999) / 1000)));
-                httpd_resp_set_hdr(r, "Retry-After", retry);
-                return error(r, "429 Too Many Requests", "Too many history requests; retry later");
+                ex.set_header("Retry-After", retry);
+                return send_error(ex, "429 Too Many Requests",
+                                  "Too many history requests; retry later");
             }
             // The query or export runs on the history worker, so this task keeps answering other
             // requests while it reads the store and sends the answer.
             auto *job = new (std::nothrow) HistoryJob{nullptr, query, exporting, kind};
-            httpd_req_t *copy = nullptr;
-            if (!job || httpd_req_async_handler_begin(r, &copy) != ESP_OK) {
+            if (job)
+                job->exchange = ex.begin_async();
+            if (!job || !job->exchange) {
                 delete job;
                 finish_public(kind);
-                return error(r, "503 Service Unavailable", "History unavailable or busy");
+                return send_error(ex, "503 Service Unavailable", "History unavailable or busy");
             }
-            job->request = copy;
             if (!history_queue_ || xQueueSend(history_queue_, &job, 0) != pdTRUE) {
-                httpd_req_async_handler_complete(copy);
-                delete job;
+                delete job; // completes the async copy
                 finish_public(kind);
-                return error(r, "503 Service Unavailable", "History unavailable or busy");
+                return send_error(ex, "503 Service Unavailable", "History unavailable or busy");
             }
             return ESP_OK; // the history worker answers on the async copy
         }
@@ -831,23 +807,18 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
             Registry current;
             ProbeScanStatus scan;
             if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10)) != pdTRUE)
-                return error(r, "503 Service Unavailable", "Snapshot busy");
+                return send_error(ex, "503 Service Unavailable", "Snapshot busy");
             current = registry_;
             scan = probe_scan_;
             const uint64_t snapshot_generation = published_generation_.load();
             xSemaphoreGive(mutex_);
-            if (path == "/api/v1/alerts" && r->method == HTTP_GET) {
+            if (path == "/api/v1/alerts" && ex.method() == HttpMethod::get) {
                 uint64_t after = 0;
                 unsigned limit = 50;
-                const auto query_length = httpd_req_get_url_query_len(r);
-                if (query_length > 64)
-                    return error(r, "400 Bad Request", "Invalid alert cursor");
-                if (query_length) {
-                    std::string query_text(query_length + 1, '\0');
-                    if (httpd_req_get_url_query_str(r, query_text.data(), query_text.size()) !=
-                        ESP_OK)
-                        return error(r, "400 Bad Request", "Invalid alert cursor");
-                    query_text.resize(query_length);
+                const auto query_text = url_query(ex);
+                if (query_text.size() > 64)
+                    return send_error(ex, "400 Bad Request", "Invalid alert cursor");
+                if (!query_text.empty()) {
                     bool valid = true;
                     std::vector<std::string> keys;
                     for (size_t start = 0; start < query_text.size();) {
@@ -878,7 +849,7 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                         start = end + 1;
                     }
                     if (!valid)
-                        return error(r, "400 Bad Request", "Invalid alert cursor");
+                        return send_error(ex, "400 Bad Request", "Invalid alert cursor");
                 }
                 Json output(cJSON_CreateObject(), cJSON_Delete);
                 auto *active = cJSON_AddArrayToObject(output.get(), "active");
@@ -952,7 +923,7 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                 cJSON_AddNumberToObject(output.get(), "next_after",
                                         static_cast<double>(page.next_after));
                 cJSON_AddBoolToObject(output.get(), "has_more", page.has_more);
-                return json(r, output.get());
+                return send_json(ex, output.get());
             }
             auto serialize = [this](const Sensor &sensor) -> cJSON * {
                 auto *item = cJSON_CreateObject();
@@ -985,19 +956,19 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                 add_calibration_hold(item, sensor);
                 return item;
             };
-            if (path == "/api/v1/sensors" && r->method == HTTP_GET) {
+            if (path == "/api/v1/sensors" && ex.method() == HttpMethod::get) {
                 Json output(cJSON_CreateArray(), cJSON_Delete);
                 for (const auto &sensor : current.sensors())
                     cJSON_AddItemToArray(output.get(), serialize(sensor));
-                return json(r, output.get());
+                return send_json(ex, output.get());
             }
-            if (path == "/api/v1/sensors/storage" && r->method == HTTP_GET) {
+            if (path == "/api/v1/sensors/storage" && ex.method() == HttpMethod::get) {
                 Json output(cJSON_CreateObject(), cJSON_Delete);
                 cJSON_AddNumberToObject(output.get(), "schema_version", 1);
                 const bool writable = sensor_settings_writable_.load();
                 cJSON_AddStringToObject(output.get(), "state", writable ? "ready" : "read_only");
                 cJSON_AddBoolToObject(output.get(), "writable", writable);
-                return json(r, output.get());
+                return send_json(ex, output.get());
             }
             constexpr std::string_view hold_suffix = "/calibration-hold";
             if (path.rfind("/api/v1/sensors/", 0) == 0 && path.size() > 16 + hold_suffix.size() &&
@@ -1009,84 +980,91 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                     std::find_if(current.sensors().begin(), current.sensors().end(),
                                  [&](const Sensor &sensor) { return rom_hex(sensor.rom) == id; });
                 if (found == current.sensors().end())
-                    return error(r, "404 Not Found", "Unknown ROM ID");
-                CalibrationHoldUpdate update{found->rom, 0, r->method == HTTP_DELETE};
-                if (r->method == HTTP_PUT) {
+                    return send_error(ex, "404 Not Found", "Unknown ROM ID");
+                CalibrationHoldUpdate update{found->rom, 0, ex.method() == HttpMethod::del};
+                if (ex.method() == HttpMethod::put) {
                     constexpr int64_t minute_ms = 60000;
                     if (!probe_can_be_held(found->state))
-                        return error(r, "409 Conflict", "Probe must be connected to calibrate it");
-                    auto input = body(r);
+                        return send_error(ex, "409 Conflict",
+                                          "Probe must be connected to calibrate it");
+                    auto input = read_json_body(ex);
                     if (!input)
-                        return error(r, "400 Bad Request", "Expected bounded JSON object");
+                        return send_error(ex, "400 Bad Request", "Expected bounded JSON object");
                     const auto minutes = calibration_hold_minutes(input.get());
                     if (!minutes)
-                        return error(r, "400 Bad Request",
-                                     "Hold for 1 to 20 minutes: {\"minutes\": n}");
+                        return send_error(ex, "400 Bad Request",
+                                          "Hold for 1 to 20 minutes: {\"minutes\": n}");
                     update.duration_ms = int64_t(*minutes) * minute_ms;
-                } else if (r->method == HTTP_DELETE) {
-                    if (r->content_len != 0)
-                        return error(r, "400 Bad Request", "Ending a hold does not accept a body");
+                } else if (ex.method() == HttpMethod::del) {
+                    if (ex.content_length() != 0)
+                        return send_error(ex, "400 Bad Request",
+                                          "Ending a hold does not accept a body");
                 } else {
-                    return error(r, "405 Method Not Allowed", "Method not allowed");
+                    return send_error(ex, "405 Method Not Allowed", "Method not allowed");
                 }
                 auto *queued = new (std::nothrow) CalibrationHoldUpdate(update);
                 if (!queued)
-                    return error(r, "503 Service Unavailable", "Calibration memory unavailable");
+                    return send_error(ex, "503 Service Unavailable",
+                                      "Calibration memory unavailable");
                 if (xQueueSend(holds_, &queued, 0) != pdTRUE) {
                     delete queued;
-                    return error(r, "503 Service Unavailable", "Calibration request queue full");
+                    return send_error(ex, "503 Service Unavailable",
+                                      "Calibration request queue full");
                 }
-                httpd_resp_set_status(r, "202 Accepted");
-                return httpd_resp_send(r, "{\"status\":\"queued\"}", HTTPD_RESP_USE_STRLEN);
+                ex.set_status("202 Accepted");
+                return send_text(ex, "{\"status\":\"queued\"}");
             }
-            if ((r->method == HTTP_PATCH || r->method == HTTP_DELETE) &&
+            if ((ex.method() == HttpMethod::patch || ex.method() == HttpMethod::del) &&
                 path.rfind("/api/v1/sensors/", 0) == 0) {
                 if (!sensor_settings_writable_.load())
-                    return error(
-                        r, "503 Service Unavailable",
+                    return send_error(
+                        ex, "503 Service Unavailable",
                         "Sensor settings are read-only; stored data is preserved for recovery");
                 auto id = path.substr(16);
                 auto found =
                     std::find_if(current.sensors().begin(), current.sensors().end(),
                                  [&](const Sensor &sensor) { return rom_hex(sensor.rom) == id; });
                 if (found == current.sensors().end())
-                    return error(r, "404 Not Found", "Unknown ROM ID");
+                    return send_error(ex, "404 Not Found", "Unknown ROM ID");
                 if (sent_generation_.load() != published_generation_.load() ||
                     snapshot_generation != published_generation_.load())
-                    return error(r, "409 Conflict",
-                                 "Another sensor update is pending; wait for the next sample");
+                    return send_error(ex, "409 Conflict",
+                                      "Another sensor update is pending; wait for the next sample");
                 const std::string expected = "\"" + boot_id_ + ":" + rom_hex(found->rom) + ":" +
                                              std::to_string(found->config_revision) + "\"";
-                auto match = header(r, "If-Match", 128);
+                auto match = ex.header("If-Match", 128);
                 if (match.empty())
-                    return error(r, "428 Precondition Required",
-                                 "Refresh sensor settings before updating");
+                    return send_error(ex, "428 Precondition Required",
+                                      "Refresh sensor settings before updating");
                 if (match != expected)
-                    return error(r, "412 Precondition Failed",
-                                 "Sensor settings changed; refresh before saving");
-                if (r->method == HTTP_DELETE) {
-                    if (r->content_len != 0)
-                        return error(r, "400 Bad Request", "Retirement does not accept a body");
+                    return send_error(ex, "412 Precondition Failed",
+                                      "Sensor settings changed; refresh before saving");
+                if (ex.method() == HttpMethod::del) {
+                    if (ex.content_length() != 0)
+                        return send_error(ex, "400 Bad Request",
+                                          "Retirement does not accept a body");
                     if (!can_retire_sensor(found->state, found->rom, scan, simulated_))
-                        return error(r, "409 Conflict",
-                                     "Probe must be disconnected and absent from a complete scan");
+                        return send_error(
+                            ex, "409 Conflict",
+                            "Probe must be disconnected and absent from a complete scan");
                     const uint64_t generation = sent_generation_.load() + 1;
                     auto *update = new (std::nothrow)
                         SensorUpdate{found->rom, found->settings, generation, true};
                     if (!update)
-                        return error(r, "503 Service Unavailable",
-                                     "Configuration memory unavailable");
+                        return send_error(ex, "503 Service Unavailable",
+                                          "Configuration memory unavailable");
                     if (xQueueSend(updates_, &update, 0) != pdTRUE) {
                         delete update;
-                        return error(r, "503 Service Unavailable", "Configuration queue full");
+                        return send_error(ex, "503 Service Unavailable",
+                                          "Configuration queue full");
                     }
                     sent_generation_ = generation;
-                    httpd_resp_set_status(r, "202 Accepted");
-                    return httpd_resp_send(r, "{\"status\":\"queued\"}", HTTPD_RESP_USE_STRLEN);
+                    ex.set_status("202 Accepted");
+                    return send_text(ex, "{\"status\":\"queued\"}");
                 }
-                auto input = body(r);
+                auto input = read_json_body(ex);
                 if (!input)
-                    return error(r, "400 Bad Request", "Expected bounded JSON object");
+                    return send_error(ex, "400 Bad Request", "Expected bounded JSON object");
                 Settings settings = found->settings;
                 bool valid = true;
                 cJSON *field = nullptr;
@@ -1158,47 +1136,49 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                     }
                 }
                 if (!valid || keys.empty() || !valid_settings(settings))
-                    return error(r, "400 Bad Request", "Invalid sensor settings");
+                    return send_error(ex, "400 Bad Request", "Invalid sensor settings");
                 const uint64_t generation = sent_generation_.load() + 1;
                 auto *update =
                     new (std::nothrow) SensorUpdate{found->rom, settings, generation, false};
                 if (!update)
-                    return error(r, "503 Service Unavailable", "Configuration memory unavailable");
+                    return send_error(ex, "503 Service Unavailable",
+                                      "Configuration memory unavailable");
                 if (xQueueSend(updates_, &update, 0) != pdTRUE) {
                     delete update;
-                    return error(r, "503 Service Unavailable", "Configuration queue full");
+                    return send_error(ex, "503 Service Unavailable", "Configuration queue full");
                 }
                 sent_generation_ = generation;
-                httpd_resp_set_status(r, "202 Accepted");
-                return httpd_resp_send(r, "{\"status\":\"queued\"}", HTTPD_RESP_USE_STRLEN);
+                ex.set_status("202 Accepted");
+                return send_text(ex, "{\"status\":\"queued\"}");
             }
         }
-        if (path == "/api/v1/status" && r->method == HTTP_GET) {
+        if (path == "/api/v1/status" && ex.method() == HttpMethod::get) {
             auto text = snapshot();
             if (text.empty())
-                return error(r, "503 Service Unavailable", "Snapshot busy");
-            httpd_resp_set_type(r, "application/json");
-            httpd_resp_set_hdr(r, "Cache-Control", "no-store");
-            return httpd_resp_send(r, text.data(), text.size());
+                return send_error(ex, "503 Service Unavailable", "Snapshot busy");
+            ex.set_type("application/json");
+            ex.set_header("Cache-Control", "no-store");
+            return ex.send(text.data(), text.size());
         }
-        if (path == "/api/v1/wifi/provisioning" && r->method == HTTP_POST) {
+        if (path == "/api/v1/wifi/provisioning" && ex.method() == HttpMethod::post) {
             if (!wifi_->provision())
-                return error(r, "503 Service Unavailable", "Network control busy");
-            httpd_resp_set_status(r, "202 Accepted");
-            return httpd_resp_send(r, "{}", 2);
+                return send_error(ex, "503 Service Unavailable", "Network control busy");
+            ex.set_status("202 Accepted");
+            return ex.send("{}", 2);
         }
-        if (path == "/api/v1/wifi/connect" && r->method == HTTP_POST) {
-            auto input = body(r);
+        if (path == "/api/v1/wifi/connect" && ex.method() == HttpMethod::post) {
+            auto input = read_json_body(ex);
             if (input && wifi_->candidate_busy())
-                return error(r, "409 Conflict",
-                             "A Wi-Fi connection attempt is already in progress");
-            if (!input ||
-                !wifi_->connect(string(input.get(), "ssid"), string(input.get(), "password")))
-                return error(r, "400 Bad Request", "Invalid network settings or control busy");
-            httpd_resp_set_status(r, "202 Accepted");
-            return httpd_resp_send(r, "{}", 2);
+                return send_error(ex, "409 Conflict",
+                                  "A Wi-Fi connection attempt is already in progress");
+            if (!input || !wifi_->connect(json_string(input.get(), "ssid"),
+                                          json_string(input.get(), "password")))
+                return send_error(ex, "400 Bad Request",
+                                  "Invalid network settings or control busy");
+            ex.set_status("202 Accepted");
+            return ex.send("{}", 2);
         }
-        if (path == "/api/v1/wifi/status" && r->method == HTTP_GET) {
+        if (path == "/api/v1/wifi/status" && ex.method() == HttpMethod::get) {
             auto info = wifi_->info();
             Json object(cJSON_CreateObject(), cJSON_Delete);
             cJSON_AddStringToObject(object.get(), "state", info.state.c_str());
@@ -1208,25 +1188,26 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
             cJSON_AddStringToObject(object.get(), "attempt", info.attempt.c_str());
             cJSON_AddNumberToObject(object.get(), "remaining_seconds", info.remaining_seconds);
             cJSON_AddStringToObject(object.get(), "error", info.error.c_str());
-            return json(r, object.get());
+            return send_json(ex, object.get());
         }
-        if (path == "/api/v1/auth/logout" && r->method == HTTP_POST) {
+        if (path == "/api/v1/auth/logout" && ex.method() == HttpMethod::post) {
             auth_->logout(s->token);
-            httpd_resp_set_hdr(r, "Set-Cookie",
-                               "tm_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0");
-            return httpd_resp_send(r, "{}", 2);
+            ex.set_header("Set-Cookie",
+                          "tm_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0");
+            return ex.send("{}", 2);
         }
-        if (path == "/api/v1/auth/password" && r->method == HTTP_POST) {
-            auto input = body(r);
-            if (!input || !auth_->change_password(s->token, string(input.get(), "old_password"),
-                                                  string(input.get(), "new_password"), now()))
-                return error(r, "403 Forbidden", "Password change denied");
-            return httpd_resp_send(r, "{}", 2);
+        if (path == "/api/v1/auth/password" && ex.method() == HttpMethod::post) {
+            auto input = read_json_body(ex);
+            if (!input ||
+                !auth_->change_password(s->token, json_string(input.get(), "old_password"),
+                                        json_string(input.get(), "new_password"), now()))
+                return send_error(ex, "403 Forbidden", "Password change denied");
+            return ex.send("{}", 2);
         }
-        return error(r, "404 Not Found", "Unknown API route");
+        return send_error(ex, "404 Not Found", "Unknown API route");
     }
-    if (r->method != HTTP_GET)
-        return error(r, "405 Method Not Allowed", "Method not allowed");
+    if (ex.method() != HttpMethod::get)
+        return send_error(ex, "405 Method Not Allowed", "Method not allowed");
     const WebAsset *asset = nullptr;
     for (const auto &candidate : web_assets)
         if (path == candidate.path) {
@@ -1236,7 +1217,7 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
     if (!asset) {
         if (path != "/" && path != "/history" && path != "/sensors" && path != "/alerts" &&
             path != "/events" && path != "/settings" && path != "/setup")
-            return error(r, "404 Not Found", "Not found");
+            return send_error(ex, "404 Not Found", "Not found");
         for (const auto &candidate : web_assets)
             if (std::strcmp(candidate.path, "/index.html") == 0) {
                 asset = &candidate;
@@ -1245,28 +1226,24 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
     }
     if (!asset)
         return ESP_FAIL;
-    if (header(r, "Accept-Encoding", 256).find("gzip") == std::string::npos)
-        return error(r, "406 Not Acceptable", "Client must accept gzip");
-    const int socket_fd = httpd_req_to_sockfd(r);
-    httpd_resp_set_type(r, asset->type);
-    httpd_resp_set_hdr(r, "Content-Encoding", "gzip");
-    httpd_resp_set_hdr(r, "Vary", "Accept-Encoding");
-    httpd_resp_set_hdr(r, "Cache-Control",
-                       std::strcmp(asset->path, "/index.html") == 0
-                           ? "no-cache"
-                           : "public, max-age=31536000, immutable");
-    httpd_resp_set_hdr(r, "X-Content-Type-Options", "nosniff");
-    httpd_resp_set_hdr(
-        r, "Content-Security-Policy",
+    if (ex.header("Accept-Encoding", 256).find("gzip") == std::string::npos)
+        return send_error(ex, "406 Not Acceptable", "Client must accept gzip");
+    ex.set_type(asset->type);
+    ex.set_header("Content-Encoding", "gzip");
+    ex.set_header("Vary", "Accept-Encoding");
+    ex.set_header("Cache-Control", std::strcmp(asset->path, "/index.html") == 0
+                                       ? "no-cache"
+                                       : "public, max-age=31536000, immutable");
+    ex.set_header("X-Content-Type-Options", "nosniff");
+    ex.set_header(
+        "Content-Security-Policy",
         "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src "
         "'self' ws:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
-    const esp_err_t sent =
-        httpd_resp_send(r, reinterpret_cast<const char *>(asset->data), asset->size);
+    const esp_err_t sent = ex.send(reinterpret_cast<const char *>(asset->data), asset->size);
     // The browser fetches the page's files in parallel over at most six connections, and each
     // keep-alive connection holds one of max_open_sockets. Closing after an asset frees its
     // socket at once, so the live WebSocket and API calls are not purged to make room.
-    if (socket_fd >= 0)
-        httpd_sess_trigger_close(r->handle, socket_fd);
+    ex.close_connection();
     return sent;
 }
 } // namespace monitor

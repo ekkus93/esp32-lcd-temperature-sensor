@@ -17,6 +17,10 @@ esp_err_t send_json(HttpExchange &exchange, const cJSON *object);
 Json read_json_body(HttpExchange &exchange);
 // A string member, or "" when missing or not a string.
 std::string json_string(const cJSON *object, const char *key);
+// Sends a NUL-terminated text as the whole answer.
+esp_err_t send_text(HttpExchange &exchange, const char *text);
+// The query string: everything after the first `?` of the URI, or "".
+std::string url_query(const HttpExchange &exchange);
 // The `tm_session` cookie's value, or "".
 std::string session_cookie(HttpExchange &exchange);
 constexpr std::size_t json_body_limit = 2048;

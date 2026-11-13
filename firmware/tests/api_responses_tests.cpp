@@ -97,6 +97,20 @@ int main() {
         exchange.request_headers.erase("Cookie");
         CHECK(session_cookie(exchange).empty());
     }
+    // Query strings and plain text answers.
+    {
+        FakeExchange exchange;
+        exchange.request_uri = "/api/v1/history?from=1&to=2";
+        CHECK(url_query(exchange) == "from=1&to=2");
+        exchange.request_uri = "/api/v1/alerts";
+        CHECK(url_query(exchange).empty());
+        exchange.request_uri = "/api/v1/alerts?";
+        CHECK(url_query(exchange).empty());
+        exchange.request_uri = "/a?b?c";
+        CHECK(url_query(exchange) == "b?c");
+        CHECK(send_text(exchange, R"({"status":"queued"})") == ESP_OK);
+        CHECK(exchange.sent == R"({"status":"queued"})");
+    }
     CHECK(std::string(http_method_name(HttpMethod::del)) == "DELETE");
     CHECK(std::string(http_method_name(HttpMethod::other)).empty());
     std::cout << "shared HTTP helpers: answers, bounded bodies and cookies\n";

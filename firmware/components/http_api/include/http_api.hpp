@@ -5,6 +5,7 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "history_service.hpp"
+#include "http_exchange.hpp"
 #include "monitor.hpp"
 #include "public_limiter.hpp"
 #include "wifi_service.hpp"
@@ -37,13 +38,13 @@ class HttpApi {
     // Answers history queries and CSV exports off the HTTP task, so a month-long query or export
     // does not hold up every other request.
     static void history_worker(void *context);
-    esp_err_t serve_history(httpd_req_t *request, const HistoryQuery &query, bool exporting);
+    esp_err_t serve_history(HttpExchange &exchange, const HistoryQuery &query, bool exporting);
     PublicLimiter::Decision begin_public(PublicRequest kind, uint32_t client);
     void finish_public(PublicRequest kind);
-    esp_err_t handle(httpd_req_t *request);
+    esp_err_t handle(HttpExchange &exchange);
     std::string snapshot();
-    bool origin(httpd_req_t *request, bool require_origin);
-    std::optional<Session> session(httpd_req_t *request, bool csrf);
+    bool origin(HttpExchange &exchange, bool require_origin);
+    std::optional<Session> session(HttpExchange &exchange, bool csrf);
     AuthService *auth_ = nullptr;
     WifiService *wifi_ = nullptr;
     HistoryService *history_ = nullptr;
@@ -63,13 +64,13 @@ class HttpApi {
     };
     QueueHandle_t holds_ = nullptr;
     struct LoginJob {
-        httpd_req_t *request; // async copy, completed by the worker
+        std::unique_ptr<HttpExchange> exchange; // async; deleting the job completes the request
         std::string password;
         uint32_t client;
     };
     QueueHandle_t login_queue_ = nullptr;
     struct HistoryJob {
-        httpd_req_t *request; // async copy, completed by the history worker
+        std::unique_ptr<HttpExchange> exchange; // async; deleting the job completes the request
         HistoryQuery query;
         bool exporting;
         PublicRequest kind;

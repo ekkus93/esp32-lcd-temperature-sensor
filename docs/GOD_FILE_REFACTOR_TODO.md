@@ -26,12 +26,12 @@ with the owner's confirmation.
 
 ## Phase G1 — HTTP API seams
 
-- [ ] **G01 — Exchange interface** (spec §4.2).
+- [x] **G01 — Exchange interface** (spec §4.2).
   - [x] **G01.1** Add `HttpExchange` and `FakeExchange` (host). Move `error`, `json`, `body`,
     `header`, `cookie` and `client_id` onto it in `api_responses`, keeping the body limits.
     Done: `http_exchange.hpp`, `api_responses`, `IdfExchange`, `tests/http_fakes/fake_exchange.hpp`,
     ctest `api_responses`; old helpers are wrappers until G01.2. Image +2,320 bytes.
-  - [ ] **G01.2** Add `IdfExchange` and make `handle()` use the exchange instead of `httpd_req_t`,
+  - [x] **G01.2** Add `IdfExchange` and make `handle()` use the exchange instead of `httpd_req_t`,
     mechanically, with no route moved yet. Host tests for the helpers (body size, timeout,
     non-JSON, headers).
 - [ ] **G02 — Service ports** (spec §4.3).
@@ -43,6 +43,8 @@ with the owner's confirmation.
     `route_needs_csrf`, `session_accepted`) before any handler; keep the Origin/Host checks, the
     pre-gate auth routes and the portal redirect in their current order.
   - [ ] **G03.2** Host test: the table and `route_access()` cover the same routes, both ways.
+    Done: `handle()`, `serve_history`, the workers, `origin` and `session` use `HttpExchange`;
+    only the WebSocket hand-off and the OTA stream touch `httpd_req_t`. Image +3,056 bytes.
 
 ## Phase G2 — HTTP API split (characterize, then move)
 

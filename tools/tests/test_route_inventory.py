@@ -21,7 +21,7 @@ ROM_PREFIX = '/api/v1/sensors/'
 
 
 def handle_body() -> str:
-    start = HTTP.index('esp_err_t HttpApi::handle(httpd_req_t *r) {')
+    start = HTTP.index('esp_err_t HttpApi::handle(HttpExchange &ex) {')
     end = HTTP.find('\nesp_err_t HttpApi::', start + 10)
     return HTTP[start:end if end >= 0 else len(HTTP)]
 
@@ -54,8 +54,8 @@ class RouteInventory(unittest.TestCase):
         body = handle_body()
         gate = body[body.index('switch (api_gate('):]
         gate = gate[:gate.index('}') + 1]
-        self.assertIn('return error(r, "404 Not Found"', gate)
-        self.assertIn('return error(r, "401 Unauthorized"', gate)
+        self.assertIn('return send_error(ex, "404 Not Found"', gate)
+        self.assertIn('return send_error(ex, "401 Unauthorized"', gate)
 
 
 if __name__ == '__main__':
