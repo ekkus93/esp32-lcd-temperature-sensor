@@ -373,6 +373,11 @@ or storage change. R12-01 comes first; if R11-02 is built after it, it uses the 
   and Cancel focused; the sign-in card is centred with the app mark, keeping its wording. Still
   open: save results as snackbars instead of inline alerts (Sensors, Preferences, Wi-Fi,
   Password). Tests updated; checked in the simulator (sign-in card, Settings).
+  Snackbars (2026-11-12): completed saves show as a snackbar above the phone's navigation bar
+  (`notify.tsx`, `noticeContext.ts`): the preferences saved, the sensor settings committed,
+  the calibration saved, and the Wi-Fi connection saved. Progress and errors stay inline. The
+  password change has no success message: it signs the browser out. Tests: the provider (two
+  cases), and the settings tests now render through the themed wrapper with the provider.
 - [ ] **R12-07** Quality pass and documents (§18.8, §18.9): skeletons, empty and error states,
   reduced motion, focus and accessible names; before and after screenshots of every page in light
   and dark at 390 and 1280 px under `docs/validation/`; `docs/WEB_UI_DESIGN_SPEC.md` and

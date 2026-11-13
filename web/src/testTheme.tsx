@@ -3,8 +3,13 @@
 import type { ReactNode } from 'react';
 import { ThemeProvider } from '@mui/material/styles';
 import { createAppTheme } from './theme/theme';
+import { NoticeProvider } from './notify';
 
 const lightTheme = createAppTheme('light');
 export function AppTheme({ children }: { children: ReactNode }) {
-  return <ThemeProvider theme={lightTheme}>{children}</ThemeProvider>;
+  return (
+    <ThemeProvider theme={lightTheme}>
+      <NoticeProvider>{children}</NoticeProvider>
+    </ThemeProvider>
+  );
 }

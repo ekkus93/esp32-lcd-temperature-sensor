@@ -1,3 +1,4 @@
+import { useNotify } from '../noticeContext';
 import PasswordField from '../PasswordField';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -23,6 +24,7 @@ export default function NetworkSettings() {
   const [ssid, setSsid] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
+  const notify = useNotify();
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [networks, setNetworks] = useState<ScannedNetwork[]>([]);
@@ -67,7 +69,7 @@ export default function NetworkSettings() {
         if (!mounted.current) return;
         const progress = await networkProgress();
         if (progress.attempt === 'succeeded') {
-          setMessage(
+          notify(
             `Connected and saved. LAN address: http://${progress.ip}. Setup stays available briefly during handoff.`,
           );
           return;

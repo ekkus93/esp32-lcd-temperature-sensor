@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useConfirm } from '../useConfirm';
 import IceCalibrationDialog from './calibration/IceCalibrationDialog';
+import { useNotify } from '../noticeContext';
 import type { Snapshot } from '../api/generated';
 import {
   Alert,
@@ -111,6 +112,7 @@ function SensorEditor({
   onRetired: (id: string) => void;
 }) {
   const [calibrating, setCalibrating] = useState(false);
+  const notify = useNotify();
   const [numbers, setNumbers] = useState(() => numericText(sensor, unit));
   // The unit the form's text is in. When the page's entry unit changes, the text is converted
   // here, during render, so no frame shows numbers under the wrong unit.
@@ -212,7 +214,7 @@ function SensorEditor({
             setEdited(new Set());
             setPositionText(String(updated.order + 1));
             onSaved(updated);
-            setMessage('Settings committed and applied.');
+            notify('Settings committed and applied.');
           }
           resolved = true;
           break;
@@ -307,7 +309,7 @@ function SensorEditor({
               setEdited(new Set());
               setPositionText(String(updated.order + 1));
               onSaved(updated);
-              setMessage('Calibration saved and applied.');
+              notify('Calibration saved and applied.');
             }}
             onEditLimits={() => {
               setCalibrating(false);

@@ -18,6 +18,7 @@ import {
   Typography,
 } from '@mui/material';
 import { createAppTheme } from './theme/theme';
+import { NoticeProvider } from './notify';
 import DashboardOutlined from '@mui/icons-material/DashboardOutlined';
 import NotificationsOutlined from '@mui/icons-material/NotificationsOutlined';
 import SettingsOutlined from '@mui/icons-material/SettingsOutlined';
@@ -194,290 +195,299 @@ function Shell() {
 
   return (
     <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <div className="app-shell">
-        <Navigation
-          destinations={destinations}
-          current={index}
-          onNavigate={navigate}
-          badges={{ 3: activeAlerts?.length ?? 0 }}
-        />
-        <main>
-          <TopBar
-            title={pages[index]}
-            hostname={snapshot?.wifi.mdns_hostname ?? null}
-            dark={dark}
-            onToggleTheme={() => setDark(!dark)}
-            signedIn={Boolean(auth.state?.signed_in)}
-            onSignIn={() => navigate(4)}
-            onSignOut={() => void auth.signOut()}
+      <NoticeProvider>
+        <CssBaseline />
+        <div className="app-shell">
+          <Navigation
+            destinations={destinations}
+            current={index}
+            onNavigate={navigate}
+            badges={{ 3: activeAlerts?.length ?? 0 }}
           />
-          <DeviceConditions snapshot={snapshot} />
-          {settingsFailed && (
-            <Alert severity="info" sx={{ mb: 2 }} role="status">
-              Display settings could not be loaded, so temperatures are shown in
-              °F and times in the device clock until they load. Retrying…
-            </Alert>
-          )}
-          {error && (
-            <Alert severity="warning" sx={{ mb: 2 }} role="status">
-              {error} {snapshot && 'Cached readings are stale.'}
-            </Alert>
-          )}
-          {snapshot?.bus_fault && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              Shared sensor bus fault. Current readings unavailable.
-            </Alert>
-          )}
-          {probeScan?.enabled && probeScan.overflow && (
-            <Alert severity="warning" sx={{ mb: 2 }}>
-              More than five probes were detected (
-              {probeScan.complete
-                ? probeScan.discovered_count
-                : `at least ${probeScan.discovered_count}`}
-              ). Managed probes keep reading priority; remove excess probes to
-              monitor them.
-            </Alert>
-          )}
-          {probeScan?.enabled && !probeScan.complete && (
-            <Alert severity="warning" sx={{ mb: 2 }}>
-              Probe discovery is incomplete. Previously selected probes remain
-              prioritized until a complete scan succeeds.
-            </Alert>
-          )}
-          {index === 0 && (
-            <Dashboard
-              snapshot={snapshot}
-              unit={unit}
-              timezone={timezone}
-              stale={Boolean(error)}
-              alerts={activeAlerts}
-              onOpenEvents={() => {
-                history.pushState({}, '', '/events');
-                setPath('/events');
-              }}
+          <main>
+            <TopBar
+              title={pages[index]}
+              hostname={snapshot?.wifi.mdns_hostname ?? null}
+              dark={dark}
+              onToggleTheme={() => setDark(!dark)}
+              signedIn={Boolean(auth.state?.signed_in)}
+              onSignIn={() => navigate(4)}
+              onSignOut={() => void auth.signOut()}
             />
-          )}
-          {index === 1 && snapshot && (
-            <Suspense fallback={<Typography>Loading history…</Typography>}>
-              <HistoryView
+            <DeviceConditions snapshot={snapshot} />
+            {settingsFailed && (
+              <Alert severity="info" sx={{ mb: 2 }} role="status">
+                Display settings could not be loaded, so temperatures are shown
+                in °F and times in the device clock until they load. Retrying…
+              </Alert>
+            )}
+            {error && (
+              <Alert severity="warning" sx={{ mb: 2 }} role="status">
+                {error} {snapshot && 'Cached readings are stale.'}
+              </Alert>
+            )}
+            {snapshot?.bus_fault && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                Shared sensor bus fault. Current readings unavailable.
+              </Alert>
+            )}
+            {probeScan?.enabled && probeScan.overflow && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                More than five probes were detected (
+                {probeScan.complete
+                  ? probeScan.discovered_count
+                  : `at least ${probeScan.discovered_count}`}
+                ). Managed probes keep reading priority; remove excess probes to
+                monitor them.
+              </Alert>
+            )}
+            {probeScan?.enabled && !probeScan.complete && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                Probe discovery is incomplete. Previously selected probes remain
+                prioritized until a complete scan succeeds.
+              </Alert>
+            )}
+            {index === 0 && (
+              <Dashboard
                 snapshot={snapshot}
                 unit={unit}
                 timezone={timezone}
+                stale={Boolean(error)}
+                alerts={activeAlerts}
+                onOpenEvents={() => {
+                  history.pushState({}, '', '/events');
+                  setPath('/events');
+                }}
               />
-            </Suspense>
-          )}
-          {index === 2 && (
-            <AuthGate reason="Sign in to view and change sensor settings.">
-              <Suspense fallback={<Typography>Loading sensors…</Typography>}>
-                <SensorsView unit={unit} snapshot={snapshot} />
+            )}
+            {index === 1 && snapshot && (
+              <Suspense fallback={<Typography>Loading history…</Typography>}>
+                <HistoryView
+                  snapshot={snapshot}
+                  unit={unit}
+                  timezone={timezone}
+                />
               </Suspense>
-            </AuthGate>
-          )}
-          {index === 3 && (
-            <Stack spacing={3}>
-              <Tabs
-                value={alertsTab}
-                onChange={(_, tab: AlertsTab) => showAlertsTab(tab)}
-                aria-label="Alerts and events"
-              >
-                <Tab
-                  value="alerts"
-                  label="Alerts"
-                  id="alerts-tab-alerts"
-                  aria-controls="alerts-panel"
-                />
-                <Tab
-                  value="events"
-                  label="Events"
-                  id="alerts-tab-events"
-                  aria-controls="alerts-panel"
-                />
-              </Tabs>
-              <div
-                role="tabpanel"
-                id="alerts-panel"
-                aria-labelledby={`alerts-tab-${alertsTab}`}
-              >
-                <Suspense
-                  fallback={
-                    <Typography>
-                      {alertsTab === 'alerts'
-                        ? 'Loading alerts…'
-                        : 'Loading events…'}
-                    </Typography>
-                  }
-                >
-                  {alertsTab === 'alerts' ? (
-                    <AlertsView timezone={timezone} />
-                  ) : (
-                    <EventsView timezone={timezone} />
-                  )}
+            )}
+            {index === 2 && (
+              <AuthGate reason="Sign in to view and change sensor settings.">
+                <Suspense fallback={<Typography>Loading sensors…</Typography>}>
+                  <SensorsView unit={unit} snapshot={snapshot} />
                 </Suspense>
-              </div>
-            </Stack>
-          )}
-          {index === 4 && (
-            <Stack spacing={3}>
-              <Tabs
-                value={settingsTab}
-                onChange={(_, tab: SettingsTab) => setSettingsTab(tab)}
-                // Four short labels: share the width so they all fit on a phone.
-                variant="fullWidth"
-                sx={{ maxWidth: 560 }}
-                aria-label="Settings sections"
-              >
-                {settingsTabs.map(([value, label]) => (
+              </AuthGate>
+            )}
+            {index === 3 && (
+              <Stack spacing={3}>
+                <Tabs
+                  value={alertsTab}
+                  onChange={(_, tab: AlertsTab) => showAlertsTab(tab)}
+                  aria-label="Alerts and events"
+                >
                   <Tab
-                    key={value}
-                    value={value}
-                    label={label}
-                    id={`settings-tab-${value}`}
-                    aria-controls={`settings-panel-${value}`}
-                    sx={{
-                      textTransform: 'none',
-                      fontSize: { xs: 14, sm: 15 },
-                      minWidth: 0,
-                      px: 1,
-                      flex: '1 1 auto',
-                    }}
+                    value="alerts"
+                    label="Alerts"
+                    id="alerts-tab-alerts"
+                    aria-controls="alerts-panel"
                   />
-                ))}
-              </Tabs>
-              <Stack
-                spacing={3}
-                role="tabpanel"
-                id={`settings-panel-${settingsTab}`}
-                aria-labelledby={`settings-tab-${settingsTab}`}
-              >
-                {settingsTab === 'preferences' && (
-                  <AuthGate reason="Sign in to change the units, the LCD, the time zone or the network name.">
-                    <Suspense
-                      fallback={
-                        <Typography>Loading device preferences…</Typography>
-                      }
-                    >
-                      <DeviceSettings onApplied={applySettings} />
-                    </Suspense>
-                  </AuthGate>
-                )}
-                {settingsTab === 'wifi' && (
-                  <AuthGate reason="Sign in to change the Wi-Fi network.">
-                    <Suspense
-                      fallback={
-                        <Typography>Loading network settings…</Typography>
-                      }
-                    >
-                      <NetworkSettings />
-                    </Suspense>
-                  </AuthGate>
-                )}
-                {settingsTab === 'system' && (
-                  <>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="h6">
-                          Storage and diagnostics
-                        </Typography>
-                        <Typography>
-                          Firmware {snapshot?.firmware.version ?? 'unavailable'}{' '}
-                          · {snapshot?.firmware.partition ?? 'no active slot'} ·
-                          OTA {otaStateText(snapshot?.firmware.ota_state)}
-                        </Typography>
-                        <Typography>
-                          {snapshot?.wifi.mdns_hostname ? (
-                            <>
-                              Network name:{' '}
-                              <strong>{`http://${snapshot.wifi.mdns_hostname}.local`}</strong>
-                            </>
-                          ) : (
-                            'Network name unavailable: use the device address.'
-                          )}
-                        </Typography>
-                        <Typography>
-                          Five-minute history:{' '}
-                          {snapshot?.logging.healthy
-                            ? 'available'
-                            : 'unavailable'}
-                        </Typography>
-                        {snapshot?.logging.storage_available ? (
-                          <Typography color="text.secondary">
-                            {(
-                              snapshot.logging.storage_used_bytes /
-                              1024 /
-                              1024
-                            ).toFixed(2)}{' '}
-                            MiB used of{' '}
-                            {(
-                              snapshot.logging.storage_total_bytes /
-                              1024 /
-                              1024
-                            ).toFixed(2)}{' '}
-                            MiB
-                          </Typography>
-                        ) : (
-                          <Typography color="text.secondary">
-                            Storage capacity is unavailable until the history
-                            filesystem mounts.
-                          </Typography>
-                        )}
-                        <Typography color="text.secondary">
-                          Aggregates are recorded every{' '}
-                          {snapshot?.logging.interval_seconds ?? 300} seconds.
-                          No five-second raw readings are stored.
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                    <AuthGate reason="Sign in to update the firmware, restart or reset the device.">
-                      <Card>
-                        <CardContent>
-                          <Suspense
-                            fallback={
-                              <Typography>Loading firmware updater…</Typography>
-                            }
-                          >
-                            <FirmwareUpdate
-                              version={
-                                snapshot?.firmware.version ?? 'unavailable'
-                              }
-                              partition={
-                                snapshot?.firmware.partition ?? 'unknown slot'
-                              }
-                              state={snapshot?.firmware.ota_state ?? 'unknown'}
-                            />
-                          </Suspense>
-                        </CardContent>
-                      </Card>
-                      <Card>
-                        <CardContent>
-                          <Suspense
-                            fallback={
-                              <Typography>Loading system controls…</Typography>
-                            }
-                          >
-                            <SystemControls />
-                          </Suspense>
-                        </CardContent>
-                      </Card>
-                    </AuthGate>
-                  </>
-                )}
-                {settingsTab === 'password' && (
-                  <AuthGate reason="Sign in to change the administrator password.">
-                    <Suspense
-                      fallback={
-                        <Typography>Loading password settings…</Typography>
-                      }
-                    >
-                      <PasswordSettings />
-                    </Suspense>
-                  </AuthGate>
-                )}
+                  <Tab
+                    value="events"
+                    label="Events"
+                    id="alerts-tab-events"
+                    aria-controls="alerts-panel"
+                  />
+                </Tabs>
+                <div
+                  role="tabpanel"
+                  id="alerts-panel"
+                  aria-labelledby={`alerts-tab-${alertsTab}`}
+                >
+                  <Suspense
+                    fallback={
+                      <Typography>
+                        {alertsTab === 'alerts'
+                          ? 'Loading alerts…'
+                          : 'Loading events…'}
+                      </Typography>
+                    }
+                  >
+                    {alertsTab === 'alerts' ? (
+                      <AlertsView timezone={timezone} />
+                    ) : (
+                      <EventsView timezone={timezone} />
+                    )}
+                  </Suspense>
+                </div>
               </Stack>
-            </Stack>
-          )}
-        </main>
-      </div>
+            )}
+            {index === 4 && (
+              <Stack spacing={3}>
+                <Tabs
+                  value={settingsTab}
+                  onChange={(_, tab: SettingsTab) => setSettingsTab(tab)}
+                  // Four short labels: share the width so they all fit on a phone.
+                  variant="fullWidth"
+                  sx={{ maxWidth: 560 }}
+                  aria-label="Settings sections"
+                >
+                  {settingsTabs.map(([value, label]) => (
+                    <Tab
+                      key={value}
+                      value={value}
+                      label={label}
+                      id={`settings-tab-${value}`}
+                      aria-controls={`settings-panel-${value}`}
+                      sx={{
+                        textTransform: 'none',
+                        fontSize: { xs: 14, sm: 15 },
+                        minWidth: 0,
+                        px: 1,
+                        flex: '1 1 auto',
+                      }}
+                    />
+                  ))}
+                </Tabs>
+                <Stack
+                  spacing={3}
+                  role="tabpanel"
+                  id={`settings-panel-${settingsTab}`}
+                  aria-labelledby={`settings-tab-${settingsTab}`}
+                >
+                  {settingsTab === 'preferences' && (
+                    <AuthGate reason="Sign in to change the units, the LCD, the time zone or the network name.">
+                      <Suspense
+                        fallback={
+                          <Typography>Loading device preferences…</Typography>
+                        }
+                      >
+                        <DeviceSettings onApplied={applySettings} />
+                      </Suspense>
+                    </AuthGate>
+                  )}
+                  {settingsTab === 'wifi' && (
+                    <AuthGate reason="Sign in to change the Wi-Fi network.">
+                      <Suspense
+                        fallback={
+                          <Typography>Loading network settings…</Typography>
+                        }
+                      >
+                        <NetworkSettings />
+                      </Suspense>
+                    </AuthGate>
+                  )}
+                  {settingsTab === 'system' && (
+                    <>
+                      <Card>
+                        <CardContent>
+                          <Typography variant="h6">
+                            Storage and diagnostics
+                          </Typography>
+                          <Typography>
+                            Firmware{' '}
+                            {snapshot?.firmware.version ?? 'unavailable'} ·{' '}
+                            {snapshot?.firmware.partition ?? 'no active slot'} ·
+                            OTA {otaStateText(snapshot?.firmware.ota_state)}
+                          </Typography>
+                          <Typography>
+                            {snapshot?.wifi.mdns_hostname ? (
+                              <>
+                                Network name:{' '}
+                                <strong>{`http://${snapshot.wifi.mdns_hostname}.local`}</strong>
+                              </>
+                            ) : (
+                              'Network name unavailable: use the device address.'
+                            )}
+                          </Typography>
+                          <Typography>
+                            Five-minute history:{' '}
+                            {snapshot?.logging.healthy
+                              ? 'available'
+                              : 'unavailable'}
+                          </Typography>
+                          {snapshot?.logging.storage_available ? (
+                            <Typography color="text.secondary">
+                              {(
+                                snapshot.logging.storage_used_bytes /
+                                1024 /
+                                1024
+                              ).toFixed(2)}{' '}
+                              MiB used of{' '}
+                              {(
+                                snapshot.logging.storage_total_bytes /
+                                1024 /
+                                1024
+                              ).toFixed(2)}{' '}
+                              MiB
+                            </Typography>
+                          ) : (
+                            <Typography color="text.secondary">
+                              Storage capacity is unavailable until the history
+                              filesystem mounts.
+                            </Typography>
+                          )}
+                          <Typography color="text.secondary">
+                            Aggregates are recorded every{' '}
+                            {snapshot?.logging.interval_seconds ?? 300} seconds.
+                            No five-second raw readings are stored.
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                      <AuthGate reason="Sign in to update the firmware, restart or reset the device.">
+                        <Card>
+                          <CardContent>
+                            <Suspense
+                              fallback={
+                                <Typography>
+                                  Loading firmware updater…
+                                </Typography>
+                              }
+                            >
+                              <FirmwareUpdate
+                                version={
+                                  snapshot?.firmware.version ?? 'unavailable'
+                                }
+                                partition={
+                                  snapshot?.firmware.partition ?? 'unknown slot'
+                                }
+                                state={
+                                  snapshot?.firmware.ota_state ?? 'unknown'
+                                }
+                              />
+                            </Suspense>
+                          </CardContent>
+                        </Card>
+                        <Card>
+                          <CardContent>
+                            <Suspense
+                              fallback={
+                                <Typography>
+                                  Loading system controls…
+                                </Typography>
+                              }
+                            >
+                              <SystemControls />
+                            </Suspense>
+                          </CardContent>
+                        </Card>
+                      </AuthGate>
+                    </>
+                  )}
+                  {settingsTab === 'password' && (
+                    <AuthGate reason="Sign in to change the administrator password.">
+                      <Suspense
+                        fallback={
+                          <Typography>Loading password settings…</Typography>
+                        }
+                      >
+                        <PasswordSettings />
+                      </Suspense>
+                    </AuthGate>
+                  )}
+                </Stack>
+              </Stack>
+            )}
+          </main>
+        </div>
+      </NoticeProvider>
     </ThemeProvider>
   );
 }

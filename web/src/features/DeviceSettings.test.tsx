@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
+import { renderThemed as render } from '../renderThemed';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { ClockDiagnostics } from '../api/clock';
 import DeviceSettings from './DeviceSettings';

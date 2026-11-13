@@ -1,3 +1,4 @@
+import { useNotify } from '../noticeContext';
 import { useEffect, useState } from 'react';
 import {
   Alert,
@@ -36,6 +37,7 @@ function Editor({
   );
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const notify = useNotify();
   const [hostnameError, setHostnameError] = useState('');
   const readOnly = busy || !draft.writable;
   async function submit(event: React.FormEvent) {
@@ -71,7 +73,7 @@ function Editor({
       const next = await saveSettings(patch, etag);
       setDraft(next);
       onApplied(next.units, next.timezone);
-      setMessage('Device preferences saved.');
+      notify('Device preferences saved.');
     } catch (e) {
       setMessage(e instanceof Error ? e.message : 'Settings update failed');
     } finally {
