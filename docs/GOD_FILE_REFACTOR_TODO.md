@@ -13,9 +13,11 @@ with the owner's confirmation.
     accepted exceptions. Python tests for it. Report-only at first.
     Done: `tools/check_unit_size.py` (report-only; `--strict` later), 7 tests in
     `tools/tests/test_check_unit_size.py`.
-  - [ ] **G00.2** Run it; confirm `http_api.cpp` and `main.cpp` as the targets and record a
+  - [x] **G00.2** Run it; confirm `http_api.cpp` and `main.cpp` as the targets and record a
     keep-or-split decision for every other file it lists (for example `history.cpp`,
     `usb_bridge.cpp`, `SensorsView.tsx`).
+    Done: `tools/unit_size_allowlist.txt` (32 entries with reasons); record
+    `docs/validation/god-file-scope-2026-11-13.md`.
   - [ ] **G00.3** Record the baseline: source SHA, image size, task stack sizes, and (if the owner
     allows a board run) stack high-water marks, free RAM and API latency from
     `device_api_test.py`.

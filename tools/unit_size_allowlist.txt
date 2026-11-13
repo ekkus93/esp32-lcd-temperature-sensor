@@ -1,0 +1,36 @@
+# Accepted exceptions to tools/check_unit_size.py (God file refactor G00.2).
+# One per line: path (long file) or path:function (long function), then # reason.
+# http_api.cpp and main.cpp are not listed: splitting them is GOD_FILE_REFACTOR_TODO.md.
+
+firmware/components/display_service/display_runtime.cpp  # keep for now: LCD bring-up in panel order; follow-up candidate, not in this plan
+firmware/components/display_service/display_runtime.cpp:DisplayRuntime::initialize  # keep for now: LCD bring-up in panel order; follow-up candidate, not in this plan
+firmware/components/display_service/display_view.cpp  # keep: one LVGL widget tree built declaratively; length is layout, not logic
+firmware/components/display_service/display_view.cpp:DisplayView::DisplayView  # keep: one LVGL widget tree built declaratively; length is layout, not logic
+firmware/components/monitor_core/event_store.cpp  # keep: integrity-critical journal recovery and append; recently reviewed, a split risks storage safety
+firmware/components/monitor_core/event_store.cpp:EventStore::recover  # keep: integrity-critical journal recovery and append; recently reviewed, a split risks storage safety
+firmware/components/monitor_core/event_store.cpp:EventStore::append  # keep: integrity-critical journal recovery and append; recently reviewed, a split risks storage safety
+firmware/components/monitor_core/history.cpp  # keep for now: integrity-critical store (recover/append checks); follow-up candidate for append(), not in this plan
+firmware/components/monitor_core/history.cpp:HistoryStore::recover  # keep for now: integrity-critical store (recover/append checks); follow-up candidate for append(), not in this plan
+firmware/components/monitor_core/history.cpp:HistoryStore::append  # keep for now: integrity-critical store (recover/append checks); follow-up candidate for append(), not in this plan
+firmware/components/ota_service/ota_service.cpp:handle_ota_upload  # keep: two lines over; one upload loop
+firmware/components/provisioning_service/usb_bridge.cpp  # keep for now: USB test bridges for device scripts; repeated bridge loops are a follow-up candidate, not in this plan
+firmware/components/provisioning_service/usb_bridge.cpp:websocket_load_bridge  # keep for now: USB test bridges for device scripts; repeated bridge loops are a follow-up candidate, not in this plan
+firmware/components/provisioning_service/usb_bridge.cpp:websocket_slow_bridge  # keep for now: USB test bridges for device scripts; repeated bridge loops are a follow-up candidate, not in this plan
+firmware/components/provisioning_service/usb_bridge.cpp:websocket_bridge  # keep for now: USB test bridges for device scripts; repeated bridge loops are a follow-up candidate, not in this plan
+firmware/components/provisioning_service/usb_bridge.cpp:bridge  # keep for now: USB test bridges for device scripts; repeated bridge loops are a follow-up candidate, not in this plan
+firmware/components/wifi_service/wifi_service.cpp  # keep for now: Wi-Fi event state machine; follow-up candidate, not in this plan
+firmware/components/wifi_service/wifi_service.cpp:WifiService::start  # keep for now: Wi-Fi event state machine; follow-up candidate, not in this plan
+firmware/components/wifi_service/wifi_service.cpp:WifiService::worker  # keep for now: Wi-Fi event state machine; follow-up candidate, not in this plan
+web/src/api/live.ts:subscribeLive  # keep: one closure holding the reconnect and resync state
+web/src/features/EventsView.tsx:EventsView  # keep: one page component, mostly JSX
+web/src/features/HistoryView.tsx  # keep: one page with its chart controls
+web/src/features/NetworkSettings.tsx:NetworkSettings  # keep: one settings card, mostly JSX
+web/src/features/PasswordSettings.tsx:PasswordSettings  # keep: one line over; one form
+web/src/features/SensorsView.tsx  # keep for now: the sensor list and its editor; follow-up candidate, not in this plan
+web/src/features/SystemControls.tsx:SystemControls  # keep: one settings card, mostly JSX
+web/src/features/calibration/IceCalibrationDialog.tsx  # keep for now: one dialog with seven steps (hold logic already in holdKeeper.ts); follow-up candidate
+web/src/features/calibration/IceCalibrationDialog.tsx:IceCalibrationDialog  # keep for now: one dialog with seven steps (hold logic already in holdKeeper.ts); follow-up candidate
+web/src/features/chart/scale.ts:timeTicks  # keep: tick selection reworked and fully tested in A06
+web/src/features/dashboard/Dashboard.tsx  # keep: one page component
+web/src/theme/theme.ts  # keep: Material 3 theme configuration object
+web/src/theme/theme.ts:createAppTheme  # keep: Material 3 theme configuration object
