@@ -7,6 +7,7 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "history_csv.hpp"
+#include "history_json.hpp"
 #include "host_rules.hpp"
 #include "login_throttle.hpp"
 #include "lwip/sockets.h"
@@ -370,72 +371,22 @@ esp_err_t HttpApi::serve_history(httpd_req_t *r, const HistoryQuery &query, bool
     bool truncated = false;
     if (!history_->query(query, points, gap_records, truncated))
         return error(r, "503 Service Unavailable", "History unavailable or busy");
-    Json output(cJSON_CreateObject(), cJSON_Delete);
-    cJSON_AddNumberToObject(output.get(), "schema_version", 1);
-    cJSON_AddBoolToObject(output.get(), "simulated", simulated_);
-    cJSON_AddBoolToObject(output.get(), "truncated", truncated);
-    cJSON_AddStringToObject(output.get(), "time_basis", query.boot_id ? "uptime" : "utc");
-    // An allocation failure while building the answer is reported as `truncated`, not
-    // hidden by silently dropping rows.
-    bool allocation_failed = false;
-    auto *items = cJSON_AddArrayToObject(output.get(), "points");
-    if (!items)
-        return error(r, "503 Service Unavailable", "History response memory unavailable");
-    for (const auto &point : points) {
-        auto *item = cJSON_CreateObject();
-        char boot[17];
-        std::snprintf(boot, sizeof(boot), "%016llx",
-                      static_cast<unsigned long long>(point.boot_id));
-        bool built =
-            item && cJSON_AddStringToObject(item, "boot_id", boot) &&
-            cJSON_AddStringToObject(item, "rom_id", rom_hex(point.rom).c_str()) &&
-            cJSON_AddNumberToObject(item, "start_ms", point.start_ms) &&
-            cJSON_AddNumberToObject(item, "end_ms", point.end_ms) &&
-            (point.utc_seconds ? cJSON_AddNumberToObject(item, "utc_seconds", *point.utc_seconds)
-                               : cJSON_AddNullToObject(item, "utc_seconds")) &&
-            cJSON_AddNumberToObject(item, "average_c", point.average) &&
-            cJSON_AddNumberToObject(item, "minimum_c", point.minimum) &&
-            cJSON_AddNumberToObject(item, "maximum_c", point.maximum) &&
-            cJSON_AddNumberToObject(item, "count", point.count) &&
-            cJSON_AddBoolToObject(item, "partial", point.partial) &&
-            cJSON_AddItemToArray(items, item);
-        if (!built) {
-            if (item)
-                cJSON_Delete(item);
-            allocation_failed = true;
-            break;
-        }
+    char *text = build_history_json(points, std::move(gap_records), truncated, simulated_,
+                                    query.boot_id.has_value());
+    if (!text) {
+        // No schema-valid answer could be built. The reply must not need the allocator that just
+        // failed, so its body is a constant.
+        httpd_resp_set_status(r, "503 Service Unavailable");
+        httpd_resp_set_type(r, "application/json");
+        httpd_resp_set_hdr(r, "Cache-Control", "no-store");
+        return httpd_resp_send(r, "{\"error\":\"History response memory unavailable\"}",
+                               HTTPD_RESP_USE_STRLEN);
     }
-    auto *gaps = cJSON_AddArrayToObject(output.get(), "gaps");
-    for (const auto &gap : history_gaps(points))
-        if (std::find_if(gap_records.begin(), gap_records.end(), [&](const auto &item) {
-                return item.boot_id == gap.boot_id && item.rom == gap.rom &&
-                       item.start_ms == gap.start_ms && item.end_ms == gap.end_ms;
-            }) == gap_records.end())
-            gap_records.push_back(gap);
-    if (gap_records.size() > 512) {
-        gap_records.resize(512);
-        cJSON_SetBoolValue(cJSON_GetObjectItemCaseSensitive(output.get(), "truncated"), true);
-    }
-    for (const auto &gap : gap_records) {
-        auto *item = cJSON_CreateObject();
-        char boot[17];
-        std::snprintf(boot, sizeof(boot), "%016llx", static_cast<unsigned long long>(gap.boot_id));
-        const bool built = item && gaps && cJSON_AddStringToObject(item, "boot_id", boot) &&
-                           cJSON_AddStringToObject(item, "rom_id", rom_hex(gap.rom).c_str()) &&
-                           cJSON_AddNumberToObject(item, "start_ms", gap.start_ms) &&
-                           cJSON_AddNumberToObject(item, "end_ms", gap.end_ms) &&
-                           cJSON_AddItemToArray(gaps, item);
-        if (!built) {
-            if (item)
-                cJSON_Delete(item);
-            allocation_failed = true;
-            break;
-        }
-    }
-    if (allocation_failed)
-        cJSON_SetBoolValue(cJSON_GetObjectItemCaseSensitive(output.get(), "truncated"), true);
-    return json(r, output.get());
+    httpd_resp_set_type(r, "application/json");
+    httpd_resp_set_hdr(r, "Cache-Control", "no-store");
+    const auto sent = httpd_resp_send(r, text, HTTPD_RESP_USE_STRLEN);
+    cJSON_free(text);
+    return sent;
 }
 PublicLimiter::Decision HttpApi::begin_public(PublicRequest kind, uint32_t client) {
     std::lock_guard<std::mutex> lock(limiter_mutex_);

@@ -233,3 +233,19 @@ target_include_directories(auth_service_tests PRIVATE auth_mocks ../components/a
 target_link_libraries(auth_service_tests PRIVATE monitor_core Threads::Threads)
 target_compile_options(auth_service_tests PRIVATE -Wall -Wextra -Werror -Wpedantic -O2)
 add_test(NAME auth_service COMMAND auth_service_tests)
+
+# The history JSON builder uses the pinned cJSON component, which `idf.py build` resolves into
+# managed_components (CI builds the firmware before running these tests).
+set(cjson_dir ${CMAKE_CURRENT_SOURCE_DIR}/../managed_components/espressif__cjson/cJSON)
+if(EXISTS ${cjson_dir}/cJSON.c)
+    enable_language(C)
+    add_executable(history_json_tests history_json_tests.cpp ../components/http_api/history_json.cpp ${cjson_dir}/cJSON.c)
+    target_include_directories(history_json_tests PRIVATE ../components/http_api/include ${cjson_dir})
+    target_compile_definitions(history_json_tests PRIVATE HISTORY_SCHEMA_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../../contracts/history.schema.json")
+    target_link_libraries(history_json_tests PRIVATE monitor_core)
+    target_compile_options(history_json_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
+    set_source_files_properties(${cjson_dir}/cJSON.c PROPERTIES COMPILE_OPTIONS "-w")
+    add_test(NAME history_json_allocation_faults COMMAND history_json_tests)
+else()
+    message(WARNING "history_json_allocation_faults skipped: run idf.py build to fetch cJSON")
+endif()

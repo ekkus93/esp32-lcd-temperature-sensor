@@ -20,14 +20,16 @@ prior validation are inputs, not proof that these regressions or gates pass.
 
 ## Phase A — Test seams and P1 fixes
 
-- [ ] **A00 — Establish reproducible integration tests** (spec §§2, 14).
+- [x] **A00 — Establish reproducible integration tests** (spec §§2, 14).
   - [x] **A00.1** Record starting SHA/tree, configuration and focused baseline
     results; preserve the full-suite Settings failure as a regression scenario.
     Done: `docs/validation/review-audit-baseline-2026-11-12.md` (the Settings scenario is reproduced
     deliberately in A08).
-  - [ ] **A00.2** Add the smallest necessary production-path seams for storage
+  - [x] **A00.2** Add the smallest necessary production-path seams for storage
     outcomes/deadlines, save application and HTTP JSON/stream construction.
     Keep doubles at I/O boundaries rather than copy implementations into tests.
+    Done: seams `export_history_csv`/`visit_history_range` (A02), `SensorSettingsPersistence`
+    (A03), `build_history_json` (A05).
   - [x] **A00.3** Assert host fault fixtures use temporary stores and cannot
     alter device history, auth or Wi-Fi. Document what remains device-only.
     Done: `tools/tests/test_host_fixtures_isolated.py`; device-only list in the baseline record.
@@ -93,15 +95,17 @@ prior validation are inputs, not proof that these regressions or gates pass.
     Done: `HistoryVisitControl`, test `history_cancel_deadline`; record
     `docs/validation/review-audit-history-cancel-2026-11-12.md`. H07 latency stays open.
 
-- [ ] **A05 — F7: Make history JSON allocation-safe** (spec §10; R05-03).
-  - [ ] **A05.1** Reproduce missing required `gaps` on a zero-gap allocation
+- [x] **A05 — F7: Make history JSON allocation-safe** (spec §10; R05-03).
+  - [x] **A05.1** Reproduce missing required `gaps` on a zero-gap allocation
     failure using the production response builder.
-  - [ ] **A05.2** Check root, scalars and both arrays; provide a bounded
+  - [x] **A05.2** Check root, scalars and both arrays; provide a bounded
     failure response when the envelope or serialization cannot be built.
-  - [ ] **A05.3** Permit only complete attached rows and a successfully set
+  - [x] **A05.3** Permit only complete attached rows and a successfully set
     `truncated: true` for partial 200 responses; otherwise fail explicitly.
-  - [ ] **A05.4** Fault-inject envelope, point/gap rows, truncation and
+  - [x] **A05.4** Fault-inject envelope, point/gap rows, truncation and
     serialization; schema-validate all 200 bodies and check cleanup/admission reuse.
+    Done: `history_json.{hpp,cpp}`, test `history_json_allocation_faults`; record
+    `docs/validation/review-audit-history-json-2026-11-13.md`.
 
 ## Phase C — Web correctness and reliable verification
 
