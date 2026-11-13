@@ -1,6 +1,7 @@
 #include "http_api.hpp"
 #include "bounded_body_reader.hpp"
 #include "cJSON.h"
+#include "calibration_hold_request.hpp"
 #include "clock_service.hpp"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
@@ -1168,22 +1169,16 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                 CalibrationHoldUpdate update{found->rom, 0, r->method == HTTP_DELETE};
                 if (r->method == HTTP_PUT) {
                     constexpr int64_t minute_ms = 60000;
-                    const bool connected = found->state == State::normal ||
-                                           found->state == State::high ||
-                                           found->state == State::low;
-                    if (!connected)
+                    if (!probe_can_be_held(found->state))
                         return error(r, "409 Conflict", "Probe must be connected to calibrate it");
                     auto input = body(r);
                     if (!input)
                         return error(r, "400 Bad Request", "Expected bounded JSON object");
-                    const cJSON *minutes = cJSON_GetObjectItemCaseSensitive(input.get(), "minutes");
-                    if (!cJSON_IsNumber(minutes) ||
-                        minutes->valuedouble != std::floor(minutes->valuedouble) ||
-                        minutes->valueint < 1 || minutes->valueint > 20 ||
-                        cJSON_GetArraySize(input.get()) != 1)
+                    const auto minutes = calibration_hold_minutes(input.get());
+                    if (!minutes)
                         return error(r, "400 Bad Request",
                                      "Hold for 1 to 20 minutes: {\"minutes\": n}");
-                    update.duration_ms = int64_t(minutes->valueint) * minute_ms;
+                    update.duration_ms = int64_t(*minutes) * minute_ms;
                 } else if (r->method == HTTP_DELETE) {
                     if (r->content_len != 0)
                         return error(r, "400 Bad Request", "Ending a hold does not accept a body");

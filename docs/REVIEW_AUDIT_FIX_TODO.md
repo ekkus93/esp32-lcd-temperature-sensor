@@ -170,14 +170,16 @@ prior validation are inputs, not proof that these regressions or gates pass.
     `docs/validation/review-audit-route-boundary-2026-11-13.md`. A10.2 open: handlers are not
     run on the host (needs a production-dispatch harness); gate and order are covered.
 
-- [ ] **A11 — H09: Finish calibration API/reader compatibility evidence**
+- [x] **A11 — H09: Finish calibration API/reader compatibility evidence**
   (spec §13; R11-01).
-  - [ ] **A11.1** Cover connected/disconnected 409 behavior and accepted/refused
+  - [x] **A11.1** Cover connected/disconnected 409 behavior and accepted/refused
     minute values at 1/20 and outside the range, including malformed values.
-  - [ ] **A11.2** Prove an actual older reader skips new calibration event kinds
+  - [x] **A11.2** Prove an actual older reader skips new calibration event kinds
     and reads later known events using an isolated/copied journal fixture.
-  - [ ] **A11.3** Record connected-board cases separately; retain firmware
+  - [x] **A11.3** Record connected-board cases separately; retain firmware
     cap/expiry, route access, events/history exclusion and CAL display regressions.
+    Done: `calibration_hold_request`, older-reader tests under `firmware/tests/compat/`; record
+    `docs/validation/review-audit-calibration-compat-2026-11-13.md`. No board cases (no probes).
 
 - [ ] **A12 — H11: Complete the UI quality review** (spec §13; R12-07).
   - [ ] **A12.1** Review loading, empty and every reachable error state for an
