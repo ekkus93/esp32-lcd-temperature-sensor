@@ -242,7 +242,7 @@ int main() {
                 return true;
             },
             options);
-        CHECK(outcome.end == HistoryVisitEnd::deadline && delivered == 5);
+        CHECK(outcome.end == HistoryVisitEnd::deadline && delivered < stored);
     }
     // The chart answer for the same damaged data stays valid and is marked truncated.
     {

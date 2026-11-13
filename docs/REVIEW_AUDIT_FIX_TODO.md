@@ -75,21 +75,23 @@ prior validation are inputs, not proof that these regressions or gates pass.
     Done: `SensorSettingsPersistence`, main loop and Sensors page; v1 kept (timed `read_only`
     pause); record `docs/validation/review-audit-settings-retry-2026-11-12.md`.
 
-- [ ] **A04 — F4: Cancel expired history work cooperatively**
+- [x] **A04 — F4: Cancel expired history work cooperatively**
   (spec §7; R02-05, R07-04, R10-03). Coordinate outcomes with A02.
-  - [ ] **A04.1** Reproduce continued storage reads/validation after the real
+  - [x] **A04.1** Reproduce continued storage reads/validation after the real
     service deadline, including a path that delivers no records.
-  - [ ] **A04.2** Distinguish ordinary delivery stop/pagination from deadline
+  - [x] **A04.2** Distinguish ordinary delivery stop/pagination from deadline
     cancellation. Add checks per segment, record and at most 4 KiB read/hash chunk.
-  - [ ] **A04.3** Stop starting further work on expiry; preserve integrity
+  - [x] **A04.3** Stop starting further work on expiry; preserve integrity
     checks for completed visits and reuse validated data without unbounded memory.
-  - [ ] **A04.4** Preserve three-/fifteen-second service budgets and explicit
+  - [x] **A04.4** Preserve three-/fifteen-second service budgets and explicit
     incomplete outcomes; release mutexes, worker jobs and limiter slots on all exits.
-  - [ ] **A04.5** Test hash/validation expiry, corruption, pagination,
+  - [x] **A04.5** Test hash/validation expiry, corruption, pagination,
     out-of-range indexing, disconnected send and writer contention with fake time.
-  - [ ] **A04.6** Document budget start, mutex wait and non-preemptible I/O
+  - [x] **A04.6** Document budget start, mutex wait and non-preemptible I/O
     residuals; record host performance. Keep actual full-store latency under H07
     open until measured, or explicitly revise the objective with owner approval.
+    Done: `HistoryVisitControl`, test `history_cancel_deadline`; record
+    `docs/validation/review-audit-history-cancel-2026-11-12.md`. H07 latency stays open.
 
 - [ ] **A05 — F7: Make history JSON allocation-safe** (spec §10; R05-03).
   - [ ] **A05.1** Reproduce missing required `gaps` on a zero-gap allocation

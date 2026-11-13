@@ -112,11 +112,21 @@ bool same_history_segment(const std::string &path, const struct stat &expected) 
 // its inode, size, and per-record CRC. Compare the complete segment before
 // and after traversal to avoid reporting a mixed-time export as successful.
 // This is accidental-change detection, not cryptographic authentication.
-bool segment_fingerprint(const std::string &path, std::size_t expected_bytes, uint64_t &result) {
+// True once the visit's control says to stop (and from then on).
+bool visit_cancelled(HistoryVisitControl *control) {
+    if (control && !control->cancelled && control->expired && control->expired())
+        control->cancelled = true;
+    return control && control->cancelled;
+}
+constexpr std::size_t visit_chunk_bytes = 4096;
+bool segment_fingerprint(const std::string &path, std::size_t expected_bytes, uint64_t &result,
+                         HistoryVisitControl *control = nullptr) {
     std::ifstream input(path, std::ios::binary);
     if (!input)
         return false;
-    std::array<char, 4096> buffer{};
+    if (control)
+        ++control->files_read;
+    std::array<char, visit_chunk_bytes> buffer{};
     uint64_t fingerprint = 14695981039346656037ull;
     for (std::size_t remaining = expected_bytes; remaining;) {
         const auto count = std::min(remaining, buffer.size());
@@ -128,6 +138,8 @@ bool segment_fingerprint(const std::string &path, std::size_t expected_bytes, ui
             fingerprint *= 1099511628211ull;
         }
         remaining -= count;
+        if (visit_cancelled(control))
+            return false;
     }
     if (input.peek() != std::char_traits<char>::eof() || input.bad())
         return false;
@@ -137,27 +149,39 @@ bool segment_fingerprint(const std::string &path, std::size_t expected_bytes, ui
 // Reads a whole segment once into memory (segments are small, 32 KiB by default) and returns its
 // fingerprint, so a query validates and parses the same bytes with a single pass over the file.
 bool read_segment_snapshot(const std::string &path, std::size_t expected_bytes, std::string &out,
-                           uint64_t &fingerprint) {
+                           uint64_t &fingerprint, HistoryVisitControl *control = nullptr) {
     std::ifstream input(path, std::ios::binary);
     if (!input)
         return false;
+    if (control)
+        ++control->files_read;
     out.assign(expected_bytes, '\0');
-    input.read(out.data(), static_cast<std::streamsize>(expected_bytes));
-    if (input.gcount() != static_cast<std::streamsize>(expected_bytes) || input.bad() ||
-        input.peek() != std::char_traits<char>::eof())
-        return false;
     uint64_t value = 14695981039346656037ull;
-    for (unsigned char byte : out) {
-        value ^= byte;
-        value *= 1099511628211ull;
+    // Read and hashed 4 KiB at a time so a cancelled visit stops within one chunk.
+    for (std::size_t offset = 0; offset < expected_bytes;) {
+        const auto count = std::min(expected_bytes - offset, visit_chunk_bytes);
+        input.read(out.data() + offset, static_cast<std::streamsize>(count));
+        if (input.gcount() != static_cast<std::streamsize>(count) || input.bad())
+            return false;
+        for (std::size_t index = offset; index < offset + count; ++index) {
+            value ^= static_cast<unsigned char>(out[index]);
+            value *= 1099511628211ull;
+        }
+        offset += count;
+        if (visit_cancelled(control))
+            return false;
     }
+    if (input.peek() != std::char_traits<char>::eof())
+        return false;
     fingerprint = value;
     return true;
 }
 bool unchanged_segment_contents(const std::string &path, std::size_t size,
-                                uint64_t expected_fingerprint) {
+                                uint64_t expected_fingerprint,
+                                HistoryVisitControl *control = nullptr) {
     uint64_t actual_fingerprint = 0;
-    return segment_has_size(path, size) && segment_fingerprint(path, size, actual_fingerprint) &&
+    return segment_has_size(path, size) &&
+           segment_fingerprint(path, size, actual_fingerprint, control) &&
            actual_fingerprint == expected_fingerprint && segment_has_size(path, size);
 }
 // Read one bounded record. Truncated/corrupt records stop scanning at their offset.
@@ -749,9 +773,13 @@ bool HistoryStore::append(const Bucket &bucket) {
     return true;
 }
 bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor, std::size_t *skipped,
-                         const HistoryRange *range) const {
+                         const HistoryRange *range, HistoryVisitControl *control) const {
     if (skipped)
         *skipped = 0;
+    if (control) {
+        control->cancelled = false;
+        control->files_read = 0;
+    }
     if (!safe_history_directory(directory_))
         return false;
     struct stat initial_directory{};
@@ -778,8 +806,11 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor, std
         if (!same_history_directory(directory_, initial_directory))
             return false;
         for (const auto &segment : verified) {
+            if (visit_cancelled(control))
+                return false;
             const auto segment_path = path(segment.number);
-            if (!unchanged_segment_contents(segment_path, segment.size, segment.fingerprint))
+            if (!unchanged_segment_contents(segment_path, segment.size, segment.fingerprint,
+                                            control))
                 return false;
 #ifndef ESP_PLATFORM
             struct stat current{};
@@ -797,6 +828,9 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor, std
     bool deliver = true;
     const auto retained = segments();
     for (auto number : retained) {
+        // No further segment is started once the visit is cancelled.
+        if (visit_cancelled(control))
+            return false;
         // The directory can be replaced while a visitor processes a prior
         // segment. Recheck before following the next segment pathname.
         if (!same_history_directory(directory_, initial_directory) ||
@@ -823,7 +857,8 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor, std
         }
         uint64_t initial_fingerprint = 0;
         std::string content;
-        if (!read_segment_snapshot(path(number), initial_size, content, initial_fingerprint) ||
+        if (!read_segment_snapshot(path(number), initial_size, content, initial_fingerprint,
+                                   control) ||
             !segment_has_size(path(number), initial_size))
             return false;
         VerifiedSegment snapshot{number, initial_size, initial_fingerprint};
@@ -837,8 +872,11 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor, std
         if (number != retained.back()) {
             std::istringstream probe(content, std::ios::binary);
             std::size_t probe_good = 0;
-            while (next(probe))
+            while (next(probe)) {
                 probe_good = static_cast<std::size_t>(probe.tellg());
+                if (visit_cancelled(control))
+                    return false;
+            }
             if (probe_good != initial_size) {
                 if (skipped)
                     ++*skipped;
@@ -854,6 +892,8 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor, std
         std::istringstream input(content, std::ios::binary);
         std::size_t good = 0;
         while (auto bucket = next(input)) {
+            if (visit_cancelled(control))
+                return false;
             good = static_cast<std::size_t>(input.tellg());
             if (deliver && !visitor(*bucket))
                 deliver = false;
@@ -866,6 +906,10 @@ bool HistoryStore::visit(const std::function<bool(const Bucket &)> &visitor, std
         if (input.bad() || good != initial_size)
             return false;
     }
+    // The final revalidation is part of the visit: it is skipped (and the visit fails) once
+    // cancelled.
+    if (visit_cancelled(control))
+        return false;
     return unchanged_visited();
 }
 } // namespace monitor

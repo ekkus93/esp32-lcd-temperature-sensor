@@ -24,6 +24,18 @@ bool history_bucket_in_range(const Bucket &bucket, const HistoryRange &range);
 // `unchanged_segment_contents`), which is enough because the firmware is the only user of the
 // history partition. Anything that matters for the device must therefore be covered by the
 // size/fingerprint checks, not by the identity ones.
+// Cooperative cancellation for one visit (review audit F4), separate from a visitor returning false
+// (which stops delivery but still validates the rest). `expired` is checked before each segment,
+// after every read or hash chunk of at most 4 KiB, before each record and before the final
+// revalidation. Once it returns true the visit starts no further segment, skips the final
+// revalidation and returns false with `cancelled` set: a cancelled visit is never reported as
+// validated. A read already in progress is not interrupted; the bound is one chunk.
+struct HistoryVisitControl {
+    std::function<bool()> expired;
+    bool cancelled = false;
+    // Instrumentation: segment files this visit opened to read (snapshots and revalidation).
+    std::size_t files_read = 0;
+};
 class HistoryStore {
   public:
     explicit HistoryStore(std::string directory, std::size_t max_bytes = 3 * 1024 * 1024,
@@ -38,7 +50,7 @@ class HistoryStore {
     // when recovered and are fingerprinted before eviction. The visitor can still receive records
     // outside the window (from a segment that also holds matching ones) and must filter them.
     bool visit(const std::function<bool(const Bucket &)> &visitor, std::size_t *skipped = nullptr,
-               const HistoryRange *range = nullptr) const;
+               const HistoryRange *range = nullptr, HistoryVisitControl *control = nullptr) const;
     // Damaged completed segments found by the last recover(); they are kept on disk untouched.
     std::size_t skipped_segments() const {
         return skipped_segments_;

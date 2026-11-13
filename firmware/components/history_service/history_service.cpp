@@ -85,14 +85,18 @@ bool HistoryService::query(const HistoryQuery &query, std::vector<HistoryPoint> 
         ESP_LOGW("history", "Rejected invalid history query");
         return false;
     }
+    const int64_t asked_us = esp_timer_get_time();
     if (!mutex_ || xSemaphoreTake(mutex_, pdMS_TO_TICKS(500)) != pdTRUE) {
         ESP_LOGW("history", "History query mutex busy");
         return false;
     }
-    // A query runs on the single HTTP task with the history mutex held, so it gets a time budget:
-    // past it, delivery stops and the answer is marked truncated instead of holding up the server.
+    // A query runs on the single HTTP task with the history mutex held, so it gets a time budget,
+    // measured from when it holds the mutex: past it, the store stops reading and the answer is
+    // marked truncated instead of holding up the server. Waiting for the mutex is reported
+    // separately, not counted in the budget.
     constexpr int64_t query_budget_us = 3000000;
-    const int64_t deadline_us = esp_timer_get_time() + query_budget_us;
+    const int64_t started_us = esp_timer_get_time();
+    const int64_t deadline_us = started_us + query_budget_us;
     HistoryVisitOptions options;
     options.expired = [&]() { return esp_timer_get_time() > deadline_us; };
     options.pace = []() { vTaskDelay(1); };
@@ -100,6 +104,10 @@ bool HistoryService::query(const HistoryQuery &query, std::vector<HistoryPoint> 
     if (store_)
         answer = answer_history_query(*store_, query, options);
     xSemaphoreGive(mutex_);
+    ESP_LOGI("history", "Query: waited %lld ms for the lock, ran %lld ms, end %u, %u file(s) read",
+             (long long)((started_us - asked_us) / 1000),
+             (long long)((esp_timer_get_time() - started_us) / 1000), unsigned(answer.visit.end),
+             unsigned(answer.visit.files_read));
     if (answer.visit.skipped_segments)
         ESP_LOGW("history", "%u damaged history segment(s) skipped; answer is truncated",
                  unsigned(answer.visit.skipped_segments));
@@ -130,9 +138,12 @@ bool HistoryService::submit(const Bucket &bucket) {
 HistoryVisitOutcome HistoryService::visit(const HistoryQuery &query,
                                           const std::function<bool(const Bucket &)> &visitor,
                                           const HistoryVisitOptions &options) {
+    const int64_t asked_us = esp_timer_get_time();
     if (!valid_query(query) || !mutex_ || xSemaphoreTake(mutex_, pdMS_TO_TICKS(500)) != pdTRUE)
         return {};
-    const int64_t deadline = esp_timer_get_time() / 1000 + 15000;
+    // Fifteen seconds from holding the mutex; the wait for it is reported separately.
+    const int64_t started_us = esp_timer_get_time();
+    const int64_t deadline = started_us / 1000 + 15000;
     HistoryVisitOptions service_options;
     service_options.expired = [&]() { return esp_timer_get_time() / 1000 >= deadline; };
     service_options.pace = []() { vTaskDelay(1); };
@@ -142,6 +153,11 @@ HistoryVisitOutcome HistoryService::visit(const HistoryQuery &query,
     if (store_)
         outcome = visit_history_range(*store_, range, visitor, service_options);
     xSemaphoreGive(mutex_);
+    // For an export, the run time includes sending the rows (the visitor sends them).
+    ESP_LOGI("history", "Visit: waited %lld ms for the lock, ran %lld ms, end %u, %u file(s) read",
+             (long long)((started_us - asked_us) / 1000),
+             (long long)((esp_timer_get_time() - started_us) / 1000), unsigned(outcome.end),
+             unsigned(outcome.files_read));
     if (outcome.skipped_segments)
         ESP_LOGW("history", "%u damaged history segment(s) skipped; export is incomplete",
                  unsigned(outcome.skipped_segments));

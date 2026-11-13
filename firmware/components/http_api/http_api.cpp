@@ -453,8 +453,16 @@ void HttpApi::history_worker(void *context) {
             continue;
         // A failure after part of the answer was sent leaves the response unusable: close it,
         // as the HTTP server does when an ordinary handler fails.
-        if (self.serve_history(job->request, job->query, job->exporting) != ESP_OK)
+        const int64_t started_us = esp_timer_get_time();
+        const bool served = self.serve_history(job->request, job->query, job->exporting) == ESP_OK;
+        if (!served)
             httpd_sess_trigger_close(self.server_, httpd_req_to_sockfd(job->request));
+        // Total time on the worker: the history service's lock wait and run time (logged by it)
+        // plus building and sending the response.
+        ESP_LOGI("http", "History %s %s in %lld ms", job->exporting ? "export" : "query",
+                 served ? "answered" : "failed",
+                 (long long)((esp_timer_get_time() - started_us) / 1000));
+        // The admission slot is returned on every outcome.
         self.finish_public(job->kind);
         httpd_req_async_handler_complete(job->request);
         delete job;

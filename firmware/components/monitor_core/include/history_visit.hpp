@@ -17,12 +17,14 @@ enum class HistoryVisitEnd : uint8_t {
 struct HistoryVisitOutcome {
     HistoryVisitEnd end = HistoryVisitEnd::unavailable;
     std::size_t skipped_segments = 0; // damaged completed segments passed over
+    std::size_t files_read = 0;       // segment files opened (instrumentation)
     bool complete() const {
         return end == HistoryVisitEnd::complete;
     }
 };
 struct HistoryVisitOptions {
-    // True once the caller's time budget is spent (checked before each record).
+    // True once the caller's time budget is spent. Checked inside the store before each segment,
+    // every 4 KiB read or hashed and every record (see HistoryVisitControl).
     std::function<bool()> expired;
     // Called every 32 records so a long visit lets other tasks run.
     std::function<void()> pace;

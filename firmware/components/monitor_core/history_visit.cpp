@@ -5,15 +5,15 @@ HistoryVisitOutcome visit_history_range(const HistoryStore &store, const History
                                         const HistoryVisitOptions &options) {
     std::size_t skipped = 0;
     unsigned visited = 0;
-    bool expired = false, damaged_stop = false, visitor_stopped = false;
+    bool damaged_stop = false, visitor_stopped = false;
+    // The budget is enforced inside the store, so it also bounds reading, hashing and validation
+    // that deliver nothing.
+    HistoryVisitControl control;
+    control.expired = options.expired;
     const bool ok = store.visit(
         [&](const Bucket &bucket) {
             if (options.pace && ++visited % 32 == 0)
                 options.pace();
-            if (options.expired && options.expired()) {
-                expired = true;
-                return false;
-            }
             // The store counts a damaged segment before delivering the records after it.
             if (options.stop_on_damage && skipped > 0) {
                 damaged_stop = true;
@@ -27,15 +27,16 @@ HistoryVisitOutcome visit_history_range(const HistoryStore &store, const History
             }
             return true;
         },
-        &skipped, &range);
+        &skipped, &range, &control);
     HistoryVisitOutcome outcome;
     outcome.skipped_segments = skipped;
-    // The store validates every segment even after delivery stops, so its failure outranks the
-    // rest.
-    if (!ok)
-        outcome.end = HistoryVisitEnd::storage_failed;
-    else if (expired)
+    outcome.files_read = control.files_read;
+    // A cancelled visit stopped where it was. Otherwise the store validated every segment even
+    // after delivery stopped, so its failure outranks the rest.
+    if (control.cancelled)
         outcome.end = HistoryVisitEnd::deadline;
+    else if (!ok)
+        outcome.end = HistoryVisitEnd::storage_failed;
     else if (visitor_stopped)
         outcome.end = HistoryVisitEnd::delivery_stopped;
     else if (damaged_stop || skipped > 0)
