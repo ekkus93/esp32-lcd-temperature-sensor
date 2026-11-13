@@ -4,28 +4,12 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
+#include "network_types.hpp"
 #include <atomic>
 #include <string>
 #include <vector>
 namespace monitor {
-struct NetworkInfo {
-    std::string state;
-    std::string ssid;
-    std::string ip;
-    bool provisioning;
-    std::string attempt;
-    unsigned remaining_seconds;
-    bool saved_credentials;
-    std::string error;
-    // Uptime ms when `state` last changed.
-    int64_t state_since_ms = 0;
-};
-struct ScannedNetwork {
-    std::string ssid;
-    int rssi;
-    unsigned channel;
-    bool secure;
-};
+
 class WifiService {
   public:
     // `hostname` is the mDNS name to answer to (without ".local").

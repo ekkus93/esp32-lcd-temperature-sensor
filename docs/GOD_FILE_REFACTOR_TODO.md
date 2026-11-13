@@ -35,8 +35,11 @@ with the owner's confirmation.
     mechanically, with no route moved yet. Host tests for the helpers (body size, timeout,
     non-JSON, headers).
 - [ ] **G02 — Service ports** (spec §4.3).
-  - [ ] **G02.1** Define `AuthPort`, `NetworkPort`, `HistoryPort`, `DeviceSettingsPort`,
+  - [x] **G02.1** Define `AuthPort`, `NetworkPort`, `HistoryPort`, `DeviceSettingsPort`,
     `SystemPort`, `SensorUpdates` and `LiveState`; device adapters over the existing services.
+    Done: `api_ports.hpp`, `service_adapters`; `HttpApi` implements `SensorUpdates` and
+    `LiveState`; plain types moved to `auth_types`, `network_types`, `history_storage_info`,
+    `ota_types`. Image 2,188,336 bytes (+6,272).
   - [ ] **G02.2** Host fakes that record every call, including the dangerous operations.
 - [ ] **G03 — Router** (spec §4.4).
   - [ ] **G03.1** Add `ApiRouter` with the route table and the gate (`api_gate`,

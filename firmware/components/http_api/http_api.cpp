@@ -243,10 +243,16 @@ bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &histor
                     bool sensor_settings_writable) {
     simulated_ = simulated;
     sensor_settings_writable_.store(sensor_settings_writable);
-    auth_ = &auth;
-    wifi_ = &wifi;
-    history_ = &history;
-    settings_ = &settings;
+    auth_adapter_.reset(new (std::nothrow) AuthAdapter(auth));
+    network_adapter_.reset(new (std::nothrow) NetworkAdapter(wifi));
+    history_adapter_.reset(new (std::nothrow) HistoryAdapter(history));
+    settings_adapter_.reset(new (std::nothrow) DeviceSettingsAdapter(settings));
+    if (!auth_adapter_ || !network_adapter_ || !history_adapter_ || !settings_adapter_)
+        return false;
+    auth_ = auth_adapter_.get();
+    wifi_ = network_adapter_.get();
+    history_ = history_adapter_.get();
+    settings_ = settings_adapter_.get();
     {
         DeviceOptions options;
         uint64_t revision = 0;
@@ -336,6 +342,45 @@ bool HttpApi::next_calibration_hold(uint64_t &rom, int64_t &duration_ms, bool &c
     return true;
 }
 
+bool HttpApi::update_pending(uint64_t view_generation) const {
+    const auto published = published_generation_.load();
+    return sent_generation_.load() != published || view_generation != published;
+}
+QueueResult HttpApi::queue_sensor_update(uint64_t rom, const Settings &settings, bool retire) {
+    const uint64_t generation = sent_generation_.load() + 1;
+    auto *update = new (std::nothrow) SensorUpdate{rom, settings, generation, retire};
+    if (!update)
+        return QueueResult::no_memory;
+    if (xQueueSend(updates_, &update, 0) != pdTRUE) {
+        delete update;
+        return QueueResult::full;
+    }
+    sent_generation_ = generation;
+    return QueueResult::queued;
+}
+QueueResult HttpApi::queue_calibration_hold(uint64_t rom, int64_t duration_ms, bool cancel) {
+    auto *queued = new (std::nothrow) CalibrationHoldUpdate{rom, duration_ms, cancel};
+    if (!queued)
+        return QueueResult::no_memory;
+    if (xQueueSend(holds_, &queued, 0) != pdTRUE) {
+        delete queued;
+        return QueueResult::full;
+    }
+    return QueueResult::queued;
+}
+bool HttpApi::read(LiveView &view) {
+    if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10)) != pdTRUE)
+        return false;
+    view.registry = registry_;
+    view.probe_scan = probe_scan_;
+    view.generation = published_generation_.load();
+    view.uptime_ms = uptime_;
+    view.logging = logging_;
+    view.synchronized = synchronized_;
+    view.utc = utc_;
+    xSemaphoreGive(mutex_);
+    return true;
+}
 bool HttpApi::publish(const Registry &registry, ProbeScanStatus probe_scan, int64_t uptime,
                       bool logging, bool synchronized, const std::string &utc) {
     if (!server_)
@@ -356,18 +401,13 @@ bool HttpApi::publish(const Registry &registry, ProbeScanStatus probe_scan, int6
     return true;
 }
 std::string HttpApi::snapshot() {
-    Registry registry;
-    int64_t uptime;
-    bool logging, synced;
-    std::string utc;
-    if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10)) != pdTRUE)
+    LiveView view;
+    if (!live_->read(view))
         return {};
-    registry = registry_;
-    uptime = uptime_;
-    logging = logging_;
-    synced = synchronized_;
-    utc = utc_;
-    xSemaphoreGive(mutex_);
+    const Registry &registry = view.registry;
+    const int64_t uptime = view.uptime_ms;
+    const bool logging = view.logging, synced = view.synchronized;
+    const std::string &utc = view.utc;
     Json object(cJSON_CreateObject(), cJSON_Delete);
     cJSON_AddNumberToObject(object.get(), "version", 1);
     cJSON_AddNumberToObject(object.get(), "sequence", registry.sequence());
@@ -375,7 +415,7 @@ std::string HttpApi::snapshot() {
     cJSON_AddNumberToObject(object.get(), "uptime_ms", uptime);
     cJSON_AddBoolToObject(object.get(), "simulated", simulated_);
     cJSON_AddBoolToObject(object.get(), "bus_fault", registry.bus_fault());
-    const auto update = ota_status();
+    const auto update = system_->ota_status();
     auto *firmware = cJSON_AddObjectToObject(object.get(), "firmware");
     cJSON_AddStringToObject(firmware, "version", update.version.c_str());
     cJSON_AddStringToObject(firmware, "partition", update.partition.c_str());
@@ -555,7 +595,7 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
             break;
         }
         if (path == "/api/v1/clock" && ex.method() == HttpMethod::get) {
-            const auto status = clock_sync_diagnostics();
+            const auto status = system_->clock_diagnostics();
             Json output(cJSON_CreateObject(), cJSON_Delete);
             cJSON_AddNumberToObject(output.get(), "schema_version", 1);
             cJSON_AddBoolToObject(output.get(), "synchronized", status.synchronized);
@@ -572,10 +612,10 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
         }
         if (path == "/api/v1/probe-scan" && ex.method() == HttpMethod::get) {
             ProbeScanStatus status;
-            if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10)) != pdTRUE)
+            LiveView view;
+            if (!live_->read(view))
                 return send_error(ex, "503 Service Unavailable", "Probe scan status busy");
-            status = probe_scan_;
-            xSemaphoreGive(mutex_);
+            status = view.probe_scan;
             Json object(cJSON_CreateObject(), cJSON_Delete);
             cJSON_AddNumberToObject(object.get(), "schema_version", 1);
             cJSON_AddBoolToObject(object.get(), "enabled", status.enabled);
@@ -585,7 +625,7 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
             return send_json(ex, object.get());
         }
         if (path == "/api/v1/ota" && ex.method() == HttpMethod::post)
-            return handle_ota_upload(static_cast<httpd_req_t *>(ex.native_handle()));
+            return system_->upload_firmware(ex);
         if (path == "/api/v1/system/reboot" && ex.method() == HttpMethod::post) {
             if (ex.content_length() != 0) {
                 auto result =
@@ -593,14 +633,14 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
                 ex.close_connection();
                 return result;
             }
-            if (!reboot_available())
+            if (!system_->reboot_available())
                 return send_error(ex, "503 Service Unavailable", "Could not schedule restart");
             ex.set_status("202 Accepted");
             ex.set_type("application/json");
             ex.set_header("Cache-Control", "no-store");
             const auto result = send_text(ex, "{\"status\":\"rebooting\"}");
-            if (!schedule_reboot())
-                esp_restart();
+            if (!system_->schedule_reboot())
+                system_->restart_now();
             return result;
         }
         if (path == "/api/v1/system/factory-reset" && ex.method() == HttpMethod::post) {
@@ -610,7 +650,7 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
             auto *erase = cJSON_GetObjectItemCaseSensitive(input.get(), "erase_history");
             if (!cJSON_IsBool(erase))
                 return send_error(ex, "400 Bad Request", "Expected erase_history boolean");
-            if (!schedule_factory_reset(cJSON_IsTrue(erase)))
+            if (!system_->schedule_factory_reset(cJSON_IsTrue(erase)))
                 return send_error(ex, "503 Service Unavailable",
                                   "Could not schedule factory reset");
             ex.set_status("202 Accepted");
@@ -806,12 +846,12 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
              path.rfind("/api/v1/sensors/", 0) == 0)) {
             Registry current;
             ProbeScanStatus scan;
-            if (xSemaphoreTake(mutex_, pdMS_TO_TICKS(10)) != pdTRUE)
+            LiveView view;
+            if (!live_->read(view))
                 return send_error(ex, "503 Service Unavailable", "Snapshot busy");
-            current = registry_;
-            scan = probe_scan_;
-            const uint64_t snapshot_generation = published_generation_.load();
-            xSemaphoreGive(mutex_);
+            current = std::move(view.registry);
+            scan = view.probe_scan;
+            const uint64_t snapshot_generation = view.generation;
             if (path == "/api/v1/alerts" && ex.method() == HttpMethod::get) {
                 uint64_t after = 0;
                 unsigned limit = 50;
@@ -1002,21 +1042,23 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
                 } else {
                     return send_error(ex, "405 Method Not Allowed", "Method not allowed");
                 }
-                auto *queued = new (std::nothrow) CalibrationHoldUpdate(update);
-                if (!queued)
+                switch (updates_port_->queue_calibration_hold(update.rom, update.duration_ms,
+                                                              update.cancel)) {
+                case QueueResult::no_memory:
                     return send_error(ex, "503 Service Unavailable",
                                       "Calibration memory unavailable");
-                if (xQueueSend(holds_, &queued, 0) != pdTRUE) {
-                    delete queued;
+                case QueueResult::full:
                     return send_error(ex, "503 Service Unavailable",
                                       "Calibration request queue full");
+                case QueueResult::queued:
+                    break;
                 }
                 ex.set_status("202 Accepted");
                 return send_text(ex, "{\"status\":\"queued\"}");
             }
             if ((ex.method() == HttpMethod::patch || ex.method() == HttpMethod::del) &&
                 path.rfind("/api/v1/sensors/", 0) == 0) {
-                if (!sensor_settings_writable_.load())
+                if (!updates_port_->sensor_settings_writable())
                     return send_error(
                         ex, "503 Service Unavailable",
                         "Sensor settings are read-only; stored data is preserved for recovery");
@@ -1026,8 +1068,7 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
                                  [&](const Sensor &sensor) { return rom_hex(sensor.rom) == id; });
                 if (found == current.sensors().end())
                     return send_error(ex, "404 Not Found", "Unknown ROM ID");
-                if (sent_generation_.load() != published_generation_.load() ||
-                    snapshot_generation != published_generation_.load())
+                if (updates_port_->update_pending(snapshot_generation))
                     return send_error(ex, "409 Conflict",
                                       "Another sensor update is pending; wait for the next sample");
                 const std::string expected = "\"" + boot_id_ + ":" + rom_hex(found->rom) + ":" +
@@ -1047,18 +1088,16 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
                         return send_error(
                             ex, "409 Conflict",
                             "Probe must be disconnected and absent from a complete scan");
-                    const uint64_t generation = sent_generation_.load() + 1;
-                    auto *update = new (std::nothrow)
-                        SensorUpdate{found->rom, found->settings, generation, true};
-                    if (!update)
+                    switch (updates_port_->queue_sensor_update(found->rom, found->settings, true)) {
+                    case QueueResult::no_memory:
                         return send_error(ex, "503 Service Unavailable",
                                           "Configuration memory unavailable");
-                    if (xQueueSend(updates_, &update, 0) != pdTRUE) {
-                        delete update;
+                    case QueueResult::full:
                         return send_error(ex, "503 Service Unavailable",
                                           "Configuration queue full");
+                    case QueueResult::queued:
+                        break;
                     }
-                    sent_generation_ = generation;
                     ex.set_status("202 Accepted");
                     return send_text(ex, "{\"status\":\"queued\"}");
                 }
@@ -1137,17 +1176,15 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
                 }
                 if (!valid || keys.empty() || !valid_settings(settings))
                     return send_error(ex, "400 Bad Request", "Invalid sensor settings");
-                const uint64_t generation = sent_generation_.load() + 1;
-                auto *update =
-                    new (std::nothrow) SensorUpdate{found->rom, settings, generation, false};
-                if (!update)
+                switch (updates_port_->queue_sensor_update(found->rom, settings, false)) {
+                case QueueResult::no_memory:
                     return send_error(ex, "503 Service Unavailable",
                                       "Configuration memory unavailable");
-                if (xQueueSend(updates_, &update, 0) != pdTRUE) {
-                    delete update;
+                case QueueResult::full:
                     return send_error(ex, "503 Service Unavailable", "Configuration queue full");
+                case QueueResult::queued:
+                    break;
                 }
-                sent_generation_ = generation;
                 ex.set_status("202 Accepted");
                 return send_text(ex, "{\"status\":\"queued\"}");
             }

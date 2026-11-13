@@ -1,4 +1,5 @@
 #pragma once
+#include "api_ports.hpp"
 #include "auth_service.hpp"
 #include "device_settings_service.hpp"
 #include "esp_http_server.h"
@@ -8,13 +9,16 @@
 #include "http_exchange.hpp"
 #include "monitor.hpp"
 #include "public_limiter.hpp"
+#include "service_adapters.hpp"
 #include "wifi_service.hpp"
 #include "ws_live.hpp"
 #include <mutex>
 #include <optional>
 #include <string>
 namespace monitor {
-class HttpApi {
+// SensorUpdates and LiveState are implemented here: they are the queues and the published state
+// shared with the sampling loop.
+class HttpApi final : private SensorUpdates, private LiveState {
   public:
     bool start(AuthService &auth, WifiService &wifi, HistoryService &history,
                DeviceSettingsService &settings, uint64_t boot_id, bool simulated = false,
@@ -45,10 +49,33 @@ class HttpApi {
     std::string snapshot();
     bool origin(HttpExchange &exchange, bool require_origin);
     std::optional<Session> session(HttpExchange &exchange, bool csrf);
-    AuthService *auth_ = nullptr;
-    WifiService *wifi_ = nullptr;
-    HistoryService *history_ = nullptr;
-    DeviceSettingsService *settings_ = nullptr;
+    // SensorUpdates and LiveState (God file refactor, spec §4.3).
+    bool sensor_settings_writable() const override {
+        return sensor_settings_writable_.load();
+    }
+    bool update_pending(uint64_t view_generation) const override;
+    QueueResult queue_sensor_update(uint64_t rom, const Settings &settings, bool retire) override;
+    QueueResult queue_calibration_hold(uint64_t rom, int64_t duration_ms, bool cancel) override;
+    bool read(LiveView &view) override;
+    const std::string &boot_id() const override {
+        return boot_id_;
+    }
+    bool simulated() const override {
+        return simulated_;
+    }
+    // The services, through the ports the routes use (created once in start()).
+    std::unique_ptr<AuthAdapter> auth_adapter_;
+    std::unique_ptr<NetworkAdapter> network_adapter_;
+    std::unique_ptr<HistoryAdapter> history_adapter_;
+    std::unique_ptr<DeviceSettingsAdapter> settings_adapter_;
+    SystemAdapter system_adapter_;
+    AuthPort *auth_ = nullptr;
+    NetworkPort *wifi_ = nullptr;
+    HistoryPort *history_ = nullptr;
+    DeviceSettingsPort *settings_ = nullptr;
+    SystemPort *system_ = &system_adapter_;
+    SensorUpdates *updates_port_ = this;
+    LiveState *live_ = this;
     SemaphoreHandle_t mutex_ = nullptr;
     struct SensorUpdate {
         uint64_t rom;

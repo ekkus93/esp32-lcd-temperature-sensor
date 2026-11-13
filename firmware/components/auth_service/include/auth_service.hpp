@@ -1,4 +1,5 @@
 #pragma once
+#include "auth_types.hpp"
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -13,13 +14,6 @@ namespace monitor {
 std::string secure_token(size_t bytes = 24);
 // Random code from the unambiguous typing alphabet (the Wi-Fi setup password); empty on failure.
 std::string readable_secret(size_t length);
-// The HTTP status line and message for an enrollment result; `retry_after` asks for a
-// Retry-After header (seconds, 0 for none).
-struct EnrollReply {
-    const char *status;
-    const char *message;
-    int retry_after;
-};
 class AuthService {
   public:
     // PBKDF2-HMAC-SHA256 rounds for a new password. A login checks it in a few seconds on the
@@ -40,14 +34,7 @@ class AuthService {
     // first start without saved Wi-Fi, or after a physical BOOT hold), before the device is
     // enrolled, and not within five seconds of the last attempt. Each refusal says which rule
     // refused it (see enrollment_reply()).
-    enum class EnrollResult {
-        enrolled,
-        already_enrolled, // an administrator password exists
-        window_closed,    // the setup window is not open
-        too_soon,         // within five seconds of the previous attempt
-        bad_password,     // not 12 to 128 characters; not counted as an attempt
-        unavailable,      // storage or crypto failed, or authentication did not start
-    };
+    using EnrollResult = monitor::EnrollResult;
     EnrollResult enroll(const std::string &password, int64_t now_ms, bool setup_window_open);
     // Login is split so the slow password check can run on a worker task instead of the HTTP
     // task. login_begin() asks the throttle (per client, one derive at a time); on `allow` the
@@ -56,7 +43,7 @@ class AuthService {
     void login_abort(uint32_t client);
     // Why login_complete() returned no session: a wrong password, or the device could not
     // check it or open a session (out of memory, no entropy, session table full).
-    enum class LoginFailure { none, wrong_password, unavailable };
+    using LoginFailure = monitor::LoginFailure;
     // Runs the password check (a few seconds); never call it from the HTTP task.
     std::optional<Session> login_complete(const std::string &password, uint32_t client,
                                           int64_t now_ms, LoginFailure *failure = nullptr);
@@ -93,5 +80,4 @@ class AuthService {
     SemaphoreHandle_t mutex_ = nullptr;
     SemaphoreHandle_t kdf_mutex_ = nullptr;
 };
-EnrollReply enrollment_reply(AuthService::EnrollResult result);
 } // namespace monitor

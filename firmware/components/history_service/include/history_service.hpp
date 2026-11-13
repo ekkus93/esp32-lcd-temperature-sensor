@@ -5,15 +5,12 @@
 #include "freertos/semphr.h"
 #include "history.hpp"
 #include "history_query.hpp"
+#include "history_storage_info.hpp"
 #include "history_visit.hpp"
 #include <atomic>
 #include <mutex>
 namespace monitor {
-struct HistoryStorageInfo {
-    size_t total_bytes = 0;
-    size_t used_bytes = 0;
-    bool available = false;
-};
+
 class HistoryService {
   public:
     bool start(bool simulated = false, uint64_t boot_id = 0);
