@@ -222,6 +222,11 @@ class FakeSystem final : public SystemPort {
         log.add("trusted_utc");
         return utc;
     }
+    bool clock_accepts = true;
+    bool configure_clock(const DeviceOptions &) override {
+        log.add("configure_clock");
+        return clock_accepts;
+    }
     bool reboot_available() override {
         log.add("reboot_available");
         return can_reboot;

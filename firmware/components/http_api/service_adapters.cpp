@@ -13,6 +13,9 @@ ClockDiagnostics SystemAdapter::clock_diagnostics() {
 std::optional<int64_t> SystemAdapter::trusted_utc() {
     return monitor::trusted_utc();
 }
+bool SystemAdapter::configure_clock(const DeviceOptions &options) {
+    return monitor::configure_clock(options);
+}
 bool SystemAdapter::reboot_available() {
     return monitor::reboot_available();
 }

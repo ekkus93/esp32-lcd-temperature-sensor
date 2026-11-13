@@ -112,6 +112,7 @@ class SystemAdapter final : public SystemPort {
     OtaStatus ota_status() override;
     ClockDiagnostics clock_diagnostics() override;
     std::optional<int64_t> trusted_utc() override;
+    bool configure_clock(const DeviceOptions &options) override;
     bool reboot_available() override;
     bool schedule_reboot() override;
     void restart_now() override;

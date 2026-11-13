@@ -68,7 +68,8 @@ code, then move the group into its file in a separate commit, with the tests unc
   Done: `routes_sensors.{hpp,cpp}` and `live_json` (sensor, event and boot-id JSON); ctest
   `routes_sensors`; `SystemPort::trusted_utc()` added for the alert times.
 
-- [ ] **G06 — Settings routes** (GET and PATCH settings, hostname apply, owner-only fields).
+- [x] **G06 — Settings routes** (GET and PATCH settings, hostname apply, owner-only fields).
+  Done: `routes_settings.{hpp,cpp}`, ctest `routes_settings`; `SystemPort::configure_clock()` added.
 - [ ] **G07 — Network routes** (Wi-Fi status, scan GET/POST, connect, provisioning).
 - [ ] **G08 — System routes** (status, clock, probe scan, OTA upload, reboot, factory reset).
 - [ ] **G09 — History routes** (query, export, admission, worker, `serve_history`; keeps

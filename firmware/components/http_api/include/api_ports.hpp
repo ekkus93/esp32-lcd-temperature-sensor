@@ -73,6 +73,8 @@ class SystemPort {
     virtual ClockDiagnostics clock_diagnostics() = 0;
     // UTC seconds once the clock is trusted (for when an active alert began).
     virtual std::optional<int64_t> trusted_utc() = 0;
+    // Applies the time zone and NTP server from saved settings; false if the clock refused them.
+    virtual bool configure_clock(const DeviceOptions &options) = 0;
     virtual bool reboot_available() = 0;
     // Schedules a restart after the answer is sent; false if it could not be scheduled.
     virtual bool schedule_reboot() = 0;
