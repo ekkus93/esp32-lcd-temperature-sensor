@@ -247,9 +247,10 @@ bath. API additions are additive within schema v1 (§17.3); no settings storage 
   sampling loop; `GET /sensors` and the live snapshot carry `calibrating` and
   `calibration_hold_ends_uptime_ms` (optional fields, additive). Host tests:
   `calibration_hold` (ten behaviours plus the LCD label), route access for the new routes; the
-  full host suite and `verify.sh --firmware` pass. **Not done:** the `calibration` journal events
-  (spec §17.3). The journal now reads unknown event kinds safely (test `event_unknown_kind`), so
-  they can be added next.
+  full host suite and `verify.sh --firmware` pass. The hold's start and end are journal events
+  (`calibration_started`, `calibration_ended`, with the reasons in spec §17.3), shown on the Events
+  tab. **Not yet checked:** the 409 and 1-to-20-minute refusals in the HTTP handler (device-only
+  code, so they need a board test), and an older build skipping these kinds on the board.
 - [ ] **R11-02** Guided ice-bath calibration on each sensor's tab (§17.2): instructions, live
   measuring, the steadiness rule (12 readings within 0.125 °C), offset = 0 − mean uncalibrated
   reading rounded to 0.1 °C, the confirm screen with the change in readings and the reminder to

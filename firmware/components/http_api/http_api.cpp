@@ -210,6 +210,10 @@ const char *event_kind_name(EventKind kind) {
         return "reboot";
     case EventKind::storage_error:
         return "storage_error";
+    case EventKind::calibration_started:
+        return "calibration_started";
+    case EventKind::calibration_ended:
+        return "calibration_ended";
     }
     return "sensor_state";
 }

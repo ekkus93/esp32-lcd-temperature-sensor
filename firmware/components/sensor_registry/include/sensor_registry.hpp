@@ -30,7 +30,7 @@ class Registry {
     // reading: there is nothing to calibrate.
     bool hold_calibration(uint64_t rom, int64_t now_ms, int64_t duration_ms);
     // Ends a hold early. False if the probe is unknown.
-    bool end_calibration_hold(uint64_t rom);
+    bool end_calibration_hold(uint64_t rom, int64_t now_ms);
     const std::vector<Sensor> &sensors() const;
     const std::vector<Event> &events() const;
     uint64_t sequence() const;
@@ -43,11 +43,13 @@ class Registry {
     static void refresh_probe_calibration(Sensor &sensor);
     void transition(Sensor &sensor, State state, int64_t now_ms);
     void record(Event event);
+    void end_hold(Sensor &sensor, CalibrationEnd reason, int64_t now_ms);
     void event(uint64_t rom, State previous, State state, int64_t now_ms);
     struct Recorded {
         uint64_t rom;
         State previous;
         State state;
+        EventType type;
         int64_t uptime_ms;
     };
     // The last journaled transition of each kind; an identical one inside this window is not

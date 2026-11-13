@@ -32,10 +32,17 @@ const Sensor &sensor(const Registry &registry, uint64_t id) {
     std::cerr << "sensor missing\n";
     std::exit(1);
 }
-size_t events_for(const Registry &registry, uint64_t id) {
+// Alarm and state changes only, leaving out the hold's own start and end records.
+size_t state_events(const Registry &registry, uint64_t id) {
+    const auto &events = registry.events();
+    return std::count_if(events.begin(), events.end(), [id](const Event &event) {
+        return event.rom == id && event.type == EventType::state;
+    });
+}
+size_t hold_events(const Registry &registry, uint64_t id, EventType type) {
     const auto &events = registry.events();
     return std::count_if(events.begin(), events.end(),
-                         [id](const Event &event) { return event.rom == id; });
+                         [&](const Event &event) { return event.rom == id && event.type == type; });
 }
 // A probe with a 30 degree high limit, 0.5 degree hysteresis and 15 s persistence.
 Registry limited_registry(uint64_t id) {
@@ -77,7 +84,7 @@ void held_probe_raises_no_high_alarm() {
     // Well above the limit for much longer than the persistence time, as a bath would not be.
     sample_for(registry, id, 35.0, 0, 60);
     CHECK(sensor(registry, id).state == State::normal);
-    CHECK(events_for(registry, id) == 0);
+    CHECK(state_events(registry, id) == 0);
 }
 
 void starting_a_hold_clears_an_active_high_alarm() {
@@ -85,11 +92,11 @@ void starting_a_hold_clears_an_active_high_alarm() {
     auto registry = limited_registry(id);
     int64_t now = sample_for(registry, id, 35.0, 0, 6); // 30 s: past persistence, high
     CHECK(sensor(registry, id).state == State::high);
-    const size_t before = events_for(registry, id);
+    const size_t before = state_events(registry, id);
     CHECK(registry.hold_calibration(id, now, 15 * 60000));
     registry.sample({{id, 35.0}}, now);
     CHECK(sensor(registry, id).state == State::normal);
-    CHECK(events_for(registry, id) == before + 1);
+    CHECK(state_events(registry, id) == before + 1);
     const Event &last = registry.events().back();
     CHECK(last.rom == id && last.previous == State::high && last.state == State::normal);
 }
@@ -121,7 +128,7 @@ void disconnect_still_alarms_during_a_hold() {
     for (int64_t t = 5000; t <= 15000; t += sample_ms)
         registry.sample({}, t);
     CHECK(sensor(registry, id).state == State::disconnected);
-    CHECK(events_for(registry, id) == 1);
+    CHECK(state_events(registry, id) == 1);
 }
 
 void held_readings_are_not_recorded() {
@@ -172,9 +179,9 @@ void ending_a_hold_early_clears_it() {
     CHECK(registry.discover(id));
     registry.sample({{id, 20.0}}, 0);
     CHECK(registry.hold_calibration(id, 0, 15 * 60000));
-    CHECK(registry.end_calibration_hold(id));
+    CHECK(registry.end_calibration_hold(id, 0));
     CHECK(!sensor(registry, id).calibration_hold_until_ms);
-    CHECK(!registry.end_calibration_hold(rom_id(10))); // unknown probe
+    CHECK(!registry.end_calibration_hold(rom_id(10), 0)); // unknown probe
 }
 
 void retiring_a_probe_ends_its_hold() {
@@ -194,6 +201,55 @@ void retiring_a_probe_ends_its_hold() {
 } // namespace
 
 // The LCD shows CAL in place of a probe's status while its hold is in force (spec 17.3).
+void hold_events_record_start_and_end() {
+    const auto id = rom_id(13);
+    Registry registry;
+    CHECK(registry.discover(id));
+    registry.sample({{id, 20.0}}, 0);
+    CHECK(registry.hold_calibration(id, 0, 15 * 60000));
+    CHECK(hold_events(registry, id, EventType::calibration_started) == 1);
+    const Event &start = registry.events().back();
+    CHECK(start.type == EventType::calibration_started && start.detail == 15);
+    // Renewing does not start another hold in the journal.
+    CHECK(registry.hold_calibration(id, 30000, 15 * 60000));
+    CHECK(hold_events(registry, id, EventType::calibration_started) == 1);
+    // Ending it early records the reason.
+    CHECK(registry.end_calibration_hold(id, 60000));
+    const Event &end = registry.events().back();
+    CHECK(end.type == EventType::calibration_ended && end.detail == 2 && end.uptime_ms == 60000);
+    // A start and an end inside a minute are both kept, not merged as repeats.
+    CHECK(registry.hold_calibration(id, 70000, 60000));
+    CHECK(hold_events(registry, id, EventType::calibration_started) == 2);
+}
+
+void hold_end_reasons_are_recorded() {
+    // Time ran out: expired (1).
+    {
+        const auto id = rom_id(14);
+        Registry registry;
+        CHECK(registry.discover(id));
+        registry.sample({{id, 20.0}}, 0);
+        CHECK(registry.hold_calibration(id, 0, 60000));
+        registry.sample({{id, 20.0}}, 60000);
+        const Event &end = registry.events().back();
+        CHECK(end.type == EventType::calibration_ended && end.detail == 1);
+    }
+    // The probe was lost during the hold: disconnected (3), and the hold is gone.
+    {
+        const auto id = rom_id(15);
+        Registry registry;
+        CHECK(registry.discover(id));
+        registry.sample({{id, 20.0}}, 0);
+        CHECK(registry.hold_calibration(id, 0, 15 * 60000));
+        for (int64_t t = 5000; t <= 15000; t += sample_ms)
+            registry.sample({}, t);
+        CHECK(!sensor(registry, id).calibration_hold_until_ms);
+        CHECK(hold_events(registry, id, EventType::calibration_ended) == 1);
+        const Event &end = registry.events().back();
+        CHECK(end.type == EventType::calibration_ended && end.detail == 3);
+    }
+}
+
 void lcd_shows_cal_while_held() {
     const auto id = rom_id(12);
     Registry registry;
@@ -206,7 +262,7 @@ void lcd_shows_cal_while_held() {
     CHECK(rows[0].status == "CAL");
     CHECK(rows[0].value == "20.0\xC2\xB0"
                            "C"); // the reading still shows
-    CHECK(registry.end_calibration_hold(id));
+    CHECK(registry.end_calibration_hold(id, 0));
     rows = display_rows(registry, false);
     CHECK(rows[0].status.empty());
 }
@@ -222,6 +278,8 @@ int main() {
     a_hold_is_capped_at_twenty_minutes();
     ending_a_hold_early_clears_it();
     retiring_a_probe_ends_its_hold();
+    hold_events_record_start_and_end();
+    hold_end_reasons_are_recorded();
     lcd_shows_cal_while_held();
     std::cout << "calibration hold tests passed\n";
 }

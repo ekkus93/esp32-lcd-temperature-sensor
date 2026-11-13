@@ -64,7 +64,7 @@
           "sequence": { "type": "integer", "minimum": 1 },
           "boot_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,32}$" },
           "kind": {
-            "enum": ["sensor_state", "wifi_state", "clock_sync", "reboot", "storage_error"]
+            "enum": ["sensor_state", "wifi_state", "clock_sync", "reboot", "storage_error", "calibration_started", "calibration_ended"]
           },
           "rom_id": {
             "type": ["string", "null"],

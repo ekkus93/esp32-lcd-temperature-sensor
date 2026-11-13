@@ -29,7 +29,13 @@ export interface Alerts {
     sequence: number;
     boot_id: string;
     kind:
-      'sensor_state' | 'wifi_state' | 'clock_sync' | 'reboot' | 'storage_error';
+      | 'sensor_state'
+      | 'wifi_state'
+      | 'clock_sync'
+      | 'reboot'
+      | 'storage_error'
+      | 'calibration_started'
+      | 'calibration_ended';
     rom_id: string | null;
     previous:
       | 'normal'

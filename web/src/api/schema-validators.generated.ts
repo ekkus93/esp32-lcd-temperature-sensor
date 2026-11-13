@@ -99,6 +99,8 @@ const schema11 = {
               'clock_sync',
               'reboot',
               'storage_error',
+              'calibration_started',
+              'calibration_ended',
             ],
           },
           rom_id: { type: ['string', 'null'], pattern: '^28[0-9a-f]{14}$' },
@@ -1110,7 +1112,9 @@ function validate10(
                                       data14 === 'wifi_state' ||
                                       data14 === 'clock_sync' ||
                                       data14 === 'reboot' ||
-                                      data14 === 'storage_error'
+                                      data14 === 'storage_error' ||
+                                      data14 === 'calibration_started' ||
+                                      data14 === 'calibration_ended'
                                     )) {
                                       validate10.errors = [
                                         {

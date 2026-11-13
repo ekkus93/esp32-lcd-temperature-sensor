@@ -13,6 +13,7 @@ import WifiOutlined from '@mui/icons-material/WifiOutlined';
 import ScheduleOutlined from '@mui/icons-material/ScheduleOutlined';
 import RestartAltOutlined from '@mui/icons-material/RestartAltOutlined';
 import SdCardAlertOutlined from '@mui/icons-material/SdCardAlertOutlined';
+import ScienceOutlined from '@mui/icons-material/ScienceOutlined';
 import { getAlerts, type AlertData } from '../api/alerts';
 import { formatDeviceTime } from '../api/time';
 
@@ -30,13 +31,35 @@ function description(event: AlertData['events'][number]) {
   if (event.kind === 'clock_sync')
     return `Clock ${event.detail ? 'synchronized' : 'lost synchronization'}`;
   if (event.kind === 'reboot') return 'Device started';
+  if (
+    event.kind === 'calibration_started' ||
+    event.kind === 'calibration_ended'
+  )
+    return calibrationText(event);
   return 'History storage write failed';
+}
+
+// A probe's ice-bath hold (spec 17.3): its start (the detail is the length in minutes), and its end
+// (the detail is the reason code).
+const calibrationEnds = [
+  '',
+  'the time ran out',
+  'it was ended early',
+  'the probe was lost',
+] as const;
+function calibrationText(event: AlertData['events'][number]) {
+  const probe = event.rom_id ?? 'Probe';
+  if (event.kind === 'calibration_started')
+    return `${probe} · ice-bath hold started for ${event.detail} min`;
+  return `${probe} · ice-bath hold ended: ${calibrationEnds[event.detail] ?? 'unknown reason'}`;
 }
 
 function kindIcon(kind: AlertData['events'][number]['kind']): ReactNode {
   if (kind === 'sensor_state') return <ThermostatOutlined fontSize="small" />;
   if (kind === 'wifi_state') return <WifiOutlined fontSize="small" />;
   if (kind === 'clock_sync') return <ScheduleOutlined fontSize="small" />;
+  if (kind === 'calibration_started' || kind === 'calibration_ended')
+    return <ScienceOutlined fontSize="small" />;
   if (kind === 'reboot') return <RestartAltOutlined fontSize="small" />;
   return <SdCardAlertOutlined fontSize="small" />;
 }

@@ -103,7 +103,8 @@ void Registry::event(uint64_t rom, State previous, State state, int64_t now_ms) 
 }
 void Registry::record(Event event) {
     const auto same = std::find_if(recorded_.begin(), recorded_.end(), [&](const Recorded &r) {
-        return r.rom == event.rom && r.previous == event.previous && r.state == event.state;
+        return r.rom == event.rom && r.previous == event.previous && r.state == event.state &&
+               r.type == event.type;
     });
     if (same != recorded_.end()) {
         if (event.uptime_ms >= same->uptime_ms &&
@@ -113,7 +114,7 @@ void Registry::record(Event event) {
     } else {
         if (recorded_.size() == max_recorded)
             recorded_.erase(recorded_.begin());
-        recorded_.push_back({event.rom, event.previous, event.state, event.uptime_ms});
+        recorded_.push_back({event.rom, event.previous, event.state, event.type, event.uptime_ms});
     }
     if (events_.size() == 128)
         events_.erase(events_.begin());
@@ -137,7 +138,7 @@ bool Registry::sample(const std::vector<Reading> &readings, int64_t now_ms, bool
     // A calibration hold ends on its own when its time is up.
     for (auto &sensor : sensors_)
         if (sensor.calibration_hold_until_ms && now_ms >= *sensor.calibration_hold_until_ms)
-            sensor.calibration_hold_until_ms.reset();
+            end_hold(sensor, CalibrationEnd::expired, now_ms);
     // Sort new identities so discovery permutations yield deterministic initial names.
     std::vector<uint64_t> discovered;
     for (const auto &r : readings)
@@ -170,6 +171,9 @@ bool Registry::sample(const std::vector<Reading> &readings, int64_t now_ms, bool
             alerts_.update(sensor, it == readings.end() ? nullptr : &*it, fault, now_ms, monitored);
         if (generated)
             record(*generated);
+        // A probe lost during its hold ends the hold: it is no longer in the bath (spec 17.3).
+        if (sensor.state == State::disconnected)
+            end_hold(sensor, CalibrationEnd::disconnected, now_ms);
     }
     return settings_changed;
 }
@@ -182,18 +186,30 @@ bool Registry::hold_calibration(uint64_t rom, int64_t now_ms, int64_t duration_m
                            sensor->state == State::low;
     if (!connected)
         return false;
-    sensor->calibration_hold_until_ms = now_ms + std::min(duration_ms, max_calibration_hold_ms);
+    const int64_t length = std::min(duration_ms, max_calibration_hold_ms);
+    // Renewing a hold changes its end time only; the journal records the start once.
+    if (!sensor->calibration_hold_until_ms)
+        record({0, rom, State::normal, State::normal, now_ms, EventType::calibration_started,
+                static_cast<uint32_t>(length / 60000)});
+    sensor->calibration_hold_until_ms = now_ms + length;
     ++sequence_;
     return true;
 }
 
-bool Registry::end_calibration_hold(uint64_t rom) {
+void Registry::end_hold(Sensor &sensor, CalibrationEnd reason, int64_t now_ms) {
+    if (!sensor.calibration_hold_until_ms)
+        return;
+    sensor.calibration_hold_until_ms.reset();
+    record({0, sensor.rom, State::normal, State::normal, now_ms, EventType::calibration_ended,
+            static_cast<uint32_t>(reason)});
+    ++sequence_;
+}
+
+bool Registry::end_calibration_hold(uint64_t rom, int64_t now_ms) {
     Sensor *sensor = find(rom);
     if (!sensor)
         return false;
-    if (sensor->calibration_hold_until_ms)
-        ++sequence_;
-    sensor->calibration_hold_until_ms.reset();
+    end_hold(*sensor, CalibrationEnd::cancelled, now_ms);
     return true;
 }
 

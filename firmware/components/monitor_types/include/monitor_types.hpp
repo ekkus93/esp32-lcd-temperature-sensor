@@ -124,11 +124,18 @@ struct ProbeScanStatus {
     bool enabled = false;
     std::vector<uint64_t> discovered_roms;
 };
+// What a registry event records: a sensor's state change, or the start or end of a hold.
+enum class EventType : uint8_t { state, calibration_started, calibration_ended };
+// Why an ice-bath hold ended (spec 17.3); the journal stores it as the event's detail.
+enum class CalibrationEnd : uint32_t { expired = 1, cancelled = 2, disconnected = 3 };
 struct Event {
     uint64_t sequence;
     uint64_t rom;
     State previous;
     State state;
     int64_t uptime_ms;
+    EventType type = EventType::state;
+    // calibration_started: the hold's length in minutes. calibration_ended: a CalibrationEnd.
+    uint32_t detail = 0;
 };
 } // namespace monitor

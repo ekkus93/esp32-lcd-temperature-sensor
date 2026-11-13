@@ -120,7 +120,7 @@ bool expected_last_record(const std::string &path, size_t expected_bytes,
 // Kinds this build writes. A record of any other kind comes from a newer build: it is read and
 // kept (so a rollback to this build still recovers the journal) but never shown or written here.
 bool known_event_kind(EventKind kind) {
-    return static_cast<unsigned>(kind) <= static_cast<unsigned>(EventKind::storage_error);
+    return static_cast<unsigned>(kind) <= static_cast<unsigned>(EventKind::calibration_ended);
 }
 
 bool valid_event(const JournalEvent &event) {

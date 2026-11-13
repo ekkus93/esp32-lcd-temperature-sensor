@@ -278,7 +278,7 @@ extern "C" void app_main() {
         while (api.next_calibration_hold(hold_rom, hold_ms, hold_cancel)) {
             const int64_t at = simulated ? int64_t(simulated_tick * 5000) : now;
             if (hold_cancel)
-                registry.end_calibration_hold(hold_rom);
+                registry.end_calibration_hold(hold_rom, at);
             else
                 registry.hold_calibration(hold_rom, at, hold_ms);
         }
@@ -316,9 +316,20 @@ extern "C" void app_main() {
             record.uptime_ms = event.uptime_ms;
             record.utc_seconds = simulated ? std::nullopt : monitor::trusted_utc();
             record.rom = event.rom;
-            record.kind = monitor::EventKind::sensor_state;
+            switch (event.type) {
+            case monitor::EventType::state:
+                record.kind = monitor::EventKind::sensor_state;
+                break;
+            case monitor::EventType::calibration_started:
+                record.kind = monitor::EventKind::calibration_started;
+                break;
+            case monitor::EventType::calibration_ended:
+                record.kind = monitor::EventKind::calibration_ended;
+                break;
+            }
             record.previous = event.previous;
             record.state = event.state;
+            record.detail = event.detail;
             if (!history.submit_event(record))
                 ESP_LOGE(tag, "Event queue full; acquisition continues");
             last_event_sequence = event.sequence;

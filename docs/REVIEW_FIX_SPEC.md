@@ -481,12 +481,13 @@ record the bath in that probe's history. The hold stops both, for that probe onl
     in the probe's state position instead of `HIGH` or `LOW`.
 - When the hold ends, alert checks resume with the normal hysteresis and persistence, so a probe
   still warming up raises a low alert only if it stays low for its persistence time.
-- The event log records `calibration` events, `started` and `ended` (with the reason: finished,
-  expired, cancelled, disconnected, retired), so a gap in history has an explanation.
-  **Reader made tolerant (2026-11-12):** the journal now reads a record of a kind it does not
-  know, keeps it, and leaves it out of pages without repeating or losing a shown record (test
-  `event_unknown_kind`). A rollback to this build therefore recovers the journal. The calibration
-  events themselves are still not written; they can be added now that a rollback is safe.
+- The event log records two kinds, `calibration_started` and `calibration_ended`, so a gap in
+  history has an explanation. A start is recorded once per hold (renewing it records nothing) and
+  its detail is the length in minutes. An end's detail is its reason: `1` expired (the time ran
+  out, including the five-minute tail after Done), `2` cancelled (ended early), `3` disconnected
+  (the probe was lost, which also ends the hold). Retirement needs a disconnected probe, so it
+  cannot end a hold on its own. Journal records of unknown kinds are read and skipped by builds
+  that do not know them (test `event_unknown_kind`), so a rollback recovers the journal.
 - Contract decision: additive within schema v1, like `probe_calibration`: the new route, the two
   read-only fields (refused by `PATCH`), and the `calibration` event kind. The web app ships in
   the same image. Storage: no settings change; the event journal gains one event kind, and an

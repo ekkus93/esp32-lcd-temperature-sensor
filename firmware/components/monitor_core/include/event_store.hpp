@@ -3,7 +3,15 @@
 #include <functional>
 
 namespace monitor {
-enum class EventKind : uint8_t { sensor_state, wifi_state, clock_sync, reboot, storage_error };
+enum class EventKind : uint8_t {
+    sensor_state,
+    wifi_state,
+    clock_sync,
+    reboot,
+    storage_error,
+    calibration_started,
+    calibration_ended
+};
 struct JournalEvent {
     uint64_t sequence = 0;
     uint64_t boot_id = 0;
