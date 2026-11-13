@@ -7,7 +7,7 @@ with the owner's confirmation.
 
 ## Phase G0 — Baseline
 
-- [ ] **G00 — Measure and confirm scope** (spec §1, §3).
+- [x] **G00 — Measure and confirm scope** (spec §1, §3).
   - [x] **G00.1** Add `tools/check_unit_size.py`: report `.cpp`/`.tsx`/`.ts` files over 400 lines
     and functions over 80 lines (tests and generated files excluded), with an allow-list for
     accepted exceptions. Python tests for it. Report-only at first.
@@ -18,9 +18,11 @@ with the owner's confirmation.
     `usb_bridge.cpp`, `SensorsView.tsx`).
     Done: `tools/unit_size_allowlist.txt` (32 entries with reasons); record
     `docs/validation/god-file-scope-2026-11-13.md`.
-  - [ ] **G00.3** Record the baseline: source SHA, image size, task stack sizes, and (if the owner
+  - [x] **G00.3** Record the baseline: source SHA, image size, task stack sizes, and (if the owner
     allows a board run) stack high-water marks, free RAM and API latency from
     `device_api_test.py`.
+    Done: `docs/validation/god-file-baseline-2026-11-13.md` (build figures; board figures not
+    taken, no flash approval).
 
 ## Phase G1 — HTTP API seams
 
