@@ -384,7 +384,6 @@ it('disables sensor edits when persistent storage is read-only', async () => {
 });
 
 it('requires confirmation and queues retirement with the current sensor ETag', async () => {
-  vi.spyOn(window, 'confirm').mockReturnValue(true);
   vi.stubGlobal(
     'fetch',
     vi
@@ -412,10 +411,10 @@ it('requires confirmation and queues retirement with the current sensor ETag', a
   fireEvent.click(
     await screen.findByRole('button', { name: 'Retire disconnected probe' }),
   );
+  const dialog = await screen.findByRole('dialog');
+  expect(dialog).toHaveTextContent(`Retire probe ${sensor.rom_id}?`);
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Retire probe' }));
   expect(await screen.findByText(/Retirement queued/)).toBeInTheDocument();
-  expect(window.confirm).toHaveBeenCalledWith(
-    expect.stringContaining(sensor.rom_id),
-  );
   const deletion = vi
     .mocked(fetch)
     .mock.calls.find(([, init]) => init?.method === 'DELETE');
@@ -424,7 +423,6 @@ it('requires confirmation and queues retirement with the current sensor ETag', a
 });
 
 it('does not submit retirement when its confirmation is cancelled', async () => {
-  vi.spyOn(window, 'confirm').mockReturnValue(false);
   vi.stubGlobal(
     'fetch',
     vi.fn().mockImplementation(async (input: RequestInfo | URL) => ({
@@ -440,7 +438,11 @@ it('does not submit retirement when its confirmation is cancelled', async () => 
   fireEvent.click(
     await screen.findByRole('button', { name: 'Retire disconnected probe' }),
   );
-  expect(window.confirm).toHaveBeenCalled();
+  fireEvent.click(
+    within(await screen.findByRole('dialog')).getByRole('button', {
+      name: 'Cancel',
+    }),
+  );
   expect(
     vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'DELETE'),
   ).toBe(false);

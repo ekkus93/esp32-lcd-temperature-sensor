@@ -8,10 +8,12 @@ import {
 } from 'react';
 import {
   Alert,
+  Box,
   Button,
   Card,
   CardContent,
   Stack,
+  SvgIcon,
   Typography,
 } from '@mui/material';
 import { authState, request, setCsrf } from './api/auth';
@@ -137,18 +139,50 @@ export default function AuthGate({
     }
   }
   return (
-    <section style={{ maxWidth: 520 }}>
-      <Card>
-        <CardContent>
-          <Typography variant="h5" component="h2">
+    <Box
+      component="section"
+      sx={{ display: 'flex', justifyContent: 'center', py: { xs: 2, sm: 6 } }}
+    >
+      <Card sx={{ width: '100%', maxWidth: 480, borderRadius: '28px' }}>
+        <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
+          <Box
+            aria-hidden="true"
+            sx={{
+              width: 56,
+              height: 56,
+              borderRadius: '18px',
+              bgcolor: 'var(--app-panel-background)',
+              color: 'var(--app-panel-text)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              mb: 2.5,
+            }}
+          >
+            <SvgIcon sx={{ fontSize: 30 }}>
+              <path
+                d="M5 19c0-8 6-14 15-14 0 9-6 15-14 15M5 19l8-8"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </SvgIcon>
+          </Box>
+          <Typography variant="headlineSmall" component="h2">
             {state?.enrolled === false
               ? 'Set up your monitor'
               : 'Administrator sign in'}
           </Typography>
-          <Typography color="text.secondary" sx={{ mt: 1 }}>
+          <Typography
+            color="text.secondary"
+            variant="bodyMedium"
+            sx={{ mt: 1 }}
+          >
             {reason} Readings and history do not need a password.
           </Typography>
-          <Alert severity="info" sx={{ my: 2 }}>
+          <Alert severity="info" sx={{ my: 2.5 }}>
             Local HTTP mode: use your trusted local network. Passwords and
             sessions are not encrypted in transit.
           </Alert>
@@ -218,6 +252,6 @@ export default function AuthGate({
           )}
         </CardContent>
       </Card>
-    </section>
+    </Box>
   );
 }

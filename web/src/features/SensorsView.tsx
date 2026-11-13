@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useConfirm } from '../useConfirm';
 import {
   Alert,
   Button,
@@ -117,6 +118,7 @@ function SensorEditor({
   // Only fields the user edited are converted back; the rest are sent exactly as stored.
   const [edited, setEdited] = useState<Set<NumericKey>>(new Set());
   const mounted = useRef(true);
+  const [confirm, dialog] = useConfirm();
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -232,9 +234,13 @@ function SensorEditor({
   async function retire() {
     const { rom_id: id, etag } = draft;
     if (
-      !window.confirm(
-        `Retire disconnected probe ${id}? Its configuration mapping will be removed after saving. Existing history remains under this ROM, and a returning probe starts with default settings, apart from a calibration offset saved on the probe itself.`,
-      )
+      !(await confirm({
+        title: `Retire probe ${id}?`,
+        message:
+          'Its configuration mapping will be removed after saving. Existing history remains under this ROM, and a returning probe starts with default settings, apart from a calibration offset saved on the probe itself.',
+        confirmLabel: 'Retire probe',
+        destructive: true,
+      }))
     )
       return;
     setBusy(true);
@@ -279,6 +285,7 @@ function SensorEditor({
   return (
     <Card>
       <CardContent>
+        {dialog}
         <Typography variant="h6">{sensor.name}</Typography>
         <Typography variant="caption" component="p">
           ROM {sensor.rom_id} · {sensor.state.replaceAll('_', ' ')}

@@ -1,18 +1,23 @@
 import { useState } from 'react';
 import { Alert, Button, Stack, Typography } from '@mui/material';
 import { factoryResetDevice, rebootDevice } from '../api/system';
+import { useConfirm } from '../useConfirm';
 
 export default function SystemControls() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [confirm, dialog] = useConfirm();
 
   async function reboot() {
     if (
       busy ||
-      !window.confirm(
-        'Restart the temperature monitor now? Live readings and the web connection will pause briefly.',
-      )
+      !(await confirm({
+        title: 'Restart the monitor?',
+        message:
+          'Live readings and the web connection will pause briefly. Nothing is erased.',
+        confirmLabel: 'Restart',
+      }))
     )
       return;
     setBusy(true);
@@ -41,7 +46,12 @@ export default function SystemControls() {
       : 'This erases Wi-Fi, administrator, and sensor settings. Temperature history is preserved.';
     if (
       busy ||
-      !window.confirm(`${choice}? ${details} The device will restart.`)
+      !(await confirm({
+        title: `${choice}?`,
+        message: `${details} The device will restart.`,
+        confirmLabel: eraseHistory ? 'Erase and reset' : 'Reset settings',
+        destructive: true,
+      }))
     )
       return;
     setBusy(true);
@@ -65,6 +75,7 @@ export default function SystemControls() {
 
   return (
     <Stack spacing={1.5}>
+      {dialog}
       <Typography variant="h6">Device restart</Typography>
       <Typography>
         A restart preserves Wi-Fi, administrator, sensor, and history data.

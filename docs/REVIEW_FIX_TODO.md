@@ -340,6 +340,12 @@ or storage change. R12-01 comes first; if R11-02 is built after it, it uses the 
 - [ ] **R12-06** Sensors, Settings and sign-in restyled (§18.7): Material 3 tabs and fields, the
   °C/°F segmented button, the button rule, confirm dialogs for destructive actions, snackbars.
   Acceptance: the existing tests pass, updated only for the new controls.
+  Partly done (2026-11-12, not yet checked): the four `window.confirm` prompts (restart, factory
+  reset, firmware install, sensor retirement) are Material dialogs (`web/src/useConfirm.tsx`)
+  with specific titles, the action named for what it does, error colour for destructive actions
+  and Cancel focused; the sign-in card is centred with the app mark, keeping its wording. Still
+  open: save results as snackbars instead of inline alerts (Sensors, Preferences, Wi-Fi,
+  Password). Tests updated; checked in the simulator (sign-in card, Settings).
 - [ ] **R12-07** Quality pass and documents (§18.8, §18.9): skeletons, empty and error states,
   reduced motion, focus and accessible names; before and after screenshots of every page in light
   and dark at 390 and 1280 px under `docs/validation/`; `docs/WEB_UI_DESIGN_SPEC.md` and

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Alert, Button, Stack, Typography } from '@mui/material';
 import { uploadFirmware } from '../api/auth';
+import { useConfirm } from '../useConfirm';
 
 export default function FirmwareUpdate({
   version,
@@ -15,15 +16,20 @@ export default function FirmwareUpdate({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [confirm, dialog] = useConfirm();
 
   async function submit() {
     if (!image || busy) return;
     setError('');
     setMessage('');
     if (
-      !window.confirm(
-        'Install this firmware image? Keep the device powered during upload. It will restart after validation.',
-      )
+      !(await confirm({
+        title: 'Install this firmware?',
+        message:
+          'Keep the device powered during upload. It restarts after the image is validated, and settings and history are kept.',
+        confirmLabel: 'Install and restart',
+        destructive: true,
+      }))
     )
       return;
     setBusy(true);
@@ -44,6 +50,7 @@ export default function FirmwareUpdate({
 
   return (
     <Stack spacing={1.5}>
+      {dialog}
       <Typography variant="h6">Firmware update</Typography>
       <Typography>
         Running {version} from {partition} ({state}). Select a firmware .bin
