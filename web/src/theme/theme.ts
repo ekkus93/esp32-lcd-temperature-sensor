@@ -444,6 +444,12 @@ export function createAppTheme(mode: Mode): Theme {
             },
             '&.Mui-disabled + .MuiSwitch-track': { opacity: 0.12 },
             '&.Mui-disabled .MuiSwitch-thumb': { opacity: 0.38 },
+            // Keyboard focus lands on a transparent input, so the global focus ring cannot show;
+            // ring the track instead, as every other control is ringed.
+            '&.Mui-focusVisible + .MuiSwitch-track': {
+              outline: `2px solid ${c.secondary}`,
+              outlineOffset: 2,
+            },
           },
           thumb: {
             width: 16,

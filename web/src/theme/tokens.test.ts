@@ -217,3 +217,20 @@ describe('the built-in font', () => {
     expect(statSync(path).size).toBeLessThanOrEqual(80 * 1024);
   });
 });
+
+// Review audit A12 (H11): keyboard focus on a switch lands on its transparent input, so the global
+// focus ring cannot show there; the track gets the same ring, at 3:1 or more against the surface.
+describe('switch keyboard focus', () => {
+  it.each(['light', 'dark'] as const)(
+    'rings the track in the %s theme',
+    (mode) => {
+      const overrides = createAppTheme(mode).components?.MuiSwitch
+        ?.styleOverrides?.switchBase as Record<string, Record<string, unknown>>;
+      const ring = overrides['&.Mui-focusVisible + .MuiSwitch-track'];
+      expect(ring.outline).toBe(`2px solid ${tokens[mode].roles.secondary}`);
+      expect(
+        contrast(tokens[mode].roles.secondary, tokens[mode].roles.surface),
+      ).toBeGreaterThanOrEqual(3);
+    },
+  );
+});

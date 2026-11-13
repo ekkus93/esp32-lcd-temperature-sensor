@@ -181,13 +181,15 @@ prior validation are inputs, not proof that these regressions or gates pass.
     Done: `calibration_hold_request`, older-reader tests under `firmware/tests/compat/`; record
     `docs/validation/review-audit-calibration-compat-2026-11-13.md`. No board cases (no probes).
 
-- [ ] **A12 — H11: Complete the UI quality review** (spec §13; R12-07).
-  - [ ] **A12.1** Review loading, empty and every reachable error state for an
+- [x] **A12 — H11: Complete the UI quality review** (spec §13; R12-07).
+  - [x] **A12.1** Review loading, empty and every reachable error state for an
     actionable next step; record/fix any newly confirmed defect with a regression.
-  - [ ] **A12.2** Verify keyboard focus, accessible names, contrast and reduced
+  - [x] **A12.2** Verify keyboard focus, accessible names, contrast and reduced
     motion in both themes; state limits of automated accessibility checks.
-  - [ ] **A12.3** Inspect all six page comparisons at 390/1280 px; capture changed
+  - [x] **A12.3** Inspect all six page comparisons at 390/1280 px; capture changed
     views and verify overflow at 360/390/768/1280/1600 px. Record the review.
+    Done: switch focus ring fixed (`theme.ts`, regression in `tokens.test.ts`); review
+    `docs/validation/ui-quality-2026-11-13/`. Phone acceptance stays with H12.
 
 ## Phase E — Physical and operational evidence
 
