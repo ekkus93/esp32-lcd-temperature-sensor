@@ -247,8 +247,10 @@ hold points and preserve device data during experiments.
 - [ ] **A20 — H12: Verify device-hosted offline/phone UI** (R12-08).
   - [ ] **A20.1** Remove internet availability while retaining device access;
     load all pages, local font/licence and inspect real phone bottom navigation.
-  - [ ] **A20.2** Record packed web size and firmware fit in both OTA slots;
+  - [x] **A20.2** Record packed web size and firmware fit in both OTA slots;
     retain existing size budgets and distinguish cached from fresh asset loads.
+    Done (build evidence): `docs/validation/review-audit-web-size-2026-11-13.md`; cached/fresh
+    loads left to A20.1 on a phone.
 
 ## Phase F — Integration and disposition
 
