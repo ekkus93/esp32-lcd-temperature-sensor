@@ -1,11 +1,12 @@
 """Every API route the HTTP code handles is behind the one access gate (review audit H04).
 
-Static checks on firmware/components/http_api/http_api.cpp, paired with the gate matrix in
-firmware/tests/route_access_tests.cpp:
-- every /api/v1 path the handler names is in the test's route inventory, and the reverse, so the
-  inventory the gate is tested over cannot fall behind the code;
-- inside HttpApi::handle, only open auth routes (state, enroll, login) are handled before the
-  api_gate() call; every other route comes after it.
+Static checks on the HTTP code (firmware/components/http_api: http_api.cpp, the route table in
+api_router.cpp and the handlers in routes_*.cpp), paired with the gate matrices in
+firmware/tests/route_access_tests.cpp and api_router_tests.cpp:
+- every /api/v1 path the HTTP code names is in the route inventory the gate is tested over, and the
+  route table names every inventory path, so the inventory cannot fall behind the code;
+- inside HttpApi::handle, only the open auth routes (state, enroll, login) are handled before the
+  gate_request() call; every other handler is called after it.
 The live WebSocket (/api/v1/live) is registered separately with its own Origin check.
 """
 import re
@@ -13,7 +14,11 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-HTTP = (ROOT / 'firmware/components/http_api/http_api.cpp').read_text(encoding='utf-8')
+HTTP_DIR = ROOT / 'firmware/components/http_api'
+HTTP = (HTTP_DIR / 'http_api.cpp').read_text(encoding='utf-8')
+ROUTER = (HTTP_DIR / 'api_router.cpp').read_text(encoding='utf-8')
+ROUTE_FILES = {p.name: p.read_text(encoding='utf-8') for p in sorted(HTTP_DIR.glob('routes_*.cpp'))}
+EARLY_HANDLERS = {'route_auth_state', 'route_auth_enroll', 'route_auth_login'}
 TEST = (ROOT / 'firmware/tests/route_access_tests.cpp').read_text(encoding='utf-8')
 BEFORE_GATE_ALLOWED = {'/api/v1/auth/state', '/api/v1/auth/enroll', '/api/v1/auth/login'}
 SEPARATE = {'/api/v1/live'}
@@ -37,8 +42,12 @@ def inventory_paths() -> set[str]:
 
 class RouteInventory(unittest.TestCase):
     def test_handled_paths_match_the_tested_inventory(self):
-        handled = set(re.findall(r'"(/api/v1/[a-z0-9/_-]+)"', HTTP)) - SEPARATE
-        self.assertEqual(handled, inventory_paths())
+        named = set()
+        for text in [HTTP, *ROUTE_FILES.values()]:
+            named |= set(re.findall(r'"(/api/v1/[a-z0-9/_-]+)"', text))
+        self.assertLessEqual(named - SEPARATE, inventory_paths())
+        table = set(re.findall(r'"(/api/v1/[a-z0-9/_-]+)"', ROUTER))
+        self.assertEqual(table, inventory_paths())
 
     def test_only_open_auth_routes_are_handled_before_the_gate(self):
         body = handle_body()
@@ -46,9 +55,13 @@ class RouteInventory(unittest.TestCase):
         before = set(re.findall(r'path == "(/api/v1/[a-z0-9/_-]+)"', body[:gate]))
         self.assertEqual(before, BEFORE_GATE_ALLOWED)
         self.assertNotIn('rfind("/api/v1/', body[:gate])
-        after = set(re.findall(r'"(/api/v1/[a-z0-9/_-]+)"', body[gate:]))
-        self.assertTrue(after >= {'/api/v1/system/factory-reset', '/api/v1/system/reboot',
-                                  '/api/v1/ota', '/api/v1/settings', ROM_PREFIX})
+        self.assertEqual(set(re.findall(r'\b(route_[a-z_]+)\(', body[:gate])), EARLY_HANDLERS)
+        # Every handler the dispatcher calls after the gate is one of the route files' handlers.
+        defined = set()
+        for text in ROUTE_FILES.values():
+            defined |= set(re.findall(r'^esp_err_t (route_[a-z_]+)\(', text, re.M))
+        after = set(re.findall(r'\b(route_[a-z_]+)\(', body[gate:]))
+        self.assertLessEqual(after, defined)
 
     def test_the_gate_refusals_return_before_any_handler(self):
         body = handle_body()

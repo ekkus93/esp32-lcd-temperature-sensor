@@ -10,6 +10,9 @@ OtaStatus SystemAdapter::ota_status() {
 ClockDiagnostics SystemAdapter::clock_diagnostics() {
     return clock_sync_diagnostics();
 }
+std::optional<int64_t> SystemAdapter::trusted_utc() {
+    return monitor::trusted_utc();
+}
 bool SystemAdapter::reboot_available() {
     return monitor::reboot_available();
 }

@@ -157,8 +157,12 @@ class FakeHistory final : public HistoryPort {
             }
         return outcome;
     }
-    JournalPage event_page(uint64_t, std::size_t) override {
+    uint64_t last_after = 0;
+    std::size_t last_limit = 0;
+    JournalPage event_page(uint64_t after, std::size_t limit) override {
         log.add("event_page");
+        last_after = after;
+        last_limit = limit;
         return page;
     }
     HistoryStorageInfo storage_info() override {
@@ -212,6 +216,11 @@ class FakeSystem final : public SystemPort {
     ClockDiagnostics clock_diagnostics() override {
         log.add("clock_diagnostics");
         return clock;
+    }
+    std::optional<int64_t> utc;
+    std::optional<int64_t> trusted_utc() override {
+        log.add("trusted_utc");
+        return utc;
     }
     bool reboot_available() override {
         log.add("reboot_available");

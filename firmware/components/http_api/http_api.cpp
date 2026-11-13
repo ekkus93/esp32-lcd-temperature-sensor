@@ -12,6 +12,7 @@
 #include "history_json.hpp"
 #include "host_rules.hpp"
 #include "idf_exchange.hpp"
+#include "live_json.hpp"
 #include "login_throttle.hpp"
 #include "lwip/sockets.h"
 #include "ota_service.hpp"
@@ -19,6 +20,7 @@
 #include "retirement_policy.hpp"
 #include "route_access.hpp"
 #include "routes_auth.hpp"
+#include "routes_sensors.hpp"
 #include "web_assets.h"
 #include <algorithm>
 #include <cerrno>
@@ -33,41 +35,6 @@ namespace monitor {
 namespace {
 int64_t now() {
     return esp_timer_get_time() / 1000;
-}
-const char *event_kind_name(EventKind kind) {
-    switch (kind) {
-    case EventKind::sensor_state:
-        return "sensor_state";
-    case EventKind::wifi_state:
-        return "wifi_state";
-    case EventKind::clock_sync:
-        return "clock_sync";
-    case EventKind::reboot:
-        return "reboot";
-    case EventKind::storage_error:
-        return "storage_error";
-    case EventKind::calibration_started:
-        return "calibration_started";
-    case EventKind::calibration_ended:
-        return "calibration_ended";
-    }
-    return "sensor_state";
-}
-// Whether a probe is in an ice-bath calibration hold (spec 17.3), and until when. A hold ends at
-// its sample cycle once its time is up, so presence here is the current state.
-void add_calibration_hold(cJSON *item, const Sensor &sensor) {
-    cJSON_AddBoolToObject(item, "calibrating", sensor.calibration_hold_until_ms.has_value());
-    if (sensor.calibration_hold_until_ms)
-        cJSON_AddNumberToObject(item, "calibration_hold_ends_uptime_ms",
-                                static_cast<double>(*sensor.calibration_hold_until_ms));
-    else
-        cJSON_AddNullToObject(item, "calibration_hold_ends_uptime_ms");
-}
-
-std::string boot_text(uint64_t boot_id) {
-    char value[17]{};
-    std::snprintf(value, sizeof(value), "%016llx", static_cast<unsigned long long>(boot_id));
-    return value;
 }
 } // namespace
 bool HttpApi::origin(HttpExchange &ex, bool required) {
@@ -792,352 +759,21 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
             }
             return ESP_OK; // the history worker answers on the async copy
         }
-        if ((path == "/api/v1/sensors" || path == "/api/v1/alerts" ||
-             path.rfind("/api/v1/sensors/", 0) == 0)) {
-            Registry current;
-            ProbeScanStatus scan;
-            LiveView view;
-            if (!live_->read(view))
-                return send_error(ex, "503 Service Unavailable", "Snapshot busy");
-            current = std::move(view.registry);
-            scan = view.probe_scan;
-            const uint64_t snapshot_generation = view.generation;
-            if (path == "/api/v1/alerts" && ex.method() == HttpMethod::get) {
-                uint64_t after = 0;
-                unsigned limit = 50;
-                const auto query_text = url_query(ex);
-                if (query_text.size() > 64)
-                    return send_error(ex, "400 Bad Request", "Invalid alert cursor");
-                if (!query_text.empty()) {
-                    bool valid = true;
-                    std::vector<std::string> keys;
-                    for (size_t start = 0; start < query_text.size();) {
-                        auto end = query_text.find('&', start);
-                        if (end == std::string::npos)
-                            end = query_text.size();
-                        const auto item = query_text.substr(start, end - start);
-                        const auto equals = item.find('=');
-                        const auto key = item.substr(0, equals);
-                        const auto value =
-                            equals == std::string::npos ? std::string{} : item.substr(equals + 1);
-                        uint64_t number = 0;
-                        const auto parsed =
-                            std::from_chars(value.data(), value.data() + value.size(), number);
-                        if (value.empty() ||
-                            std::find(keys.begin(), keys.end(), key) != keys.end() ||
-                            parsed.ec != std::errc{} || parsed.ptr != value.data() + value.size()) {
-                            valid = false;
-                            break;
-                        }
-                        keys.push_back(key);
-                        if (key == "after")
-                            after = number;
-                        else if (key == "limit" && number >= 1 && number <= 50)
-                            limit = static_cast<unsigned>(number);
-                        else
-                            valid = false;
-                        start = end + 1;
-                    }
-                    if (!valid)
-                        return send_error(ex, "400 Bad Request", "Invalid alert cursor");
-                }
-                Json output(cJSON_CreateObject(), cJSON_Delete);
-                auto *active = cJSON_AddArrayToObject(output.get(), "active");
-                // When each condition began: uptime ms, and UTC seconds once the clock is trusted
-                // (computed now, so a condition that began before the clock synced still gets one).
-                const int64_t uptime_now = now();
-                const auto utc_now = monitor::trusted_utc();
-                auto add_since = [&](cJSON *event, int64_t since_ms) {
-                    const int64_t since = std::clamp<int64_t>(since_ms, 0, uptime_now);
-                    cJSON_AddNumberToObject(event, "since_uptime_ms", static_cast<double>(since));
-                    if (utc_now)
-                        cJSON_AddNumberToObject(
-                            event, "since_utc_seconds",
-                            static_cast<double>(*utc_now - (uptime_now - since) / 1000));
-                    else
-                        cJSON_AddNullToObject(event, "since_utc_seconds");
-                };
-                if (current.bus_fault()) {
-                    auto *event = cJSON_CreateObject();
-                    cJSON_AddStringToObject(event, "state", "bus_fault");
-                    add_since(event, current.bus_fault_since().value_or(uptime_now));
-                    cJSON_AddItemToArray(active, event);
-                }
-                // Losing the network is a condition that needs attention until it recovers. The
-                // connect and disconnect transitions themselves are journal events.
-                const auto network = wifi_->info();
-                if (network.state == "offline") {
-                    auto *event = cJSON_CreateObject();
-                    cJSON_AddStringToObject(event, "state", "wifi_disconnected");
-                    add_since(event, network.state_since_ms);
-                    cJSON_AddItemToArray(active, event);
-                }
-                for (const auto &sensor : current.sensors())
-                    if (sensor.state == State::high || sensor.state == State::low ||
-                        (sensor.state == State::disconnected && sensor.settings.disconnect_alert)) {
-                        auto *event = cJSON_CreateObject();
-                        cJSON_AddStringToObject(event, "rom_id", rom_hex(sensor.rom).c_str());
-                        cJSON_AddStringToObject(event, "name", sensor.settings.name.c_str());
-                        cJSON_AddStringToObject(event, "state", state_name(sensor.state));
-                        add_since(event, sensor.state_since_ms.value_or(0));
-                        cJSON_AddItemToArray(active, event);
-                    }
-                auto *events = cJSON_AddArrayToObject(output.get(), "events");
-                const auto page = history_->event_page(after, limit);
-                cJSON_AddBoolToObject(output.get(), "event_log_healthy", page.available);
-                if (page.oldest_available)
-                    cJSON_AddNumberToObject(output.get(), "oldest_available",
-                                            static_cast<double>(page.oldest_available));
-                else
-                    cJSON_AddNullToObject(output.get(), "oldest_available");
-                for (const auto &event : page.events) {
-                    auto *item = cJSON_CreateObject();
-                    cJSON_AddNumberToObject(item, "sequence", event.sequence);
-                    const auto boot = boot_text(event.boot_id);
-                    cJSON_AddStringToObject(item, "boot_id", boot.c_str());
-                    cJSON_AddStringToObject(item, "kind", event_kind_name(event.kind));
-                    if (event.rom)
-                        cJSON_AddStringToObject(item, "rom_id", rom_hex(event.rom).c_str());
-                    else
-                        cJSON_AddNullToObject(item, "rom_id");
-                    cJSON_AddStringToObject(item, "previous", state_name(event.previous));
-                    cJSON_AddStringToObject(item, "state", state_name(event.state));
-                    cJSON_AddNumberToObject(item, "uptime_ms", event.uptime_ms);
-                    if (event.utc_seconds)
-                        cJSON_AddNumberToObject(item, "utc_seconds", *event.utc_seconds);
-                    else
-                        cJSON_AddNullToObject(item, "utc_seconds");
-                    cJSON_AddNumberToObject(item, "detail", event.detail);
-                    cJSON_AddItemToArray(events, item);
-                }
-                cJSON_AddNumberToObject(output.get(), "next_after",
-                                        static_cast<double>(page.next_after));
-                cJSON_AddBoolToObject(output.get(), "has_more", page.has_more);
-                return send_json(ex, output.get());
-            }
-            auto serialize = [this](const Sensor &sensor) -> cJSON * {
-                auto *item = cJSON_CreateObject();
-                const auto &settings = sensor.settings;
-                cJSON_AddStringToObject(item, "rom_id", rom_hex(sensor.rom).c_str());
-                const std::string etag = "\"" + boot_id_ + ":" + rom_hex(sensor.rom) + ":" +
-                                         std::to_string(sensor.config_revision) + "\"";
-                cJSON_AddStringToObject(item, "etag", etag.c_str());
-                cJSON_AddNumberToObject(item, "revision", sensor.config_revision);
-                cJSON_AddStringToObject(item, "name", settings.name.c_str());
-                cJSON_AddStringToObject(item, "short_name", settings.short_name.c_str());
-                cJSON_AddBoolToObject(item, "enabled", settings.enabled);
-                cJSON_AddBoolToObject(item, "disconnect_alert", settings.disconnect_alert);
-                cJSON_AddNumberToObject(item, "order", settings.order);
-                cJSON_AddNumberToObject(item, "calibration_c", settings.calibration);
-                cJSON_AddNumberToObject(item, "hysteresis_c", settings.hysteresis);
-                cJSON_AddNumberToObject(item, "persistence_seconds",
-                                        settings.persistence_ms / 1000.0);
-                if (settings.low)
-                    cJSON_AddNumberToObject(item, "low_c", *settings.low);
-                else
-                    cJSON_AddNullToObject(item, "low_c");
-                if (settings.high)
-                    cJSON_AddNumberToObject(item, "high_c", *settings.high);
-                else
-                    cJSON_AddNullToObject(item, "high_c");
-                cJSON_AddStringToObject(item, "state", state_name(sensor.state));
-                cJSON_AddStringToObject(item, "probe_calibration",
-                                        probe_calibration_name(sensor.probe_calibration));
-                add_calibration_hold(item, sensor);
-                return item;
-            };
-            if (path == "/api/v1/sensors" && ex.method() == HttpMethod::get) {
-                Json output(cJSON_CreateArray(), cJSON_Delete);
-                for (const auto &sensor : current.sensors())
-                    cJSON_AddItemToArray(output.get(), serialize(sensor));
-                return send_json(ex, output.get());
-            }
-            if (path == "/api/v1/sensors/storage" && ex.method() == HttpMethod::get) {
-                Json output(cJSON_CreateObject(), cJSON_Delete);
-                cJSON_AddNumberToObject(output.get(), "schema_version", 1);
-                const bool writable = sensor_settings_writable_.load();
-                cJSON_AddStringToObject(output.get(), "state", writable ? "ready" : "read_only");
-                cJSON_AddBoolToObject(output.get(), "writable", writable);
-                return send_json(ex, output.get());
-            }
-            constexpr std::string_view hold_suffix = "/calibration-hold";
-            if (path.rfind("/api/v1/sensors/", 0) == 0 && path.size() > 16 + hold_suffix.size() &&
-                path.substr(path.size() - hold_suffix.size()) == hold_suffix) {
-                // Ice-bath calibration hold (spec 17.3). It is not a setting: no ETag, and it is
-                // kept in RAM, so it does not touch sensor storage.
-                const auto id = path.substr(16, path.size() - 16 - hold_suffix.size());
-                auto found =
-                    std::find_if(current.sensors().begin(), current.sensors().end(),
-                                 [&](const Sensor &sensor) { return rom_hex(sensor.rom) == id; });
-                if (found == current.sensors().end())
-                    return send_error(ex, "404 Not Found", "Unknown ROM ID");
-                CalibrationHoldUpdate update{found->rom, 0, ex.method() == HttpMethod::del};
-                if (ex.method() == HttpMethod::put) {
-                    constexpr int64_t minute_ms = 60000;
-                    if (!probe_can_be_held(found->state))
-                        return send_error(ex, "409 Conflict",
-                                          "Probe must be connected to calibrate it");
-                    auto input = read_json_body(ex);
-                    if (!input)
-                        return send_error(ex, "400 Bad Request", "Expected bounded JSON object");
-                    const auto minutes = calibration_hold_minutes(input.get());
-                    if (!minutes)
-                        return send_error(ex, "400 Bad Request",
-                                          "Hold for 1 to 20 minutes: {\"minutes\": n}");
-                    update.duration_ms = int64_t(*minutes) * minute_ms;
-                } else if (ex.method() == HttpMethod::del) {
-                    if (ex.content_length() != 0)
-                        return send_error(ex, "400 Bad Request",
-                                          "Ending a hold does not accept a body");
-                } else {
-                    return send_error(ex, "405 Method Not Allowed", "Method not allowed");
-                }
-                switch (updates_port_->queue_calibration_hold(update.rom, update.duration_ms,
-                                                              update.cancel)) {
-                case QueueResult::no_memory:
-                    return send_error(ex, "503 Service Unavailable",
-                                      "Calibration memory unavailable");
-                case QueueResult::full:
-                    return send_error(ex, "503 Service Unavailable",
-                                      "Calibration request queue full");
-                case QueueResult::queued:
-                    break;
-                }
-                ex.set_status("202 Accepted");
-                return send_text(ex, "{\"status\":\"queued\"}");
-            }
-            if ((ex.method() == HttpMethod::patch || ex.method() == HttpMethod::del) &&
-                path.rfind("/api/v1/sensors/", 0) == 0) {
-                if (!updates_port_->sensor_settings_writable())
-                    return send_error(
-                        ex, "503 Service Unavailable",
-                        "Sensor settings are read-only; stored data is preserved for recovery");
-                auto id = path.substr(16);
-                auto found =
-                    std::find_if(current.sensors().begin(), current.sensors().end(),
-                                 [&](const Sensor &sensor) { return rom_hex(sensor.rom) == id; });
-                if (found == current.sensors().end())
-                    return send_error(ex, "404 Not Found", "Unknown ROM ID");
-                if (updates_port_->update_pending(snapshot_generation))
-                    return send_error(ex, "409 Conflict",
-                                      "Another sensor update is pending; wait for the next sample");
-                const std::string expected = "\"" + boot_id_ + ":" + rom_hex(found->rom) + ":" +
-                                             std::to_string(found->config_revision) + "\"";
-                auto match = ex.header("If-Match", 128);
-                if (match.empty())
-                    return send_error(ex, "428 Precondition Required",
-                                      "Refresh sensor settings before updating");
-                if (match != expected)
-                    return send_error(ex, "412 Precondition Failed",
-                                      "Sensor settings changed; refresh before saving");
-                if (ex.method() == HttpMethod::del) {
-                    if (ex.content_length() != 0)
-                        return send_error(ex, "400 Bad Request",
-                                          "Retirement does not accept a body");
-                    if (!can_retire_sensor(found->state, found->rom, scan, simulated_))
-                        return send_error(
-                            ex, "409 Conflict",
-                            "Probe must be disconnected and absent from a complete scan");
-                    switch (updates_port_->queue_sensor_update(found->rom, found->settings, true)) {
-                    case QueueResult::no_memory:
-                        return send_error(ex, "503 Service Unavailable",
-                                          "Configuration memory unavailable");
-                    case QueueResult::full:
-                        return send_error(ex, "503 Service Unavailable",
-                                          "Configuration queue full");
-                    case QueueResult::queued:
-                        break;
-                    }
-                    ex.set_status("202 Accepted");
-                    return send_text(ex, "{\"status\":\"queued\"}");
-                }
-                auto input = read_json_body(ex);
-                if (!input)
-                    return send_error(ex, "400 Bad Request", "Expected bounded JSON object");
-                Settings settings = found->settings;
-                bool valid = true;
-                cJSON *field = nullptr;
-                std::vector<std::string> keys;
-                cJSON_ArrayForEach(field, input.get()) {
-                    std::string key = field->string;
-                    if (std::find(keys.begin(), keys.end(), key) != keys.end()) {
-                        valid = false;
-                        break;
-                    }
-                    keys.push_back(key);
-                    if (key == "name" || key == "short_name") {
-                        if (!cJSON_IsString(field)) {
-                            valid = false;
-                            break;
-                        }
-                        if (key == "name")
-                            settings.name = field->valuestring;
-                        else
-                            settings.short_name = field->valuestring;
-                    } else if (key == "enabled" || key == "disconnect_alert") {
-                        if (!cJSON_IsBool(field)) {
-                            valid = false;
-                            break;
-                        }
-                        if (key == "enabled")
-                            settings.enabled = cJSON_IsTrue(field);
-                        else
-                            settings.disconnect_alert = cJSON_IsTrue(field);
-                    } else if (key == "low_c" || key == "high_c") {
-                        std::optional<double> value;
-                        if (cJSON_IsNumber(field))
-                            value = field->valuedouble;
-                        else if (!cJSON_IsNull(field)) {
-                            valid = false;
-                            break;
-                        }
-                        if (key == "low_c")
-                            settings.low = value;
-                        else
-                            settings.high = value;
-                    } else if (key == "order" || key == "calibration_c" || key == "hysteresis_c" ||
-                               key == "persistence_seconds") {
-                        if (!cJSON_IsNumber(field) || !std::isfinite(field->valuedouble)) {
-                            valid = false;
-                            break;
-                        }
-                        double value = field->valuedouble;
-                        if (key == "order") {
-                            if (value < 0 || value > 4 || std::floor(value) != value) {
-                                valid = false;
-                                break;
-                            }
-                            settings.order = unsigned(value);
-                        } else if (key == "calibration_c")
-                            settings.calibration = value;
-                        else if (key == "hysteresis_c")
-                            settings.hysteresis = value;
-                        else {
-                            if (value < 0 || value > 3600) {
-                                valid = false;
-                                break;
-                            }
-                            settings.persistence_ms = int64_t(std::round(value * 1000));
-                        }
-                    } else {
-                        valid = false;
-                        break;
-                    }
-                }
-                if (!valid || keys.empty() || !valid_settings(settings))
-                    return send_error(ex, "400 Bad Request", "Invalid sensor settings");
-                switch (updates_port_->queue_sensor_update(found->rom, settings, false)) {
-                case QueueResult::no_memory:
-                    return send_error(ex, "503 Service Unavailable",
-                                      "Configuration memory unavailable");
-                case QueueResult::full:
-                    return send_error(ex, "503 Service Unavailable", "Configuration queue full");
-                case QueueResult::queued:
-                    break;
-                }
-                ex.set_status("202 Accepted");
-                return send_text(ex, "{\"status\":\"queued\"}");
-            }
+        switch (gate.route->id) {
+        case RouteId::alerts:
+            return route_alerts(request, *ports_);
+        case RouteId::sensors:
+            return route_sensor_list(request, *ports_);
+        case RouteId::sensor_storage:
+            return route_sensor_storage(request, *ports_);
+        case RouteId::calibration_hold_start:
+        case RouteId::calibration_hold_end:
+            return route_calibration_hold(request, *ports_);
+        case RouteId::sensor_update:
+        case RouteId::sensor_retire:
+            return route_sensor_change(request, *ports_);
+        default:
+            break;
         }
         if (path == "/api/v1/status" && ex.method() == HttpMethod::get) {
             auto text = snapshot();

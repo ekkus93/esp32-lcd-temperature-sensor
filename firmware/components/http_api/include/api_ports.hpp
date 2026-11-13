@@ -71,6 +71,8 @@ class SystemPort {
     virtual ~SystemPort() = default;
     virtual OtaStatus ota_status() = 0;
     virtual ClockDiagnostics clock_diagnostics() = 0;
+    // UTC seconds once the clock is trusted (for when an active alert began).
+    virtual std::optional<int64_t> trusted_utc() = 0;
     virtual bool reboot_available() = 0;
     // Schedules a restart after the answer is sent; false if it could not be scheduled.
     virtual bool schedule_reboot() = 0;

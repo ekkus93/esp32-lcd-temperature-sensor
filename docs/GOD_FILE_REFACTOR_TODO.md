@@ -63,8 +63,11 @@ code, then move the group into its file in a separate commit, with the tests unc
   `routes_auth`. Deviation: the old code cannot run on the host, so the move is text-preserving and
   its tests are written against the moved handlers in the same task (spec §2.2); the board check in
   G19 is the end-to-end comparison. `enrollment_reply` moved to `auth_types.cpp`.
-- [ ] **G05 — Sensor routes** (sensor list, storage status, alerts, PATCH, retirement, calibration
+- [x] **G05 — Sensor routes** (sensor list, storage status, alerts, PATCH, retirement, calibration
   hold; uses `calibration_hold_request`).
+  Done: `routes_sensors.{hpp,cpp}` and `live_json` (sensor, event and boot-id JSON); ctest
+  `routes_sensors`; `SystemPort::trusted_utc()` added for the alert times.
+
 - [ ] **G06 — Settings routes** (GET and PATCH settings, hostname apply, owner-only fields).
 - [ ] **G07 — Network routes** (Wi-Fi status, scan GET/POST, connect, provisioning).
 - [ ] **G08 — System routes** (status, clock, probe scan, OTA upload, reboot, factory reset).
