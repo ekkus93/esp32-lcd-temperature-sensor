@@ -61,6 +61,13 @@ for the active boot. It allocates no more than 512 time groups with five sensor
 cells each (2,560 returned points); omitted gaps or points set `truncated`.
 CSV export streams original five-minute buckets and does not use this reducer.
 
+A CSV export is either complete or visibly failed; it is never marked `truncated`. If damaged stored
+history in the range, the time budget or a storage failure is known before the first row, the export
+answers `503` with a reason. If it is found after rows were sent, the device closes the connection
+without the final chunk, so the browser reports the download as failed. The partial file a client may
+already hold is not a valid export and must be discarded; the device cannot recall bytes it has already
+sent. The chart's `GET /history` for the same range still answers, with `truncated: true`.
+
 `WS /live` has no per-client queue. Every sample is one complete snapshot frame, sent without
 blocking; a client whose socket cannot take the whole frame at once is closed and must reconnect,
 and the web client does so with backoff and a fresh REST resync. The live stream is public: four clients are admitted (three viewers and one slot kept for a

@@ -3,9 +3,9 @@
 #include "cJSON.h"
 #include "clock_service.hpp"
 #include "esp_heap_caps.h"
+#include "esp_log.h"
 #include "esp_system.h"
 #include "esp_timer.h"
-#include "external_allocator.hpp"
 #include "history_csv.hpp"
 #include "host_rules.hpp"
 #include "login_throttle.hpp"
@@ -314,53 +314,56 @@ void HttpApi::login_worker(void *context) {
 // Answers one history query or CSV export on the history worker (never on the HTTP task).
 esp_err_t HttpApi::serve_history(httpd_req_t *r, const HistoryQuery &query, bool exporting) {
     if (exporting) {
-        bool started = false;
-        auto start = [&]() {
-            if (started)
-                return true;
-            started = true;
-            httpd_resp_set_type(r, "text/csv; charset=utf-8");
-            httpd_resp_set_hdr(r, "Content-Disposition",
-                               "attachment; filename=temperature-history.csv");
-            httpd_resp_set_hdr(r, "Cache-Control", "no-store");
-            return httpd_resp_send_chunk(r, history_csv_header(), HTTPD_RESP_USE_STRLEN) == ESP_OK;
-        };
-        // Rows are sent in chunks of about 4 KiB. One chunk per row (about 110 bytes) meant
-        // three small socket writes per row; a month of history took over six seconds,
-        // during which the single HTTP task answered nothing else. The buffer is in PSRAM.
-        constexpr size_t csv_chunk_bytes = 4096;
-        std::vector<char, ExternalAllocator<char>> pending;
-        pending.reserve(csv_chunk_bytes + 512);
-        auto flush = [&]() {
-            if (pending.empty())
-                return true;
-            const bool sent = httpd_resp_send_chunk(r, pending.data(), pending.size()) == ESP_OK;
-            pending.clear();
-            return sent;
-        };
-        const bool ok = history_->visit(query, [&](const Bucket &bucket) {
-            if (!start())
-                return false;
-            for (const auto &sensor : bucket.sensors) {
-                if (!query.roms.empty() &&
-                    std::find(query.roms.begin(), query.roms.end(), sensor.rom) == query.roms.end())
-                    continue;
-                const auto row = history_csv_row(bucket, sensor, simulated_);
-                pending.insert(pending.end(), row.begin(), row.end());
-                if (pending.size() >= csv_chunk_bytes && !flush())
-                    return false;
+        // The HTTP response as the export's destination.
+        struct HttpCsvSink final : CsvExportSink {
+            httpd_req_t *request;
+            explicit HttpCsvSink(httpd_req_t *r) : request(r) {}
+            bool begin() override {
+                httpd_resp_set_type(request, "text/csv; charset=utf-8");
+                httpd_resp_set_hdr(request, "Content-Disposition",
+                                   "attachment; filename=temperature-history.csv");
+                httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+                return httpd_resp_send_chunk(request, history_csv_header(),
+                                             HTTPD_RESP_USE_STRLEN) == ESP_OK;
             }
-            return true;
-        });
-        if (!ok) {
-            if (!started)
+            bool send(const char *data, std::size_t size) override {
+                return httpd_resp_send_chunk(request, data, size) == ESP_OK;
+            }
+            bool finish() override {
+                return httpd_resp_send_chunk(request, nullptr, 0) == ESP_OK;
+            }
+        } sink(r);
+        const auto result = export_history_csv(
+            [&](const std::function<bool(const Bucket &)> &visitor,
+                const HistoryVisitOptions &options) {
+                return history_->visit(query, visitor, options);
+            },
+            query.roms, simulated_, sink);
+        switch (result.end) {
+        case CsvExportEnd::complete:
+            return ESP_OK;
+        case CsvExportEnd::refused:
+            switch (result.visit.end) {
+            case HistoryVisitEnd::skipped_damaged:
+                return error(r, "503 Service Unavailable",
+                             "Part of the stored history in this range is damaged, so a complete "
+                             "export is not possible. The chart still shows what can be read.");
+            case HistoryVisitEnd::deadline:
+                return error(r, "503 Service Unavailable",
+                             "The export took too long. Try a shorter range.");
+            default:
                 return error(r, "503 Service Unavailable", "History unavailable or busy");
-            httpd_sess_trigger_close(server_, httpd_req_to_sockfd(r));
-            return ESP_FAIL;
+            }
+        case CsvExportEnd::aborted:
+            break;
         }
-        if (!start() || !flush())
-            return ESP_FAIL;
-        return httpd_resp_send_chunk(r, nullptr, 0);
+        // Rows were already sent: close the connection without the final chunk, so the download
+        // fails instead of looking complete.
+        ESP_LOGW("http",
+                 "History export incomplete (end %u, %u damaged segment(s)); connection closed",
+                 unsigned(result.visit.end), unsigned(result.visit.skipped_segments));
+        httpd_sess_trigger_close(server_, httpd_req_to_sockfd(r));
+        return ESP_FAIL;
     }
     std::vector<HistoryPoint> points;
     std::vector<HistoryGap> gap_records;

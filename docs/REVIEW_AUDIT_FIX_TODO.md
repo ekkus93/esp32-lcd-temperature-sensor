@@ -46,16 +46,18 @@ prior validation are inputs, not proof that these regressions or gates pass.
     Done: `holdKeeper.ts`, dialog changes and tests; record
     `docs/validation/review-audit-hold-lifecycle-2026-11-12.md`. H10 (A19) stays open.
 
-- [ ] **A02 — F2: Make CSV completion honest** (spec §5; R02-05/09, R04-07).
-  - [ ] **A02.1** Reproduce successful HTTP termination despite a skipped
+- [x] **A02 — F2: Make CSV completion honest** (spec §5; R02-05/09, R04-07).
+  - [x] **A02.1** Reproduce successful HTTP termination despite a skipped
     completed segment through the production export path.
-  - [ ] **A02.2** Propagate structured complete/skipped/error outcomes from
+  - [x] **A02.2** Propagate structured complete/skipped/error outcomes from
     store to service/exporter without losing the skip count or failure cause.
-  - [ ] **A02.3** Return 503 before streaming, or unsuccessful termination
+  - [x] **A02.3** Return 503 before streaming, or unsuccessful termination
     after streaming; preserve CSV schema and never emit a normal final chunk
     for incomplete data. Document partial-file limitations.
-  - [ ] **A02.4** Test first/middle/last completed corruption, active corruption,
+  - [x] **A02.4** Test first/middle/last completed corruption, active corruption,
     healthy/empty results and send failure; verify JSON stays valid/truncated.
+    Done: `history_visit.{hpp,cpp}`, `export_history_csv()`, test `history_export_incomplete`;
+    record `docs/validation/review-audit-csv-completion-2026-11-12.md`.
 
 ## Phase B — Firmware integration and bounded resources
 

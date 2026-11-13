@@ -5,6 +5,7 @@
 #include "freertos/semphr.h"
 #include "history.hpp"
 #include "history_query.hpp"
+#include "history_visit.hpp"
 #include <atomic>
 #include <mutex>
 namespace monitor {
@@ -21,7 +22,11 @@ class HistoryService {
     JournalPage event_page(uint64_t after, size_t limit);
     bool query(const HistoryQuery &query, std::vector<HistoryPoint> &points,
                std::vector<HistoryGap> &gaps, bool &truncated);
-    bool visit(const HistoryQuery &query, const std::function<bool(const Bucket &)> &visitor);
+    // Visits the query's window within a fifteen-second budget. Only `stop_on_damage` is taken from
+    // `options`; the service supplies the budget and pacing.
+    HistoryVisitOutcome visit(const HistoryQuery &query,
+                              const std::function<bool(const Bucket &)> &visitor,
+                              const HistoryVisitOptions &options = {});
     HistoryStorageInfo storage_info();
     bool healthy() const {
         return healthy_.load();

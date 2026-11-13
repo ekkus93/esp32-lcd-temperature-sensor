@@ -89,41 +89,30 @@ bool HistoryService::query(const HistoryQuery &query, std::vector<HistoryPoint> 
         ESP_LOGW("history", "History query mutex busy");
         return false;
     }
-    HistoryReducer reducer(query);
-    unsigned visited = 0;
     // A query runs on the single HTTP task with the history mutex held, so it gets a time budget:
     // past it, delivery stops and the answer is marked truncated instead of holding up the server.
     constexpr int64_t query_budget_us = 3000000;
     const int64_t deadline_us = esp_timer_get_time() + query_budget_us;
-    bool timed_out = false;
-    std::size_t skipped_segments = 0;
-    const HistoryRange range{query.boot_id, query.from, query.to};
-    bool ok = store_ && store_->visit(
-                            [&](const Bucket &bucket) {
-                                if (esp_timer_get_time() > deadline_us) {
-                                    timed_out = true;
-                                    return false;
-                                }
-                                reducer.add(bucket);
-                                if (++visited % 32 == 0)
-                                    vTaskDelay(1);
-                                return true;
-                            },
-                            &skipped_segments, &range);
+    HistoryVisitOptions options;
+    options.expired = [&]() { return esp_timer_get_time() > deadline_us; };
+    options.pace = []() { vTaskDelay(1); };
+    HistoryQueryAnswer answer;
+    if (store_)
+        answer = answer_history_query(*store_, query, options);
     xSemaphoreGive(mutex_);
-    if (skipped_segments)
+    if (answer.visit.skipped_segments)
         ESP_LOGW("history", "%u damaged history segment(s) skipped; answer is truncated",
-                 unsigned(skipped_segments));
-    if (!ok)
+                 unsigned(answer.visit.skipped_segments));
+    if (!answer.ok())
         ESP_LOGE("history", "History query storage iteration failed");
-    if (timed_out)
+    if (answer.visit.end == HistoryVisitEnd::deadline)
         ESP_LOGW("history", "History query stopped at its time budget; answer is truncated");
-    if (ok) {
-        points = reducer.finish();
-        gaps = reducer.gaps();
-        truncated = reducer.truncated() || timed_out || skipped_segments > 0;
-    }
-    return ok;
+    if (!answer.ok())
+        return false;
+    points = std::move(answer.points);
+    gaps = std::move(answer.gaps);
+    truncated = answer.truncated;
+    return true;
 }
 bool HistoryService::submit(const Bucket &bucket) {
     if (!queue_)
@@ -138,33 +127,25 @@ bool HistoryService::submit(const Bucket &bucket) {
     }
     return true;
 }
-bool HistoryService::visit(const HistoryQuery &query,
-                           const std::function<bool(const Bucket &)> &visitor) {
+HistoryVisitOutcome HistoryService::visit(const HistoryQuery &query,
+                                          const std::function<bool(const Bucket &)> &visitor,
+                                          const HistoryVisitOptions &options) {
     if (!valid_query(query) || !mutex_ || xSemaphoreTake(mutex_, pdMS_TO_TICKS(500)) != pdTRUE)
-        return false;
+        return {};
     const int64_t deadline = esp_timer_get_time() / 1000 + 15000;
-    bool complete = true;
-    unsigned visited = 0;
+    HistoryVisitOptions service_options;
+    service_options.expired = [&]() { return esp_timer_get_time() / 1000 >= deadline; };
+    service_options.pace = []() { vTaskDelay(1); };
+    service_options.stop_on_damage = options.stop_on_damage;
     const HistoryRange range{query.boot_id, query.from, query.to};
-    bool ok = store_ && store_->visit(
-                            [&](const Bucket &bucket) {
-                                if (++visited % 32 == 0)
-                                    vTaskDelay(1);
-                                if (esp_timer_get_time() / 1000 >= deadline) {
-                                    complete = false;
-                                    return false;
-                                }
-                                if (!history_bucket_in_range(bucket, range))
-                                    return true;
-                                if (!visitor(bucket)) {
-                                    complete = false;
-                                    return false;
-                                }
-                                return true;
-                            },
-                            nullptr, &range);
+    HistoryVisitOutcome outcome;
+    if (store_)
+        outcome = visit_history_range(*store_, range, visitor, service_options);
     xSemaphoreGive(mutex_);
-    return ok && complete;
+    if (outcome.skipped_segments)
+        ESP_LOGW("history", "%u damaged history segment(s) skipped; export is incomplete",
+                 unsigned(outcome.skipped_segments));
+    return outcome;
 }
 HistoryStorageInfo HistoryService::storage_info() {
     HistoryStorageInfo info{};

@@ -72,12 +72,15 @@ void trend_restore_task(void *argument) {
         monitor::HistoryQuery query;
         query.from = (*utc - 86400) * 1000;
         query.to = (*utc + 1) * 1000;
-        const bool complete = restore.history->visit(query, [&](const monitor::Bucket &bucket) {
+        const auto outcome = restore.history->visit(query, [&](const monitor::Bucket &bucket) {
             collected.push_back(monitor::trend_point(bucket));
             return true;
         });
-        if (!complete)
-            ESP_LOGW("trends", "Trend history restore read only part of the stored history");
+        if (!outcome.complete())
+            ESP_LOGW("trends",
+                     "Trend history restore read only part of the stored history (end %u, %u "
+                     "damaged segment(s))",
+                     unsigned(outcome.end), unsigned(outcome.skipped_segments));
     } else {
         ESP_LOGW("trends", "Trend history restore skipped: the clock is not trusted");
     }
