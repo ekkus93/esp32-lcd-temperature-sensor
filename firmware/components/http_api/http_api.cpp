@@ -1,5 +1,5 @@
 #include "http_api.hpp"
-#include "bounded_body_reader.hpp"
+#include "api_responses.hpp"
 #include "cJSON.h"
 #include "calibration_hold_request.hpp"
 #include "clock_service.hpp"
@@ -10,6 +10,7 @@
 #include "history_csv.hpp"
 #include "history_json.hpp"
 #include "host_rules.hpp"
+#include "idf_exchange.hpp"
 #include "login_throttle.hpp"
 #include "lwip/sockets.h"
 #include "ota_service.hpp"
@@ -28,177 +29,32 @@
 #include <vector>
 namespace monitor {
 namespace {
-using Json = std::unique_ptr<cJSON, decltype(&cJSON_Delete)>;
-std::atomic<int> body_deadline_socket{-1};
-std::atomic<int64_t> body_deadline_us{0};
-int plain_recv(httpd_handle_t, int socket, char *buffer, size_t length, int flags) {
-    return recv(socket, buffer, length, flags);
-}
-int deadline_recv(httpd_handle_t, int socket, char *buffer, size_t length, int flags) {
-    const auto deadline = body_deadline_us.load();
-    if (socket != body_deadline_socket.load() || deadline == 0)
-        return recv(socket, buffer, length, flags);
-    int selected;
-    for (;;) {
-        const int64_t remaining_us = deadline - esp_timer_get_time();
-        if (remaining_us <= 0)
-            return HTTPD_SOCK_ERR_TIMEOUT;
-        fd_set readable;
-        FD_ZERO(&readable);
-        FD_SET(socket, &readable);
-        timeval remaining{static_cast<time_t>(remaining_us / 1000000),
-                          static_cast<suseconds_t>(remaining_us % 1000000)};
-        selected = select(socket + 1, &readable, nullptr, nullptr, &remaining);
-        if (selected >= 0 || errno != EINTR)
-            break;
-    }
-    if (selected == 0)
-        return HTTPD_SOCK_ERR_TIMEOUT;
-    if (selected < 0)
-        return HTTPD_SOCK_ERR_FAIL;
-    return recv(socket, buffer, length, flags | MSG_DONTWAIT);
-}
-int request_receive(void *context, char *buffer, size_t length) {
-    return httpd_req_recv(static_cast<httpd_req_t *>(context), buffer, length);
-}
-int64_t body_clock(void *) {
-    return esp_timer_get_time();
-}
-class BodyReceiveDeadline {
-  public:
-    explicit BodyReceiveDeadline(httpd_req_t *request)
-        : server_(request->handle), socket_(httpd_req_to_sockfd(request)),
-          deadline_us_(esp_timer_get_time() + 4500000) {
-        valid_ =
-            socket_ >= 0 && httpd_sess_set_recv_override(server_, socket_, deadline_recv) == ESP_OK;
-        if (valid_) {
-            body_deadline_socket.store(socket_);
-            body_deadline_us.store(deadline_us_);
-        }
-    }
-    ~BodyReceiveDeadline() {
-        if (valid_) {
-            body_deadline_us.store(0);
-            body_deadline_socket.store(-1);
-            // Give the connection its ordinary receive function back; the deadline override must
-            // not outlive the request on a kept-alive socket.
-            httpd_sess_set_recv_override(server_, socket_, plain_recv);
-        }
-        if (valid_ && close_socket_)
-            shutdown(socket_, SHUT_RDWR);
-        if (valid_ && close_socket_)
-            httpd_sess_trigger_close(server_, socket_);
-    }
-    bool ready() const {
-        return valid_;
-    }
-    int64_t deadline_us() const {
-        return deadline_us_;
-    }
-    void mark_timeout() {
-        close_socket_ = true;
-    }
-    void close_connection() {
-        close_socket_ = true;
-    }
-
-  private:
-    httpd_handle_t server_;
-    int socket_;
-    int64_t deadline_us_;
-    bool valid_ = false;
-    bool close_socket_ = false;
-};
 int64_t now() {
     return esp_timer_get_time() / 1000;
 }
+// Wrappers for code that still holds the raw request (God file refactor G01.1; removed in G01.2).
 std::string header(httpd_req_t *r, const char *name, size_t limit = 512) {
-    auto size = httpd_req_get_hdr_value_len(r, name);
-    if (!size || size > limit)
-        return {};
-    std::vector<char> text(size + 1);
-    if (httpd_req_get_hdr_value_str(r, name, text.data(), text.size()) != ESP_OK)
-        return {};
-    return text.data();
+    IdfExchange exchange(r);
+    return exchange.header(name, limit);
 }
-// A stable identifier for the peer, used to keep one client's failed logins from affecting others.
-// Only the address counts: the source port changes with every connection.
 uint32_t client_id(httpd_req_t *r) {
-    const int fd = httpd_req_to_sockfd(r);
-    sockaddr_storage address{};
-    socklen_t length = sizeof(address);
-    if (fd < 0 || getpeername(fd, reinterpret_cast<sockaddr *>(&address), &length) != 0)
-        return 0;
-    if (address.ss_family == AF_INET)
-        return reinterpret_cast<sockaddr_in *>(&address)->sin_addr.s_addr;
-    if (address.ss_family == AF_INET6)
-        return client_identity_ipv6(reinterpret_cast<sockaddr_in6 *>(&address)->sin6_addr.s6_addr);
-    return 0;
+    IdfExchange exchange(r);
+    return exchange.client();
 }
 esp_err_t error(httpd_req_t *r, const char *status, const char *message) {
-    httpd_resp_set_status(r, status);
-    httpd_resp_set_type(r, "application/json");
-    httpd_resp_set_hdr(r, "Cache-Control", "no-store");
-    Json object(cJSON_CreateObject(), cJSON_Delete);
-    cJSON_AddStringToObject(object.get(), "error", message);
-    char *text = cJSON_PrintUnformatted(object.get());
-    if (!text)
-        return ESP_ERR_NO_MEM;
-    auto result = httpd_resp_send(r, text, HTTPD_RESP_USE_STRLEN);
-    cJSON_free(text);
-    return result;
+    IdfExchange exchange(r);
+    return send_error(exchange, status, message);
 }
 esp_err_t json(httpd_req_t *r, cJSON *object) {
-    httpd_resp_set_type(r, "application/json");
-    httpd_resp_set_hdr(r, "Cache-Control", "no-store");
-    char *text = cJSON_PrintUnformatted(object);
-    if (!text)
-        return ESP_ERR_NO_MEM;
-    auto result = httpd_resp_send(r, text, HTTPD_RESP_USE_STRLEN);
-    cJSON_free(text);
-    return result;
+    IdfExchange exchange(r);
+    return send_json(exchange, object);
 }
 Json body(httpd_req_t *r) {
-    if (r->content_len <= 0)
-        return {nullptr, cJSON_Delete};
-    BodyReceiveDeadline deadline(r);
-    if (!deadline.ready())
-        return {nullptr, cJSON_Delete};
-    const bool oversized = static_cast<size_t>(r->content_len) > 2048;
-    const bool wrong_type = header(r, "Content-Type", 128).find("application/json") != 0;
-    if (oversized || wrong_type) {
-        const auto drained =
-            discard_exact_body(static_cast<size_t>(r->content_len), deadline.deadline_us(), r,
-                               request_receive, body_clock);
-        if (drained == BodyReadStatus::timeout)
-            deadline.mark_timeout();
-        else if (drained == BodyReadStatus::receive_error)
-            deadline.close_connection();
-        return {nullptr, cJSON_Delete};
-    }
-    std::string text;
-    const auto received =
-        read_exact_body(static_cast<size_t>(r->content_len), 2048, deadline.deadline_us(), r,
-                        request_receive, body_clock, text);
-    if (received != BodyReadStatus::complete) {
-        if (received == BodyReadStatus::timeout)
-            deadline.mark_timeout();
-        else if (received == BodyReadStatus::receive_error)
-            deadline.close_connection();
-        return {nullptr, cJSON_Delete};
-    }
-    if (text.find('\0') != std::string::npos || text.find("\\u0000") != std::string::npos)
-        return {nullptr, cJSON_Delete};
-    Json value(cJSON_ParseWithLengthOpts(text.c_str(), text.size() + 1, nullptr, true),
-               cJSON_Delete);
-    std::fill(text.begin(), text.end(), 0);
-    if (!value || !cJSON_IsObject(value.get()))
-        return {nullptr, cJSON_Delete};
-    return value;
+    IdfExchange exchange(r);
+    return read_json_body(exchange);
 }
 std::string string(cJSON *object, const char *key) {
-    auto *value = cJSON_GetObjectItemCaseSensitive(object, key);
-    return cJSON_IsString(value) ? value->valuestring : "";
+    return json_string(object, key);
 }
 const char *event_kind_name(EventKind kind) {
     switch (kind) {
@@ -236,20 +92,8 @@ std::string boot_text(uint64_t boot_id) {
     return value;
 }
 std::string cookie(httpd_req_t *r) {
-    auto text = header(r, "Cookie");
-    size_t start = 0;
-    while (start < text.size()) {
-        auto end = text.find(';', start);
-        auto part = text.substr(start, end == std::string::npos ? end : end - start);
-        while (!part.empty() && part.front() == ' ')
-            part.erase(part.begin());
-        if (part.rfind("tm_session=", 0) == 0)
-            return part.substr(11);
-        if (end == std::string::npos)
-            break;
-        start = end + 1;
-    }
-    return {};
+    IdfExchange exchange(r);
+    return session_cookie(exchange);
 }
 } // namespace
 bool HttpApi::origin(httpd_req_t *r, bool required) {

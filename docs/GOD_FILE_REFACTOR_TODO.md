@@ -27,8 +27,10 @@ with the owner's confirmation.
 ## Phase G1 — HTTP API seams
 
 - [ ] **G01 — Exchange interface** (spec §4.2).
-  - [ ] **G01.1** Add `HttpExchange` and `FakeExchange` (host). Move `error`, `json`, `body`,
+  - [x] **G01.1** Add `HttpExchange` and `FakeExchange` (host). Move `error`, `json`, `body`,
     `header`, `cookie` and `client_id` onto it in `api_responses`, keeping the body limits.
+    Done: `http_exchange.hpp`, `api_responses`, `IdfExchange`, `tests/http_fakes/fake_exchange.hpp`,
+    ctest `api_responses`; old helpers are wrappers until G01.2. Image +2,320 bytes.
   - [ ] **G01.2** Add `IdfExchange` and make `handle()` use the exchange instead of `httpd_req_t`,
     mechanically, with no route moved yet. Host tests for the helpers (body size, timeout,
     non-JSON, headers).
