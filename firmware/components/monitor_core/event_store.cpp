@@ -117,9 +117,14 @@ bool expected_last_record(const std::string &path, size_t expected_bytes,
     return input.gcount() == static_cast<std::streamsize>(actual.size()) &&
            std::equal(actual.begin(), actual.end(), expected.begin());
 }
+// Kinds this build writes. A record of any other kind comes from a newer build: it is read and
+// kept (so a rollback to this build still recovers the journal) but never shown or written here.
+bool known_event_kind(EventKind kind) {
+    return static_cast<unsigned>(kind) <= static_cast<unsigned>(EventKind::storage_error);
+}
+
 bool valid_event(const JournalEvent &event) {
     return event.uptime_ms >= 0 &&
-           static_cast<unsigned>(event.kind) <= static_cast<unsigned>(EventKind::storage_error) &&
            static_cast<unsigned>(event.previous) <= static_cast<unsigned>(State::bus_fault) &&
            static_cast<unsigned>(event.state) <= static_cast<unsigned>(State::bus_fault) &&
            (!event.rom || valid_rom(event.rom)) && (!event.utc_seconds || *event.utc_seconds >= 0);
@@ -412,7 +417,7 @@ bool EventStore::compact() {
 }
 
 bool EventStore::append(const JournalEvent &input) {
-    if (!append_ready_ || !valid_event(input))
+    if (!append_ready_ || !valid_event(input) || !known_event_kind(input.kind))
         return false;
     if (!safe_journal_path(path_)) {
         append_ready_ = false;
@@ -535,6 +540,8 @@ JournalPage EventStore::page(uint64_t after, size_t limit) const {
     page.available = true;
     uint64_t previous_sequence = 0;
     uint64_t fingerprint = fingerprint_basis;
+    // The cursor moves past every record handed out or skipped; with none, it stays where it was.
+    page.next_after = after;
     std::array<uint8_t, event_record_bytes> buffer{};
     while (input.read(reinterpret_cast<char *>(buffer.data()), buffer.size())) {
         fingerprint = extend_fingerprint(fingerprint, buffer.data(), buffer.size());
@@ -552,8 +559,11 @@ JournalPage EventStore::page(uint64_t after, size_t limit) const {
             page.has_more = true;
             continue;
         }
-        page.events.push_back(*event);
         page.next_after = event->sequence;
+        // A record from a newer build is not shown, and the page does not count it.
+        if (!known_event_kind(event->kind))
+            continue;
+        page.events.push_back(*event);
     }
     if (input.bad() ||
         (input.gcount() != 0 && input.gcount() != static_cast<std::streamsize>(buffer.size())))
@@ -563,8 +573,6 @@ JournalPage EventStore::page(uint64_t after, size_t limit) const {
     if (fingerprint != journal_fingerprint_ || !expected_journal_size(path_, expected_bytes_) ||
         !expected_last_record(path_, expected_bytes_, last_event_))
         return {};
-    if (page.events.empty())
-        page.next_after = after;
 #ifndef ESP_PLATFORM
     if (!same_journal_file(path_, journal_dev_, journal_ino_))
         return {};

@@ -36,6 +36,11 @@ target_link_libraries(calibration_hold_tests PRIVATE monitor_core)
 target_compile_options(calibration_hold_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_test(NAME calibration_hold COMMAND calibration_hold_tests)
 
+add_executable(event_unknown_kind_tests event_unknown_kind_tests.cpp)
+target_link_libraries(event_unknown_kind_tests PRIVATE monitor_core)
+target_compile_options(event_unknown_kind_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
+add_test(NAME event_unknown_kind COMMAND event_unknown_kind_tests)
+
 # Opt-in long-running profile of production segment rollover at realistic capacity.
 add_executable(history_retention_profile history_retention_profile.cpp)
 target_link_libraries(history_retention_profile PRIVATE monitor_core)
