@@ -385,7 +385,7 @@ or storage change. R12-01 comes first; if R11-02 is built after it, it uses the 
   cases), and the settings tests now render through the themed wrapper with the provider.
   Done (2026-11-12): with the confirmation dialogs, the centred sign-in card and the snackbars above,
   every part of §18.7 is in; the existing tests pass, changed only for the new controls.
-- [ ] **R12-07** Quality pass and documents (§18.8, §18.9): skeletons, empty and error states,
+- [x] **R12-07** Quality pass and documents (§18.8, §18.9): skeletons, empty and error states,
   reduced motion, focus and accessible names; before and after screenshots of every page in light
   and dark at 390 and 1280 px under `docs/validation/`; `docs/WEB_UI_DESIGN_SPEC.md` and
   `docs/USER_GUIDE.md` updated. Acceptance: a reviewer compares the screenshots with §18.
@@ -395,7 +395,7 @@ or storage change. R12-01 comes first; if R11-02 is built after it, it uses the 
   overflow check at 360, 390, 768, 1280 and 1600 px (0 px everywhere); `USER_GUIDE.md` describes the
   Alerts and Events tabs and the calibration; `WEB_UI_DESIGN_SPEC.md` lists the navigation and the
   calibration flow. Not all error messages were reviewed for their next step; see the record.
-  Waiting on the owner's review of the before and after pictures against §18 (the acceptance test).
+  The owner reviewed the before and after pictures against §18 and approved them (2026-11-12).
 - [ ] **R12-08** [HW] On the board: every page loads from the device with no internet, the font
   comes from the device, the firmware fits both OTA slots, and a phone shows the bottom navigation
   correctly. Recorded under `docs/validation/`.
