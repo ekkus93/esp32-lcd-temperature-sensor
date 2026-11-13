@@ -247,25 +247,6 @@ AuthService::EnrollResult AuthService::enroll(const std::string &password, int64
     }
     return ok ? EnrollResult::enrolled : EnrollResult::unavailable;
 }
-EnrollReply enrollment_reply(AuthService::EnrollResult result) {
-    using Result = AuthService::EnrollResult;
-    switch (result) {
-    case Result::enrolled:
-        return {"201 Created", "", 0};
-    case Result::already_enrolled:
-        return {"409 Conflict", "An administrator password already exists", 0};
-    case Result::window_closed:
-        return {"403 Forbidden", "Hold BOOT for five seconds to open setup, then try again", 0};
-    case Result::too_soon:
-        return {"429 Too Many Requests", "Wait five seconds and try again", 5};
-    case Result::bad_password:
-        return {"400 Bad Request", "The password must be 12 to 128 characters", 0};
-    case Result::unavailable:
-        break;
-    }
-    return {"503 Service Unavailable",
-            "The device could not save the password just now; try again in a few seconds", 5};
-}
 AuthService::PasswordCheck AuthService::check_password_result(const std::string &password) {
     if (!ready_ || !enrolled_ || password.size() > 128)
         return PasswordCheck::mismatch;

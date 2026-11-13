@@ -33,6 +33,8 @@ class FakeExchange final : public HttpExchange {
     bool closed = false;
     bool body_armed = false, body_closed = false;
     int async_started = 0;
+    bool async_available = false;       // whether begin_async() succeeds
+    FakeExchange *last_async = nullptr; // the copy handed out (owned by whoever took it)
     esp_err_t send_result = ESP_OK;
 
     std::string response_header(const std::string &name) const {
@@ -113,7 +115,15 @@ class FakeExchange final : public HttpExchange {
     }
     std::unique_ptr<HttpExchange> begin_async() override {
         ++async_started;
-        return nullptr;
+        if (!async_available)
+            return nullptr;
+        auto copy = std::make_unique<FakeExchange>();
+        copy->request_method = request_method;
+        copy->request_uri = request_uri;
+        copy->request_headers = request_headers;
+        copy->peer = peer;
+        last_async = copy.get();
+        return copy;
     }
     void *native_handle() override {
         return nullptr;

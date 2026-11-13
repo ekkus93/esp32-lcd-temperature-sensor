@@ -3,6 +3,7 @@
 // operations that change the device are also summed in side_effects(), so a test can show that a
 // refused request reached none of them.
 #include "api_ports.hpp"
+#include "api_routes.hpp"
 #include <map>
 namespace monitor {
 struct CallLog {
@@ -31,9 +32,11 @@ class FakeAuth final : public AuthPort {
         log.add("enrolled");
         return is_enrolled;
     }
-    EnrollResult enroll(const std::string &password, int64_t, bool) override {
+    bool last_setup_open = false;
+    EnrollResult enroll(const std::string &password, int64_t, bool setup_open) override {
         log.add("enroll");
         last_password = password;
+        last_setup_open = setup_open;
         return enroll_result;
     }
     LoginThrottle::Decision login_begin(uint32_t, int64_t) override {
@@ -303,6 +306,59 @@ class FakeLiveState final : public LiveState {
     }
 };
 
+class FakeRouteHost final : public RouteHost {
+  public:
+    mutable CallLog log;
+    bool accept = true;
+    PublicLimiter::Decision admission{true, 0};
+    // What was handed to the workers (kept alive so tests can inspect the async answers).
+    std::vector<std::unique_ptr<HttpExchange>> queued;
+    std::string last_password;
+    uint32_t last_client = 0;
+    std::optional<HistoryQuery> last_query;
+    bool last_exporting = false;
+    std::vector<PublicRequest> admitted, finished;
+    std::string hostname;
+
+    bool queue_login(std::unique_ptr<HttpExchange> exchange, std::string password,
+                     uint32_t client) override {
+        log.add("queue_login");
+        if (!accept)
+            return false; // the exchange is dropped, as the real host completes it
+        last_password = std::move(password);
+        last_client = client;
+        queued.push_back(std::move(exchange));
+        return true;
+    }
+    PublicLimiter::Decision admit_public(PublicRequest kind, uint32_t) override {
+        log.add("admit_public");
+        if (admission.allow)
+            admitted.push_back(kind);
+        return admission;
+    }
+    void finish_public(PublicRequest kind) override {
+        log.add("finish_public");
+        finished.push_back(kind);
+    }
+    bool queue_history(std::unique_ptr<HttpExchange> exchange, const HistoryQuery &query,
+                       bool exporting, PublicRequest) override {
+        log.add("queue_history");
+        if (!accept)
+            return false;
+        last_query = query;
+        last_exporting = exporting;
+        queued.push_back(std::move(exchange));
+        return true;
+    }
+    void apply_hostname(const std::string &name) override {
+        log.add("apply_hostname");
+        hostname = name;
+    }
+    int side_effects() const {
+        return log.count("apply_hostname");
+    }
+};
+
 // All fakes together, as a route group's tests use them.
 struct FakeDevice {
     FakeAuth auth;
@@ -312,10 +368,12 @@ struct FakeDevice {
     FakeSystem system;
     FakeSensorUpdates updates;
     FakeLiveState live;
+    FakeRouteHost host;
+    RoutePorts ports{auth, network, history, settings, system, updates, live, host};
     // Calls that would have changed the device, summed over every port.
     int side_effects() const {
         return auth.side_effects() + network.side_effects() + settings.side_effects() +
-               system.side_effects() + updates.side_effects();
+               system.side_effects() + updates.side_effects() + host.side_effects();
     }
 };
 } // namespace monitor

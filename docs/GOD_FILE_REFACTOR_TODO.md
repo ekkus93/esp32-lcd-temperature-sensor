@@ -58,7 +58,11 @@ with the owner's confirmation.
 Each task: write characterization tests through `FakeExchange` for the group against the current
 code, then move the group into its file in a separate commit, with the tests unchanged.
 
-- [ ] **G04 — Auth routes** (state, enroll, login with its worker, logout, password).
+- [x] **G04 — Auth routes** (state, enroll, login with its worker, logout, password).
+  Done: `routes_auth.{hpp,cpp}` over `RoutePorts`/`RouteHost` (`api_routes.hpp`), ctest
+  `routes_auth`. Deviation: the old code cannot run on the host, so the move is text-preserving and
+  its tests are written against the moved handlers in the same task (spec §2.2); the board check in
+  G19 is the end-to-end comparison. `enrollment_reply` moved to `auth_types.cpp`.
 - [ ] **G05 — Sensor routes** (sensor list, storage status, alerts, PATCH, retirement, calibration
   hold; uses `calibration_hold_request`).
 - [ ] **G06 — Settings routes** (GET and PATCH settings, hostname apply, owner-only fields).

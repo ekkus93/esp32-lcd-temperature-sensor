@@ -1,5 +1,6 @@
 #pragma once
 #include "api_ports.hpp"
+#include "api_routes.hpp"
 #include "auth_service.hpp"
 #include "device_settings_service.hpp"
 #include "esp_http_server.h"
@@ -18,7 +19,7 @@
 namespace monitor {
 // SensorUpdates and LiveState are implemented here: they are the queues and the published state
 // shared with the sampling loop.
-class HttpApi final : private SensorUpdates, private LiveState {
+class HttpApi final : private SensorUpdates, private LiveState, private RouteHost {
   public:
     bool start(AuthService &auth, WifiService &wifi, HistoryService &history,
                DeviceSettingsService &settings, uint64_t boot_id, bool simulated = false,
@@ -44,7 +45,7 @@ class HttpApi final : private SensorUpdates, private LiveState {
     static void history_worker(void *context);
     esp_err_t serve_history(HttpExchange &exchange, const HistoryQuery &query, bool exporting);
     PublicLimiter::Decision begin_public(PublicRequest kind, uint32_t client);
-    void finish_public(PublicRequest kind);
+    void finish_public(PublicRequest kind) override;
     esp_err_t handle(HttpExchange &exchange);
     std::string snapshot();
     bool origin(HttpExchange &exchange, bool require_origin);
@@ -63,6 +64,14 @@ class HttpApi final : private SensorUpdates, private LiveState {
     bool simulated() const override {
         return simulated_;
     }
+    // RouteHost: the workers, the public limiter and the hostname, for the route handlers.
+    bool queue_login(std::unique_ptr<HttpExchange> exchange, std::string password,
+                     uint32_t client) override;
+    PublicLimiter::Decision admit_public(PublicRequest kind, uint32_t client) override {
+        return begin_public(kind, client);
+    }
+    bool queue_history(std::unique_ptr<HttpExchange> exchange, const HistoryQuery &query,
+                       bool exporting, PublicRequest kind) override;
     // The services, through the ports the routes use (created once in start()).
     std::unique_ptr<AuthAdapter> auth_adapter_;
     std::unique_ptr<NetworkAdapter> network_adapter_;
@@ -76,6 +85,7 @@ class HttpApi final : private SensorUpdates, private LiveState {
     SystemPort *system_ = &system_adapter_;
     SensorUpdates *updates_port_ = this;
     LiveState *live_ = this;
+    std::unique_ptr<RoutePorts> ports_;
     SemaphoreHandle_t mutex_ = nullptr;
     struct SensorUpdate {
         uint64_t rom;
@@ -109,7 +119,7 @@ class HttpApi final : private SensorUpdates, private LiveState {
     // The configured hostname (the Host allow-list follows it); changed by a settings update.
     std::mutex host_mutex_;
     std::string hostname_ = "temperature-monitor";
-    void apply_hostname(const std::string &name);
+    void apply_hostname(const std::string &name) override;
     std::atomic<uint64_t> sent_generation_{0}, published_generation_{0};
     uint64_t consumed_generation_ = 0;
     Registry registry_;

@@ -18,6 +18,7 @@
 #include "public_limiter.hpp"
 #include "retirement_policy.hpp"
 #include "route_access.hpp"
+#include "routes_auth.hpp"
 #include "web_assets.h"
 #include <algorithm>
 #include <cerrno>
@@ -103,27 +104,7 @@ void HttpApi::login_worker(void *context) {
         LoginJob *job = nullptr;
         if (xQueueReceive(self.login_queue_, &job, portMAX_DELAY) != pdTRUE || !job)
             continue;
-        auto failure = AuthService::LoginFailure::none;
-        const auto session =
-            self.auth_->login_complete(job->password, job->client, now(), &failure);
-        std::fill(job->password.begin(), job->password.end(), '\0');
-        auto &ex = *job->exchange;
-        if (!session && failure == AuthService::LoginFailure::wrong_password) {
-            ex.set_header("Retry-After", "5");
-            send_error(ex, "401 Unauthorized", "Login denied; retry after 5 seconds");
-        } else if (!session) {
-            // Not the password's fault: say so, so nobody retypes a correct password.
-            ex.set_header("Retry-After", "5");
-            send_error(ex, "503 Service Unavailable",
-                       "The device could not check the password just now; try again in a few "
-                       "seconds");
-        } else {
-            ex.set_header("Set-Cookie", "tm_session=" + session->token +
-                                            "; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600");
-            Json object(cJSON_CreateObject(), cJSON_Delete);
-            cJSON_AddStringToObject(object.get(), "csrf", session->csrf.c_str());
-            send_json(ex, object.get());
-        }
+        complete_login(*job->exchange, *self.auth_, job->password, job->client, now());
         delete job; // completes the request
     }
 }
@@ -250,6 +231,10 @@ bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &histor
     wifi_ = network_adapter_.get();
     history_ = history_adapter_.get();
     settings_ = settings_adapter_.get();
+    ports_.reset(new (std::nothrow) RoutePorts{*auth_, *wifi_, *history_, *settings_, *system_,
+                                               *updates_port_, *live_, *this});
+    if (!ports_)
+        return false;
     {
         DeviceOptions options;
         uint64_t revision = 0;
@@ -339,6 +324,28 @@ bool HttpApi::next_calibration_hold(uint64_t &rom, int64_t &duration_ms, bool &c
     return true;
 }
 
+bool HttpApi::queue_login(std::unique_ptr<HttpExchange> exchange, std::string password,
+                          uint32_t client) {
+    auto *job = new (std::nothrow) LoginJob{std::move(exchange), std::move(password), client};
+    if (!job)
+        return false;
+    if (!login_queue_ || xQueueSend(login_queue_, &job, 0) != pdTRUE) {
+        delete job; // completes the async copy
+        return false;
+    }
+    return true;
+}
+bool HttpApi::queue_history(std::unique_ptr<HttpExchange> exchange, const HistoryQuery &query,
+                            bool exporting, PublicRequest kind) {
+    auto *job = new (std::nothrow) HistoryJob{std::move(exchange), query, exporting, kind};
+    if (!job)
+        return false;
+    if (!history_queue_ || xQueueSend(history_queue_, &job, 0) != pdTRUE) {
+        delete job; // completes the async copy
+        return false;
+    }
+    return true;
+}
 bool HttpApi::update_pending(uint64_t view_generation) const {
     const auto published = published_generation_.load();
     return sent_generation_.load() != published || view_generation != published;
@@ -511,64 +518,16 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
     }
     if (api && !origin(ex, ex.method() != HttpMethod::get))
         return send_error(ex, "403 Forbidden", "Invalid host/origin");
-    if (path == "/api/v1/auth/state" && ex.method() == HttpMethod::get) {
-        Json object(cJSON_CreateObject(), cJSON_Delete);
-        cJSON_AddBoolToObject(object.get(), "enrolled", auth_->enrolled());
-        const auto signed_in = session(ex, false);
-        cJSON_AddBoolToObject(object.get(), "signed_in", signed_in.has_value());
-        if (signed_in)
-            cJSON_AddStringToObject(object.get(), "csrf", signed_in->csrf.c_str());
-        return send_json(ex, object.get());
-    }
-    if ((path == "/api/v1/auth/enroll" || path == "/api/v1/auth/login") &&
-        ex.method() == HttpMethod::post) {
-        auto input = read_json_body(ex);
-        if (!input)
-            return send_error(ex, "400 Bad Request", "Expected bounded JSON object");
-        if (path == "/api/v1/auth/enroll") {
-            const auto result = auth_->enroll(json_string(input.get(), "password"), now(),
-                                              wifi_->info().provisioning);
-            const auto reply = enrollment_reply(result);
-            if (result != AuthService::EnrollResult::enrolled) {
-                char retry[12];
-                if (reply.retry_after > 0) {
-                    std::snprintf(retry, sizeof(retry), "%d", reply.retry_after);
-                    ex.set_header("Retry-After", retry);
-                }
-                return send_error(ex, reply.status, reply.message);
-            }
-            ex.set_status(reply.status);
-            return ex.send("{}", 2);
-        }
-        // Login: the slow password check runs on a worker so other requests keep being served.
-        std::string password = json_string(input.get(), "password");
-        const uint32_t client = ex.client();
-        const auto decision = auth_->login_begin(client, now());
-        if (decision.gate != LoginGate::allow) {
-            char retry[24];
-            std::snprintf(retry, sizeof(retry), "%lld",
-                          static_cast<long long>(
-                              std::max<int64_t>(1, (decision.retry_after_ms + 999) / 1000)));
-            ex.set_header("Retry-After", retry);
-            return send_error(ex, "429 Too Many Requests",
-                              decision.gate == LoginGate::busy
-                                  ? "Another login is being checked; retry shortly"
-                                  : "Too many failed logins; retry later");
-        }
-        auto *job = new (std::nothrow) LoginJob{nullptr, std::move(password), client};
-        if (job)
-            job->exchange = ex.begin_async();
-        if (!job || !job->exchange) {
-            delete job;
-            auth_->login_abort(client);
-            return send_error(ex, "503 Service Unavailable", "Login unavailable; retry shortly");
-        }
-        if (!login_queue_ || xQueueSend(login_queue_, &job, 0) != pdTRUE) {
-            delete job; // completes the async copy
-            auth_->login_abort(client);
-            return send_error(ex, "503 Service Unavailable", "Login unavailable; retry shortly");
-        }
-        return ESP_OK; // the worker answers on the async copy
+    // The open auth routes run before the gate: they manage the session themselves.
+    if (api) {
+        const std::optional<Session> no_session;
+        RouteRequest early{ex, path, no_session, now()};
+        if (path == "/api/v1/auth/state" && ex.method() == HttpMethod::get)
+            return route_auth_state(early, *ports_);
+        if (path == "/api/v1/auth/enroll" && ex.method() == HttpMethod::post)
+            return route_auth_enroll(early, *ports_);
+        if (path == "/api/v1/auth/login" && ex.method() == HttpMethod::post)
+            return route_auth_login(early, *ports_);
     }
     if (api) {
         // One place decides who may call what: the route table and route_access (api_router.hpp).
@@ -584,6 +543,7 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
             break;
         }
         const auto &s = gate.session;
+        RouteRequest request{ex, path, s, now()};
         if (path == "/api/v1/clock" && ex.method() == HttpMethod::get) {
             const auto status = system_->clock_diagnostics();
             Json output(cJSON_CreateObject(), cJSON_Delete);
@@ -1217,20 +1177,10 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
             cJSON_AddStringToObject(object.get(), "error", info.error.c_str());
             return send_json(ex, object.get());
         }
-        if (path == "/api/v1/auth/logout" && ex.method() == HttpMethod::post) {
-            auth_->logout(s->token);
-            ex.set_header("Set-Cookie",
-                          "tm_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0");
-            return ex.send("{}", 2);
-        }
-        if (path == "/api/v1/auth/password" && ex.method() == HttpMethod::post) {
-            auto input = read_json_body(ex);
-            if (!input ||
-                !auth_->change_password(s->token, json_string(input.get(), "old_password"),
-                                        json_string(input.get(), "new_password"), now()))
-                return send_error(ex, "403 Forbidden", "Password change denied");
-            return ex.send("{}", 2);
-        }
+        if (path == "/api/v1/auth/logout" && ex.method() == HttpMethod::post)
+            return route_auth_logout(request, *ports_);
+        if (path == "/api/v1/auth/password" && ex.method() == HttpMethod::post)
+            return route_auth_password(request, *ports_);
         return send_error(ex, "404 Not Found", "Unknown API route");
     }
     if (ex.method() != HttpMethod::get)
