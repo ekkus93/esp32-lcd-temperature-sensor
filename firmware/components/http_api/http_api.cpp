@@ -23,6 +23,7 @@
 #include "routes_network.hpp"
 #include "routes_sensors.hpp"
 #include "routes_settings.hpp"
+#include "routes_system.hpp"
 #include "web_assets.h"
 #include <algorithm>
 #include <cerrno>
@@ -445,69 +446,21 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
         }
         const auto &s = gate.session;
         RouteRequest request{ex, path, s, now()};
-        if (path == "/api/v1/clock" && ex.method() == HttpMethod::get) {
-            const auto status = system_->clock_diagnostics();
-            Json output(cJSON_CreateObject(), cJSON_Delete);
-            cJSON_AddNumberToObject(output.get(), "schema_version", 1);
-            cJSON_AddBoolToObject(output.get(), "synchronized", status.synchronized);
-            if (status.last_sync_utc_seconds)
-                cJSON_AddNumberToObject(output.get(), "last_sync_utc_seconds",
-                                        *status.last_sync_utc_seconds);
-            else
-                cJSON_AddNullToObject(output.get(), "last_sync_utc_seconds");
-            if (status.sync_age_ms)
-                cJSON_AddNumberToObject(output.get(), "sync_age_ms", *status.sync_age_ms);
-            else
-                cJSON_AddNullToObject(output.get(), "sync_age_ms");
-            return send_json(ex, output.get());
-        }
-        if (path == "/api/v1/probe-scan" && ex.method() == HttpMethod::get) {
-            ProbeScanStatus status;
-            LiveView view;
-            if (!live_->read(view))
-                return send_error(ex, "503 Service Unavailable", "Probe scan status busy");
-            status = view.probe_scan;
-            Json object(cJSON_CreateObject(), cJSON_Delete);
-            cJSON_AddNumberToObject(object.get(), "schema_version", 1);
-            cJSON_AddBoolToObject(object.get(), "enabled", status.enabled);
-            cJSON_AddBoolToObject(object.get(), "complete", status.complete);
-            cJSON_AddNumberToObject(object.get(), "discovered_count", status.discovered_count);
-            cJSON_AddBoolToObject(object.get(), "overflow", status.overflow);
-            return send_json(ex, object.get());
-        }
-        if (path == "/api/v1/ota" && ex.method() == HttpMethod::post)
-            return system_->upload_firmware(ex);
-        if (path == "/api/v1/system/reboot" && ex.method() == HttpMethod::post) {
-            if (ex.content_length() != 0) {
-                auto result =
-                    send_error(ex, "400 Bad Request", "Reboot request must not include a body");
-                ex.close_connection();
-                return result;
-            }
-            if (!system_->reboot_available())
-                return send_error(ex, "503 Service Unavailable", "Could not schedule restart");
-            ex.set_status("202 Accepted");
-            ex.set_type("application/json");
-            ex.set_header("Cache-Control", "no-store");
-            const auto result = send_text(ex, "{\"status\":\"rebooting\"}");
-            if (!system_->schedule_reboot())
-                system_->restart_now();
-            return result;
-        }
-        if (path == "/api/v1/system/factory-reset" && ex.method() == HttpMethod::post) {
-            auto input = read_json_body(ex);
-            if (!input || cJSON_GetArraySize(input.get()) != 1)
-                return send_error(ex, "400 Bad Request", "Expected erase_history boolean");
-            auto *erase = cJSON_GetObjectItemCaseSensitive(input.get(), "erase_history");
-            if (!cJSON_IsBool(erase))
-                return send_error(ex, "400 Bad Request", "Expected erase_history boolean");
-            if (!system_->schedule_factory_reset(cJSON_IsTrue(erase)))
-                return send_error(ex, "503 Service Unavailable",
-                                  "Could not schedule factory reset");
-            ex.set_status("202 Accepted");
-            ex.set_type("application/json");
-            ex.set_header("Cache-Control", "no-store");
-            return send_text(ex, "{\"status\":\"resetting\"}");
+        switch (gate.route->id) {
+        case RouteId::status:
+            return route_status(request, *ports_);
+        case RouteId::clock:
+            return route_clock(request, *ports_);
+        case RouteId::probe_scan:
+            return route_probe_scan(request, *ports_);
+        case RouteId::ota:
+            return route_ota(request, *ports_);
+        case RouteId::reboot:
+            return route_reboot(request, *ports_);
+        case RouteId::factory_reset:
+            return route_factory_reset(request, *ports_);
+        default:
+            break;
         }
         if (gate.route->id == RouteId::settings_read || gate.route->id == RouteId::settings_update)
             return route_settings(request, *ports_);
@@ -584,14 +537,6 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
             return route_sensor_change(request, *ports_);
         default:
             break;
-        }
-        if (path == "/api/v1/status" && ex.method() == HttpMethod::get) {
-            auto text = snapshot();
-            if (text.empty())
-                return send_error(ex, "503 Service Unavailable", "Snapshot busy");
-            ex.set_type("application/json");
-            ex.set_header("Cache-Control", "no-store");
-            return ex.send(text.data(), text.size());
         }
         if (path == "/api/v1/auth/logout" && ex.method() == HttpMethod::post)
             return route_auth_logout(request, *ports_);

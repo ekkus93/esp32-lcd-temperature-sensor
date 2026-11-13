@@ -72,7 +72,8 @@ code, then move the group into its file in a separate commit, with the tests unc
   Done: `routes_settings.{hpp,cpp}`, ctest `routes_settings`; `SystemPort::configure_clock()` added.
 - [x] **G07 — Network routes** (Wi-Fi status, scan GET/POST, connect, provisioning).
   Done: `routes_network.{hpp,cpp}`, ctest `routes_network`.
-- [ ] **G08 — System routes** (status, clock, probe scan, OTA upload, reboot, factory reset).
+- [x] **G08 — System routes** (status, clock, probe scan, OTA upload, reboot, factory reset).
+  Done: `routes_system.{hpp,cpp}`, ctest `routes_system`.
 - [ ] **G09 — History routes** (query, export, admission, worker, `serve_history`; keeps
   `export_history_csv` and `build_history_json`).
 - [ ] **G10 — Static assets and portal probes** (asset lookup, gzip requirement, cache and security
