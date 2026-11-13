@@ -41,15 +41,17 @@ with the owner's confirmation.
     `LiveState`; plain types moved to `auth_types`, `network_types`, `history_storage_info`,
     `ota_types`. Image 2,188,336 bytes (+6,272).
   - [x] **G02.2** Host fakes that record every call, including the dangerous operations.
-- [ ] **G03 — Router** (spec §4.4).
-  - [ ] **G03.1** Add `ApiRouter` with the route table and the gate (`api_gate`,
+- [x] **G03 — Router** (spec §4.4).
+  - [x] **G03.1** Add `ApiRouter` with the route table and the gate (`api_gate`,
     `route_needs_csrf`, `session_accepted`) before any handler; keep the Origin/Host checks, the
     pre-gate auth routes and the portal redirect in their current order.
-  - [ ] **G03.2** Host test: the table and `route_access()` cover the same routes, both ways.
+  - [x] **G03.2** Host test: the table and `route_access()` cover the same routes, both ways.
     Done: `handle()`, `serve_history`, the workers, `origin` and `session` use `HttpExchange`;
     only the WebSocket hand-off and the OTA stream touch `httpd_req_t`. Image +3,056 bytes.
     Done: `tests/http_fakes/fake_ports.hpp` (`FakeDevice::side_effects()`), ctest
     `http_fake_ports`.
+    Done: `api_router.{hpp,cpp}` (27-route table, `gate_request`), ctest `api_router`; the
+    Python inventory also compares the router table with `route_access.cpp`.
 
 ## Phase G2 — HTTP API split (characterize, then move)
 

@@ -1,5 +1,6 @@
 #include "http_api.hpp"
 #include "api_responses.hpp"
+#include "api_router.hpp"
 #include "cJSON.h"
 #include "calibration_hold_request.hpp"
 #include "clock_service.hpp"
@@ -94,11 +95,7 @@ void HttpApi::apply_hostname(const std::string &name) {
     wifi_->mdns_rename(name);
 }
 std::optional<Session> HttpApi::session(HttpExchange &ex, bool csrf) {
-    auto value = auth_->authorize(session_cookie(ex), now());
-    if (!session_accepted(value.has_value(), csrf,
-                          value && constant_equal(ex.header("X-CSRF-Token", 128), value->csrf)))
-        return std::nullopt;
-    return value;
+    return request_session(ex, *auth_, csrf, now());
 }
 void HttpApi::login_worker(void *context) {
     auto &self = *static_cast<HttpApi *>(context);
@@ -574,19 +571,11 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
         return ESP_OK; // the worker answers on the async copy
     }
     if (api) {
-        // One place decides who may call what (route_access.hpp). A route that is not in the
-        // table is a 404 for everyone, so no handler below is reachable by accident.
-        const char *method_name = ex.method() == HttpMethod::get     ? "GET"
-                                  : ex.method() == HttpMethod::post  ? "POST"
-                                  : ex.method() == HttpMethod::patch ? "PATCH"
-                                  : ex.method() == HttpMethod::put   ? "PUT"
-                                  : ex.method() == HttpMethod::del   ? "DELETE"
-                                                                     : "";
-        const auto access = route_access(method_name, path);
-        // Owner routes need a session (and, for changes, the CSRF token). Open routes work
-        // without one; a signed-in owner is still recognised so owner-only fields can be added.
-        const auto s = session(ex, route_needs_csrf(access, method_name));
-        switch (api_gate(access, s.has_value())) {
+        // One place decides who may call what: the route table and route_access (api_router.hpp).
+        // A request reaches a handler below only when the gate says proceed; anything not in the
+        // table is a 404 for everyone.
+        const auto gate = gate_request(ex, *auth_, path, now());
+        switch (gate.gate) {
         case ApiGate::not_found:
             return send_error(ex, "404 Not Found", "Unknown API route");
         case ApiGate::unauthorized:
@@ -594,6 +583,7 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
         case ApiGate::proceed:
             break;
         }
+        const auto &s = gate.session;
         if (path == "/api/v1/clock" && ex.method() == HttpMethod::get) {
             const auto status = system_->clock_diagnostics();
             Json output(cJSON_CreateObject(), cJSON_Delete);

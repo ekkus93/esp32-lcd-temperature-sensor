@@ -42,7 +42,7 @@ class RouteInventory(unittest.TestCase):
 
     def test_only_open_auth_routes_are_handled_before_the_gate(self):
         body = handle_body()
-        gate = body.index('api_gate(')
+        gate = body.index('gate_request(')
         before = set(re.findall(r'path == "(/api/v1/[a-z0-9/_-]+)"', body[:gate]))
         self.assertEqual(before, BEFORE_GATE_ALLOWED)
         self.assertNotIn('rfind("/api/v1/', body[:gate])
@@ -52,10 +52,24 @@ class RouteInventory(unittest.TestCase):
 
     def test_the_gate_refusals_return_before_any_handler(self):
         body = handle_body()
-        gate = body[body.index('switch (api_gate('):]
+        gate = body[body.index('switch (gate.gate)'):]
         gate = gate[:gate.index('}') + 1]
         self.assertIn('return send_error(ex, "404 Not Found"', gate)
         self.assertIn('return send_error(ex, "401 Unauthorized"', gate)
+
+
+class RouterTableMatchesPolicy(unittest.TestCase):
+    # The router's table (api_router.cpp) names the same paths as the access policy
+    # (route_access.cpp); the host test api_router checks methods and patterns.
+    def test_same_paths(self):
+        router = (ROOT / 'firmware/components/http_api/api_router.cpp').read_text(encoding='utf-8')
+        policy = (ROOT / 'firmware/components/monitor_core/route_access.cpp').read_text(
+            encoding='utf-8')
+        table = set(re.findall(r'"(/api/v1/[a-z0-9/_-]+)"', router))
+        table = {p for p in table if not p.endswith('/')}
+        named = {'/api/v1' + p for p in re.findall(r'"(/[a-z0-9/_-]+)"', policy)
+                 if p not in ('/api/v1', '/sensors/', '/calibration-hold')}
+        self.assertEqual(table, named)
 
 
 if __name__ == '__main__':
