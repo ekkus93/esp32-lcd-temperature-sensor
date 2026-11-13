@@ -32,17 +32,19 @@ prior validation are inputs, not proof that these regressions or gates pass.
     alter device history, auth or Wi-Fi. Document what remains device-only.
     Done: `tools/tests/test_host_fixtures_isolated.py`; device-only list in the baseline record.
 
-- [ ] **A01 — F1: Repair calibration hold lifecycle** (spec §4; R11-01/02/04).
-  - [ ] **A01.1** Reproduce loss of renewal after a steady result and after
+- [x] **A01 — F1: Repair calibration hold lifecycle** (spec §4; R11-01/02/04).
+  - [x] **A01.1** Reproduce loss of renewal after a steady result and after
     give-up followed by retry, advancing beyond the original hold deadline.
-  - [ ] **A01.2** Separate measurement timers from the single flow-level
+  - [x] **A01.2** Separate measurement timers from the single flow-level
     five-minute renewal schedule; keep the 15-minute request and 20-minute cap.
-  - [ ] **A01.3** Order initial/renewal/tail requests across Done, Cancel,
+  - [x] **A01.3** Order initial/renewal/tail requests across Done, Cancel,
     Escape and unmount; prevent late installation and post-close extension.
-  - [ ] **A01.4** Handle failed renewal/tail, faults and revision stops with
+  - [x] **A01.4** Handle failed renewal/tail, faults and revision stops with
     honest actionable UI; re-establish protection before measurement retry.
-  - [ ] **A01.5** Pass fake-time lifecycle, pending-request/exit and existing
+  - [x] **A01.5** Pass fake-time lifecycle, pending-request/exit and existing
     arithmetic/ETag/unit tests. Record simulator long-open behavior; leave H10 open.
+    Done: `holdKeeper.ts`, dialog changes and tests; record
+    `docs/validation/review-audit-hold-lifecycle-2026-11-12.md`. H10 (A19) stays open.
 
 - [ ] **A02 — F2: Make CSV completion honest** (spec §5; R02-05/09, R04-07).
   - [ ] **A02.1** Reproduce successful HTTP termination despite a skipped

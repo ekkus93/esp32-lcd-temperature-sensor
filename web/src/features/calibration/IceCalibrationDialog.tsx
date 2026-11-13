@@ -31,11 +31,9 @@ import {
   rawReading,
   type OffsetVerdict,
 } from './iceCalibration';
+import { createHoldKeeper, type HoldKeeper } from './holdKeeper';
 
 type Unit = 'C' | 'F';
-const HOLD_MINUTES = 15; // while the flow is open, renewed every RENEW_MS
-const TAIL_MINUTES = 5; // when it closes (Done, Cancel or Escape)
-const RENEW_MS = 5 * 60 * 1000;
 const REVISION_POLL_MS = 15000;
 const READY_STATES = ['normal', 'high', 'low'];
 
@@ -47,6 +45,7 @@ type Step =
   | 'result'
   | 'saving'
   | 'saved'
+  | 'unprotected' // the pause was lost; it must be re-established before measuring
   | 'error';
 
 // A temperature difference in the display unit (a difference has no 32 °F offset).
@@ -88,67 +87,76 @@ export default function IceCalibrationDialog(props: IceCalibrationProps) {
   const [offset, setOffset] = useState<number | null>(null);
   const [verdict, setVerdict] = useState<OffsetVerdict>({ kind: 'ok' });
   const mounted = useRef(true);
-  const holdEnded = useRef(false);
+  const keeper = useRef<HoldKeeper | null>(null);
   const readings = useRef<number[]>([]);
   const lastSeen = useRef<number | null>(null);
   const measuring = useRef(false);
-  const renew = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const giveUp = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const poll = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   const live = snapshot?.sensors.find((s) => s.rom_id === rom) ?? null;
   const readyToMeasure = live !== null && READY_STATES.includes(live.state);
 
-  function clearTimers() {
-    clearInterval(renew.current);
+  // Stops measuring: its give-up and revision-check timers. The alert pause keeps renewing.
+  function clearMeasurement() {
     clearTimeout(giveUp.current);
     clearInterval(poll.current);
     measuring.current = false;
   }
 
-  // Starts or renews the hold; a failure stops the flow with the device's reason.
-  async function hold(minutes: number) {
+  const reason = (cause: unknown) =>
+    cause instanceof Error ? cause.message : 'The device did not answer.';
+
+  // Asks the device to pause the probe's alerts; the step changes once it answers.
+  async function establish() {
+    const current = keeper.current;
+    if (!current) return;
     try {
-      await setCalibrationHold(rom, minutes);
-      return true;
+      if ((await current.start()) && mounted.current) setStep('instructions');
     } catch (cause) {
       if (mounted.current) {
         setStep('error');
         setMessage(
-          cause instanceof Error
-            ? cause.message
-            : 'The device did not pause alerts for this probe.',
+          `The device did not pause alerts for this probe: ${reason(cause)}`,
         );
       }
-      return false;
     }
   }
 
-  // Shortens the hold to the tail, so the probe's alerts resume soon after the flow closes.
-  async function endFlow() {
-    if (holdEnded.current) return;
-    holdEnded.current = true;
-    clearTimers();
-    await hold(TAIL_MINUTES);
+  // Pauses the alerts again after a loss or a refusal; measuring waits for it.
+  function pauseAgain() {
+    setStep('starting');
+    setMessage('');
+    void establish();
   }
 
-  // Opening the flow pauses the probe's alerts; it stays paused while the flow is open.
+  // Ends the flow: measuring stops and the pause is shortened to its five-minute tail, once.
+  async function endFlow() {
+    clearMeasurement();
+    await keeper.current?.close();
+  }
+
+  // Opening the flow pauses the probe's alerts; they stay paused, renewed, while it is open.
   useEffect(() => {
     mounted.current = true;
-    void (async () => {
-      if (await hold(HOLD_MINUTES)) {
-        renew.current = setInterval(() => void hold(HOLD_MINUTES), RENEW_MS);
-        if (mounted.current) setStep('instructions');
-      }
-    })();
+    keeper.current = createHoldKeeper({
+      send: (minutes) => setCalibrationHold(rom, minutes),
+      onLost: (cause) => {
+        if (!mounted.current) return;
+        clearMeasurement();
+        setStep('unprotected');
+        setMessage(
+          `Alerts for this probe are no longer paused: the device did not renew the pause (${reason(cause)}). Pause them again before measuring, or take the probe out of the bath.`,
+        );
+      },
+    });
+    // Started after this effect, as App.tsx does: its state changes come with the device's answer.
+    void Promise.resolve().then(establish);
     return () => {
       mounted.current = false;
-      // Leaving the page while the flow is open still shortens the hold.
-      if (!holdEnded.current) {
-        holdEnded.current = true;
-        clearTimers();
-        void setCalibrationHold(rom, TAIL_MINUTES).catch(() => undefined);
-      }
+      clearMeasurement();
+      // Leaving the page while the flow is open still ends with the tail.
+      void keeper.current?.close();
     };
     // The flow belongs to one probe for as long as it is open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -179,7 +187,7 @@ export default function IceCalibrationDialog(props: IceCalibrationProps) {
     setSamples(readings.current);
     if (isSteady(readings.current)) {
       const next = iceOffset(readings.current);
-      clearTimers();
+      clearMeasurement();
       setOffset(next);
       setVerdict(judgeOffset(next));
       setStep('result');
@@ -188,9 +196,9 @@ export default function IceCalibrationDialog(props: IceCalibrationProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshot, step]);
 
-  function stop(reason: string) {
-    clearTimers();
-    setMessage(reason);
+  function stop(why: string) {
+    clearMeasurement();
+    setMessage(why);
     setStep('stopped');
   }
 
@@ -340,7 +348,7 @@ export default function IceCalibrationDialog(props: IceCalibrationProps) {
             </>
           )}
           {step === 'stopped' && <Alert severity="warning">{message}</Alert>}
-          {step === 'error' && (
+          {(step === 'error' || step === 'unprotected') && (
             <Alert severity="error" role="alert">
               {message}
             </Alert>
@@ -449,8 +457,16 @@ export default function IceCalibrationDialog(props: IceCalibrationProps) {
             Done
           </Button>
         )}
-        {(step === 'error' || step === 'starting') && (
+        {step === 'starting' && (
           <Button onClick={() => void close()}>Close</Button>
+        )}
+        {(step === 'error' || step === 'unprotected') && (
+          <>
+            <Button onClick={() => void close()}>Close</Button>
+            <Button variant="contained" onClick={pauseAgain}>
+              Pause alerts again
+            </Button>
+          </>
         )}
       </DialogActions>
     </Dialog>
