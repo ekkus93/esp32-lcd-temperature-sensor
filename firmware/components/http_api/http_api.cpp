@@ -20,6 +20,7 @@
 #include "retirement_policy.hpp"
 #include "route_access.hpp"
 #include "routes_auth.hpp"
+#include "routes_network.hpp"
 #include "routes_sensors.hpp"
 #include "routes_settings.hpp"
 #include "web_assets.h"
@@ -578,30 +579,19 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
         }
         if (gate.route->id == RouteId::settings_read || gate.route->id == RouteId::settings_update)
             return route_settings(request, *ports_);
-        if (path == "/api/v1/wifi/scan" && ex.method() == HttpMethod::post) {
-            if (!wifi_->scan())
-                return send_error(ex, "429 Too Many Requests",
-                                  "Scan busy; wait at least 10 seconds");
-            ex.set_status("202 Accepted");
-            return ex.send("{}", 2);
-        }
-        if (path == "/api/v1/wifi/scan" && ex.method() == HttpMethod::get) {
-            std::vector<ScannedNetwork> networks;
-            bool scanning = false;
-            if (!wifi_->scan_results(networks, scanning))
-                return send_error(ex, "503 Service Unavailable", "Scan results busy");
-            Json output(cJSON_CreateObject(), cJSON_Delete);
-            cJSON_AddBoolToObject(output.get(), "scanning", scanning);
-            auto *items = cJSON_AddArrayToObject(output.get(), "networks");
-            for (const auto &network : networks) {
-                auto *item = cJSON_CreateObject();
-                cJSON_AddStringToObject(item, "ssid", network.ssid.c_str());
-                cJSON_AddNumberToObject(item, "rssi", network.rssi);
-                cJSON_AddNumberToObject(item, "channel", network.channel);
-                cJSON_AddBoolToObject(item, "secure", network.secure);
-                cJSON_AddItemToArray(items, item);
-            }
-            return send_json(ex, output.get());
+        switch (gate.route->id) {
+        case RouteId::wifi_status:
+            return route_wifi_status(request, *ports_);
+        case RouteId::wifi_scan_start:
+            return route_wifi_scan_start(request, *ports_);
+        case RouteId::wifi_scan_results:
+            return route_wifi_scan_results(request, *ports_);
+        case RouteId::wifi_connect:
+            return route_wifi_connect(request, *ports_);
+        case RouteId::wifi_provisioning:
+            return route_wifi_provisioning(request, *ports_);
+        default:
+            break;
         }
         if ((path == "/api/v1/history" || path == "/api/v1/history/export") &&
             ex.method() == HttpMethod::get) {
@@ -670,36 +660,6 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
             ex.set_type("application/json");
             ex.set_header("Cache-Control", "no-store");
             return ex.send(text.data(), text.size());
-        }
-        if (path == "/api/v1/wifi/provisioning" && ex.method() == HttpMethod::post) {
-            if (!wifi_->provision())
-                return send_error(ex, "503 Service Unavailable", "Network control busy");
-            ex.set_status("202 Accepted");
-            return ex.send("{}", 2);
-        }
-        if (path == "/api/v1/wifi/connect" && ex.method() == HttpMethod::post) {
-            auto input = read_json_body(ex);
-            if (input && wifi_->candidate_busy())
-                return send_error(ex, "409 Conflict",
-                                  "A Wi-Fi connection attempt is already in progress");
-            if (!input || !wifi_->connect(json_string(input.get(), "ssid"),
-                                          json_string(input.get(), "password")))
-                return send_error(ex, "400 Bad Request",
-                                  "Invalid network settings or control busy");
-            ex.set_status("202 Accepted");
-            return ex.send("{}", 2);
-        }
-        if (path == "/api/v1/wifi/status" && ex.method() == HttpMethod::get) {
-            auto info = wifi_->info();
-            Json object(cJSON_CreateObject(), cJSON_Delete);
-            cJSON_AddStringToObject(object.get(), "state", info.state.c_str());
-            cJSON_AddStringToObject(object.get(), "ip", info.ip.c_str());
-            cJSON_AddBoolToObject(object.get(), "provisioning", info.provisioning);
-            cJSON_AddBoolToObject(object.get(), "saved_credentials", info.saved_credentials);
-            cJSON_AddStringToObject(object.get(), "attempt", info.attempt.c_str());
-            cJSON_AddNumberToObject(object.get(), "remaining_seconds", info.remaining_seconds);
-            cJSON_AddStringToObject(object.get(), "error", info.error.c_str());
-            return send_json(ex, object.get());
         }
         if (path == "/api/v1/auth/logout" && ex.method() == HttpMethod::post)
             return route_auth_logout(request, *ports_);
