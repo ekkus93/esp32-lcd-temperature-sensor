@@ -21,13 +21,16 @@ prior validation are inputs, not proof that these regressions or gates pass.
 ## Phase A — Test seams and P1 fixes
 
 - [ ] **A00 — Establish reproducible integration tests** (spec §§2, 14).
-  - [ ] **A00.1** Record starting SHA/tree, configuration and focused baseline
+  - [x] **A00.1** Record starting SHA/tree, configuration and focused baseline
     results; preserve the full-suite Settings failure as a regression scenario.
+    Done: `docs/validation/review-audit-baseline-2026-11-12.md` (the Settings scenario is reproduced
+    deliberately in A08).
   - [ ] **A00.2** Add the smallest necessary production-path seams for storage
     outcomes/deadlines, save application and HTTP JSON/stream construction.
     Keep doubles at I/O boundaries rather than copy implementations into tests.
-  - [ ] **A00.3** Assert host fault fixtures use temporary stores and cannot
+  - [x] **A00.3** Assert host fault fixtures use temporary stores and cannot
     alter device history, auth or Wi-Fi. Document what remains device-only.
+    Done: `tools/tests/test_host_fixtures_isolated.py`; device-only list in the baseline record.
 
 - [ ] **A01 — F1: Repair calibration hold lifecycle** (spec §4; R11-01/02/04).
   - [ ] **A01.1** Reproduce loss of renewal after a steady result and after
