@@ -66,3 +66,161 @@ describe('chart scales', () => {
     expect(timeTicks(to - 30 * 24 * HOUR, to, 'utc', 'UTC')).toHaveLength(6);
   });
 });
+
+// Review audit F5: every window gets readable labels.
+describe('time ticks for any window', () => {
+  const MINUTE = 60_000;
+  const local = (at: number, zone: string) =>
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: zone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).format(new Date(at));
+  const wellFormed = (ticks: { at: number }[], from: number, to: number) => {
+    expect(ticks.length).toBeGreaterThan(0);
+    for (let i = 0; i < ticks.length; i++) {
+      expect(Number.isFinite(ticks[i].at)).toBe(true);
+      expect(ticks[i].at).toBeGreaterThanOrEqual(from);
+      expect(ticks[i].at).toBeLessThanOrEqual(to);
+      if (i) expect(ticks[i].at).toBeGreaterThan(ticks[i - 1].at);
+    }
+  };
+
+  it('labels one hour in Los Angeles every quarter hour (it had none)', () => {
+    const from = Date.parse('2026-01-01T21:00:00Z');
+    const to = Date.parse('2026-01-01T22:00:00Z');
+    const ticks = timeTicks(from, to, 'utc', 'America/Los_Angeles');
+    expect(ticks.map((t) => local(t.at, 'America/Los_Angeles'))).toEqual([
+      '13:00',
+      '13:15',
+      '13:30',
+      '13:45',
+      '14:00',
+    ]);
+  });
+
+  it('uses finer steps when zoomed in, and the ends when no round time is inside', () => {
+    const from = Date.parse('2026-01-01T21:00:00Z');
+    const ten = timeTicks(
+      from,
+      from + 10 * MINUTE,
+      'utc',
+      'America/Los_Angeles',
+    );
+    expect(ten.map((t) => local(t.at, 'America/Los_Angeles'))).toEqual([
+      '13:00',
+      '13:05',
+      '13:10',
+    ]);
+    const odd = from + 61 * 1000;
+    const short = timeTicks(
+      odd,
+      odd + 3 * MINUTE,
+      'utc',
+      'America/Los_Angeles',
+    );
+    expect(short.map((t) => t.at)).toEqual([odd, odd + 3 * MINUTE]);
+    expect(short.every((t) => /\d\d:\d\d/.test(t.label))).toBe(true);
+  });
+
+  it('keeps day, two-day, week and month scales readable', () => {
+    const to = Date.UTC(2026, 10, 12, 14, 7);
+    expect(timeTicks(to - 24 * HOUR, to, 'utc', 'UTC')).toHaveLength(6);
+    expect(timeTicks(to - 48 * HOUR, to, 'utc', 'UTC')).toHaveLength(4);
+    expect(timeTicks(to - 7 * 24 * HOUR, to, 'utc', 'UTC')).toHaveLength(7);
+    expect(timeTicks(to - 30 * 24 * HOUR, to, 'utc', 'UTC')).toHaveLength(6);
+  });
+
+  it('follows fractional-hour zones', () => {
+    const from = Date.UTC(2026, 0, 1, 6, 0);
+    for (const zone of [
+      'Asia/Kathmandu',
+      'Asia/Kolkata',
+      'Australia/Adelaide',
+    ]) {
+      const ticks = timeTicks(from, from + HOUR, 'utc', zone);
+      expect(ticks.length).toBeGreaterThanOrEqual(4);
+      for (const tick of ticks)
+        expect(Number(local(tick.at, zone).slice(3)) % 15).toBe(0);
+    }
+  });
+
+  it('tells apart the hour repeated when clocks go back', () => {
+    // Los Angeles, 1 November 2026: 01:00-02:00 happens in PDT and again in PST.
+    const from = Date.parse('2026-11-01T07:30:00Z');
+    const ticks = timeTicks(
+      from,
+      from + 3 * HOUR,
+      'utc',
+      'America/Los_Angeles',
+    );
+    wellFormed(ticks, from, from + 3 * HOUR);
+    expect(new Set(ticks.map((t) => t.label)).size).toBe(ticks.length);
+    expect(ticks.some((t) => t.label.includes('PDT'))).toBe(true);
+    expect(ticks.some((t) => t.label.includes('PST'))).toBe(true);
+  });
+
+  it('never shows the hour skipped when clocks go forward', () => {
+    // Los Angeles, 8 March 2026: 02:00-03:00 does not exist.
+    const from = Date.parse('2026-03-08T09:00:00Z');
+    const ticks = timeTicks(
+      from,
+      from + 3 * HOUR,
+      'utc',
+      'America/Los_Angeles',
+    );
+    wellFormed(ticks, from, from + 3 * HOUR);
+    expect(
+      ticks.some((t) => /^02:/.test(local(t.at, 'America/Los_Angeles'))),
+    ).toBe(false);
+  });
+
+  it('gives nothing for an empty or invalid window', () => {
+    expect(timeTicks(10, 10, 'utc', 'UTC')).toEqual([]);
+    expect(timeTicks(20, 10, 'utc', 'UTC')).toEqual([]);
+    expect(timeTicks(Number.NaN, 10, 'utc', 'UTC')).toEqual([]);
+    expect(timeTicks(0, Number.POSITIVE_INFINITY, 'uptime', null)).toEqual([]);
+  });
+
+  it('counts back in minutes for a short time since boot', () => {
+    expect(
+      timeTicks(0, 3 * MINUTE, 'uptime', null).map((t) => t.label),
+    ).toEqual(['3 min ago', '2 min ago', '1 min ago', 'Now']);
+  });
+
+  it('is well formed for many windows and zones', () => {
+    const zones = [
+      'UTC',
+      'America/Los_Angeles',
+      'Asia/Kathmandu',
+      'Europe/London',
+      'Pacific/Chatham',
+    ];
+    const spans = [
+      MINUTE,
+      7 * MINUTE,
+      50 * MINUTE,
+      3 * HOUR,
+      26 * HOUR,
+      47 * HOUR,
+      5 * 24 * HOUR,
+      31 * 24 * HOUR,
+    ];
+    let from = Date.parse('2026-03-01T00:00:00Z');
+    for (const zone of zones)
+      for (const span of spans) {
+        from += 37 * MINUTE + 13_000;
+        wellFormed(
+          timeTicks(from, from + span, 'utc', zone),
+          from,
+          from + span,
+        );
+        wellFormed(
+          timeTicks(from, from + span, 'uptime', null),
+          from,
+          from + span,
+        );
+      }
+  });
+});

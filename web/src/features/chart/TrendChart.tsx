@@ -353,9 +353,13 @@ export default function TrendChart({
               variant="bodySmall"
               color="text.secondary"
               sx={{
-                // On a phone every other label, counted back from the last, so they don't collide.
+                // On a phone, with more than four labels, every other one counted back from the last
+                // so they don't collide; a few (such as the two ends) are all kept.
                 display: {
-                  xs: (ticks.length - 1 - i) % 2 ? 'none' : 'block',
+                  xs:
+                    ticks.length > 4 && (ticks.length - 1 - i) % 2
+                      ? 'none'
+                      : 'block',
                   sm: 'block',
                 },
                 position: 'absolute',

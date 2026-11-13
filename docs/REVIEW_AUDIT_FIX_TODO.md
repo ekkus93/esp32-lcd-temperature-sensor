@@ -109,14 +109,16 @@ prior validation are inputs, not proof that these regressions or gates pass.
 
 ## Phase C — Web correctness and reliable verification
 
-- [ ] **A06 — F5: Adapt chart tick spacing** (spec §8; R12-05).
-  - [ ] **A06.1** Reproduce the Los Angeles 13:00–14:00 empty-tick window.
-  - [ ] **A06.2** Implement span/density-aware intervals and endpoint fallback;
+- [x] **A06 — F5: Adapt chart tick spacing** (spec §8; R12-05).
+  - [x] **A06.1** Reproduce the Los Angeles 13:00–14:00 empty-tick window.
+  - [x] **A06.2** Implement span/density-aware intervals and endpoint fallback;
     keep finite ordered in-range ticks, useful uptime labels and bounded work.
-  - [ ] **A06.3** Test zooms, one-hour/day/week/month ranges, fractional zones,
+  - [x] **A06.3** Test zooms, one-hour/day/week/month ranges, fractional zones,
     DST folds/gaps and invalid windows. Keep repeated local times distinguishable.
-  - [ ] **A06.4** Inspect narrow/wide browser charts and phone label thinning;
+  - [x] **A06.4** Inspect narrow/wide browser charts and phone label thinning;
     record screenshots without claiming physical phone acceptance.
+    Done: `scale.ts` and phone thinning; record
+    `docs/validation/review-audit-chart-ticks-2026-11-13.md` (simulator shows uptime axes only).
 
 - [ ] **A07 — F6: Validate dashboard history identity** (spec §9; R12-04).
   - [ ] **A07.1** Reproduce reboot/overlapping-uptime and first-sync failures
