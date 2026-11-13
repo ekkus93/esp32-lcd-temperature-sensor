@@ -8,9 +8,11 @@ with the owner's confirmation.
 ## Phase G0 — Baseline
 
 - [ ] **G00 — Measure and confirm scope** (spec §1, §3).
-  - [ ] **G00.1** Add `tools/check_unit_size.py`: report `.cpp`/`.tsx`/`.ts` files over 400 lines
+  - [x] **G00.1** Add `tools/check_unit_size.py`: report `.cpp`/`.tsx`/`.ts` files over 400 lines
     and functions over 80 lines (tests and generated files excluded), with an allow-list for
     accepted exceptions. Python tests for it. Report-only at first.
+    Done: `tools/check_unit_size.py` (report-only; `--strict` later), 7 tests in
+    `tools/tests/test_check_unit_size.py`.
   - [ ] **G00.2** Run it; confirm `http_api.cpp` and `main.cpp` as the targets and record a
     keep-or-split decision for every other file it lists (for example `history.cpp`,
     `usb_bridge.cpp`, `SensorsView.tsx`).
