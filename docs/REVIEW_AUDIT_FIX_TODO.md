@@ -223,8 +223,9 @@ hold points and preserve device data during experiments.
     Leave unavailable platform checks open pending explicit disposition.
 
 - [ ] **A17 — H07: Retention, rollover and history performance** (R10-03/08).
-  - [ ] **A17.1** Produce one-to-five-probe full-budget host stores; record
+  - [x] **A17.1** Produce one-to-five-probe full-budget host stores; record
     actual encoded sizes, retained timestamps and eviction correctness.
+    Done (host only): `docs/validation/review-audit-retention-host-2026-11-13.md`.
   - [ ] **A17.2** Measure device oldest/newest data and rollover when feasible;
     distinguish device measurements, accelerated fixtures and capacity forecasts.
   - [ ] **A17.3** Profile short/full-window queries and CSV after A02/A04 with

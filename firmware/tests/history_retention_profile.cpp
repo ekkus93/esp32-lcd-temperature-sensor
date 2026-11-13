@@ -54,15 +54,26 @@ bool profile(unsigned probe_count) {
     uint64_t rows = 0;
     int64_t oldest_ms = -1;
     int64_t latest_ms = -1;
+    bool ordered = true;
     if (!store.visit([&](const Bucket &record) {
             if (oldest_ms < 0)
                 oldest_ms = record.start_uptime_ms;
+            else if (record.start_uptime_ms != latest_ms + bucket_ms)
+                ordered = false;
             latest_ms = record.start_uptime_ms;
             ++rows;
             return true;
         }) ||
         rows == 0)
         return false;
+    // Eviction drops whole oldest segments only: what is left is one unbroken run ending with the
+    // last record written.
+    if (!ordered || latest_ms != int64_t(writes - 1) * bucket_ms ||
+        rows != uint64_t((latest_ms - oldest_ms) / bucket_ms) + 1 ||
+        store.bytes() > history_budget) {
+        std::cerr << "eviction left a gap, lost the newest record or exceeded the budget\n";
+        return false;
+    }
 
     std::cout << probe_count << ',' << record_bytes << ',' << store.bytes() << ',' << rows << ','
               << oldest_ms << ',' << latest_ms << ',' << (rows * bucket_ms / 86400000) << std::endl;
