@@ -126,6 +126,25 @@ Sensor details editor fields:
 | Disconnect alert | Enabled for previously assigned/expected sensors; debounce consecutive failures |
 | Remove/forget | Confirm; distinguish removing mapping from deleting retained history |
 
+**Ice-bath calibration flow** (spec `REVIEW_FIX_SPEC.md` §17.2). The **Calibrate in ice** button
+appears for a probe with a valid reading while settings are writable. It opens a dialog that:
+
+- pauses the probe's alerts for 15 minutes, renews the pause every five minutes while open, and
+  shortens it to five minutes on Done, Cancel or Escape (the monitor's hold, §17.3);
+- shows ice-bath instructions, then measures the live readings until the last minute stays within
+  0.125 °C (the reading counts once per live sample);
+- stops, with the reason, if the probe is lost, the sensor bus faults, the probe's settings change,
+  or no steady reading comes within ten minutes;
+- offers the offset `0 − mean reading`, rounded to 0.1 °C, with the change in every reading, and
+  refuses beyond ±12.7 °C or asks for a check beyond 2 °C;
+- says nothing needs saving when the saved offset already gives the ice point;
+- shows the high and low limits, unchanged, with **Edit limits** that leaves the flow and focuses
+  the limit field;
+- saves only the offset, with the current ETag, and waits for the device to apply it.
+
+Temperatures and offsets are shown in the page's entry unit; 0 °C is shown as 32.0 °F when the page
+is in Fahrenheit.
+
 Sensor identification flow: when an unknown ROM ID appears, show `New sensor found`. Provide a guided **warm one probe and watch which reading changes** instruction, followed by `Assign name`. Do not claim to know which physical cable is which. Allow a newly inserted probe to be unassigned until configured. Resist duplicate assignments to the same ROM ID.
 
 When fewer than five sensors exist, no default disconnect alert should be generated for unused slots.

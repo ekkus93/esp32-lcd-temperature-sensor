@@ -40,6 +40,59 @@ does not free a slot. If the same ROM later reappears, it is treated as a new
 default-configured entry when capacity is available. Existing history remains
 associated with that ROM and is never reassigned to another probe.
 
+## Calibrate a probe in ice
+
+Every probe can be calibrated against an ice bath, which needs no other equipment. It corrects
+the probe's own error, so readings are right near 0 °C and, because the error barely changes
+across a grow room's range, across that range too. Boiling water is not used.
+
+**Make the ice bath.** Fill a tall container with crushed ice, not cubes, and top it up with cold
+water until it is just below the ice surface. Stir it and leave it for a minute. Put the probe's
+metal tip at least 5 cm into the bath, in the middle, not touching the container. Stir while it
+measures, and add ice if it floats free.
+
+**Calibrate each probe on its own cable, as it is installed,** so the offset matches how the probe
+will be used. Dry the probe afterwards.
+
+**Run the flow.** Open **Sensors**, choose the probe's tab, and press **Calibrate in ice**.
+
+1. The dialog pauses the probe's alerts while it is in the bath. They stay paused while the
+   dialog is open and resume a few minutes after you close it.
+2. The dialog waits for a steady reading: the last minute of readings must stay within 0.1 °C.
+   It gives up after ten minutes with advice to stir the bath and check that the probe is covered.
+3. It shows the offset that makes the probe read 0 °C (32 °F). Save it, or press Cancel to keep the
+   current offset. If the probe already reads 0 °C, it says nothing needs saving.
+4. After saving, put the probe back in the bath briefly to confirm it reads 0 °C, then dry it.
+
+The dialog refuses an offset beyond ±12.7 °C (about ±22.9 °F), because a probe that far off is
+faulty or the bath is wrong. It asks you to check the bath and the probe before saving an offset
+beyond 2 °C, which a genuine probe does not need (its error is within ±0.5 °C).
+
+**What calibration changes.** Only the probe's calibration offset is saved. Its name, display
+order, enabled state, alarm limits, hysteresis, persistence and disconnect alert stay as they are.
+The offset is also written into the probe's own memory, so it stays with the probe.
+
+**Check the limits afterwards.** Alarm limits are compared with the corrected reading. If you set
+a limit to allow for a known error, that allowance is now wrong; the dialog offers **Edit limits**
+to change them. Calibration never changes a limit itself.
+
+**What the probe's history shows.** While the probe is in the bath its readings are not recorded,
+so its history has a gap there. The LCD shows **CAL** in the probe's status place, and the Events
+tab records when the pause started and how it ended (time ran out, ended early, or the probe was
+lost).
+
+**Mount probes for a grow room.** Calibration corrects the probe; placement decides whether the
+number means anything for the plants.
+
+- Shade the probe from the grow lights, for example in a vented white shield or a white tube open at
+  both ends. A bare steel probe under light reads air temperature plus heat from the light,
+  often 1 to 3 °C high.
+- Mount it at canopy height, away from heaters, fan outlets, walls and the hot spot under a lamp.
+- Let air move past it gently. A probe in still air reacts slowly and can sit in pockets of heat.
+- Use more than one probe where the room varies, and compare canopy level with room level.
+
+Humidity is not measured by these probes. A separate sensor would be needed for it.
+
 ## Alerts and event history
 
 Active alerts and events are on separate pages. The **Alerts** page shows only

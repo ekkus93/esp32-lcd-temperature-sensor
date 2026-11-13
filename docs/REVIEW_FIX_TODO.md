@@ -270,10 +270,13 @@ bath. API additions are additive within schema v1 (§17.3); no settings storage 
   including the unchanged-offset case. Covered since (2026-11-12): the 10-minute give-up, the
   revision-change check during measuring, the bus-fault stop and the °F wording, all in the dialog
   tests (25 in total). Done.
-- [ ] **R11-03** User guide calibration section (§17.4): the ice bath, calibrating each probe as
+- [x] **R11-03** User guide calibration section (§17.4): the ice bath, calibrating each probe as
   installed, what calibration changes and the limits reminder, the alert pause, and probe
   placement in a grow room. `docs/WEB_UI_DESIGN_SPEC.md` describes the flow. Acceptance: a
-  reviewer can follow the guide without other documents.
+  reviewer can follow the guide without other documents. Done (2026-11-12):
+  `docs/USER_GUIDE.md` has a "Calibrate a probe in ice" section (the bath, calibrating as installed,
+  the flow, what calibration changes, the limits, the history gap and CAL, the Events entries, and
+  grow-room placement), and `docs/WEB_UI_DESIGN_SPEC.md` §6 describes the flow.
 - [ ] **R11-04** [HW] Calibrate a real probe in a real ice bath with the new flow. Acceptance
   (§17.5): the probe then reads 0.0 ± 0.1 °C in the bath, `probe_calibration` is `stored` with the
   new offset and survives a restart; during the bath no low alert for that probe, a gap in its
