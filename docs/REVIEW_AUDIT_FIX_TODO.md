@@ -161,11 +161,14 @@ prior validation are inputs, not proof that these regressions or gates pass.
     history).
 
 - [ ] **A10 — H04: Complete safe route-boundary coverage** (spec §13; R07-06).
-  - [ ] **A10.1** Inventory registered routes against the single access table.
+  - [x] **A10.1** Inventory registered routes against the single access table.
   - [ ] **A10.2** Exercise anonymous, session and missing-CSRF refusal through
     production dispatch, including destructive handlers with side effects mocked.
-  - [ ] **A10.3** Assert no forbidden side effect is reached; record actual
+  - [x] **A10.3** Assert no forbidden side effect is reached; record actual
     handler coverage separately from policy-table and physical board evidence.
+    A10.1/A10.3 done: production gate, `test_route_inventory.py`; record
+    `docs/validation/review-audit-route-boundary-2026-11-13.md`. A10.2 open: handlers are not
+    run on the host (needs a production-dispatch harness); gate and order are covered.
 
 - [ ] **A11 — H09: Finish calibration API/reader compatibility evidence**
   (spec §13; R11-01).

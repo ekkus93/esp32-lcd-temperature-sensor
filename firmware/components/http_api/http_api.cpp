@@ -278,7 +278,8 @@ void HttpApi::apply_hostname(const std::string &name) {
 }
 std::optional<Session> HttpApi::session(httpd_req_t *r, bool csrf) {
     auto value = auth_->authorize(cookie(r), now());
-    if (value && csrf && !constant_equal(header(r, "X-CSRF-Token", 128), value->csrf))
+    if (!session_accepted(value.has_value(), csrf,
+                          value && constant_equal(header(r, "X-CSRF-Token", 128), value->csrf)))
         return std::nullopt;
     return value;
 }
@@ -722,13 +723,17 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                                   : r->method == HTTP_DELETE ? "DELETE"
                                                              : "";
         const auto access = route_access(method_name, path);
-        if (access == RouteAccess::unknown)
-            return error(r, "404 Not Found", "Unknown API route");
         // Owner routes need a session (and, for changes, the CSRF token). Open routes work
         // without one; a signed-in owner is still recognised so owner-only fields can be added.
-        const auto s = session(r, access == RouteAccess::owner && r->method != HTTP_GET);
-        if (access == RouteAccess::owner && !s)
+        const auto s = session(r, route_needs_csrf(access, method_name));
+        switch (api_gate(access, s.has_value())) {
+        case ApiGate::not_found:
+            return error(r, "404 Not Found", "Unknown API route");
+        case ApiGate::unauthorized:
             return error(r, "401 Unauthorized", "Administrator session required");
+        case ApiGate::proceed:
+            break;
+        }
         if (path == "/api/v1/clock" && r->method == HTTP_GET) {
             const auto status = clock_sync_diagnostics();
             Json output(cJSON_CreateObject(), cJSON_Delete);

@@ -63,4 +63,17 @@ RouteAccess route_access(std::string_view method, std::string_view full_path) {
                                                          : RouteAccess::unknown;
     return RouteAccess::unknown;
 }
+bool route_needs_csrf(RouteAccess access, std::string_view method) {
+    return access == RouteAccess::owner && method != "GET";
+}
+bool session_accepted(bool token_valid, bool csrf_required, bool csrf_matches) {
+    return token_valid && (!csrf_required || csrf_matches);
+}
+ApiGate api_gate(RouteAccess access, bool session_ok) {
+    if (access == RouteAccess::unknown)
+        return ApiGate::not_found;
+    if (access == RouteAccess::owner && !session_ok)
+        return ApiGate::unauthorized;
+    return ApiGate::proceed;
+}
 } // namespace monitor

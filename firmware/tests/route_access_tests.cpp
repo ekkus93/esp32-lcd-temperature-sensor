@@ -66,5 +66,67 @@ int main() {
     CHECK(route_access("PATCH", "/api/v1/sensors/" + rom + "0") == RouteAccess::unknown);
     CHECK(route_access("DELETE", "/api/v1/sensors") == RouteAccess::unknown);
     CHECK(route_access("GET", "/api/v1/sensors/" + rom) == RouteAccess::unknown);
-    std::cout << "PASS: API route access policy\n";
+
+    // Review audit H04: every route the HTTP code handles (kept in step with http_api.cpp by
+    // tools/tests/test_route_inventory.py), through the gate the dispatcher runs before any
+    // handler, for an anonymous caller, a session without the CSRF token, and a full session.
+    struct Route {
+        const char *method;
+        std::string path;
+        RouteAccess expected;
+        bool destructive; // changes stored state, restarts or erases
+    };
+    const std::string hold = "/api/v1/sensors/" + rom + "/calibration-hold";
+    const Route inventory[] = {
+        {"GET", "/api/v1/status", RouteAccess::open, false},
+        {"GET", "/api/v1/history", RouteAccess::open, false},
+        {"GET", "/api/v1/history/export", RouteAccess::open, false},
+        {"GET", "/api/v1/alerts", RouteAccess::open, false},
+        {"GET", "/api/v1/sensors", RouteAccess::open, false},
+        {"GET", "/api/v1/sensors/storage", RouteAccess::open, false},
+        {"GET", "/api/v1/probe-scan", RouteAccess::open, false},
+        {"GET", "/api/v1/clock", RouteAccess::open, false},
+        {"GET", "/api/v1/settings", RouteAccess::open, false},
+        {"GET", "/api/v1/auth/state", RouteAccess::open, false},
+        {"POST", "/api/v1/auth/login", RouteAccess::open, false},
+        {"POST", "/api/v1/auth/enroll", RouteAccess::open, true},
+        {"GET", "/api/v1/wifi/status", RouteAccess::owner, false},
+        {"GET", "/api/v1/wifi/scan", RouteAccess::owner, false},
+        {"POST", "/api/v1/wifi/scan", RouteAccess::owner, false},
+        {"POST", "/api/v1/wifi/provisioning", RouteAccess::owner, true},
+        {"POST", "/api/v1/wifi/connect", RouteAccess::owner, true},
+        {"POST", "/api/v1/auth/logout", RouteAccess::owner, true},
+        {"POST", "/api/v1/auth/password", RouteAccess::owner, true},
+        {"POST", "/api/v1/ota", RouteAccess::owner, true},
+        {"POST", "/api/v1/system/reboot", RouteAccess::owner, true},
+        {"POST", "/api/v1/system/factory-reset", RouteAccess::owner, true},
+        {"PATCH", "/api/v1/settings", RouteAccess::owner, true},
+        {"PATCH", "/api/v1/sensors/" + rom, RouteAccess::owner, true},
+        {"DELETE", "/api/v1/sensors/" + rom, RouteAccess::owner, true},
+        {"PUT", hold, RouteAccess::owner, true},
+        {"DELETE", hold, RouteAccess::owner, true},
+    };
+    for (const auto &route : inventory) {
+        const auto access = route_access(route.method, route.path);
+        CHECK(access == route.expected);
+        const bool csrf = route_needs_csrf(access, route.method);
+        // Every owner change needs the CSRF token; owner reads and open routes do not.
+        CHECK(csrf == (route.expected == RouteAccess::owner && std::string(route.method) != "GET"));
+        const auto anonymous = api_gate(access, session_accepted(false, csrf, false));
+        const auto no_csrf = api_gate(access, session_accepted(true, csrf, false));
+        const auto signed_in = api_gate(access, session_accepted(true, csrf, true));
+        if (route.expected == RouteAccess::open) {
+            CHECK(anonymous == ApiGate::proceed && no_csrf == ApiGate::proceed &&
+                  signed_in == ApiGate::proceed);
+        } else {
+            CHECK(anonymous == ApiGate::unauthorized);
+            CHECK(no_csrf == (csrf ? ApiGate::unauthorized : ApiGate::proceed));
+            CHECK(signed_in == ApiGate::proceed);
+        }
+        // No destructive owner route is reachable without a session and its CSRF token.
+        if (route.destructive && route.expected == RouteAccess::owner)
+            CHECK(anonymous != ApiGate::proceed && no_csrf != ApiGate::proceed);
+    }
+    CHECK(api_gate(route_access("POST", "/api/v1/nope"), true) == ApiGate::not_found);
+    std::cout << "PASS: API route access policy and the dispatcher's gate for every route\n";
 }
