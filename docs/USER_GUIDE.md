@@ -14,7 +14,8 @@ Sensor calibration and alarm limits are entered in the unit you selected and
 stored in Celsius.
 
 **Who can see what.** Anyone who can reach the device can open the Dashboard,
-History, Alerts and Events without a password. Changing anything needs the
+History, Alerts and Events without a password. The navigation is a side rail on a wide
+screen and a bar along the bottom on a phone. Changing anything needs the
 administrator password: the Sensors page and the settings controls show a
 sign-in box until you sign in, and **Sign in** / **Sign out** sit at the top of
 the page. History is limited to one query per second and one CSV export per 30
@@ -95,13 +96,14 @@ Humidity is not measured by these probes. A separate sensor would be needed for 
 
 ## Alerts and event history
 
-Active alerts and events are on separate pages. The **Alerts** page shows only
-**active alerts**. The **Events** page lists the journal. Active alerts are
+The **Alerts** page has two tabs, **Alerts** (the default) and **Events**. The **Alerts** tab shows
+only **active alerts**. The **Events** tab lists the journal; the old `/events` address opens it.
+A badge on the Alerts icon in the navigation shows how many alerts are active. Active alerts are
 conditions that need attention now: a probe reading high or low, a disconnected
 probe, a shared sensor bus fault, or a lost Wi-Fi connection. Each one shows when it
-began and clears by itself when the condition ends. **Events** (on their own page) are records of things that happened:
-device starts, probe and bus state changes, Wi-Fi and clock changes, and history
-write failures. An event may or may not need attention; check the active list for
+began and clears by itself when the condition ends. **Events** are records of things that happened:
+device starts, probe and bus state changes, Wi-Fi and clock changes, ice-bath calibration holds
+(when a hold started and why it ended), and history write failures. An event may or may not need attention; check the active list for
 what is still a problem. The journal is bounded; the page warns when
 older records have been compacted or the journal is unavailable. When the clock
 is synchronized, event times use the timezone selected in Settings and include

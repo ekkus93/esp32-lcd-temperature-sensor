@@ -17,6 +17,7 @@ import {
   timezones,
   type DeviceSettings as Settings,
 } from '../api/settings';
+import LoadingBlock from './LoadingBlock';
 const durationFields = [
   'overview_seconds',
   'trends_seconds',
@@ -290,7 +291,7 @@ export default function DeviceSettings({
           />
         )}
         {!settings && !error && (
-          <Typography>Loading device preferences…</Typography>
+          <LoadingBlock label="Loading device preferences…" />
         )}
       </CardContent>
     </Card>

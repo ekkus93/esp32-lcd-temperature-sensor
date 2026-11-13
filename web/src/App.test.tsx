@@ -636,7 +636,7 @@ it('shows Alerts and Events as tabs of one page, Alerts first and by default', a
   ]);
   expect(location.pathname).toBe('/alerts');
   fireEvent.click(screen.getByRole('tab', { name: 'Events' }));
-  expect(await screen.findByText('No recent events.')).toBeInTheDocument();
+  expect(await screen.findByText('No recent events')).toBeInTheDocument();
   expect(location.pathname).toBe('/events');
   expect(screen.queryByText('No active alerts')).toBeNull();
 });
@@ -648,7 +648,7 @@ it('opens the Events tab from an old /events link', async () => {
   expect(
     await screen.findByRole('tab', { name: 'Events', selected: true }),
   ).toBeInTheDocument();
-  expect(await screen.findByText('No recent events.')).toBeInTheDocument();
+  expect(await screen.findByText('No recent events')).toBeInTheDocument();
   expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Alerts');
 });
 

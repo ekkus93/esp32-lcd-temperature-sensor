@@ -382,6 +382,12 @@ or storage change. R12-01 comes first; if R11-02 is built after it, it uses the 
   reduced motion, focus and accessible names; before and after screenshots of every page in light
   and dark at 390 and 1280 px under `docs/validation/`; `docs/WEB_UI_DESIGN_SPEC.md` and
   `docs/USER_GUIDE.md` updated. Acceptance: a reviewer compares the screenshots with §18.
+  Done (2026-11-12, host and simulator): loading placeholders are skeletons with the words kept
+  for screen readers; the Events empty state has an icon; `docs/validation/web-redesign-2026-11-12/`
+  holds before and after pictures of all six pages in light and dark at 390 and 1280 px, with the
+  overflow check at 360, 390, 768, 1280 and 1600 px (0 px everywhere); `USER_GUIDE.md` describes the
+  Alerts and Events tabs and the calibration; `WEB_UI_DESIGN_SPEC.md` lists the navigation and the
+  calibration flow. Not all error messages were reviewed for their next step; see the record.
 - [ ] **R12-08** [HW] On the board: every page loads from the device with no internet, the font
   comes from the device, the firmware fits both OTA slots, and a phone shows the bottom navigation
   correctly. Recorded under `docs/validation/`.

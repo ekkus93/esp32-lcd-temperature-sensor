@@ -14,9 +14,11 @@ import ScheduleOutlined from '@mui/icons-material/ScheduleOutlined';
 import RestartAltOutlined from '@mui/icons-material/RestartAltOutlined';
 import SdCardAlertOutlined from '@mui/icons-material/SdCardAlertOutlined';
 import ScienceOutlined from '@mui/icons-material/ScienceOutlined';
+import HistoryOutlined from '@mui/icons-material/HistoryOutlined';
 import { getAlerts, type AlertData } from '../api/alerts';
 import { formatDeviceTime } from '../api/time';
 
+import LoadingBlock from './LoadingBlock';
 function wifiState(value: number) {
   return ['offline', 'connecting', 'connected', 'setup'][value] ?? 'unknown';
 }
@@ -203,9 +205,32 @@ export default function EventsView({ timezone }: { timezone: string | null }) {
             </Box>
           )}
           {data && !data.events.length && (
-            <Typography>No recent events.</Typography>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                py: 3,
+                color: 'text.secondary',
+              }}
+            >
+              <HistoryOutlined aria-hidden="true" sx={{ fontSize: 40 }} />
+              <Box>
+                <Typography
+                  variant="titleMedium"
+                  component="p"
+                  color="text.primary"
+                >
+                  No recent events
+                </Typography>
+                <Typography variant="bodyMedium">
+                  Device starts, Wi-Fi and clock changes, probe state changes
+                  and ice-bath holds appear here.
+                </Typography>
+              </Box>
+            </Box>
           )}
-          {!data && !error && <Typography>Loading events…</Typography>}
+          {!data && !error && <LoadingBlock label="Loading events…" />}
         </CardContent>
       </Card>
     </Stack>

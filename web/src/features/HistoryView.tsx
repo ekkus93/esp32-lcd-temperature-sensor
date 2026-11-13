@@ -39,6 +39,7 @@ import TrendChart from './chart/TrendChart';
 import { timeTicks } from './chart/scale';
 import { chartGaps, chartSeries, pointTime } from './chart/historySeries';
 
+import LoadingBlock from './LoadingBlock';
 const ranges = [
   { label: '1 hour', hours: 1 },
   { label: '24 hours', hours: 24 },
@@ -338,7 +339,7 @@ export default function HistoryView({
           </Box>
         </Box>
         {error && <Alert severity="error">{error}</Alert>}
-        {!error && !result && <Typography>Loading history…</Typography>}
+        {!error && !result && <LoadingBlock label="Loading history…" />}
         {result && (
           <>
             {result.truncated && (

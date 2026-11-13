@@ -25,6 +25,7 @@ import {
   saveSensor,
   type SensorConfiguration,
 } from '../api/sensors';
+import LoadingBlock from './LoadingBlock';
 const numericFields = [
   'calibration_c',
   'hysteresis_c',
@@ -558,7 +559,7 @@ export default function SensorsView({
       >
         Refresh sensor configuration
       </Button>
-      {sensors === null && !error && <Typography>Loading sensors…</Typography>}
+      {sensors === null && !error && <LoadingBlock label="Loading sensors…" />}
       {sensors?.length === 0 && (
         <Typography>
           No sensors discovered. Unused positions do not cause alarms.

@@ -36,6 +36,7 @@ import { subscribeLive } from './api/live';
 import { delayedError } from './api/delayedError';
 import { otaStateText } from './otaState';
 import type { Snapshot } from './api/generated';
+import LoadingBlock from './features/LoadingBlock';
 const NetworkSettings = lazy(() => import('./features/NetworkSettings'));
 const SensorsView = lazy(() => import('./features/SensorsView'));
 const AlertsView = lazy(() => import('./features/AlertsView'));
@@ -261,7 +262,7 @@ function Shell() {
               />
             )}
             {index === 1 && snapshot && (
-              <Suspense fallback={<Typography>Loading history…</Typography>}>
+              <Suspense fallback={<LoadingBlock label="Loading history…" />}>
                 <HistoryView
                   snapshot={snapshot}
                   unit={unit}
@@ -271,7 +272,7 @@ function Shell() {
             )}
             {index === 2 && (
               <AuthGate reason="Sign in to view and change sensor settings.">
-                <Suspense fallback={<Typography>Loading sensors…</Typography>}>
+                <Suspense fallback={<LoadingBlock label="Loading sensors…" />}>
                   <SensorsView unit={unit} snapshot={snapshot} />
                 </Suspense>
               </AuthGate>
@@ -303,11 +304,13 @@ function Shell() {
                 >
                   <Suspense
                     fallback={
-                      <Typography>
-                        {alertsTab === 'alerts'
-                          ? 'Loading alerts…'
-                          : 'Loading events…'}
-                      </Typography>
+                      <LoadingBlock
+                        label={
+                          alertsTab === 'alerts'
+                            ? 'Loading alerts…'
+                            : 'Loading events…'
+                        }
+                      />
                     }
                   >
                     {alertsTab === 'alerts' ? (
@@ -356,7 +359,7 @@ function Shell() {
                     <AuthGate reason="Sign in to change the units, the LCD, the time zone or the network name.">
                       <Suspense
                         fallback={
-                          <Typography>Loading device preferences…</Typography>
+                          <LoadingBlock label="Loading device preferences…" />
                         }
                       >
                         <DeviceSettings onApplied={applySettings} />
@@ -367,7 +370,7 @@ function Shell() {
                     <AuthGate reason="Sign in to change the Wi-Fi network.">
                       <Suspense
                         fallback={
-                          <Typography>Loading network settings…</Typography>
+                          <LoadingBlock label="Loading network settings…" />
                         }
                       >
                         <NetworkSettings />
@@ -436,9 +439,7 @@ function Shell() {
                           <CardContent>
                             <Suspense
                               fallback={
-                                <Typography>
-                                  Loading firmware updater…
-                                </Typography>
+                                <LoadingBlock label="Loading firmware updater…" />
                               }
                             >
                               <FirmwareUpdate
@@ -459,9 +460,7 @@ function Shell() {
                           <CardContent>
                             <Suspense
                               fallback={
-                                <Typography>
-                                  Loading system controls…
-                                </Typography>
+                                <LoadingBlock label="Loading system controls…" />
                               }
                             >
                               <SystemControls />
@@ -475,7 +474,7 @@ function Shell() {
                     <AuthGate reason="Sign in to change the administrator password.">
                       <Suspense
                         fallback={
-                          <Typography>Loading password settings…</Typography>
+                          <LoadingBlock label="Loading password settings…" />
                         }
                       >
                         <PasswordSettings />

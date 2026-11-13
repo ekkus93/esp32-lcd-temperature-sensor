@@ -65,7 +65,7 @@ Normal application routes (SPA navigation; server must fall back to index for ap
 
 **Desktop ≥ 960 CSS px:** persistent left navigation rail/drawer, top app bar, fluid content area. Five cards can appear in one row on wide desktops; collapse to three/two as width decreases. Keep chart directly below cards.  
 **Tablet 600–959 px:** compact drawer or rail, responsive 2–3 column cards.  
-**Mobile < 600 px:** compact top bar with clear connection state, bottom navigation with Dashboard / History / Sensors / Alerts / Events / Settings, and 1–2 cards per row depending on actual width and accessible text zoom. Do not clip names or threshold warnings. Honor safe areas.
+**Mobile < 600 px:** compact top bar with clear connection state, bottom navigation with Dashboard / History / Sensors / Alerts / Settings (Events is a tab of Alerts), and 1–2 cards per row depending on actual width and accessible text zoom. Do not clip names or threshold warnings. Honor safe areas.
 
 **UI intent:** clean Material 3 cards, elevated/tonal surfaces, rounded corners, generous spacing, crisp tabular numeric readings, accessible status text. Light theme default; dark theme (system preference + selectable override) supported. No excessive motion.
 

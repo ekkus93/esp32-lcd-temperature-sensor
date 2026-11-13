@@ -13,6 +13,7 @@ import { AlertList } from './alertItems';
 
 // Active alerts are conditions that need attention now; each one clears by itself when the
 // condition ends. What happened is on the Events tab.
+import LoadingBlock from './LoadingBlock';
 export default function AlertsView({ timezone }: { timezone: string | null }) {
   const [active, setActive] = useState<AlertData['active'] | null>(null);
   const [error, setError] = useState('');
@@ -80,7 +81,7 @@ export default function AlertsView({ timezone }: { timezone: string | null }) {
               </Box>
             </Box>
           )}
-          {!active && !error && <Typography>Loading alerts…</Typography>}
+          {!active && !error && <LoadingBlock label="Loading alerts…" />}
         </CardContent>
       </Card>
     </Stack>
