@@ -16,5 +16,5 @@ stays open.
 Both slots are the same size, so the image fits either one. The existing release check
 (`tools/release_provenance.py`) still computes OTA headroom from the CI build; there is no separate
 web size budget in the tree, and none was added. Cached against fresh loads were not measured here:
-the device serves hashed assets with a one-year immutable cache and `index.html` with `no-store`,
+the device serves hashed assets with a one-year immutable cache and `index.html` with `no-cache` (revalidated on each load),
 which A20.1 should observe on a phone.
