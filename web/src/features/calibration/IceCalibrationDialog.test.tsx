@@ -306,3 +306,75 @@ it('stops measuring when the shared sensor bus faults, and never saves', async (
   ).toBeInTheDocument();
   expect(saveSensor).not.toHaveBeenCalled();
 });
+
+// Timers for the give-up and revision checks: real time still runs, so waits keep working.
+async function withClock(run: () => Promise<void>) {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    await run();
+  } finally {
+    vi.useRealTimers();
+  }
+}
+
+it('gives up after ten minutes without a steady reading, and saves nothing', async () => {
+  await withClock(async () => {
+    const { view, props } = open();
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Start measuring' }),
+    );
+    // Readings that keep moving: 0.0 and 0.6 alternately, never steady.
+    for (let i = 0; i < 12; i++)
+      view.rerender(
+        <IceCalibrationDialog {...props} snapshot={frame(i % 2 ? 0.6 : 0)} />,
+      );
+    expect(screen.queryByText(/Offset:/)).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(10 * 60 * 1000 + 1000);
+    });
+    expect(
+      await screen.findByText(/No steady reading in 10 minutes/),
+    ).toBeInTheDocument();
+    expect(saveSensor).not.toHaveBeenCalled();
+    // Start again begins a fresh measurement.
+    fireEvent.click(screen.getByRole('button', { name: 'Start again' }));
+    expect(
+      await screen.findByRole('button', { name: 'Start measuring' }),
+    ).toBeInTheDocument();
+  });
+}, 20000);
+
+it('stops measuring when the saved settings change elsewhere during the measurement', async () => {
+  await withClock(async () => {
+    open();
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Start measuring' }),
+    );
+    // Someone else saved this probe: its ETag has moved on.
+    vi.mocked(getSensors).mockResolvedValue([
+      { ...(await getSensors())[0], etag: '"boot:2801000000000029:9"' },
+    ] as never);
+    act(() => {
+      vi.advanceTimersByTime(15000);
+    });
+    expect(
+      await screen.findByText(/settings changed elsewhere/),
+    ).toBeInTheDocument();
+    expect(saveSensor).not.toHaveBeenCalled();
+  });
+}, 20000);
+
+it('shows the ice point and offsets in Fahrenheit when the page is in °F', async () => {
+  const { view, props } = open(frame(0.4), { unit: 'F' });
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Start measuring' }),
+  );
+  feed(view, 0.4, 12, { ...props, unit: 'F' });
+  // 0 °C is 32 °F; the offset of -0.4 °C is -0.7 °F, a difference with no 32 degree offset.
+  expect(await screen.findByText(/read 32\.0 °F\./)).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      /Offset: 0\.0 → -0\.7 °F\. Every reading will change by -0\.7 °F\./,
+    ),
+  ).toBeInTheDocument();
+});

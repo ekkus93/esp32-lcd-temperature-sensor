@@ -251,7 +251,7 @@ bath. API additions are additive within schema v1 (§17.3); no settings storage 
   (`calibration_started`, `calibration_ended`, with the reasons in spec §17.3), shown on the Events
   tab. **Not yet checked:** the 409 and 1-to-20-minute refusals in the HTTP handler (device-only
   code, so they need a board test), and an older build skipping these kinds on the board.
-- [ ] **R11-02** Guided ice-bath calibration on each sensor's tab (§17.2): instructions, live
+- [x] **R11-02** Guided ice-bath calibration on each sensor's tab (§17.2): instructions, live
   measuring, the steadiness rule (12 readings within 0.125 °C), offset = 0 − mean uncalibrated
   reading rounded to 0.1 °C, the confirm screen with the change in readings and the reminder to
   check the high and low limits, save through the existing `PATCH`, the hold started, renewed and
@@ -267,8 +267,9 @@ bath. API additions are additive within schema v1 (§17.3); no settings storage 
   shows "Calibrate in ice" only for a probe with a reading and writable settings. The simulator takes
   these writes in memory and simulates a probe 0.4 °C in error. Tests: 22 dialog, 8 logic, and the
   button rules. Checked end to end in headless Chromium at 360, 390 and 1280 px (about 65 s per run),
-  including the unchanged-offset case. **Not yet covered:** the 10-minute give-up, the revision-change
-  check during measuring, and the °F wording (checked by eye only).
+  including the unchanged-offset case. Covered since (2026-11-12): the 10-minute give-up, the
+  revision-change check during measuring, the bus-fault stop and the °F wording, all in the dialog
+  tests (25 in total). Done.
 - [ ] **R11-03** User guide calibration section (§17.4): the ice bath, calibrating each probe as
   installed, what calibration changes and the limits reminder, the alert pause, and probe
   placement in a grow room. `docs/WEB_UI_DESIGN_SPEC.md` describes the flow. Acceptance: a
