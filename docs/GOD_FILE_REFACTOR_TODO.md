@@ -77,7 +77,9 @@ code, then move the group into its file in a separate commit, with the tests unc
   `export_history_csv` and `build_history_json`).
 - [ ] **G10 — Static assets and portal probes** (asset lookup, gzip requirement, cache and security
   headers, the SPA fallback list, socket close after an asset).
-- [ ] **G11 — Live JSON** (snapshot and sensor serialization into `live_json`).
+- [x] **G11 — Live JSON** (snapshot and sensor serialization into `live_json`).
+  Done (before G08, which needs it): `snapshot_json()` joins the sensor, event and boot-id JSON
+  moved in G05; ctest `routes_live_json`.
 - [ ] **G12 — Route boundary harness** (spec §6; review audit A10.2).
   - [ ] **G12.1** For every route: anonymous, session without CSRF and full session through the
     real router with fakes; every refused dangerous request leaves every fake untouched.

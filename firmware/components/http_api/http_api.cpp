@@ -374,75 +374,7 @@ bool HttpApi::publish(const Registry &registry, ProbeScanStatus probe_scan, int6
     return true;
 }
 std::string HttpApi::snapshot() {
-    LiveView view;
-    if (!live_->read(view))
-        return {};
-    const Registry &registry = view.registry;
-    const int64_t uptime = view.uptime_ms;
-    const bool logging = view.logging, synced = view.synchronized;
-    const std::string &utc = view.utc;
-    Json object(cJSON_CreateObject(), cJSON_Delete);
-    cJSON_AddNumberToObject(object.get(), "version", 1);
-    cJSON_AddNumberToObject(object.get(), "sequence", registry.sequence());
-    cJSON_AddStringToObject(object.get(), "boot_id", boot_id_.c_str());
-    cJSON_AddNumberToObject(object.get(), "uptime_ms", uptime);
-    cJSON_AddBoolToObject(object.get(), "simulated", simulated_);
-    cJSON_AddBoolToObject(object.get(), "bus_fault", registry.bus_fault());
-    const auto update = system_->ota_status();
-    auto *firmware = cJSON_AddObjectToObject(object.get(), "firmware");
-    cJSON_AddStringToObject(firmware, "version", update.version.c_str());
-    cJSON_AddStringToObject(firmware, "partition", update.partition.c_str());
-    cJSON_AddStringToObject(firmware, "ota_state", update.state.c_str());
-    auto *clock = cJSON_AddObjectToObject(object.get(), "clock");
-    cJSON_AddBoolToObject(clock, "synchronized", synced);
-    if (synced)
-        cJSON_AddStringToObject(clock, "utc", utc.c_str());
-    else
-        cJSON_AddNullToObject(clock, "utc");
-    auto *wifi = cJSON_AddObjectToObject(object.get(), "wifi");
-    auto network = wifi_->info();
-    cJSON_AddStringToObject(wifi, "state", network.state.c_str());
-    // The name mDNS is really using (it changes after a conflict); null when mDNS is unavailable.
-    if (const auto name = wifi_->mdns_hostname(); !name.empty())
-        cJSON_AddStringToObject(wifi, "mdns_hostname", name.c_str());
-    else
-        cJSON_AddNullToObject(wifi, "mdns_hostname");
-    auto *history = cJSON_AddObjectToObject(object.get(), "logging");
-    cJSON_AddBoolToObject(history, "healthy", logging);
-    cJSON_AddNumberToObject(history, "interval_seconds", 300);
-    auto storage = history_->storage_info();
-    cJSON_AddBoolToObject(history, "storage_available", storage.available);
-    cJSON_AddNumberToObject(history, "storage_total_bytes", storage.total_bytes);
-    cJSON_AddNumberToObject(history, "storage_used_bytes", storage.used_bytes);
-    auto *sensors = cJSON_AddArrayToObject(object.get(), "sensors");
-    auto ordered = registry.sensors();
-    std::stable_sort(ordered.begin(), ordered.end(), [](const Sensor &a, const Sensor &b) {
-        return std::tie(a.settings.order, a.rom) < std::tie(b.settings.order, b.rom);
-    });
-    for (const auto &sensor : ordered) {
-        auto *s = cJSON_CreateObject();
-        cJSON_AddItemToArray(sensors, s);
-        cJSON_AddStringToObject(s, "rom_id", rom_hex(sensor.rom).c_str());
-        cJSON_AddStringToObject(s, "name", sensor.settings.name.c_str());
-        cJSON_AddStringToObject(s, "state", state_name(sensor.state));
-        if (sensor.temperature)
-            cJSON_AddNumberToObject(s, "temperature_c", *sensor.temperature);
-        else
-            cJSON_AddNullToObject(s, "temperature_c");
-        if (sensor.last_seen_ms)
-            cJSON_AddNumberToObject(s, "last_seen_ms", *sensor.last_seen_ms);
-        else
-            cJSON_AddNullToObject(s, "last_seen_ms");
-        cJSON_AddBoolToObject(s, "enabled", sensor.settings.enabled);
-        cJSON_AddNumberToObject(s, "order", sensor.settings.order);
-        add_calibration_hold(s, sensor);
-    }
-    char *text = cJSON_PrintUnformatted(object.get());
-    if (!text)
-        return {};
-    std::string result(text);
-    cJSON_free(text);
-    return result;
+    return snapshot_json(*ports_);
 }
 esp_err_t HttpApi::dispatch(httpd_req_t *request) {
     IdfExchange exchange(request);
