@@ -369,7 +369,7 @@ or storage change. R12-01 comes first; if R11-02 is built after it, it uses the 
   hover readout, tick labels, the table and export menu, and the History tests updated for the
   new controls (hidden rather than disabled, chips, paths). Checked against the simulator at
   1280 and 390 px: range buttons don't wrap, every other time label on a phone, the table fits.
-- [ ] **R12-06** Sensors, Settings and sign-in restyled (§18.7): Material 3 tabs and fields, the
+- [x] **R12-06** Sensors, Settings and sign-in restyled (§18.7): Material 3 tabs and fields, the
   °C/°F segmented button, the button rule, confirm dialogs for destructive actions, snackbars.
   Acceptance: the existing tests pass, updated only for the new controls.
   Partly done (2026-11-12, not yet checked): the four `window.confirm` prompts (restart, factory
@@ -383,6 +383,8 @@ or storage change. R12-01 comes first; if R11-02 is built after it, it uses the 
   the calibration saved, and the Wi-Fi connection saved. Progress and errors stay inline. The
   password change has no success message: it signs the browser out. Tests: the provider (two
   cases), and the settings tests now render through the themed wrapper with the provider.
+  Done (2026-11-12): with the confirmation dialogs, the centred sign-in card and the snackbars above,
+  every part of §18.7 is in; the existing tests pass, changed only for the new controls.
 - [ ] **R12-07** Quality pass and documents (§18.8, §18.9): skeletons, empty and error states,
   reduced motion, focus and accessible names; before and after screenshots of every page in light
   and dark at 390 and 1280 px under `docs/validation/`; `docs/WEB_UI_DESIGN_SPEC.md` and
@@ -393,6 +395,7 @@ or storage change. R12-01 comes first; if R11-02 is built after it, it uses the 
   overflow check at 360, 390, 768, 1280 and 1600 px (0 px everywhere); `USER_GUIDE.md` describes the
   Alerts and Events tabs and the calibration; `WEB_UI_DESIGN_SPEC.md` lists the navigation and the
   calibration flow. Not all error messages were reviewed for their next step; see the record.
+  Waiting on the owner's review of the before and after pictures against §18 (the acceptance test).
 - [ ] **R12-08** [HW] On the board: every page loads from the device with no internet, the font
   comes from the device, the firmware fits both OTA slots, and a phone shows the bottom navigation
   correctly. Recorded under `docs/validation/`.
