@@ -120,15 +120,17 @@ prior validation are inputs, not proof that these regressions or gates pass.
     Done: `scale.ts` and phone thinning; record
     `docs/validation/review-audit-chart-ticks-2026-11-13.md` (simulator shows uptime axes only).
 
-- [ ] **A07 — F6: Validate dashboard history identity** (spec §9; R12-04).
-  - [ ] **A07.1** Reproduce reboot/overlapping-uptime and first-sync failures
+- [x] **A07 — F6: Validate dashboard history identity** (spec §9; R12-04).
+  - [x] **A07.1** Reproduce reboot/overlapping-uptime and first-sync failures
     that reuse incompatible cached data against a new axis.
-  - [ ] **A07.2** Bind accepted results to request identity and bounds; clear
+  - [x] **A07.2** Bind accepted results to request identity and bounds; clear
     incompatible data and reject late obsolete responses.
-  - [ ] **A07.3** Show stale/error status for retained same-context data with
+  - [x] **A07.3** Show stale/error status for retained same-context data with
     its original bounds, independently of live-snapshot freshness.
-  - [ ] **A07.4** Test range changes, failed refreshes and recovery; assert
+  - [x] **A07.4** Test range changes, failed refreshes and recovery; assert
     plotted values/axis and one query per range/five-minute refresh.
+    Done: `Dashboard.tsx` history entry with request context and bounds; record
+    `docs/validation/review-audit-dashboard-history-2026-11-13.md`.
 
 - [ ] **A08 — F8: Stabilize Settings save tests** (spec §11; R06-08, R12-06).
   - [ ] **A08.1** Deliberately interleave `/clock` polling with a settings save

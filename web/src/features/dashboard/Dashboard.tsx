@@ -3,6 +3,7 @@
 // all probes (refreshed every five minutes), within the device's public rate limits.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Box,
   Button,
   Chip,
@@ -80,6 +81,17 @@ const surface = (radius: number) => ({
   minWidth: 0,
 });
 
+interface HistoryEntry {
+  context: string; // boot, clock basis and range of the request
+  basis: 'utc' | 'uptime';
+  bounds: { from: number; to: number }; // the axis the request was made for
+  value: HistoryResult | null;
+  error: string | null; // the last refresh failed
+}
+// Which clock a history request uses for this snapshot (as getHistory decides).
+const historyBasis = (snapshot: Snapshot): 'utc' | 'uptime' =>
+  snapshot.clock.synchronized && snapshot.clock.utc !== null ? 'utc' : 'uptime';
+
 export default function Dashboard({
   snapshot,
   unit,
@@ -99,10 +111,9 @@ export default function Dashboard({
   const limits = useLimits();
   const [hours, setHours] = useState<number>(24);
   const [hidden, setHidden] = useState<string[]>([]);
-  const [history, setHistory] = useState<{
-    key: string;
-    value: HistoryResult;
-  } | null>(null);
+  // The last answer and the request it belongs to (review audit F6): it is drawn only for the same
+  // boot, clock basis and range, and a failed refresh keeps it with a notice and its own bounds.
+  const [history, setHistory] = useState<HistoryEntry | null>(null);
   const [tick, setTick] = useState(0);
   const latest = useRef(snapshot);
   useEffect(() => {
@@ -111,8 +122,8 @@ export default function Dashboard({
 
   // One query on entry, on a new range, a reboot or the clock being set, then every five minutes.
   const boot = snapshot?.boot_id;
-  const synced = snapshot?.clock.synchronized;
-  const key = `${boot}:${synced}:${hours}:${tick}`;
+  const synced = snapshot ? historyBasis(snapshot) === 'utc' : undefined;
+  const context = `${boot}:${synced}:${hours}`;
   useEffect(() => {
     const interval = setInterval(() => setTick((n) => n + 1), 300000);
     return () => clearInterval(interval);
@@ -120,18 +131,34 @@ export default function Dashboard({
   useEffect(() => {
     const current = latest.current;
     if (!current) return;
-    let cancelled = false;
+    // Bounds and basis as requested; an answer for another context is never drawn.
+    const basis = historyBasis(current);
+    const to =
+      basis === 'utc' ? Date.parse(current.clock.utc!) : current.uptime_ms;
+    const bounds = { from: Math.max(0, to - hours * 3600000), to };
+    let cancelled = false; // a newer request (or leaving) makes this answer obsolete
     getHistory(current, hours)
       .then((value) => {
-        if (!cancelled) setHistory({ key, value });
+        if (cancelled) return;
+        if (value.time_basis !== basis)
+          throw new Error('The device answered for a different clock.');
+        setHistory({ context, basis, bounds, value, error: null });
       })
-      .catch(() => {
-        // Keep the last chart; the History page reports errors.
+      .catch((cause: unknown) => {
+        if (cancelled) return;
+        const error =
+          cause instanceof Error ? cause.message : 'History unavailable';
+        // Same context: keep the chart, marked stale. Otherwise there is nothing to show.
+        setHistory((previous) =>
+          previous?.context === context && previous.value
+            ? { ...previous, error }
+            : { context, basis, bounds, value: null, error },
+        );
       });
     return () => {
       cancelled = true;
     };
-  }, [key, hours, boot]);
+  }, [context, hours, tick]);
 
   const probes: PanelProbe[] = useMemo(
     () =>
@@ -175,13 +202,19 @@ export default function Dashboard({
     uptimeMs: snapshot.uptime_ms,
   });
   const range = ranges.find((r) => r.hours === hours) ?? ranges[0];
-  const result = history?.value ?? null;
-  const basis = result?.time_basis === 'utc' ? 'utc' : 'uptime';
-  const to =
+  // Only an answer for this boot, clock basis and range is drawn. A fresh one follows the live
+  // clock; one kept after a failed refresh keeps the bounds it was fetched for.
+  const entry = history?.context === context ? history : null;
+  const result = entry?.value ?? null;
+  const basis = entry?.basis ?? historyBasis(snapshot);
+  const liveTo =
     basis === 'utc' && snapshot.clock.utc
       ? Date.parse(snapshot.clock.utc)
       : snapshot.uptime_ms;
-  const from = Math.max(0, to - hours * 3600000);
+  const { from, to } =
+    entry?.error && entry.value
+      ? entry.bounds
+      : { from: Math.max(0, liveTo - hours * 3600000), to: liveTo };
   const colour = (order: number) =>
     theme.palette.series[order % theme.palette.series.length];
   const charted = probes.map((p) => {
@@ -306,6 +339,25 @@ export default function Dashboard({
               })}
             </Box>
           )}
+          {entry?.error && (
+            <Alert
+              severity={result ? 'warning' : 'error'}
+              role="alert"
+              action={
+                <Button
+                  color="inherit"
+                  size="small"
+                  onClick={() => setTick((n) => n + 1)}
+                >
+                  Try again
+                </Button>
+              }
+            >
+              {result
+                ? `History could not be refreshed (${entry.error}). The chart shows the last answer, up to ${pointTime(entry.bounds.to, basis, timezone)}; live readings above are separate.`
+                : `History unavailable: ${entry.error}. It is tried again every five minutes.`}
+            </Alert>
+          )}
           {result && result.points.length > 0 ? (
             <TrendChart
               series={series}
@@ -322,7 +374,9 @@ export default function Dashboard({
             <Typography variant="bodyMedium" color="text.secondary">
               {result
                 ? 'No history in this range yet. Five-minute averages appear here as they are recorded.'
-                : 'Loading history…'}
+                : entry?.error
+                  ? 'No chart to show.'
+                  : 'Loading history…'}
             </Typography>
           )}
         </Box>
