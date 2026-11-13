@@ -277,3 +277,11 @@ foreach(reader tolerant_3c1a01d strict_cefb21b)
     add_test(NAME journal_older_reader_${reader}
              COMMAND sh -c "journal=$($<TARGET_FILE:journal_fixture_writer>) && $<TARGET_FILE:journal_reader_${reader}> \"$journal\"")
 endforeach()
+
+# The HTTP API ports and their recording fakes (God file refactor G02.2).
+set(http_port_includes ../components/http_api/include ../components/auth_service/include ../components/wifi_service/include ../components/history_service/include ../components/ota_service/include http_fakes settings_mocks)
+add_executable(fake_ports_tests fake_ports_tests.cpp)
+target_include_directories(fake_ports_tests PRIVATE ${http_port_includes})
+target_link_libraries(fake_ports_tests PRIVATE monitor_core)
+target_compile_options(fake_ports_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
+add_test(NAME http_fake_ports COMMAND fake_ports_tests)

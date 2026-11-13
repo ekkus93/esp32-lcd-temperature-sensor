@@ -34,13 +34,13 @@ with the owner's confirmation.
   - [x] **G01.2** Add `IdfExchange` and make `handle()` use the exchange instead of `httpd_req_t`,
     mechanically, with no route moved yet. Host tests for the helpers (body size, timeout,
     non-JSON, headers).
-- [ ] **G02 — Service ports** (spec §4.3).
+- [x] **G02 — Service ports** (spec §4.3).
   - [x] **G02.1** Define `AuthPort`, `NetworkPort`, `HistoryPort`, `DeviceSettingsPort`,
     `SystemPort`, `SensorUpdates` and `LiveState`; device adapters over the existing services.
     Done: `api_ports.hpp`, `service_adapters`; `HttpApi` implements `SensorUpdates` and
     `LiveState`; plain types moved to `auth_types`, `network_types`, `history_storage_info`,
     `ota_types`. Image 2,188,336 bytes (+6,272).
-  - [ ] **G02.2** Host fakes that record every call, including the dangerous operations.
+  - [x] **G02.2** Host fakes that record every call, including the dangerous operations.
 - [ ] **G03 — Router** (spec §4.4).
   - [ ] **G03.1** Add `ApiRouter` with the route table and the gate (`api_gate`,
     `route_needs_csrf`, `session_accepted`) before any handler; keep the Origin/Host checks, the
@@ -48,6 +48,8 @@ with the owner's confirmation.
   - [ ] **G03.2** Host test: the table and `route_access()` cover the same routes, both ways.
     Done: `handle()`, `serve_history`, the workers, `origin` and `session` use `HttpExchange`;
     only the WebSocket hand-off and the OTA stream touch `httpd_req_t`. Image +3,056 bytes.
+    Done: `tests/http_fakes/fake_ports.hpp` (`FakeDevice::side_effects()`), ctest
+    `http_fake_ports`.
 
 ## Phase G2 — HTTP API split (characterize, then move)
 

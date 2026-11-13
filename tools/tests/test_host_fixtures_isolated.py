@@ -22,7 +22,8 @@ FORBIDDEN = [
     (re.compile(r'/dev/tty'), 'a serial port'),
     (re.compile(r'\.build/(device|elephant|nvs)'), 'a private setup or backup file'),
     (re.compile(r'esptool|write[_-]flash|erase[_-]flash'), 'the flashing tool'),
-    (re.compile(r'\bconnect\(|getaddrinfo|gethostbyname|AF_INET'), 'a network connection'),
+    # A bare socket connect(); a method such as network.connect() on a test fake is not one.
+    (re.compile(r'(?<![\w.>])connect\(|getaddrinfo|gethostbyname|AF_INET'), 'a network connection'),
 ]
 
 
@@ -75,10 +76,14 @@ class TheCheckCatchesUnsafeFixtures(unittest.TestCase):
             'a private setup or backup file': 'read(".build/device-admin.json")',
             'the flashing tool': 'system("esptool write-flash")',
             'a network connection': 'connect(fd, addr, len)',
+            'not a fake port call': 'network.connect("Home", "x")',
         }
         for what, text in samples.items():
             matched = [w for pattern, w in FORBIDDEN if pattern.search(text)]
-            self.assertIn(what, matched, text)
+            if what.startswith('not '):
+                self.assertEqual(matched, [], text)
+            else:
+                self.assertIn(what, matched, text)
 
 if __name__ == '__main__':
     unittest.main()
