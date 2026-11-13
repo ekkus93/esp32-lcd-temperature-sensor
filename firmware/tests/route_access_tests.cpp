@@ -23,6 +23,19 @@ int main() {
     CHECK(route_access("PATCH", "/api/v1/settings") == RouteAccess::owner);
     CHECK(route_access("PATCH", "/api/v1/sensors/" + rom) == RouteAccess::owner);
     CHECK(route_access("DELETE", "/api/v1/sensors/" + rom) == RouteAccess::owner);
+    // The ice-bath hold (spec 17.3) is the owner's: starting, renewing and ending it.
+    CHECK(route_access("PUT", "/api/v1/sensors/" + rom + "/calibration-hold") ==
+          RouteAccess::owner);
+    CHECK(route_access("DELETE", "/api/v1/sensors/" + rom + "/calibration-hold") ==
+          RouteAccess::owner);
+    CHECK(route_access("GET", "/api/v1/sensors/" + rom + "/calibration-hold") ==
+          RouteAccess::unknown);
+    CHECK(route_access("PUT", "/api/v1/sensors/" + rom) == RouteAccess::unknown);
+    CHECK(route_access("PUT", "/api/v1/sensors/storage/calibration-hold") == RouteAccess::unknown);
+    CHECK(route_access("PUT", "/api/v1/sensors/284D086700000009/calibration-hold") ==
+          RouteAccess::unknown);
+    CHECK(route_access("PATCH", "/api/v1/sensors/" + rom + "/calibration-hold") ==
+          RouteAccess::unknown);
     for (const char *path :
          {"/auth/logout", "/auth/password", "/ota", "/system/reboot", "/system/factory-reset",
           "/wifi/scan", "/wifi/provisioning", "/wifi/connect"})

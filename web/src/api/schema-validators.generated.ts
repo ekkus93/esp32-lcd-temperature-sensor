@@ -5171,6 +5171,17 @@ const schema19 = {
           "Whether the probe's own memory (DS18B20 TH/TL bytes) holds calibration_c, to the nearest 0.1 °C. Read-only; not accepted by PATCH.",
         enum: ['unknown', 'pending', 'stored', 'restored', 'failed'],
       },
+      calibrating: {
+        type: 'boolean',
+        description:
+          'True while an ice-bath calibration hold is in force (spec 17.3). Read-only; not accepted by PATCH.',
+      },
+      calibration_hold_ends_uptime_ms: {
+        type: ['integer', 'null'],
+        minimum: 0,
+        description:
+          'Uptime in milliseconds when the hold ends, or null when there is no hold. Read-only.',
+      },
     },
   },
 };
@@ -6085,6 +6096,121 @@ function validate18(
                                                 var valid1 = _errs31 === errors;
                                               } else {
                                                 var valid1 = true;
+                                              }
+                                              if (valid1) {
+                                                if (
+                                                  data0.calibrating !==
+                                                  undefined
+                                                ) {
+                                                  const _errs32 = errors;
+                                                  if (
+                                                    typeof data0.calibrating !==
+                                                    'boolean'
+                                                  ) {
+                                                    validate18.errors = [
+                                                      {
+                                                        instancePath:
+                                                          instancePath +
+                                                          '/' +
+                                                          i0 +
+                                                          '/calibrating',
+                                                        schemaPath:
+                                                          '#/items/properties/calibrating/type',
+                                                        keyword: 'type',
+                                                        params: {
+                                                          type: 'boolean',
+                                                        },
+                                                        message:
+                                                          'must be boolean',
+                                                      },
+                                                    ];
+                                                    return false;
+                                                  }
+                                                  var valid1 =
+                                                    _errs32 === errors;
+                                                } else {
+                                                  var valid1 = true;
+                                                }
+                                                if (valid1) {
+                                                  if (
+                                                    data0.calibration_hold_ends_uptime_ms !==
+                                                    undefined
+                                                  ) {
+                                                    let data17 =
+                                                      data0.calibration_hold_ends_uptime_ms;
+                                                    const _errs34 = errors;
+                                                    if (
+                                                      !(
+                                                        typeof data17 ==
+                                                          'number' &&
+                                                        !(data17 % 1) &&
+                                                        !isNaN(data17) &&
+                                                        isFinite(data17)
+                                                      ) &&
+                                                      data17 !== null
+                                                    ) {
+                                                      validate18.errors = [
+                                                        {
+                                                          instancePath:
+                                                            instancePath +
+                                                            '/' +
+                                                            i0 +
+                                                            '/calibration_hold_ends_uptime_ms',
+                                                          schemaPath:
+                                                            '#/items/properties/calibration_hold_ends_uptime_ms/type',
+                                                          keyword: 'type',
+                                                          params: {
+                                                            type: schema19.items
+                                                              .properties
+                                                              .calibration_hold_ends_uptime_ms
+                                                              .type,
+                                                          },
+                                                          message:
+                                                            'must be integer,null',
+                                                        },
+                                                      ];
+                                                      return false;
+                                                    }
+                                                    if (errors === _errs34) {
+                                                      if (
+                                                        typeof data17 ==
+                                                          'number' &&
+                                                        isFinite(data17)
+                                                      ) {
+                                                        if (
+                                                          data17 < 0 ||
+                                                          isNaN(data17)
+                                                        ) {
+                                                          validate18.errors = [
+                                                            {
+                                                              instancePath:
+                                                                instancePath +
+                                                                '/' +
+                                                                i0 +
+                                                                '/calibration_hold_ends_uptime_ms',
+                                                              schemaPath:
+                                                                '#/items/properties/calibration_hold_ends_uptime_ms/minimum',
+                                                              keyword:
+                                                                'minimum',
+                                                              params: {
+                                                                comparison:
+                                                                  '>=',
+                                                                limit: 0,
+                                                              },
+                                                              message:
+                                                                'must be >= 0',
+                                                            },
+                                                          ];
+                                                          return false;
+                                                        }
+                                                      }
+                                                    }
+                                                    var valid1 =
+                                                      _errs34 === errors;
+                                                  } else {
+                                                    var valid1 = true;
+                                                  }
+                                                }
                                               }
                                             }
                                           }
@@ -7012,6 +7138,17 @@ const schema23 = {
         last_seen_ms: { type: ['integer', 'null'], minimum: 0 },
         enabled: { type: 'boolean' },
         order: { type: 'integer', minimum: 0, maximum: 4 },
+        calibrating: {
+          type: 'boolean',
+          description:
+            'True while an ice-bath calibration hold is in force (spec 17.3). Read-only; not accepted by PATCH.',
+        },
+        calibration_hold_ends_uptime_ms: {
+          type: ['integer', 'null'],
+          minimum: 0,
+          description:
+            'Uptime in milliseconds when the hold ends, or null when there is no hold. Read-only.',
+        },
       },
     },
   },
@@ -7048,6 +7185,17 @@ const schema24 = {
     last_seen_ms: { type: ['integer', 'null'], minimum: 0 },
     enabled: { type: 'boolean' },
     order: { type: 'integer', minimum: 0, maximum: 4 },
+    calibrating: {
+      type: 'boolean',
+      description:
+        'True while an ice-bath calibration hold is in force (spec 17.3). Read-only; not accepted by PATCH.',
+    },
+    calibration_hold_ends_uptime_ms: {
+      type: ['integer', 'null'],
+      minimum: 0,
+      description:
+        'Uptime in milliseconds when the hold ends, or null when there is no hold. Read-only.',
+    },
   },
 };
 function validate22(
@@ -7329,15 +7477,9 @@ function validate22(
                                   } else {
                                     const _errs16 = errors;
                                     for (const key1 in data6) {
-                                      if (!(
-                                        key1 === 'rom_id' ||
-                                        key1 === 'name' ||
-                                        key1 === 'state' ||
-                                        key1 === 'temperature_c' ||
-                                        key1 === 'last_seen_ms' ||
-                                        key1 === 'enabled' ||
-                                        key1 === 'order'
-                                      )) {
+                                      if (
+                                        !func4.call(schema24.properties, key1)
+                                      ) {
                                         validate22.errors = [
                                           {
                                             instancePath:
@@ -7807,6 +7949,124 @@ function validate22(
                                                   } else {
                                                     var valid3 = true;
                                                   }
+                                                  if (valid3) {
+                                                    if (
+                                                      data6.calibrating !==
+                                                      undefined
+                                                    ) {
+                                                      const _errs30 = errors;
+                                                      if (
+                                                        typeof data6.calibrating !==
+                                                        'boolean'
+                                                      ) {
+                                                        validate22.errors = [
+                                                          {
+                                                            instancePath:
+                                                              instancePath +
+                                                              '/sensors/' +
+                                                              i0 +
+                                                              '/calibrating',
+                                                            schemaPath:
+                                                              '#/definitions/sensor/properties/calibrating/type',
+                                                            keyword: 'type',
+                                                            params: {
+                                                              type: 'boolean',
+                                                            },
+                                                            message:
+                                                              'must be boolean',
+                                                          },
+                                                        ];
+                                                        return false;
+                                                      }
+                                                      var valid3 =
+                                                        _errs30 === errors;
+                                                    } else {
+                                                      var valid3 = true;
+                                                    }
+                                                    if (valid3) {
+                                                      if (
+                                                        data6.calibration_hold_ends_uptime_ms !==
+                                                        undefined
+                                                      ) {
+                                                        let data15 =
+                                                          data6.calibration_hold_ends_uptime_ms;
+                                                        const _errs32 = errors;
+                                                        if (
+                                                          !(
+                                                            typeof data15 ==
+                                                              'number' &&
+                                                            !(data15 % 1) &&
+                                                            !isNaN(data15) &&
+                                                            isFinite(data15)
+                                                          ) &&
+                                                          data15 !== null
+                                                        ) {
+                                                          validate22.errors = [
+                                                            {
+                                                              instancePath:
+                                                                instancePath +
+                                                                '/sensors/' +
+                                                                i0 +
+                                                                '/calibration_hold_ends_uptime_ms',
+                                                              schemaPath:
+                                                                '#/definitions/sensor/properties/calibration_hold_ends_uptime_ms/type',
+                                                              keyword: 'type',
+                                                              params: {
+                                                                type: schema24
+                                                                  .properties
+                                                                  .calibration_hold_ends_uptime_ms
+                                                                  .type,
+                                                              },
+                                                              message:
+                                                                'must be integer,null',
+                                                            },
+                                                          ];
+                                                          return false;
+                                                        }
+                                                        if (
+                                                          errors === _errs32
+                                                        ) {
+                                                          if (
+                                                            typeof data15 ==
+                                                              'number' &&
+                                                            isFinite(data15)
+                                                          ) {
+                                                            if (
+                                                              data15 < 0 ||
+                                                              isNaN(data15)
+                                                            ) {
+                                                              validate22.errors =
+                                                                [
+                                                                  {
+                                                                    instancePath:
+                                                                      instancePath +
+                                                                      '/sensors/' +
+                                                                      i0 +
+                                                                      '/calibration_hold_ends_uptime_ms',
+                                                                    schemaPath:
+                                                                      '#/definitions/sensor/properties/calibration_hold_ends_uptime_ms/minimum',
+                                                                    keyword:
+                                                                      'minimum',
+                                                                    params: {
+                                                                      comparison:
+                                                                        '>=',
+                                                                      limit: 0,
+                                                                    },
+                                                                    message:
+                                                                      'must be >= 0',
+                                                                  },
+                                                                ];
+                                                              return false;
+                                                            }
+                                                          }
+                                                        }
+                                                        var valid3 =
+                                                          _errs32 === errors;
+                                                      } else {
+                                                        var valid3 = true;
+                                                      }
+                                                    }
+                                                  }
                                                 }
                                               }
                                             }
@@ -7854,19 +8114,19 @@ function validate22(
                     }
                     if (valid0) {
                       if (data.clock !== undefined) {
-                        let data14 = data.clock;
-                        const _errs30 = errors;
-                        if (errors === _errs30) {
+                        let data16 = data.clock;
+                        const _errs34 = errors;
+                        if (errors === _errs34) {
                           if (
-                            data14 &&
-                            typeof data14 == 'object' &&
-                            !Array.isArray(data14)
+                            data16 &&
+                            typeof data16 == 'object' &&
+                            !Array.isArray(data16)
                           ) {
                             let missing2;
                             if (
-                              (data14.utc === undefined &&
+                              (data16.utc === undefined &&
                                 (missing2 = 'utc')) ||
-                              (data14.synchronized === undefined &&
+                              (data16.synchronized === undefined &&
                                 (missing2 = 'synchronized'))
                             ) {
                               validate22.errors = [
@@ -7883,8 +8143,8 @@ function validate22(
                               ];
                               return false;
                             } else {
-                              const _errs32 = errors;
-                              for (const key2 in data14) {
+                              const _errs36 = errors;
+                              for (const key2 in data16) {
                                 if (!(
                                   key2 === 'utc' || key2 === 'synchronized'
                                 )) {
@@ -7903,13 +8163,13 @@ function validate22(
                                   break;
                                 }
                               }
-                              if (_errs32 === errors) {
-                                if (data14.utc !== undefined) {
-                                  let data15 = data14.utc;
-                                  const _errs33 = errors;
+                              if (_errs36 === errors) {
+                                if (data16.utc !== undefined) {
+                                  let data17 = data16.utc;
+                                  const _errs37 = errors;
                                   if (
-                                    typeof data15 !== 'string' &&
-                                    data15 !== null
+                                    typeof data17 !== 'string' &&
+                                    data17 !== null
                                   ) {
                                     validate22.errors = [
                                       {
@@ -7927,15 +8187,15 @@ function validate22(
                                     ];
                                     return false;
                                   }
-                                  var valid4 = _errs33 === errors;
+                                  var valid4 = _errs37 === errors;
                                 } else {
                                   var valid4 = true;
                                 }
                                 if (valid4) {
-                                  if (data14.synchronized !== undefined) {
-                                    const _errs35 = errors;
+                                  if (data16.synchronized !== undefined) {
+                                    const _errs39 = errors;
                                     if (
-                                      typeof data14.synchronized !== 'boolean'
+                                      typeof data16.synchronized !== 'boolean'
                                     ) {
                                       validate22.errors = [
                                         {
@@ -7951,7 +8211,7 @@ function validate22(
                                       ];
                                       return false;
                                     }
-                                    var valid4 = _errs35 === errors;
+                                    var valid4 = _errs39 === errors;
                                   } else {
                                     var valid4 = true;
                                   }
@@ -7971,25 +8231,25 @@ function validate22(
                             return false;
                           }
                         }
-                        var valid0 = _errs30 === errors;
+                        var valid0 = _errs34 === errors;
                       } else {
                         var valid0 = true;
                       }
                       if (valid0) {
                         if (data.wifi !== undefined) {
-                          let data17 = data.wifi;
-                          const _errs37 = errors;
-                          if (errors === _errs37) {
+                          let data19 = data.wifi;
+                          const _errs41 = errors;
+                          if (errors === _errs41) {
                             if (
-                              data17 &&
-                              typeof data17 == 'object' &&
-                              !Array.isArray(data17)
+                              data19 &&
+                              typeof data19 == 'object' &&
+                              !Array.isArray(data19)
                             ) {
                               let missing3;
                               if (
-                                (data17.state === undefined &&
+                                (data19.state === undefined &&
                                   (missing3 = 'state')) ||
-                                (data17.mdns_hostname === undefined &&
+                                (data19.mdns_hostname === undefined &&
                                   (missing3 = 'mdns_hostname'))
                               ) {
                                 validate22.errors = [
@@ -8006,8 +8266,8 @@ function validate22(
                                 ];
                                 return false;
                               } else {
-                                const _errs39 = errors;
-                                for (const key3 in data17) {
+                                const _errs43 = errors;
+                                for (const key3 in data19) {
                                   if (!(
                                     key3 === 'state' || key3 === 'mdns_hostname'
                                   )) {
@@ -8026,15 +8286,15 @@ function validate22(
                                     break;
                                   }
                                 }
-                                if (_errs39 === errors) {
-                                  if (data17.state !== undefined) {
-                                    let data18 = data17.state;
-                                    const _errs40 = errors;
+                                if (_errs43 === errors) {
+                                  if (data19.state !== undefined) {
+                                    let data20 = data19.state;
+                                    const _errs44 = errors;
                                     if (!(
-                                      data18 === 'offline' ||
-                                      data18 === 'connecting' ||
-                                      data18 === 'connected' ||
-                                      data18 === 'setup'
+                                      data20 === 'offline' ||
+                                      data20 === 'connecting' ||
+                                      data20 === 'connected' ||
+                                      data20 === 'setup'
                                     )) {
                                       validate22.errors = [
                                         {
@@ -8054,17 +8314,17 @@ function validate22(
                                       ];
                                       return false;
                                     }
-                                    var valid5 = _errs40 === errors;
+                                    var valid5 = _errs44 === errors;
                                   } else {
                                     var valid5 = true;
                                   }
                                   if (valid5) {
-                                    if (data17.mdns_hostname !== undefined) {
-                                      let data19 = data17.mdns_hostname;
-                                      const _errs41 = errors;
+                                    if (data19.mdns_hostname !== undefined) {
+                                      let data21 = data19.mdns_hostname;
+                                      const _errs45 = errors;
                                       if (
-                                        typeof data19 !== 'string' &&
-                                        data19 !== null
+                                        typeof data21 !== 'string' &&
+                                        data21 !== null
                                       ) {
                                         validate22.errors = [
                                           {
@@ -8083,9 +8343,9 @@ function validate22(
                                         ];
                                         return false;
                                       }
-                                      if (errors === _errs41) {
-                                        if (typeof data19 === 'string') {
-                                          if (!pattern3.test(data19)) {
+                                      if (errors === _errs45) {
+                                        if (typeof data21 === 'string') {
+                                          if (!pattern3.test(data21)) {
                                             validate22.errors = [
                                               {
                                                 instancePath:
@@ -8108,7 +8368,7 @@ function validate22(
                                           }
                                         }
                                       }
-                                      var valid5 = _errs41 === errors;
+                                      var valid5 = _errs45 === errors;
                                     } else {
                                       var valid5 = true;
                                     }
@@ -8128,31 +8388,31 @@ function validate22(
                               return false;
                             }
                           }
-                          var valid0 = _errs37 === errors;
+                          var valid0 = _errs41 === errors;
                         } else {
                           var valid0 = true;
                         }
                         if (valid0) {
                           if (data.logging !== undefined) {
-                            let data20 = data.logging;
-                            const _errs43 = errors;
-                            if (errors === _errs43) {
+                            let data22 = data.logging;
+                            const _errs47 = errors;
+                            if (errors === _errs47) {
                               if (
-                                data20 &&
-                                typeof data20 == 'object' &&
-                                !Array.isArray(data20)
+                                data22 &&
+                                typeof data22 == 'object' &&
+                                !Array.isArray(data22)
                               ) {
                                 let missing4;
                                 if (
-                                  (data20.healthy === undefined &&
+                                  (data22.healthy === undefined &&
                                     (missing4 = 'healthy')) ||
-                                  (data20.interval_seconds === undefined &&
+                                  (data22.interval_seconds === undefined &&
                                     (missing4 = 'interval_seconds')) ||
-                                  (data20.storage_available === undefined &&
+                                  (data22.storage_available === undefined &&
                                     (missing4 = 'storage_available')) ||
-                                  (data20.storage_total_bytes === undefined &&
+                                  (data22.storage_total_bytes === undefined &&
                                     (missing4 = 'storage_total_bytes')) ||
-                                  (data20.storage_used_bytes === undefined &&
+                                  (data22.storage_used_bytes === undefined &&
                                     (missing4 = 'storage_used_bytes'))
                                 ) {
                                   validate22.errors = [
@@ -8170,8 +8430,8 @@ function validate22(
                                   ];
                                   return false;
                                 } else {
-                                  const _errs45 = errors;
-                                  for (const key4 in data20) {
+                                  const _errs49 = errors;
+                                  for (const key4 in data22) {
                                     if (!(
                                       key4 === 'healthy' ||
                                       key4 === 'interval_seconds' ||
@@ -8195,10 +8455,10 @@ function validate22(
                                       break;
                                     }
                                   }
-                                  if (_errs45 === errors) {
-                                    if (data20.healthy !== undefined) {
-                                      const _errs46 = errors;
-                                      if (typeof data20.healthy !== 'boolean') {
+                                  if (_errs49 === errors) {
+                                    if (data22.healthy !== undefined) {
+                                      const _errs50 = errors;
+                                      if (typeof data22.healthy !== 'boolean') {
                                         validate22.errors = [
                                           {
                                             instancePath:
@@ -8212,16 +8472,16 @@ function validate22(
                                         ];
                                         return false;
                                       }
-                                      var valid6 = _errs46 === errors;
+                                      var valid6 = _errs50 === errors;
                                     } else {
                                       var valid6 = true;
                                     }
                                     if (valid6) {
                                       if (
-                                        data20.interval_seconds !== undefined
+                                        data22.interval_seconds !== undefined
                                       ) {
-                                        const _errs48 = errors;
-                                        if (300 !== data20.interval_seconds) {
+                                        const _errs52 = errors;
+                                        if (300 !== data22.interval_seconds) {
                                           validate22.errors = [
                                             {
                                               instancePath:
@@ -8237,17 +8497,17 @@ function validate22(
                                           ];
                                           return false;
                                         }
-                                        var valid6 = _errs48 === errors;
+                                        var valid6 = _errs52 === errors;
                                       } else {
                                         var valid6 = true;
                                       }
                                       if (valid6) {
                                         if (
-                                          data20.storage_available !== undefined
+                                          data22.storage_available !== undefined
                                         ) {
-                                          const _errs49 = errors;
+                                          const _errs53 = errors;
                                           if (
-                                            typeof data20.storage_available !==
+                                            typeof data22.storage_available !==
                                             'boolean'
                                           ) {
                                             validate22.errors = [
@@ -8264,23 +8524,23 @@ function validate22(
                                             ];
                                             return false;
                                           }
-                                          var valid6 = _errs49 === errors;
+                                          var valid6 = _errs53 === errors;
                                         } else {
                                           var valid6 = true;
                                         }
                                         if (valid6) {
                                           if (
-                                            data20.storage_total_bytes !==
+                                            data22.storage_total_bytes !==
                                             undefined
                                           ) {
-                                            let data24 =
-                                              data20.storage_total_bytes;
-                                            const _errs51 = errors;
+                                            let data26 =
+                                              data22.storage_total_bytes;
+                                            const _errs55 = errors;
                                             if (!(
-                                              typeof data24 == 'number' &&
-                                              !(data24 % 1) &&
-                                              !isNaN(data24) &&
-                                              isFinite(data24)
+                                              typeof data26 == 'number' &&
+                                              !(data26 % 1) &&
+                                              !isNaN(data26) &&
+                                              isFinite(data26)
                                             )) {
                                               validate22.errors = [
                                                 {
@@ -8296,14 +8556,14 @@ function validate22(
                                               ];
                                               return false;
                                             }
-                                            if (errors === _errs51) {
+                                            if (errors === _errs55) {
                                               if (
-                                                typeof data24 == 'number' &&
-                                                isFinite(data24)
+                                                typeof data26 == 'number' &&
+                                                isFinite(data26)
                                               ) {
                                                 if (
-                                                  data24 > 16777216 ||
-                                                  isNaN(data24)
+                                                  data26 > 16777216 ||
+                                                  isNaN(data26)
                                                 ) {
                                                   validate22.errors = [
                                                     {
@@ -8324,8 +8584,8 @@ function validate22(
                                                   return false;
                                                 } else {
                                                   if (
-                                                    data24 < 0 ||
-                                                    isNaN(data24)
+                                                    data26 < 0 ||
+                                                    isNaN(data26)
                                                   ) {
                                                     validate22.errors = [
                                                       {
@@ -8347,23 +8607,23 @@ function validate22(
                                                 }
                                               }
                                             }
-                                            var valid6 = _errs51 === errors;
+                                            var valid6 = _errs55 === errors;
                                           } else {
                                             var valid6 = true;
                                           }
                                           if (valid6) {
                                             if (
-                                              data20.storage_used_bytes !==
+                                              data22.storage_used_bytes !==
                                               undefined
                                             ) {
-                                              let data25 =
-                                                data20.storage_used_bytes;
-                                              const _errs53 = errors;
+                                              let data27 =
+                                                data22.storage_used_bytes;
+                                              const _errs57 = errors;
                                               if (!(
-                                                typeof data25 == 'number' &&
-                                                !(data25 % 1) &&
-                                                !isNaN(data25) &&
-                                                isFinite(data25)
+                                                typeof data27 == 'number' &&
+                                                !(data27 % 1) &&
+                                                !isNaN(data27) &&
+                                                isFinite(data27)
                                               )) {
                                                 validate22.errors = [
                                                   {
@@ -8379,14 +8639,14 @@ function validate22(
                                                 ];
                                                 return false;
                                               }
-                                              if (errors === _errs53) {
+                                              if (errors === _errs57) {
                                                 if (
-                                                  typeof data25 == 'number' &&
-                                                  isFinite(data25)
+                                                  typeof data27 == 'number' &&
+                                                  isFinite(data27)
                                                 ) {
                                                   if (
-                                                    data25 > 16777216 ||
-                                                    isNaN(data25)
+                                                    data27 > 16777216 ||
+                                                    isNaN(data27)
                                                   ) {
                                                     validate22.errors = [
                                                       {
@@ -8407,8 +8667,8 @@ function validate22(
                                                     return false;
                                                   } else {
                                                     if (
-                                                      data25 < 0 ||
-                                                      isNaN(data25)
+                                                      data27 < 0 ||
+                                                      isNaN(data27)
                                                     ) {
                                                       validate22.errors = [
                                                         {
@@ -8431,7 +8691,7 @@ function validate22(
                                                   }
                                                 }
                                               }
-                                              var valid6 = _errs53 === errors;
+                                              var valid6 = _errs57 === errors;
                                             } else {
                                               var valid6 = true;
                                             }
@@ -8454,17 +8714,17 @@ function validate22(
                                 return false;
                               }
                             }
-                            var valid0 = _errs43 === errors;
+                            var valid0 = _errs47 === errors;
                           } else {
                             var valid0 = true;
                           }
                           if (valid0) {
                             if (data.boot_id !== undefined) {
-                              let data26 = data.boot_id;
-                              const _errs55 = errors;
-                              if (errors === _errs55) {
-                                if (typeof data26 === 'string') {
-                                  if (!pattern1.test(data26)) {
+                              let data28 = data.boot_id;
+                              const _errs59 = errors;
+                              if (errors === _errs59) {
+                                if (typeof data28 === 'string') {
+                                  if (!pattern1.test(data28)) {
                                     validate22.errors = [
                                       {
                                         instancePath: instancePath + '/boot_id',
@@ -8495,27 +8755,27 @@ function validate22(
                                   return false;
                                 }
                               }
-                              var valid0 = _errs55 === errors;
+                              var valid0 = _errs59 === errors;
                             } else {
                               var valid0 = true;
                             }
                             if (valid0) {
                               if (data.firmware !== undefined) {
-                                let data27 = data.firmware;
-                                const _errs57 = errors;
-                                if (errors === _errs57) {
+                                let data29 = data.firmware;
+                                const _errs61 = errors;
+                                if (errors === _errs61) {
                                   if (
-                                    data27 &&
-                                    typeof data27 == 'object' &&
-                                    !Array.isArray(data27)
+                                    data29 &&
+                                    typeof data29 == 'object' &&
+                                    !Array.isArray(data29)
                                   ) {
                                     let missing5;
                                     if (
-                                      (data27.version === undefined &&
+                                      (data29.version === undefined &&
                                         (missing5 = 'version')) ||
-                                      (data27.partition === undefined &&
+                                      (data29.partition === undefined &&
                                         (missing5 = 'partition')) ||
-                                      (data27.ota_state === undefined &&
+                                      (data29.ota_state === undefined &&
                                         (missing5 = 'ota_state'))
                                     ) {
                                       validate22.errors = [
@@ -8534,8 +8794,8 @@ function validate22(
                                       ];
                                       return false;
                                     } else {
-                                      const _errs59 = errors;
-                                      for (const key5 in data27) {
+                                      const _errs63 = errors;
+                                      for (const key5 in data29) {
                                         if (!(
                                           key5 === 'version' ||
                                           key5 === 'partition' ||
@@ -8559,13 +8819,13 @@ function validate22(
                                           break;
                                         }
                                       }
-                                      if (_errs59 === errors) {
-                                        if (data27.version !== undefined) {
-                                          let data28 = data27.version;
-                                          const _errs60 = errors;
-                                          if (errors === _errs60) {
-                                            if (typeof data28 === 'string') {
-                                              if (func2(data28) > 32) {
+                                      if (_errs63 === errors) {
+                                        if (data29.version !== undefined) {
+                                          let data30 = data29.version;
+                                          const _errs64 = errors;
+                                          if (errors === _errs64) {
+                                            if (typeof data30 === 'string') {
+                                              if (func2(data30) > 32) {
                                                 validate22.errors = [
                                                   {
                                                     instancePath:
@@ -8581,7 +8841,7 @@ function validate22(
                                                 ];
                                                 return false;
                                               } else {
-                                                if (func2(data28) < 1) {
+                                                if (func2(data30) < 1) {
                                                   validate22.errors = [
                                                     {
                                                       instancePath:
@@ -8614,17 +8874,17 @@ function validate22(
                                               return false;
                                             }
                                           }
-                                          var valid7 = _errs60 === errors;
+                                          var valid7 = _errs64 === errors;
                                         } else {
                                           var valid7 = true;
                                         }
                                         if (valid7) {
-                                          if (data27.partition !== undefined) {
-                                            let data29 = data27.partition;
-                                            const _errs62 = errors;
-                                            if (errors === _errs62) {
-                                              if (typeof data29 === 'string') {
-                                                if (func2(data29) > 16) {
+                                          if (data29.partition !== undefined) {
+                                            let data31 = data29.partition;
+                                            const _errs66 = errors;
+                                            if (errors === _errs66) {
+                                              if (typeof data31 === 'string') {
+                                                if (func2(data31) > 16) {
                                                   validate22.errors = [
                                                     {
                                                       instancePath:
@@ -8656,23 +8916,23 @@ function validate22(
                                                 return false;
                                               }
                                             }
-                                            var valid7 = _errs62 === errors;
+                                            var valid7 = _errs66 === errors;
                                           } else {
                                             var valid7 = true;
                                           }
                                           if (valid7) {
                                             if (
-                                              data27.ota_state !== undefined
+                                              data29.ota_state !== undefined
                                             ) {
-                                              let data30 = data27.ota_state;
-                                              const _errs64 = errors;
+                                              let data32 = data29.ota_state;
+                                              const _errs68 = errors;
                                               if (!(
-                                                data30 === 'new' ||
-                                                data30 === 'pending_verify' ||
-                                                data30 === 'valid' ||
-                                                data30 === 'invalid' ||
-                                                data30 === 'aborted' ||
-                                                data30 === 'unknown'
+                                                data32 === 'new' ||
+                                                data32 === 'pending_verify' ||
+                                                data32 === 'valid' ||
+                                                data32 === 'invalid' ||
+                                                data32 === 'aborted' ||
+                                                data32 === 'unknown'
                                               )) {
                                                 validate22.errors = [
                                                   {
@@ -8694,7 +8954,7 @@ function validate22(
                                                 ];
                                                 return false;
                                               }
-                                              var valid7 = _errs64 === errors;
+                                              var valid7 = _errs68 === errors;
                                             } else {
                                               var valid7 = true;
                                             }
@@ -8717,7 +8977,7 @@ function validate22(
                                     return false;
                                   }
                                 }
-                                var valid0 = _errs57 === errors;
+                                var valid0 = _errs61 === errors;
                               } else {
                                 var valid0 = true;
                               }

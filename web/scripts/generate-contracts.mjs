@@ -17,6 +17,10 @@ const files = [
   ['sensor-storage.schema.json', 'api-sensor-storage.generated.ts'],
   ['sensor-patch.schema.json', 'api-sensor-patch.generated.ts'],
   ['sensor-retire.schema.json', 'api-sensor-retire.generated.ts'],
+  [
+    'sensor-calibration-hold.schema.json',
+    'api-sensor-calibration-hold.generated.ts',
+  ],
   ['device-settings.schema.json', 'api-device-settings.generated.ts'],
   [
     'device-settings-public.schema.json',

@@ -271,6 +271,17 @@ extern "C" void app_main() {
                 settings_dirty = false;
             }
         }
+        // Ice-bath calibration holds (spec 17.3) are RAM only: they take effect from this cycle.
+        uint64_t hold_rom = 0;
+        int64_t hold_ms = 0;
+        bool hold_cancel = false;
+        while (api.next_calibration_hold(hold_rom, hold_ms, hold_cancel)) {
+            const int64_t at = simulated ? int64_t(simulated_tick * 5000) : now;
+            if (hold_cancel)
+                registry.end_calibration_hold(hold_rom);
+            else
+                registry.hold_calibration(hold_rom, at, hold_ms);
+        }
         auto before = registry.sensors().size();
         std::vector<uint64_t> managed_roms;
         managed_roms.reserve(registry.sensors().size());

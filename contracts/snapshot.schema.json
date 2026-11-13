@@ -47,10 +47,16 @@
     "clock": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["utc", "synchronized"],
+      "required": [
+        "utc",
+        "synchronized"
+      ],
       "properties": {
         "utc": {
-          "type": ["string", "null"]
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "synchronized": {
           "type": "boolean"
@@ -60,13 +66,24 @@
     "wifi": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["state", "mdns_hostname"],
+      "required": [
+        "state",
+        "mdns_hostname"
+      ],
       "properties": {
         "state": {
-          "enum": ["offline", "connecting", "connected", "setup"]
+          "enum": [
+            "offline",
+            "connecting",
+            "connected",
+            "setup"
+          ]
         },
         "mdns_hostname": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$"
         }
       }
@@ -110,12 +127,30 @@
     "firmware": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "partition", "ota_state"],
+      "required": [
+        "version",
+        "partition",
+        "ota_state"
+      ],
       "properties": {
-        "version": { "type": "string", "minLength": 1, "maxLength": 32 },
-        "partition": { "type": "string", "maxLength": 16 },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "partition": {
+          "type": "string",
+          "maxLength": 16
+        },
         "ota_state": {
-          "enum": ["new", "pending_verify", "valid", "invalid", "aborted", "unknown"]
+          "enum": [
+            "new",
+            "pending_verify",
+            "valid",
+            "invalid",
+            "aborted",
+            "unknown"
+          ]
         }
       }
     }
@@ -157,12 +192,18 @@
           ]
         },
         "temperature_c": {
-          "type": ["number", "null"],
+          "type": [
+            "number",
+            "null"
+          ],
           "minimum": -75,
           "maximum": 145
         },
         "last_seen_ms": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 0
         },
         "enabled": {
@@ -172,6 +213,18 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 4
+        },
+        "calibrating": {
+          "type": "boolean",
+          "description": "True while an ice-bath calibration hold is in force (spec 17.3). Read-only; not accepted by PATCH."
+        },
+        "calibration_hold_ends_uptime_ms": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Uptime in milliseconds when the hold ends, or null when there is no hold. Read-only."
         }
       }
     }

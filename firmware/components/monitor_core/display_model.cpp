@@ -144,7 +144,8 @@ std::array<DisplayRow, max_sensors> display_rows(const Registry &registry, bool 
             sensor.settings.short_name.empty() ? sensor.settings.name : sensor.settings.short_name;
         switch (row.state) {
         case State::normal:
-            row.status = "";
+            // A probe in an ice-bath calibration hold (spec 17.3) raises no alarm; the LCD says so.
+            row.status = sensor.calibration_hold_until_ms ? "CAL" : "";
             break;
         case State::high:
             row.status = "! HIGH";

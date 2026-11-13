@@ -22,6 +22,9 @@ class HttpApi {
         sensor_settings_writable_.store(writable);
     }
     bool next_sensor_update(uint64_t &rom, Settings &settings, bool &retire);
+    // The next calibration-hold request for the sampling loop: start (or renew) for
+    // `duration_ms`, or end when `cancel`.
+    bool next_calibration_hold(uint64_t &rom, int64_t &duration_ms, bool &cancel);
     bool publish(const Registry &registry, ProbeScanStatus probe_scan, int64_t uptime, bool logging,
                  bool synchronized, const std::string &utc);
 
@@ -53,6 +56,12 @@ class HttpApi {
         bool retire;
     };
     QueueHandle_t updates_ = nullptr;
+    struct CalibrationHoldUpdate {
+        uint64_t rom;
+        int64_t duration_ms;
+        bool cancel;
+    };
+    QueueHandle_t holds_ = nullptr;
     struct LoginJob {
         httpd_req_t *request; // async copy, completed by the worker
         std::string password;

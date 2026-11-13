@@ -483,6 +483,12 @@ record the bath in that probe's history. The hold stops both, for that probe onl
   still warming up raises a low alert only if it stays low for its persistence time.
 - The event log records `calibration` events, `started` and `ended` (with the reason: finished,
   expired, cancelled, disconnected, retired), so a gap in history has an explanation.
+  **Not done yet (decision needed, 2026-11-12):** the journal rejects any event kind it does not
+  know. A 0.2.0 image rolled back from a build that wrote a `calibration` record would fail to
+  recover the journal, which stops it accepting events. The statement below that older firmware
+  skips such records is therefore not true of 0.2.0, and it needs a different approach before
+  this event kind ships: for example, a format version bump with a rollback-safe reader, or
+  recording the hold as a sensor-level note outside the journal.
 - Contract decision: additive within schema v1, like `probe_calibration`: the new route, the two
   read-only fields (refused by `PATCH`), and the `calibration` event kind. The web app ships in
   the same image. Storage: no settings change; the event journal gains one event kind, and an

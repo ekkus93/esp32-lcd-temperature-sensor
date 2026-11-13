@@ -115,6 +115,10 @@ bool label_text(const std::string &text) {
     return true;
 }
 } // namespace
+bool calibration_held(const Sensor &sensor, int64_t now_ms) {
+    return sensor.calibration_hold_until_ms && now_ms < *sensor.calibration_hold_until_ms;
+}
+
 bool valid_settings(const Settings &s) {
     return !s.name.empty() && s.name.size() <= 32 && s.short_name.size() <= 12 &&
            label_text(s.name) && label_text(s.short_name) && s.order < max_sensors &&

@@ -35,4 +35,12 @@ export type SensorConfigurations = {
    * Whether the probe's own memory (DS18B20 TH/TL bytes) holds calibration_c, to the nearest 0.1 °C. Read-only; not accepted by PATCH.
    */
   probe_calibration: 'unknown' | 'pending' | 'stored' | 'restored' | 'failed';
+  /**
+   * True while an ice-bath calibration hold is in force (spec 17.3). Read-only; not accepted by PATCH.
+   */
+  calibrating?: boolean;
+  /**
+   * Uptime in milliseconds when the hold ends, or null when there is no hold. Read-only.
+   */
+  calibration_hold_ends_uptime_ms?: number | null;
 }[];

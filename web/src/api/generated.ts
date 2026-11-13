@@ -55,4 +55,12 @@ export interface Sensor {
   last_seen_ms: number | null;
   enabled: boolean;
   order: number;
+  /**
+   * True while an ice-bath calibration hold is in force (spec 17.3). Read-only; not accepted by PATCH.
+   */
+  calibrating?: boolean;
+  /**
+   * Uptime in milliseconds when the hold ends, or null when there is no hold. Read-only.
+   */
+  calibration_hold_ends_uptime_ms?: number | null;
 }

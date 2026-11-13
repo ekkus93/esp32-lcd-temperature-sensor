@@ -25,6 +25,12 @@ class Registry {
     // failed. A probe that still does not hold the offset counts a failed attempt.
     void probe_written(uint64_t rom, std::optional<ProbeMemory> memory);
     void expire(int64_t now_ms);
+    // Starts or renews an ice-bath calibration hold for a connected probe, for `duration_ms` from
+    // now (at most max_calibration_hold_ms). False for an unknown probe or one without a valid
+    // reading: there is nothing to calibrate.
+    bool hold_calibration(uint64_t rom, int64_t now_ms, int64_t duration_ms);
+    // Ends a hold early. False if the probe is unknown.
+    bool end_calibration_hold(uint64_t rom);
     const std::vector<Sensor> &sensors() const;
     const std::vector<Event> &events() const;
     uint64_t sequence() const;

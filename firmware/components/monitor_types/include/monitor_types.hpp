@@ -10,6 +10,9 @@ namespace monitor {
 constexpr std::size_t max_sensors = 5;
 constexpr int64_t sample_ms = 5000;
 constexpr int64_t bucket_ms = 300000;
+// A calibration hold (spec 17.3) lasts at most this long, so an abandoned browser cannot pause a
+// probe's alarms for longer.
+constexpr int64_t max_calibration_hold_ms = 20 * 60000;
 constexpr unsigned schema_version = 1;
 enum class State {
     normal,
@@ -102,7 +105,12 @@ struct Sensor {
     // Set for a probe new to this monitor: its first valid read takes the calibration offset its
     // own memory holds. Configuring the sensor first clears it, so the owner's choice wins.
     bool adopt_probe_calibration = false;
+    // An ice-bath calibration hold: until this uptime the probe raises no high or low alarm and
+    // its readings are not recorded. Kept in RAM only, so it never survives a restart.
+    std::optional<int64_t> calibration_hold_until_ms;
 };
+// Whether the sensor's calibration hold is in force at `now_ms`.
+bool calibration_held(const Sensor &sensor, int64_t now_ms);
 struct Reading {
     uint64_t rom;
     std::optional<double> celsius;

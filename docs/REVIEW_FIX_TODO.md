@@ -239,6 +239,16 @@ bath. API additions are additive within schema v1 (§17.3); no settings storage 
   `calibration` started/ended events; `CAL` on the LCD; contracts and `contracts/API.md` updated.
   Acceptance: the host and display tests in §17.5 pass, and an older firmware's event journal is
   confirmed to skip the new event kind.
+  Partly done (2026-11-12, host and build only): the hold is in RAM on the probe's sensor record
+  (`calibration_hold_until_ms`, capped at 20 minutes). While held, the alert logic raises no high
+  or low condition and clears an active one through the normal path, disconnect and bus-fault
+  alerts still fire, the aggregator records no readings (a gap), and the LCD shows `CAL` in the
+  status position. `PUT`/`DELETE /sensors/{rom_id}/calibration-hold` are owner routes queued to the
+  sampling loop; `GET /sensors` and the live snapshot carry `calibrating` and
+  `calibration_hold_ends_uptime_ms` (optional fields, additive). Host tests:
+  `calibration_hold` (ten behaviours plus the LCD label), route access for the new routes; the
+  full host suite and `verify.sh --firmware` pass. **Not done:** the `calibration` journal events
+  are left out until a rollback-safe format is decided (spec §17.3); see the note there.
 - [ ] **R11-02** Guided ice-bath calibration on each sensor's tab (§17.2): instructions, live
   measuring, the steadiness rule (12 readings within 0.125 °C), offset = 0 − mean uncalibrated
   reading rounded to 0.1 °C, the confirm screen with the change in readings and the reminder to

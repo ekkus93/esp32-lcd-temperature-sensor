@@ -134,6 +134,10 @@ bool Registry::sample(const std::vector<Reading> &readings, int64_t now_ms, bool
     if (fault != bus_fault_)
         bus_fault_since_ = fault ? std::optional<int64_t>(now_ms) : std::nullopt;
     bus_fault_ = fault;
+    // A calibration hold ends on its own when its time is up.
+    for (auto &sensor : sensors_)
+        if (sensor.calibration_hold_until_ms && now_ms >= *sensor.calibration_hold_until_ms)
+            sensor.calibration_hold_until_ms.reset();
     // Sort new identities so discovery permutations yield deterministic initial names.
     std::vector<uint64_t> discovered;
     for (const auto &r : readings)
@@ -169,6 +173,30 @@ bool Registry::sample(const std::vector<Reading> &readings, int64_t now_ms, bool
     }
     return settings_changed;
 }
+bool Registry::hold_calibration(uint64_t rom, int64_t now_ms, int64_t duration_ms) {
+    Sensor *sensor = find(rom);
+    if (!sensor || duration_ms <= 0)
+        return false;
+    // A probe with a valid reading is connected; stale, invalid, disabled or absent ones are not.
+    const bool connected = sensor->state == State::normal || sensor->state == State::high ||
+                           sensor->state == State::low;
+    if (!connected)
+        return false;
+    sensor->calibration_hold_until_ms = now_ms + std::min(duration_ms, max_calibration_hold_ms);
+    ++sequence_;
+    return true;
+}
+
+bool Registry::end_calibration_hold(uint64_t rom) {
+    Sensor *sensor = find(rom);
+    if (!sensor)
+        return false;
+    if (sensor->calibration_hold_until_ms)
+        ++sequence_;
+    sensor->calibration_hold_until_ms.reset();
+    return true;
+}
+
 void Registry::expire(int64_t now_ms) {
     for (auto &sensor : sensors_) {
         // Only a sensor that still shows a measurement can go stale. A probe reporting errors

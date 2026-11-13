@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:temperature-monitor:sensor-calibration-hold:1",
+  "title": "Start or renew a calibration hold",
+  "description": "PUT /api/v1/sensors/{rom_id}/calibration-hold. A probe in an ice bath raises no high or low alarm and its readings are not recorded, for this many minutes (spec 17.3). Kept in RAM only. DELETE takes no body and ends the hold.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "minutes"
+  ],
+  "properties": {
+    "minutes": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20
+    }
+  }
+}

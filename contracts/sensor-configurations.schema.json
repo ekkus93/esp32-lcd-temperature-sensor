@@ -25,18 +25,65 @@
       "probe_calibration"
     ],
     "properties": {
-      "rom_id": { "type": "string", "pattern": "^28[0-9a-f]{14}$" },
-      "etag": { "type": "string", "minLength": 1, "maxLength": 128 },
-      "revision": { "type": "integer", "minimum": 0 },
-      "name": { "type": "string", "minLength": 1, "maxLength": 32 },
-      "short_name": { "type": "string", "maxLength": 12 },
-      "enabled": { "type": "boolean" },
-      "disconnect_alert": { "type": "boolean" },
-      "order": { "type": "integer", "minimum": 0, "maximum": 4 },
-      "calibration_c": { "type": "number", "minimum": -12.7, "maximum": 12.7 },
-      "low_c": { "type": ["number", "null"], "minimum": -55, "maximum": 125 },
-      "high_c": { "type": ["number", "null"], "minimum": -55, "maximum": 125 },
-      "hysteresis_c": { "type": "number", "minimum": 0, "maximum": 20 },
+      "rom_id": {
+        "type": "string",
+        "pattern": "^28[0-9a-f]{14}$"
+      },
+      "etag": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "revision": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 32
+      },
+      "short_name": {
+        "type": "string",
+        "maxLength": 12
+      },
+      "enabled": {
+        "type": "boolean"
+      },
+      "disconnect_alert": {
+        "type": "boolean"
+      },
+      "order": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 4
+      },
+      "calibration_c": {
+        "type": "number",
+        "minimum": -12.7,
+        "maximum": 12.7
+      },
+      "low_c": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "minimum": -55,
+        "maximum": 125
+      },
+      "high_c": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "minimum": -55,
+        "maximum": 125
+      },
+      "hysteresis_c": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 20
+      },
       "persistence_seconds": {
         "type": "number",
         "minimum": 0,
@@ -64,6 +111,18 @@
           "restored",
           "failed"
         ]
+      },
+      "calibrating": {
+        "type": "boolean",
+        "description": "True while an ice-bath calibration hold is in force (spec 17.3). Read-only; not accepted by PATCH."
+      },
+      "calibration_hold_ends_uptime_ms": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 0,
+        "description": "Uptime in milliseconds when the hold ends, or null when there is no hold. Read-only."
       }
     }
   }

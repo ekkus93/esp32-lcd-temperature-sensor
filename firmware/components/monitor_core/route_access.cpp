@@ -16,6 +16,12 @@ bool is_rom_route(std::string_view path) {
             return false;
     return true;
 }
+// /sensors/{rom_id}/calibration-hold: the ice-bath hold (spec 17.3).
+bool is_hold_route(std::string_view path) {
+    constexpr std::string_view suffix = "/calibration-hold";
+    return path.size() > suffix.size() && path.substr(path.size() - suffix.size()) == suffix &&
+           is_rom_route(path.substr(0, path.size() - suffix.size()));
+}
 } // namespace
 
 RouteAccess route_access(std::string_view method, std::string_view full_path) {
@@ -23,7 +29,7 @@ RouteAccess route_access(std::string_view method, std::string_view full_path) {
         return RouteAccess::unknown;
     const auto path = full_path.substr(api.size());
     const bool get = method == "GET", post = method == "POST", patch = method == "PATCH",
-               del = method == "DELETE";
+               put = method == "PUT", del = method == "DELETE";
     if (get) {
         for (const auto open :
              {"/status", "/history", "/history/export", "/alerts", "/sensors", "/sensors/storage",
@@ -50,8 +56,11 @@ RouteAccess route_access(std::string_view method, std::string_view full_path) {
             return RouteAccess::owner;
         return RouteAccess::unknown;
     }
+    if (put)
+        return is_hold_route(path) ? RouteAccess::owner : RouteAccess::unknown;
     if (del)
-        return is_rom_route(path) ? RouteAccess::owner : RouteAccess::unknown;
+        return is_rom_route(path) || is_hold_route(path) ? RouteAccess::owner
+                                                         : RouteAccess::unknown;
     return RouteAccess::unknown;
 }
 } // namespace monitor

@@ -213,6 +213,17 @@ const char *event_kind_name(EventKind kind) {
     }
     return "sensor_state";
 }
+// Whether a probe is in an ice-bath calibration hold (spec 17.3), and until when. A hold ends at
+// its sample cycle once its time is up, so presence here is the current state.
+void add_calibration_hold(cJSON *item, const Sensor &sensor) {
+    cJSON_AddBoolToObject(item, "calibrating", sensor.calibration_hold_until_ms.has_value());
+    if (sensor.calibration_hold_until_ms)
+        cJSON_AddNumberToObject(item, "calibration_hold_ends_uptime_ms",
+                                static_cast<double>(*sensor.calibration_hold_until_ms));
+    else
+        cJSON_AddNullToObject(item, "calibration_hold_ends_uptime_ms");
+}
+
 std::string boot_text(uint64_t boot_id) {
     char value[17]{};
     std::snprintf(value, sizeof(value), "%016llx", static_cast<unsigned long long>(boot_id));
@@ -465,10 +476,11 @@ bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &histor
     boot_id_ = text;
     mutex_ = xSemaphoreCreateMutex();
     updates_ = xQueueCreate(4, sizeof(SensorUpdate *));
+    holds_ = xQueueCreate(8, sizeof(CalibrationHoldUpdate *));
     login_queue_ = xQueueCreate(1, sizeof(LoginJob *)); // the throttle allows one derive at a time
     // The public limiter lets two history requests run at once; the worker takes them in turn.
     history_queue_ = xQueueCreate(PublicLimiter::max_concurrent, sizeof(HistoryJob *));
-    if (!mutex_ || !updates_ || !login_queue_ || !history_queue_)
+    if (!mutex_ || !updates_ || !holds_ || !login_queue_ || !history_queue_)
         return false;
     if (xTaskCreatePinnedToCore(login_worker, "login", 6144, this, 4, nullptr, 1) != pdPASS)
         return false;
@@ -507,7 +519,7 @@ bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &histor
     ws.is_websocket = true;
     ws.ws_pre_handshake_cb = ws_pre;
     httpd_register_uri_handler(server_, &ws);
-    for (auto method : {HTTP_GET, HTTP_POST, HTTP_PATCH, HTTP_DELETE}) {
+    for (auto method : {HTTP_GET, HTTP_POST, HTTP_PUT, HTTP_PATCH, HTTP_DELETE}) {
         httpd_uri_t route{};
         route.uri = "/*";
         route.method = method;
@@ -528,6 +540,17 @@ bool HttpApi::next_sensor_update(uint64_t &rom, Settings &settings, bool &retire
     delete update;
     return true;
 }
+bool HttpApi::next_calibration_hold(uint64_t &rom, int64_t &duration_ms, bool &cancel) {
+    CalibrationHoldUpdate *update = nullptr;
+    if (!holds_ || xQueueReceive(holds_, &update, 0) != pdTRUE)
+        return false;
+    rom = update->rom;
+    duration_ms = update->duration_ms;
+    cancel = update->cancel;
+    delete update;
+    return true;
+}
+
 bool HttpApi::publish(const Registry &registry, ProbeScanStatus probe_scan, int64_t uptime,
                       bool logging, bool synchronized, const std::string &utc) {
     if (!server_)
@@ -614,6 +637,7 @@ std::string HttpApi::snapshot() {
             cJSON_AddNullToObject(s, "last_seen_ms");
         cJSON_AddBoolToObject(s, "enabled", sensor.settings.enabled);
         cJSON_AddNumberToObject(s, "order", sensor.settings.order);
+        add_calibration_hold(s, sensor);
     }
     char *text = cJSON_PrintUnformatted(object.get());
     if (!text)
@@ -728,6 +752,7 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
         const char *method_name = r->method == HTTP_GET      ? "GET"
                                   : r->method == HTTP_POST   ? "POST"
                                   : r->method == HTTP_PATCH  ? "PATCH"
+                                  : r->method == HTTP_PUT    ? "PUT"
                                   : r->method == HTTP_DELETE ? "DELETE"
                                                              : "";
         const auto access = route_access(method_name, path);
@@ -1141,6 +1166,7 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                 cJSON_AddStringToObject(item, "state", state_name(sensor.state));
                 cJSON_AddStringToObject(item, "probe_calibration",
                                         probe_calibration_name(sensor.probe_calibration));
+                add_calibration_hold(item, sensor);
                 return item;
             };
             if (path == "/api/v1/sensors" && r->method == HTTP_GET) {
@@ -1156,6 +1182,52 @@ esp_err_t HttpApi::handle(httpd_req_t *r) {
                 cJSON_AddStringToObject(output.get(), "state", writable ? "ready" : "read_only");
                 cJSON_AddBoolToObject(output.get(), "writable", writable);
                 return json(r, output.get());
+            }
+            constexpr std::string_view hold_suffix = "/calibration-hold";
+            if (path.rfind("/api/v1/sensors/", 0) == 0 && path.size() > 16 + hold_suffix.size() &&
+                path.substr(path.size() - hold_suffix.size()) == hold_suffix) {
+                // Ice-bath calibration hold (spec 17.3). It is not a setting: no ETag, and it is
+                // kept in RAM, so it does not touch sensor storage.
+                const auto id = path.substr(16, path.size() - 16 - hold_suffix.size());
+                auto found =
+                    std::find_if(current.sensors().begin(), current.sensors().end(),
+                                 [&](const Sensor &sensor) { return rom_hex(sensor.rom) == id; });
+                if (found == current.sensors().end())
+                    return error(r, "404 Not Found", "Unknown ROM ID");
+                CalibrationHoldUpdate update{found->rom, 0, r->method == HTTP_DELETE};
+                if (r->method == HTTP_PUT) {
+                    constexpr int64_t minute_ms = 60000;
+                    const bool connected = found->state == State::normal ||
+                                           found->state == State::high ||
+                                           found->state == State::low;
+                    if (!connected)
+                        return error(r, "409 Conflict", "Probe must be connected to calibrate it");
+                    auto input = body(r);
+                    if (!input)
+                        return error(r, "400 Bad Request", "Expected bounded JSON object");
+                    const cJSON *minutes = cJSON_GetObjectItemCaseSensitive(input.get(), "minutes");
+                    if (!cJSON_IsNumber(minutes) ||
+                        minutes->valuedouble != std::floor(minutes->valuedouble) ||
+                        minutes->valueint < 1 || minutes->valueint > 20 ||
+                        cJSON_GetArraySize(input.get()) != 1)
+                        return error(r, "400 Bad Request",
+                                     "Hold for 1 to 20 minutes: {\"minutes\": n}");
+                    update.duration_ms = int64_t(minutes->valueint) * minute_ms;
+                } else if (r->method == HTTP_DELETE) {
+                    if (r->content_len != 0)
+                        return error(r, "400 Bad Request", "Ending a hold does not accept a body");
+                } else {
+                    return error(r, "405 Method Not Allowed", "Method not allowed");
+                }
+                auto *queued = new (std::nothrow) CalibrationHoldUpdate(update);
+                if (!queued)
+                    return error(r, "503 Service Unavailable", "Calibration memory unavailable");
+                if (xQueueSend(holds_, &queued, 0) != pdTRUE) {
+                    delete queued;
+                    return error(r, "503 Service Unavailable", "Calibration request queue full");
+                }
+                httpd_resp_set_status(r, "202 Accepted");
+                return httpd_resp_send(r, "{\"status\":\"queued\"}", HTTPD_RESP_USE_STRLEN);
             }
             if ((r->method == HTTP_PATCH || r->method == HTTP_DELETE) &&
                 path.rfind("/api/v1/sensors/", 0) == 0) {

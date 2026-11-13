@@ -71,8 +71,9 @@ std::optional<Bucket> Aggregator::add(const Registry &registry, int64_t now_ms,
         }
         it->name = sensor.settings.name;
         it->state_flags |= uint16_t(1u << unsigned(sensor.state));
+        // A probe in a calibration hold (an ice bath) is not recorded: the history shows a gap.
         if (!sensor.temperature || !sensor.settings.enabled || !sensor.last_seen_ms ||
-            *sensor.last_seen_ms != now_ms)
+            *sensor.last_seen_ms != now_ms || calibration_held(sensor, now_ms))
             continue;
         double value = *sensor.temperature;
         if (!it->count)

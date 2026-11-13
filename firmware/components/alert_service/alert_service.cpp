@@ -79,14 +79,19 @@ std::optional<Event> AlertService::update(Sensor &sensor, const Reading *reading
     sensor.last_seen_ms = now_ms;
     sensor.temperature = *reading->celsius + sensor.settings.calibration;
     const double value = *sensor.temperature;
+    // During a calibration hold (spec 17.3) the probe is in an ice bath: no high or low condition
+    // is raised, so an active one clears at once through the normal path.
     State target = State::normal;
-    if (sensor.settings.high && (value > *sensor.settings.high ||
-                                 (sensor.state == State::high &&
-                                  value > *sensor.settings.high - sensor.settings.hysteresis)))
+    const bool held = calibration_held(sensor, now_ms);
+    if (!held && sensor.settings.high &&
+        (value > *sensor.settings.high ||
+         (sensor.state == State::high &&
+          value > *sensor.settings.high - sensor.settings.hysteresis)))
         target = State::high;
-    else if (sensor.settings.low && (value < *sensor.settings.low ||
-                                     (sensor.state == State::low &&
-                                      value < *sensor.settings.low + sensor.settings.hysteresis)))
+    else if (!held && sensor.settings.low &&
+             (value < *sensor.settings.low ||
+              (sensor.state == State::low &&
+               value < *sensor.settings.low + sensor.settings.hysteresis)))
         target = State::low;
 
     if (target == State::normal || target == sensor.state) {
