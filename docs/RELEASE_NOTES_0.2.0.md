@@ -106,6 +106,27 @@ were never published.
   `restored` or `failed`). `PATCH` still rejects it, as it rejects any unknown key.
 - `calibration_c` is limited to ±12.7 °C in both sensor schemas and in the firmware.
 
+## Fixed after the review audit (2026-11-12 and 13)
+
+Software fixes with host, simulator and browser-test evidence; none of them was rechecked on the
+board. Records are under [validation/](validation/) (`review-audit-*`), tracked in
+[REVIEW_AUDIT_FIX_TODO.md](REVIEW_AUDIT_FIX_TODO.md).
+
+- Ice-bath calibration keeps the probe's alerts paused for the whole time the dialog is open, and
+  says so if the pause is lost (F1).
+- A CSV export over damaged history is refused (`503`) or ends as a failed download; it is never
+  presented as complete (F2).
+- One failed sensor-settings save no longer locks the settings until restart: editing resumes after
+  a short pause (F3).
+- History queries and exports stop at their 3 and 15-second budgets instead of reading the whole
+  store (F4).
+- Short history charts, such as one hour, always have time labels, in any time zone (F5).
+- The Dashboard chart is never drawn with another boot's or another clock's data, and says when
+  a refresh failed (F6).
+- The history answer stays valid when memory runs out (F7).
+- The Settings tests no longer depend on timing (F8); the documents match the code (F9).
+- Switches show a clear keyboard focus ring.
+
 ## Checked on the board
 
 On the connected ESP32-S3 with four saved probes, between 2026-11-10 and 2026-11-12:
@@ -134,9 +155,13 @@ The evidence is in [validation/](validation/) and [REVIEW_FIX_TODO.md](REVIEW_FI
 | Other devices | Public access from a phone, and `.local` name resolution from Windows, macOS/iOS and Android, are not checked. Linux works. | R07-08, R08-05 |
 | LCD | The update-status footer and the setup page were not watched on the panel (their logs and host renders were checked). The panel's geometry and backlight are not fully measured. | T10-02, T04-02 |
 | Probe calibration memory | On the board only a 0 °C offset was written. A non-zero offset, a probe adopting its saved offset when retired and plugged back in, and write failures are covered by host tests only. | [record](validation/device-probe-calibration-memory-2026-11-12.md) |
-| History retention | The store has not filled yet. Retention under eviction is the host profile's forecast (about 61 days with four probes). | T06-15 |
+| History retention | The store has not filled yet. Retention under eviction is a host forecast: about 109 days with one probe down to 32 with five, using worst-case 32-character names ([record](validation/review-audit-retention-host-2026-11-13.md)); shorter names keep more. | T06-15, H07 |
 | Backlight | Do not connect GPIO15 to the LCD backlight until its voltage, polarity and current are measured. | T04-02 |
 | Security model | The device uses local HTTP, so traffic is not encrypted on the LAN. Readings, history and display settings are public; changes need the administrator password. Do not expose the device to the internet. | [SECURITY_DESIGN.md](SECURITY_DESIGN.md) |
+| History speed | Broad history queries took 1.43 to 1.93 s on the board on 2026-11-12, short of the one-second goal. The budget changes (F4) have not been measured on the board since. | R10-03, H07 |
+| Ice-bath calibration | Not yet done with a real probe in a real bath. | R11-04, H10 |
+| Rollback after calibrating | A build older than commit `3c1a01d` (development builds only) cannot read an event journal that holds calibration records, and refuses it without changing it until the device is rolled forward. | A11 |
+| Route checks | Every API route goes through one tested access gate, but the handlers themselves are not run in host tests. | H04 |
 | History data | History stores five-minute aggregates, not raw five-second readings. Erasing history or reformatting flash destroys it; see [HISTORY_FORMAT.md](HISTORY_FORMAT.md) for backups. | — |
 
 ## Upgrading from a 0.1.0 development build
