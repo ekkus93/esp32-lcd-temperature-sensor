@@ -79,12 +79,139 @@ function simulatedAlerts() {
   };
 }
 const start = Date.now();
-const server = http.createServer((req, res) => {
+// The calibration flow (spec 17.2) needs somewhere to write. Its settings and ice-bath holds live in
+// memory here, as the device keeps them, and the probe reads what a probe with an error of
+// PROBE_ERROR_C would read in the bath. Everything else stays read-only.
+const PROBE_ERROR_C = 0.4;
+const sensorSettings = new Map(); // rom_id -> { calibration_c, revision, hold_until_ms }
+function settingsFor(rom_id) {
+  if (!sensorSettings.has(rom_id))
+    sensorSettings.set(rom_id, {
+      calibration_c: 0,
+      revision: 1,
+      hold_until_ms: null,
+    });
+  return sensorSettings.get(rom_id);
+}
+const etagFor = (rom_id) =>
+  `"simulator:${rom_id}:${settingsFor(rom_id).revision}"`;
+const readyStates = ['normal', 'high', 'low'];
+function sensorsView() {
+  return snapshot.sensors.map((s) => {
+    const current = settingsFor(s.rom_id);
+    return {
+      rom_id: s.rom_id,
+      etag: etagFor(s.rom_id),
+      revision: current.revision,
+      name: s.name,
+      short_name: '',
+      enabled: s.enabled,
+      disconnect_alert: true,
+      order: s.order,
+      calibration_c: current.calibration_c,
+      low_c: null,
+      high_c: null,
+      hysteresis_c: 0.5,
+      persistence_seconds: 15,
+      state: s.state,
+      // Simulated probes have no memory of their own.
+      probe_calibration: 'unknown',
+      calibrating:
+        current.hold_until_ms !== null &&
+        snapshot.uptime_ms < current.hold_until_ms,
+      calibration_hold_ends_uptime_ms: current.hold_until_ms,
+    };
+  });
+}
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', (chunk) => {
+      data += chunk;
+      if (data.length > 2048) reject(new Error('body too large'));
+    });
+    req.on('end', () => {
+      try {
+        resolve(data ? JSON.parse(data) : undefined);
+      } catch {
+        reject(new Error('invalid json'));
+      }
+    });
+    req.on('error', reject);
+  });
+}
+const calibrationRoute =
+  /^\/api\/v1\/sensors\/([0-9a-f]{16})\/calibration-hold$/;
+const sensorRoute = /^\/api\/v1\/sensors\/([0-9a-f]{16})$/;
+const server = http.createServer(async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'no-store');
   // One request per connection: a client that reuses an idle keep-alive socket just as the server
   // times it out gets "socket hang up", which made the live test flaky on a busy machine.
   res.setHeader('Connection', 'close');
+  const json = (status, value) => {
+    res.writeHead(status);
+    res.end(JSON.stringify(value));
+  };
+  const hold = calibrationRoute.exec(req.url?.split('?')[0] ?? '');
+  const sensor = sensorRoute.exec(req.url?.split('?')[0] ?? '');
+  if (req.method === 'PUT' && hold) {
+    const rom = hold[1];
+    const found = snapshot.sensors.find((s) => s.rom_id === rom);
+    if (!found) return json(404, { error: 'Unknown ROM ID' });
+    if (!readyStates.includes(found.state))
+      return json(409, { error: 'Probe must be connected to calibrate it' });
+    let body;
+    try {
+      body = await readBody(req);
+    } catch {
+      return json(400, { error: 'Expected bounded JSON object' });
+    }
+    const minutes = body?.minutes;
+    if (
+      !Number.isInteger(minutes) ||
+      minutes < 1 ||
+      minutes > 20 ||
+      Object.keys(body).length !== 1
+    )
+      return json(400, { error: 'Hold for 1 to 20 minutes: {"minutes": n}' });
+    settingsFor(rom).hold_until_ms = snapshot.uptime_ms + minutes * 60000;
+    return json(202, { status: 'queued' });
+  }
+  if (req.method === 'DELETE' && hold) {
+    const rom = hold[1];
+    if (!snapshot.sensors.some((s) => s.rom_id === rom))
+      return json(404, { error: 'Unknown ROM ID' });
+    settingsFor(rom).hold_until_ms = null;
+    return json(202, { status: 'queued' });
+  }
+  if (req.method === 'PATCH' && sensor) {
+    const rom = sensor[1];
+    if (!snapshot.sensors.some((s) => s.rom_id === rom))
+      return json(404, { error: 'Unknown ROM ID' });
+    const match = req.headers['if-match'];
+    if (!match)
+      return json(428, { error: 'Refresh sensor settings before updating' });
+    if (match !== etagFor(rom))
+      return json(412, {
+        error: 'Sensor settings changed; refresh before saving',
+      });
+    let body;
+    try {
+      body = await readBody(req);
+    } catch {
+      return json(400, { error: 'Expected bounded JSON object' });
+    }
+    // Only the calibration offset is written by the simulator; the other fields stay as they are.
+    const current = settingsFor(rom);
+    if (
+      typeof body?.calibration_c === 'number' &&
+      Math.abs(body.calibration_c) <= 12.7
+    )
+      current.calibration_c = Math.round(body.calibration_c * 10) / 10;
+    current.revision += 1;
+    return json(202, { status: 'queued' });
+  }
   if (req.method !== 'GET') {
     res.writeHead(501);
     res.end('{"error":"Read-only host simulator"}');
@@ -118,28 +245,7 @@ const server = http.createServer((req, res) => {
     );
   else if (req.url === '/api/v1/status') res.end(JSON.stringify(snapshot));
   else if (req.url === '/api/v1/sensors')
-    res.end(
-      JSON.stringify(
-        snapshot.sensors.map((s) => ({
-          rom_id: s.rom_id,
-          etag: `"simulator:${s.rom_id}:1"`,
-          revision: 1,
-          name: s.name,
-          short_name: '',
-          enabled: s.enabled,
-          disconnect_alert: true,
-          order: s.order,
-          calibration_c: 0,
-          low_c: null,
-          high_c: null,
-          hysteresis_c: 0.5,
-          persistence_seconds: 15,
-          state: s.state,
-          // Simulated probes have no memory of their own.
-          probe_calibration: 'unknown',
-        })),
-      ),
-    );
+    res.end(JSON.stringify(sensorsView()));
   else if (req.url.startsWith('/api/v1/history/export?')) {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
@@ -155,8 +261,9 @@ const server = http.createServer((req, res) => {
     res.end(
       JSON.stringify({
         schema_version: 1,
-        state: 'read_only',
-        writable: false,
+        // Calibration writes are kept in memory, so the sensor editor can save.
+        state: 'ready',
+        writable: true,
       }),
     );
   else if (req.url === '/api/v1/probe-scan')
@@ -228,7 +335,22 @@ const interval = setInterval(() => {
     ...snapshot,
     sequence: snapshot.sequence + 1,
     uptime_ms: uptime,
-    sensors: snapshot.sensors.map((s) => ({ ...s, last_seen_ms: uptime })),
+    sensors: snapshot.sensors.map((s) => {
+      const current = settingsFor(s.rom_id);
+      const held =
+        current.hold_until_ms !== null && uptime < current.hold_until_ms;
+      if (current.hold_until_ms !== null && !held) current.hold_until_ms = null;
+      // In the bath the probe reads its own error plus a little noise, then the saved offset.
+      const noise = (Math.random() - 0.5) * 0.06;
+      const temperature_c = held
+        ? Number((PROBE_ERROR_C + noise + current.calibration_c).toFixed(4))
+        : s.temperature_c;
+      return {
+        ...s,
+        ...(held ? { temperature_c } : {}),
+        last_seen_ms: uptime,
+      };
+    }),
   };
   const frame = JSON.stringify(snapshot);
   for (const ws of sockets.clients) {

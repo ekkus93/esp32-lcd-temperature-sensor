@@ -270,7 +270,7 @@ function Shell() {
           {index === 2 && (
             <AuthGate reason="Sign in to view and change sensor settings.">
               <Suspense fallback={<Typography>Loading sensors…</Typography>}>
-                <SensorsView unit={unit} />
+                <SensorsView unit={unit} snapshot={snapshot} />
               </Suspense>
             </AuthGate>
           )}

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useConfirm } from '../useConfirm';
+import IceCalibrationDialog from './calibration/IceCalibrationDialog';
+import type { Snapshot } from '../api/generated';
 import {
   Alert,
   Button,
@@ -95,6 +97,7 @@ function SensorEditor({
   sensor,
   unit,
   writable,
+  snapshot,
   onUnavailable,
   onSaved,
   onRetired,
@@ -102,10 +105,12 @@ function SensorEditor({
   sensor: SensorConfiguration;
   unit: Unit;
   writable: boolean;
+  snapshot: Snapshot | null;
   onUnavailable: () => void;
   onSaved: (updated: SensorConfiguration) => void;
   onRetired: (id: string) => void;
 }) {
+  const [calibrating, setCalibrating] = useState(false);
   const [numbers, setNumbers] = useState(() => numericText(sensor, unit));
   // The unit the form's text is in. When the page's entry unit changes, the text is converted
   // here, during render, so no frame shows numbers under the wrong unit.
@@ -286,6 +291,38 @@ function SensorEditor({
     <Card>
       <CardContent>
         {dialog}
+        {calibrating && (
+          <IceCalibrationDialog
+            rom={sensor.rom_id}
+            name={sensor.name}
+            unit={unit}
+            etag={sensor.etag}
+            calibrationC={sensor.calibration_c}
+            lowC={sensor.low_c}
+            highC={sensor.high_c}
+            snapshot={snapshot}
+            onCalibrated={(updated) => {
+              setDraft(updated);
+              setNumbers(numericText(updated, currentUnit.current));
+              setEdited(new Set());
+              setPositionText(String(updated.order + 1));
+              onSaved(updated);
+              setMessage('Calibration saved and applied.');
+            }}
+            onEditLimits={() => {
+              setCalibrating(false);
+              // The dialog leaves first; then the limit field takes focus.
+              setTimeout(
+                () =>
+                  document
+                    .getElementById(`sensor-low-${sensor.rom_id}`)
+                    ?.focus(),
+                0,
+              );
+            }}
+            onClose={() => setCalibrating(false)}
+          />
+        )}
         <Typography variant="h6">{sensor.name}</Typography>
         <Typography variant="caption" component="p">
           ROM {sensor.rom_id} · {sensor.state.replaceAll('_', ' ')}
@@ -350,6 +387,7 @@ function SensorEditor({
                 }}
               />
               <TextField
+                id={`sensor-low-${sensor.rom_id}`}
                 label={`Low threshold (${u})`}
                 type="number"
                 value={numbers.low_c}
@@ -364,6 +402,7 @@ function SensorEditor({
                 }}
               />
               <TextField
+                id={`sensor-high-${sensor.rom_id}`}
                 label={`High threshold (${u})`}
                 type="number"
                 value={numbers.high_c}
@@ -415,6 +454,15 @@ function SensorEditor({
               >
                 Save sensor settings
               </Button>
+              {writable && READY_TO_CALIBRATE.includes(sensor.state) && (
+                <Button
+                  variant="outlined"
+                  disabled={busy || calibrating}
+                  onClick={() => setCalibrating(true)}
+                >
+                  Calibrate in ice
+                </Button>
+              )}
               {sensor.state === 'disconnected' && (
                 <Button
                   color="warning"
@@ -432,10 +480,19 @@ function SensorEditor({
   );
 }
 // Tabs follow the LCD display position, then the ROM, so they match the screen's order.
+// The states in which a probe can be calibrated: it has a valid reading.
+const READY_TO_CALIBRATE: string[] = ['normal', 'high', 'low'];
+
 function byPosition(a: SensorConfiguration, b: SensorConfiguration) {
   return a.order - b.order || a.rom_id.localeCompare(b.rom_id);
 }
-export default function SensorsView({ unit }: { unit: Unit }) {
+export default function SensorsView({
+  unit,
+  snapshot = null,
+}: {
+  unit: Unit;
+  snapshot?: Snapshot | null;
+}) {
   const [sensors, setSensors] = useState<SensorConfiguration[] | null>(null);
   const [writable, setWritable] = useState<boolean | null>(null);
   const [error, setError] = useState('');
@@ -575,6 +632,7 @@ export default function SensorsView({ unit }: { unit: Unit }) {
             sensor={sensor}
             unit={entryUnit}
             writable={writable === true}
+            snapshot={snapshot}
             onUnavailable={() => setWritable(false)}
             onSaved={(updated) =>
               setSensors(

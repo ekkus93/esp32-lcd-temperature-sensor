@@ -533,3 +533,32 @@ it('limits the calibration offset to what the probe can hold', async () => {
   expect(field).toHaveAttribute('max', '12.7');
   expect(field).toHaveAttribute('min', '-12.7');
 });
+
+it('offers the ice-bath calibration only for a probe with a reading and while settings are writable', async () => {
+  stubSensors([{ ...sensor, state: 'normal' }]);
+  const view = render(<SensorsView unit="C" />);
+  expect(
+    await screen.findByRole('button', { name: 'Calibrate in ice' }),
+  ).toBeInTheDocument();
+  view.unmount();
+
+  stubSensors([{ ...sensor, state: 'disconnected' }]);
+  const disconnected = render(<SensorsView unit="C" />);
+  await screen.findByRole('tab', { name: sensor.name });
+  expect(screen.queryByRole('button', { name: 'Calibrate in ice' })).toBeNull();
+  disconnected.unmount();
+
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation(async (input: RequestInfo | URL) => ({
+      ok: true,
+      json: async () =>
+        String(input).endsWith('/sensors/storage')
+          ? { schema_version: 1, state: 'read_only', writable: false }
+          : [{ ...sensor, state: 'normal' }],
+    })),
+  );
+  render(<SensorsView unit="C" />);
+  await screen.findByRole('tab', { name: sensor.name });
+  expect(screen.queryByRole('button', { name: 'Calibrate in ice' })).toBeNull();
+});

@@ -49,3 +49,21 @@ export async function retireSensor(
     throw new Error('Invalid sensor retirement response');
   return result;
 }
+
+// Starts or renews an ice-bath calibration hold for `minutes` (1 to 20), from now (spec 17.3).
+export async function setCalibrationHold(
+  id: string,
+  minutes: number,
+): Promise<void> {
+  await request(`/sensors/${encodeURIComponent(id)}/calibration-hold`, 'PUT', {
+    minutes,
+  });
+}
+
+// Ends a calibration hold early.
+export async function endCalibrationHold(id: string): Promise<void> {
+  await request(
+    `/sensors/${encodeURIComponent(id)}/calibration-hold`,
+    'DELETE',
+  );
+}

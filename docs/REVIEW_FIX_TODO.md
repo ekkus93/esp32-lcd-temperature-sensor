@@ -258,6 +258,17 @@ bath. API additions are additive within schema v1 (§17.3); no settings storage 
   shortened to five minutes at Done or Cancel, and the guards (disconnect, bus fault, revision
   change, beyond ±12.7 °C refused, beyond ±2 °C warned, 10-minute give-up). Acceptance: the web
   tests in §17.5 pass; checked in a browser at 360 px against the simulator.
+  Built (2026-11-12, against the simulator only): `features/calibration/` has the arithmetic and
+  guards (`iceCalibration.ts`: steady means 12 readings within 0.125 °C, offset = −mean rounded to
+  0.1 °C, refusal beyond ±12.7 °C, a warning beyond 2 °C) and the dialog (`IceCalibrationDialog.tsx`):
+  the hold starts on opening, is renewed every five minutes, and is shortened to five minutes on
+  Done, Cancel or Escape; measuring counts each live sample once, stops when the probe is lost or
+  the bus faults, and saves through the existing PATCH with the current ETag. The Sensors editor
+  shows "Calibrate in ice" only for a probe with a reading and writable settings. The simulator takes
+  these writes in memory and simulates a probe 0.4 °C in error. Tests: 22 dialog, 8 logic, and the
+  button rules. Checked end to end in headless Chromium at 360, 390 and 1280 px (about 65 s per run),
+  including the unchanged-offset case. **Not yet covered:** the 10-minute give-up, the revision-change
+  check during measuring, and the °F wording (checked by eye only).
 - [ ] **R11-03** User guide calibration section (§17.4): the ice bath, calibrating each probe as
   installed, what calibration changes and the limits reminder, the alert pause, and probe
   placement in a grow room. `docs/WEB_UI_DESIGN_SPEC.md` describes the flow. Acceptance: a
