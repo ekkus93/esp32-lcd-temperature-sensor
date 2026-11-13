@@ -271,7 +271,7 @@ Use a versioned `/api/v1/` namespace. Draft minimal endpoints and adjust only wi
 | `POST /api/v1/wifi/provisioning` | Authorized return to setup mode |
 | `GET /api/v1/history/export` | Stream CSV in bounded chunks |
 | `POST /api/v1/ota` | Authenticated firmware update, verified and rollback-capable |
-| `WS /api/v1/live` | Authenticated socket; version + monotonic sequence, initial full snapshot and updates |
+| `WS /api/v1/live` | Public socket (allowed Origin and Host, four clients with one kept for the signed-in owner); version + monotonic sequence, initial full snapshot and updates |
 
 Define JSON schema/OpenAPI or a single authoritative contract and generate/check TypeScript types. The implemented route and schema index is [`contracts/API.md`](../contracts/API.md); shared schemas are used by the TypeScript response validators. All readings are degrees Celsius in machine payloads; conversion for display is performed at presentation boundaries. Avoid unstable sensor indexes: use ROM IDs in requests/storage and user-configured display order separately.
 

@@ -228,8 +228,12 @@ bounded write queue. `GET /api/v1/history/export` accepts the same selectors
 except `max_points` and streams full five-minute CSV rows with recorded labels,
 state flags, timestamp quality, and an explicit simulation marker. See
 [HISTORY_FORMAT.md](HISTORY_FORMAT.md) for the binary and CSV schemas, legacy
-record behavior, and retention estimates. Export requires an administrator
-session. A zero-count row has empty temperature fields.
+record behavior, and retention estimates. Export is public and rate limited (one
+per 30 seconds per client, as `route_access` and the public limiter enforce). A
+zero-count row has empty temperature fields. An export is either complete or
+visibly failed: damaged history, the 15-second budget or a storage failure found
+before the first row gives `503`; found later, the connection closes without the
+final chunk and the download fails. A partial file is not a valid export.
 
 With the simulation firmware running, use
 `python tools/device_sensor_test.py --port /dev/ttyACM0 --history-only` to check

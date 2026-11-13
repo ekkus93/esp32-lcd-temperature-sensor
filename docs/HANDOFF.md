@@ -1,10 +1,19 @@
-## 2026-10-31 — Current project status
+## 2026-11-13 — Current project status
+
+Recounted from task IDs: **128 complete and 17 open of 145 numbered tasks** in [TODO.md](TODO.md)
+(T02-01/02/03/15, T04-02/14, T05-13/18, T06-15/16, T10-02/05/08/09/10, T11-01/08). Acceptance gates
+are not numbered tasks. Current work is the review audit fix plan
+([spec](REVIEW_AUDIT_FIX_SPEC.md), [TODO](REVIEW_AUDIT_FIX_TODO.md)); its records are under
+`validation/review-audit-*`. Sections below are dated history: their counts, images and test totals
+describe those dates, not the current build.
+
+## 2026-10-31 — Project status
 
 The canonical backlog has **124 complete and 21 open of 145 numbered tasks**. T06-14 software acceptance now passes focused host storage/power-cut simulations plus device history/reboot evidence. Physical power interruption is tracked separately at T06-16. See the current [project handoff](ESP32_TEMPERATURE_MONITOR_HANDOFF_2026-10-31.md) and [progress record](PROGRESS.md).
 
 The current ESP-IDF v6.1 firmware is image 0x1ee5f0 and runs on /dev/ttyACM0. Full verification passed 24 host CTests, 14 Python tests, simulator checks, headless LVGL, 78 web tests and the pinned firmware build. The board passed a fresh 120-second bare-board health smoke with healthy storage and no panic; see [validation](validation/device-bare-board-2026-10-31.txt). The LCD and temperature probes are disconnected; no physical LCD/probe acceptance is claimed. The device test-managed admin is currently un-enrolled after a test-only credential reset, awaiting BOOT provisioning to resume authenticated tests.
 
-## 2026-10-30 — Current connected-board checkpoint
+## 2026-10-30 — Connected-board checkpoint
 
 The ESP32-S3 is visible at `/dev/ttyACM0`. A normal-image smoke and the complete
 authenticated USB-loopback API suite passed with the LCD and probes absent.

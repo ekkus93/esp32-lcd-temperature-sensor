@@ -144,19 +144,21 @@ prior validation are inputs, not proof that these regressions or gates pass.
 
 ## Phase D — Documentation and acceptance integrity
 
-- [ ] **A09 — F9: Reconcile current documentation**
+- [x] **A09 — F9: Reconcile current documentation**
   (spec §12; R09-08, R10-11/13). Finalize after the behavior fixes.
-  - [ ] **A09.1** Correct public CSV guidance in `HISTORY_FORMAT.md`,
+  - [x] **A09.1** Correct public CSV guidance in `HISTORY_FORMAT.md`,
     `DEVELOPMENT.md` and any other current contradictory instructions.
-  - [ ] **A09.2** Describe actual completion/deadline/performance behavior;
+  - [x] **A09.2** Describe actual completion/deadline/performance behavior;
     keep API/storage version decisions explicit and distinguish measured results
     from forecasts and unperformed acceptance.
-  - [ ] **A09.3** Recount numbered original tasks separately from gates and
+  - [x] **A09.3** Recount numbered original tasks separately from gates and
     update every current summary. Preserve dated historical records as history.
-  - [ ] **A09.4** Cross-check specs, contracts, guides, release notes and
+  - [x] **A09.4** Cross-check specs, contracts, guides, release notes and
     trackers for removed owner code, four-client cap, fonts/access and evidence.
-  - [ ] **A09.5** Annotate affected original tasks with fix IDs and evidence;
+  - [x] **A09.5** Annotate affected original tasks with fix IDs and evidence;
     retain incomplete subrequirements/hardware gates rather than blanket closure.
+    Done: record `docs/validation/review-audit-docs-2026-11-13.md` (`PROGRESS.md` left as dated
+    history).
 
 - [ ] **A10 — H04: Complete safe route-boundary coverage** (spec §13; R07-06).
   - [ ] **A10.1** Inventory registered routes against the single access table.

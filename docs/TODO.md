@@ -315,9 +315,9 @@ passed. T07-10 is now complete. Device details:
 [API validation](validation/device-api-results.txt) and
 [smoke validation](validation/device-smoke-2026-10-30.txt).
 
-Numbered tracker: **125 complete, 20 open of 145**. Open tasks are T02-01/02/03/14/15;
-T04-02/03/14; T05-10/13/18; T06-15/16; T10-02/05/08/09/10;
-and T11-01/08. Remaining gates require physical LCD/probes, BOOT/owner-network
+Numbered tracker (recounted from task IDs on 2026-11-13): **128 complete, 17 open of 145**.
+Acceptance gates are not numbered tasks. Open tasks are T02-01/02/03/15; T04-02/14;
+T05-13/18; T06-15/16; T10-02/05/08/09/10; and T11-01/08. Remaining gates require physical LCD/probes, BOOT/owner-network
 access, populated storage/power interruption, OTA/rollback, combined load/soak,
 or release signoff as described inline. The owner-designated board has the
 ST7735 LCD connected; temperature probes are not connected.

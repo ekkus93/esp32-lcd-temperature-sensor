@@ -97,7 +97,7 @@ requires putting the ESP32-S3 in ROM download mode and reading only the history
 partition with the matching pinned esptool:
 
 ```sh
-source /home/phil/esp/esp-idf-v6.1/export.sh
+source ~/.espressif/tools/activate_idf_v6.1.sh
 python -m esptool --chip esp32s3 -p PORT read-flash 0x820000 0x400000 history-backup.bin
 ```
 
@@ -154,10 +154,28 @@ mixed-boot/overlapping records set `truncated`.
 
 `GET /api/v1/history/export` uses the same range/boot/ROM selectors and rejects
 `max_points`: it streams full five-minute records, one ROM per CSV row, rather
-than graph reductions. It requires an administrator session. Filesystem access
-is serialized; acquisition continues through its bounded write queue. A 15-second
-export deadline and socket timeouts bound slow clients. An interrupted transfer
-closes without a final HTTP chunk rather than appearing complete.
+than graph reductions. It is public and rate limited: one export per 30 seconds per
+client address, and at most two history requests running at once. Filesystem
+access is serialized; acquisition continues through its bounded write queue.
+
+Deadlines are measured from when a request holds the history lock (waiting for it
+is logged separately): 3 seconds for a chart query, 15 seconds for an export. On
+expiry the store stops reading within one 4 KiB chunk or one record and starts no
+further segment; a chart answer is then valid and `truncated`. A blocking read or
+socket send already in progress is not interrupted (socket send timeout 3 s), so
+the bound is not hard real time.
+
+A CSV export is never marked partial: damaged completed segments in the range, the
+deadline or a storage failure known before the first row give `503` with the
+reason; found after rows were sent, the device closes the connection without the
+final HTTP chunk, so the browser reports a failed download. Bytes already sent
+cannot be recalled, so discard such a partial file. The chart query for the same
+range still answers, with `truncated: true`.
+
+Measured latency of full-store queries on the device is not yet established
+(gate H07). Broad queries recorded on the board on 2026-11-12 took 1.43 to 1.93 seconds
+([record](validation/device-history-load-2026-11-12.md)), which does not meet the original
+"well under one second" objective; that build predates the deadline changes above.
 
 CSV schema 1 columns are `schema_version`, `simulated`, `boot_id`,
 `timestamp_quality`, `start_uptime_ms`, `utc_seconds`, `rom_id`, `sensor_name`,
