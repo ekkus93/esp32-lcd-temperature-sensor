@@ -78,8 +78,11 @@ code, then move the group into its file in a separate commit, with the tests unc
   `export_history_csv` and `build_history_json`).
   Done: `routes_history.{hpp,cpp}` (`route_history`, `serve_history`), ctest `routes_history`.
 
-- [ ] **G10 — Static assets and portal probes** (asset lookup, gzip requirement, cache and security
+- [x] **G10 — Static assets and portal probes** (asset lookup, gzip requirement, cache and security
   headers, the SPA fallback list, socket close after an asset).
+  Done: `static_assets.{hpp,cpp}` (`serve_static_asset` template over any asset table,
+  `answer_portal_probe`), ctest `routes_static`.
+
 - [x] **G11 — Live JSON** (snapshot and sensor serialization into `live_json`).
   Done (before G08, which needs it): `snapshot_json()` joins the sensor, event and boot-id JSON
   moved in G05; ctest `routes_live_json`.

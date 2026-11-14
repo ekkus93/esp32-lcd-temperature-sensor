@@ -25,6 +25,7 @@
 #include "routes_sensors.hpp"
 #include "routes_settings.hpp"
 #include "routes_system.hpp"
+#include "static_assets.hpp"
 #include "web_assets.h"
 #include <algorithm>
 #include <cerrno>
@@ -332,16 +333,8 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
     if (query != std::string::npos)
         path.resize(query);
     bool api = path.rfind("/api/", 0) == 0;
-    const bool portal_probe = path == "/generate_204" || path == "/gen_204" ||
-                              path == "/hotspot-detect.html" || path == "/connecttest.txt" ||
-                              path == "/ncsi.txt";
-    if (portal_probe && ex.method() == HttpMethod::get && wifi_->info().provisioning) {
-        // Only OS connectivity probes bypass Host checking; APIs never do.
-        ex.set_status("302 Found");
-        ex.set_header("Location", "http://192.168.4.1/setup");
-        ex.set_header("Cache-Control", "no-store");
-        return ex.send("", 0);
-    }
+    if (const auto redirected = answer_portal_probe(ex, path, *wifi_))
+        return *redirected;
     if (api && !origin(ex, ex.method() != HttpMethod::get))
         return send_error(ex, "403 Forbidden", "Invalid host/origin");
     // The open auth routes run before the gate: they manage the session themselves.
@@ -426,44 +419,6 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
             return route_auth_password(request, *ports_);
         return send_error(ex, "404 Not Found", "Unknown API route");
     }
-    if (ex.method() != HttpMethod::get)
-        return send_error(ex, "405 Method Not Allowed", "Method not allowed");
-    const WebAsset *asset = nullptr;
-    for (const auto &candidate : web_assets)
-        if (path == candidate.path) {
-            asset = &candidate;
-            break;
-        }
-    if (!asset) {
-        if (path != "/" && path != "/history" && path != "/sensors" && path != "/alerts" &&
-            path != "/events" && path != "/settings" && path != "/setup")
-            return send_error(ex, "404 Not Found", "Not found");
-        for (const auto &candidate : web_assets)
-            if (std::strcmp(candidate.path, "/index.html") == 0) {
-                asset = &candidate;
-                break;
-            }
-    }
-    if (!asset)
-        return ESP_FAIL;
-    if (ex.header("Accept-Encoding", 256).find("gzip") == std::string::npos)
-        return send_error(ex, "406 Not Acceptable", "Client must accept gzip");
-    ex.set_type(asset->type);
-    ex.set_header("Content-Encoding", "gzip");
-    ex.set_header("Vary", "Accept-Encoding");
-    ex.set_header("Cache-Control", std::strcmp(asset->path, "/index.html") == 0
-                                       ? "no-cache"
-                                       : "public, max-age=31536000, immutable");
-    ex.set_header("X-Content-Type-Options", "nosniff");
-    ex.set_header(
-        "Content-Security-Policy",
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src "
-        "'self' ws:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
-    const esp_err_t sent = ex.send(reinterpret_cast<const char *>(asset->data), asset->size);
-    // The browser fetches the page's files in parallel over at most six connections, and each
-    // keep-alive connection holds one of max_open_sockets. Closing after an asset frees its
-    // socket at once, so the live WebSocket and API calls are not purged to make room.
-    ex.close_connection();
-    return sent;
+    return serve_static_asset(ex, path, web_assets, sizeof(web_assets) / sizeof(web_assets[0]));
 }
 } // namespace monitor
