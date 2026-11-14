@@ -86,11 +86,15 @@ code, then move the group into its file in a separate commit, with the tests unc
 - [x] **G11 — Live JSON** (snapshot and sensor serialization into `live_json`).
   Done (before G08, which needs it): `snapshot_json()` joins the sensor, event and boot-id JSON
   moved in G05; ctest `routes_live_json`.
-- [ ] **G12 — Route boundary harness** (spec §6; review audit A10.2).
-  - [ ] **G12.1** For every route: anonymous, session without CSRF and full session through the
+- [x] **G12 — Route boundary harness** (spec §6; review audit A10.2).
+  - [x] **G12.1** For every route: anonymous, session without CSRF and full session through the
     real router with fakes; every refused dangerous request leaves every fake untouched.
-  - [ ] **G12.2** Mark review audit A10.2 done with this evidence; reduce or retire
+  - [x] **G12.2** Mark review audit A10.2 done with this evidence; reduce or retire
     `tools/tests/test_route_inventory.py` as the spec says.
+    Done: `api_dispatch.{hpp,cpp}` (`dispatch_api`, `handler_for`), ctest `route_boundary`;
+    `test_route_inventory.py` reduced to the table/policy match and "no handler in http_api.cpp";
+    review audit A10.2 and G1 ticked.
+
 - [ ] **G13 — Slim `http_api.cpp`** (spec §4.5): only server lifecycle, registration, workers,
   limiter and the main-loop interface remain; under 400 lines; `handle()`/dispatch under 60.
 

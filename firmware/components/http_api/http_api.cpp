@@ -1,4 +1,5 @@
 #include "http_api.hpp"
+#include "api_dispatch.hpp"
 #include "api_responses.hpp"
 #include "api_router.hpp"
 #include "cJSON.h"
@@ -21,10 +22,6 @@
 #include "route_access.hpp"
 #include "routes_auth.hpp"
 #include "routes_history.hpp"
-#include "routes_network.hpp"
-#include "routes_sensors.hpp"
-#include "routes_settings.hpp"
-#include "routes_system.hpp"
 #include "static_assets.hpp"
 #include "web_assets.h"
 #include <algorithm>
@@ -337,88 +334,8 @@ esp_err_t HttpApi::handle(HttpExchange &ex) {
         return *redirected;
     if (api && !origin(ex, ex.method() != HttpMethod::get))
         return send_error(ex, "403 Forbidden", "Invalid host/origin");
-    // The open auth routes run before the gate: they manage the session themselves.
-    if (api) {
-        const std::optional<Session> no_session;
-        RouteRequest early{ex, path, no_session, now()};
-        if (path == "/api/v1/auth/state" && ex.method() == HttpMethod::get)
-            return route_auth_state(early, *ports_);
-        if (path == "/api/v1/auth/enroll" && ex.method() == HttpMethod::post)
-            return route_auth_enroll(early, *ports_);
-        if (path == "/api/v1/auth/login" && ex.method() == HttpMethod::post)
-            return route_auth_login(early, *ports_);
-    }
-    if (api) {
-        // One place decides who may call what: the route table and route_access (api_router.hpp).
-        // A request reaches a handler below only when the gate says proceed; anything not in the
-        // table is a 404 for everyone.
-        const auto gate = gate_request(ex, *auth_, path, now());
-        switch (gate.gate) {
-        case ApiGate::not_found:
-            return send_error(ex, "404 Not Found", "Unknown API route");
-        case ApiGate::unauthorized:
-            return send_error(ex, "401 Unauthorized", "Administrator session required");
-        case ApiGate::proceed:
-            break;
-        }
-        const auto &s = gate.session;
-        RouteRequest request{ex, path, s, now()};
-        switch (gate.route->id) {
-        case RouteId::status:
-            return route_status(request, *ports_);
-        case RouteId::clock:
-            return route_clock(request, *ports_);
-        case RouteId::probe_scan:
-            return route_probe_scan(request, *ports_);
-        case RouteId::ota:
-            return route_ota(request, *ports_);
-        case RouteId::reboot:
-            return route_reboot(request, *ports_);
-        case RouteId::factory_reset:
-            return route_factory_reset(request, *ports_);
-        default:
-            break;
-        }
-        if (gate.route->id == RouteId::settings_read || gate.route->id == RouteId::settings_update)
-            return route_settings(request, *ports_);
-        switch (gate.route->id) {
-        case RouteId::wifi_status:
-            return route_wifi_status(request, *ports_);
-        case RouteId::wifi_scan_start:
-            return route_wifi_scan_start(request, *ports_);
-        case RouteId::wifi_scan_results:
-            return route_wifi_scan_results(request, *ports_);
-        case RouteId::wifi_connect:
-            return route_wifi_connect(request, *ports_);
-        case RouteId::wifi_provisioning:
-            return route_wifi_provisioning(request, *ports_);
-        default:
-            break;
-        }
-        if (gate.route->id == RouteId::history || gate.route->id == RouteId::history_export)
-            return route_history(request, *ports_);
-        switch (gate.route->id) {
-        case RouteId::alerts:
-            return route_alerts(request, *ports_);
-        case RouteId::sensors:
-            return route_sensor_list(request, *ports_);
-        case RouteId::sensor_storage:
-            return route_sensor_storage(request, *ports_);
-        case RouteId::calibration_hold_start:
-        case RouteId::calibration_hold_end:
-            return route_calibration_hold(request, *ports_);
-        case RouteId::sensor_update:
-        case RouteId::sensor_retire:
-            return route_sensor_change(request, *ports_);
-        default:
-            break;
-        }
-        if (path == "/api/v1/auth/logout" && ex.method() == HttpMethod::post)
-            return route_auth_logout(request, *ports_);
-        if (path == "/api/v1/auth/password" && ex.method() == HttpMethod::post)
-            return route_auth_password(request, *ports_);
-        return send_error(ex, "404 Not Found", "Unknown API route");
-    }
+    if (api)
+        return dispatch_api(ex, path, *ports_, now());
     return serve_static_asset(ex, path, web_assets, sizeof(web_assets) / sizeof(web_assets[0]));
 }
 } // namespace monitor

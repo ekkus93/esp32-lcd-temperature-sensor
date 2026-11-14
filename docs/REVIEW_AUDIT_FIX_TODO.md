@@ -160,15 +160,18 @@ prior validation are inputs, not proof that these regressions or gates pass.
     Done: record `docs/validation/review-audit-docs-2026-11-13.md` (`PROGRESS.md` left as dated
     history).
 
-- [ ] **A10 — H04: Complete safe route-boundary coverage** (spec §13; R07-06).
+- [x] **A10 — H04: Complete safe route-boundary coverage** (spec §13; R07-06).
   - [x] **A10.1** Inventory registered routes against the single access table.
-  - [ ] **A10.2** Exercise anonymous, session and missing-CSRF refusal through
+  - [x] **A10.2** Exercise anonymous, session and missing-CSRF refusal through
     production dispatch, including destructive handlers with side effects mocked.
   - [x] **A10.3** Assert no forbidden side effect is reached; record actual
     handler coverage separately from policy-table and physical board evidence.
     A10.1/A10.3 done: production gate, `test_route_inventory.py`; record
     `docs/validation/review-audit-route-boundary-2026-11-13.md`. A10.2 open: handlers are not
     run on the host (needs a production-dispatch harness); gate and order are covered.
+    A10.2 done 2026-11-13 by the God file refactor (G12): ctest `route_boundary` runs every route
+    through the production `dispatch_api()` with recording fakes; anonymous, no-CSRF and wrong-CSRF
+    requests to owner routes reach no service (factory reset made pre-gate fails it).
 
 - [x] **A11 — H09: Finish calibration API/reader compatibility evidence**
   (spec §13; R11-01).
@@ -279,7 +282,7 @@ hold points and preserve device data during experiments.
 
 ## Completion gates
 
-- [ ] **G1 — Software remediation:** A00–A12 satisfy F1–F9 and safe test/quality
+- [x] **G1 — Software remediation:** A00–A12 satisfy F1–F9 and safe test/quality
   coverage; all required regressions pass and current guidance agrees with code.
 - [ ] **G2 — Physical acceptance:** A13–A20 have recorded evidence for each
   required gate, or explicit owner-approved scope decisions with residuals named.
