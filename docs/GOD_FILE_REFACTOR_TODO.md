@@ -127,8 +127,10 @@ code, then move the group into its file in a separate commit, with the tests unc
   `main/health_log.{hpp,cpp}`; the tasks moved in G15. The steps call ESP-IDF directly and have no
   host test; G19's board run covers them.
 
-- [ ] **G17 — Slim `main.cpp`**: `app_main()` under 60 lines, `main.cpp` under 200, every step under
+- [x] **G17 — Slim `main.cpp`**: `app_main()` under 60 lines, `main.cpp` under 200, every step under
   80 lines.
+  Done (measured after G16, no further change needed): `main.cpp` 67 lines, `app_main()` 55;
+  longest step `MonitorLoop::update_display()` 34 lines; longest file `monitor_loop.cpp` 280.
 
 ## Phase G4 — Verification
 
