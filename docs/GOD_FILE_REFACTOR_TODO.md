@@ -134,8 +134,11 @@ code, then move the group into its file in a separate commit, with the tests unc
 
 ## Phase G4 — Verification
 
-- [ ] **G18 — Enforce the targets**: make `check_unit_size.py` fail `tools/verify.sh` for files in
+- [x] **G18 — Enforce the targets**: make `check_unit_size.py` fail `tools/verify.sh` for files in
   scope that exceed §3, with the G00 allow-list for accepted exceptions.
+  Done: `tools/verify.sh` runs `check_unit_size.py --strict` (fails on a new long file or
+  function, and on a stale allow-list entry).
+
 - [ ] **G19 — Final checks** (spec §7).
   - [ ] **G19.1** `./tools/verify.sh --firmware` and exact-commit CI pass; contracts and generated
     types unchanged; image growth within 16 KiB of the G00 baseline.

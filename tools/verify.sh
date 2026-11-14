@@ -6,6 +6,9 @@ cmake --build .build/host
 ctest --test-dir .build/host --output-on-failure
 python3 -m unittest discover -s tools/tests -p "test_*.py"
 python3 tools/check-secret-leaks.py
+# No source file over 400 lines and no function over 80, except the reviewed allow-list
+# (tools/unit_size_allowlist.txt; God file refactor G18).
+python3 tools/check_unit_size.py --strict
 tools/check-contracts.sh
 npm --prefix web run test:simulator
 if [[ -d firmware/managed_components/lvgl__lvgl ]]; then
