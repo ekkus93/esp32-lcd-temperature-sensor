@@ -4,8 +4,9 @@
 Limits: a source file longer than 400 lines, or a function longer than 80 lines. Tests, generated
 files, vendored code and fonts are not checked. Functions are found by shape, not by a parser:
 
-- C++ (.cpp): a definition starting in column 0 and ending with `{`, up to the next `}` in
-  column 0 (this is how clang-format lays out every function in this tree);
+- C++ (.cpp): a definition starting in column 0 whose signature (on one line, or continued over
+  up to six lines) ends with `{`, up to the next `}` in column 0 (this is how clang-format lays
+  out every function in this tree);
 - TypeScript (.ts, .tsx): a top-level `function` declaration (optionally `export`, `default`,
   `async`), up to the next `}` in column 0.
 
@@ -32,6 +33,10 @@ EXCLUDED = re.compile(r'(\.test\.tsx?$|/generated/|\.generated\.ts$|/fonts/|/man
                       r'/build[^/]*/)')
 CPP_START = re.compile(r'^(?!(namespace|struct|class|enum|union|typedef|using|template|#|//|'
                        r'static_assert)\b)[A-Za-z_].*\)\s*(const\s*)?(noexcept\s*)?(override\s*)?\{\s*$')
+# The first line of a signature that continues on the next lines.
+CPP_SIGNATURE = re.compile(r'^(?!(namespace|struct|class|enum|union|typedef|using|template|#|//|'
+                           r'static_assert|return|if|for|while|switch|case|default|else)\b)'
+                           r'[A-Za-z_][^;{}=]*\([^;{}]*$')
 CPP_NAME = re.compile(r'([A-Za-z_][A-Za-z0-9_:~]*)\s*\(')
 TS_START = re.compile(r'^(export\s+)?(default\s+)?(async\s+)?function\s*\*?\s*([A-Za-z0-9_$]*)')
 
@@ -63,7 +68,21 @@ def functions(path: str, text: str) -> list[tuple[str, int, int]]:
     while index < len(lines):
         line = lines[index]
         name = None
-        if cpp and CPP_START.match(line):
+        if cpp and (CPP_START.match(line) or CPP_SIGNATURE.match(line)):
+            if not CPP_START.match(line):
+                # Follow a multi-line signature to its `{`; a `;` means a declaration.
+                end_of_signature = None
+                for ahead in range(index + 1, min(index + 7, len(lines))):
+                    stripped = lines[ahead].rstrip()
+                    # A declaration, a one-line body such as `{}`, or a gap: not a long function.
+                    if not stripped or stripped.endswith((';', '}')):
+                        break
+                    if stripped.endswith('{'):
+                        end_of_signature = ahead
+                        break
+                if end_of_signature is None:
+                    index += 1
+                    continue
             names = CPP_NAME.findall(line.split('(')[0] + '(')
             name = names[-1] if names else '?'
         elif not cpp:

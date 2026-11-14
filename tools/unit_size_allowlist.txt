@@ -34,3 +34,6 @@ web/src/features/chart/scale.ts:timeTicks  # keep: tick selection reworked and f
 web/src/features/dashboard/Dashboard.tsx  # keep: one page component
 web/src/theme/theme.ts  # keep: Material 3 theme configuration object
 web/src/theme/theme.ts:createAppTheme  # keep: Material 3 theme configuration object
+firmware/components/alert_service/alert_service.cpp:AlertService::update  # keep: one alert state machine step; found after the G13 tool fix, outside this plan
+firmware/components/display_service/display_view.cpp:DisplayView::render  # keep for now: draws one LCD frame per view; follow-up candidate, found after the G13 tool fix
+firmware/components/monitor_core/history.cpp:HistoryStore::visit  # keep: integrity-critical visit (A04 cancellation checks); found after the G13 tool fix

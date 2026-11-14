@@ -18,3 +18,11 @@ The follow-up candidates are not God files in the sense of this plan: each has o
 responsibility, but one or two long functions. They are listed so they are not forgotten. G18 makes
 the check strict, so any new long file or function, or any allow-list entry that is no longer
 needed, fails `tools/verify.sh`.
+
+## Addendum: multi-line signatures (G13)
+
+The first version of the tool found only functions whose `{` is on the signature's first line. Fixed
+during G13, it also finds `AlertService::update()` (86 lines), `DisplayView::render()` (205) and
+`HistoryStore::visit()` (140), and `HttpApi::start()` (86), which is in scope and split in G13. The
+three others are kept and added to the allow-list: one alert state-machine step, one LCD frame
+(a follow-up candidate), and the integrity-critical history visit.

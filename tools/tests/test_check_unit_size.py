@@ -28,6 +28,16 @@ class FindsFunctions(unittest.TestCase):
         self.assertEqual([(n, length) for n, _, length in found],
                          [('HttpApi::handle', 5), ('name', 3), ('app_main', 4)])
 
+    def test_cpp_signatures_over_several_lines(self):
+        text = (f'bool HttpApi::start(AuthService &auth, WifiService &wifi,\n'
+                f'                    bool simulated) {{\n{body(4)}}}\n'
+                f'esp_err_t declared(int a,\n                   int b);\n'
+                f'Store::Store(std::string path)\n    : path_(path) {{}}\n'
+                f'int after() {{\n{body(1)}}}\n')
+        found = check.functions('a.cpp', text)
+        self.assertEqual([(n, start, length) for n, start, length in found],
+                         [('HttpApi::start', 1, 7), ('after', 12, 3)])
+
     def test_typescript_top_level_functions(self):
         text = (f'import x from "y";\nexport default function Page() {{\n{body(4)}}}\n'
                 f'export async function load(id: string) {{\n{body(2)}}}\n'
