@@ -103,8 +103,12 @@ code, then move the group into its file in a separate commit, with the tests unc
 ## Phase G3 — Main loop split
 
 - [ ] **G14 — Loop characterization** (spec §5.2, §6).
-  - [ ] **G14.1** Define the device interfaces the loop needs (sampling, history, API, display,
+  - [x] **G14.1** Define the device interfaces the loop needs (sampling, history, API, display,
     Wi-Fi, OTA) with host fakes.
+    Done: `main/loop_ports.hpp` (clock, API, sampling, history, network, display, trend
+    restore, OTA; `DisplayFrame`, `StartupHealth`), `tests/loop_fakes/fake_loop_ports.hpp` with one
+    shared trace, ctest `loop_fake_ports`. G14.2's order test runs against `MonitorLoop` in G15
+    (the old loop cannot run on the host).
   - [ ] **G14.2** Host test that runs cycles and records the order of side effects, including: edits
     committed before holds and sampling; at most one probe memory write per cycle and none in a bus
     fault; writable flag set before publish; OTA check only after two healthy cycles.

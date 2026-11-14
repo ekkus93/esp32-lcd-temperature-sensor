@@ -304,3 +304,10 @@ target_include_directories(fake_ports_tests PRIVATE ${http_port_includes})
 target_link_libraries(fake_ports_tests PRIVATE monitor_core)
 target_compile_options(fake_ports_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_test(NAME http_fake_ports COMMAND fake_ports_tests)
+
+# The main loop's ports and their recording fakes (God file refactor G14).
+add_executable(fake_loop_ports_tests fake_loop_ports_tests.cpp)
+target_include_directories(fake_loop_ports_tests PRIVATE ../main loop_fakes settings_mocks)
+target_link_libraries(fake_loop_ports_tests PRIVATE monitor_core)
+target_compile_options(fake_loop_ports_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
+add_test(NAME loop_fake_ports COMMAND fake_loop_ports_tests)
