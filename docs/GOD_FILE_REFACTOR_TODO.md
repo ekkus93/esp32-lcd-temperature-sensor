@@ -145,8 +145,10 @@ code, then move the group into its file in a separate commit, with the tests unc
   - [ ] **G19.2** With the owner's confirmation, flash and run `device_api_test.py`, a 30-minute
     RAM/stack/latency comparison with the G00 baseline, and check the LCD and logging. Record under
     `docs/validation/`, or record the owner's deferral.
-  - [ ] **G19.3** Update `docs/DEVELOPMENT.md` (where HTTP and loop code now lives, how to add a
+  - [x] **G19.3** Update `docs/DEVELOPMENT.md` (where HTTP and loop code now lives, how to add a
     route) and note completion in the review audit TODO where A10.2 is affected.
+    Done: `docs/DEVELOPMENT.md` "Where the HTTP API and the main loop live" (layout, how to add a
+    route, the size check); review audit A10.2 was marked in G12.
 
 ## Completion
 

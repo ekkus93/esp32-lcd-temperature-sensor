@@ -148,6 +148,33 @@ Prettier and ESLint with strict TypeScript checking. Keep task IDs in TODO;
 check tasks only when acceptance criteria pass. Record evidence in
 `docs/PROGRESS.md`; distinguish host, device and deferred hardware checks.
 
+## Where the HTTP API and the main loop live
+
+The HTTP API (`firmware/components/http_api`) is split by job; only the adapters touch ESP-IDF:
+
+- `http_api.cpp`: the server's lifecycle, the login and history workers, the public limiter, the
+  state shared with the main loop (`SensorUpdates`, `LiveState`, `RouteHost`) and the Host/Origin
+  check.
+- `idf_exchange.cpp` implements `HttpExchange` (one request and its answer) over `httpd_req_t`;
+  `service_adapters.cpp` implements the ports in `api_ports.hpp` over the services.
+- `api_router.cpp` is the route table; `api_dispatch.cpp` runs the gate and picks the handler.
+- `routes_*.cpp` hold the handlers (auth, sensors, settings, network, system, history);
+  `live_json.cpp` builds the snapshot; `static_assets.cpp` serves the web app and portal probes.
+
+To add a route: add it to `route_access.cpp` (who may call it) and to the table in
+`api_router.cpp` (with a new `RouteId`), write the handler in the matching `routes_*.cpp`, map the
+id in `handler_for()`, and test the handler with `FakeExchange` and `FakeDevice`
+(`firmware/tests/http_fakes`). `api_router` and `route_boundary` then check the new route against
+the access policy and its refusals automatically.
+
+The firmware's entry point is `firmware/main/main.cpp`: start-up steps in `startup.cpp`, then
+`MonitorLoop` (`monitor_loop.cpp`) once per cycle over the ports in `loop_ports.hpp` (device
+adapters in `loop_adapters.cpp`, host fakes in `firmware/tests/loop_fakes`), then the health log.
+The loop's step order is documented in `monitor_loop.hpp` and tested by `monitor_loop`.
+
+`tools/check_unit_size.py --strict` (run by `verify.sh`) fails on a source file over 400 lines or a
+function over 80; reviewed exceptions are listed with reasons in `tools/unit_size_allowlist.txt`.
+
 ## Device setup and authentication tests
 
 ```bash
