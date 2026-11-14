@@ -311,3 +311,8 @@ target_include_directories(fake_loop_ports_tests PRIVATE ../main loop_fakes sett
 target_link_libraries(fake_loop_ports_tests PRIVATE monitor_core)
 target_compile_options(fake_loop_ports_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_test(NAME loop_fake_ports COMMAND fake_loop_ports_tests)
+add_executable(monitor_loop_tests monitor_loop_tests.cpp ../main/monitor_loop.cpp ../components/settings_service/settings_service.cpp ../components/settings_service/sensor_settings_persistence.cpp)
+target_include_directories(monitor_loop_tests PRIVATE loop_fakes ../main ../components/settings_service/include ../components/ota_service/include settings_mocks)
+target_link_libraries(monitor_loop_tests PRIVATE monitor_core)
+target_compile_options(monitor_loop_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
+add_test(NAME monitor_loop COMMAND monitor_loop_tests)

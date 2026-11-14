@@ -102,18 +102,25 @@ code, then move the group into its file in a separate commit, with the tests unc
 
 ## Phase G3 — Main loop split
 
-- [ ] **G14 — Loop characterization** (spec §5.2, §6).
+- [x] **G14 — Loop characterization** (spec §5.2, §6).
   - [x] **G14.1** Define the device interfaces the loop needs (sampling, history, API, display,
     Wi-Fi, OTA) with host fakes.
     Done: `main/loop_ports.hpp` (clock, API, sampling, history, network, display, trend
     restore, OTA; `DisplayFrame`, `StartupHealth`), `tests/loop_fakes/fake_loop_ports.hpp` with one
     shared trace, ctest `loop_fake_ports`. G14.2's order test runs against `MonitorLoop` in G15
     (the old loop cannot run on the host).
-  - [ ] **G14.2** Host test that runs cycles and records the order of side effects, including: edits
+  - [x] **G14.2** Host test that runs cycles and records the order of side effects, including: edits
     committed before holds and sampling; at most one probe memory write per cycle and none in a bus
     fault; writable flag set before publish; OTA check only after two healthy cycles.
-- [ ] **G15 — `MonitorLoop`**: move the loop state and steps out of `app_main()` into
+    Done with G15: ctest `monitor_loop` (written against the moved loop; the old one cannot run
+    on the host).
+
+- [x] **G15 — `MonitorLoop`**: move the loop state and steps out of `app_main()` into
   `monitor_loop.{hpp,cpp}`, one function per step, order unchanged; the G14 test passes unchanged.
+  Done: `main/monitor_loop.{hpp,cpp}`, device adapters `main/loop_adapters.{hpp,cpp}`; the
+  display refresh and trend restore tasks moved to their own files here (spec put that in G16)
+  because their adapters need them. `main.cpp` 207 lines; `app_main()` 170 (start-up left for G16).
+
 - [ ] **G16 — Start-up and tasks**: move start-up into named steps in `startup.cpp`, and the trend
   restore and display refresh tasks into their own files; same failure behaviour.
 - [ ] **G17 — Slim `main.cpp`**: `app_main()` under 60 lines, `main.cpp` under 200, every step under

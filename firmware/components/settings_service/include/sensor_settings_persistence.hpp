@@ -28,6 +28,10 @@ class SensorSettingsPersistence {
     bool accepting_edits(int64_t now_ms) const {
         return service_.writable() && now_ms >= retry_at_ms_;
     }
+    // Whether the stored settings can be written at all (false after a damaged load).
+    bool writable() const {
+        return service_.writable();
+    }
     // A change that is applied in RAM but not yet stored.
     bool unsaved() const {
         return unsaved_;
