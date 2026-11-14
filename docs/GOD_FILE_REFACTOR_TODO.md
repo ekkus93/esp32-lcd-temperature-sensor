@@ -74,8 +74,10 @@ code, then move the group into its file in a separate commit, with the tests unc
   Done: `routes_network.{hpp,cpp}`, ctest `routes_network`.
 - [x] **G08 — System routes** (status, clock, probe scan, OTA upload, reboot, factory reset).
   Done: `routes_system.{hpp,cpp}`, ctest `routes_system`.
-- [ ] **G09 — History routes** (query, export, admission, worker, `serve_history`; keeps
+- [x] **G09 — History routes** (query, export, admission, worker, `serve_history`; keeps
   `export_history_csv` and `build_history_json`).
+  Done: `routes_history.{hpp,cpp}` (`route_history`, `serve_history`), ctest `routes_history`.
+
 - [ ] **G10 — Static assets and portal probes** (asset lookup, gzip requirement, cache and security
   headers, the SPA fallback list, socket close after an asset).
 - [x] **G11 — Live JSON** (snapshot and sensor serialization into `live_json`).

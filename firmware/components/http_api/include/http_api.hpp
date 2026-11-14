@@ -43,7 +43,6 @@ class HttpApi final : private SensorUpdates, private LiveState, private RouteHos
     // Answers history queries and CSV exports off the HTTP task, so a month-long query or export
     // does not hold up every other request.
     static void history_worker(void *context);
-    esp_err_t serve_history(HttpExchange &exchange, const HistoryQuery &query, bool exporting);
     PublicLimiter::Decision begin_public(PublicRequest kind, uint32_t client);
     void finish_public(PublicRequest kind) override;
     esp_err_t handle(HttpExchange &exchange);
