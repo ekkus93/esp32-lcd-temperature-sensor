@@ -95,8 +95,10 @@ code, then move the group into its file in a separate commit, with the tests unc
     `test_route_inventory.py` reduced to the table/policy match and "no handler in http_api.cpp";
     review audit A10.2 and G1 ticked.
 
-- [ ] **G13 — Slim `http_api.cpp`** (spec §4.5): only server lifecycle, registration, workers,
+- [x] **G13 — Slim `http_api.cpp`** (spec §4.5): only server lifecycle, registration, workers,
   limiter and the main-loop interface remain; under 400 lines; `handle()`/dispatch under 60.
+  Done: 361 lines (from 1,428); `handle()` 13 lines; `HttpApi::start()` split into
+  `connect_services`, `start_workers` and `start_server`; image 2,188,336 bytes (+6,272).
 
 ## Phase G3 — Main loop split
 

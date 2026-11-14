@@ -1,3 +1,8 @@
+// The HTTP server's lifecycle and what it shares with the sampling loop (God file refactor G13):
+// server start and URI registration, the WebSocket hand-off, the login and history workers, the
+// public limiter, the published state and the update queues (SensorUpdates, LiveState, RouteHost),
+// and the Host/Origin check. Every API route is answered through dispatch_api() (api_dispatch.cpp);
+// the handlers live in routes_*.cpp and the web app's files in static_assets.cpp.
 #include "http_api.hpp"
 #include "api_dispatch.hpp"
 #include "api_responses.hpp"
@@ -113,6 +118,25 @@ bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &histor
                     bool sensor_settings_writable) {
     simulated_ = simulated;
     sensor_settings_writable_.store(sensor_settings_writable);
+    if (!connect_services(auth, wifi, history, settings))
+        return false;
+    {
+        DeviceOptions options;
+        uint64_t revision = 0;
+        bool writable = false;
+        if (settings.get(options, revision, writable)) {
+            std::lock_guard<std::mutex> lock(host_mutex_);
+            hostname_ = options.hostname;
+        }
+    }
+    char text[17];
+    std::snprintf(text, sizeof(text), "%016llx", static_cast<unsigned long long>(id));
+    boot_id_ = text;
+    return start_workers() && start_server(auth);
+}
+// The ports the routes use, over the services (created once).
+bool HttpApi::connect_services(AuthService &auth, WifiService &wifi, HistoryService &history,
+                               DeviceSettingsService &settings) {
     auth_adapter_.reset(new (std::nothrow) AuthAdapter(auth));
     network_adapter_.reset(new (std::nothrow) NetworkAdapter(wifi));
     history_adapter_.reset(new (std::nothrow) HistoryAdapter(history));
@@ -127,18 +151,10 @@ bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &histor
                                                *updates_port_, *live_, *this});
     if (!ports_)
         return false;
-    {
-        DeviceOptions options;
-        uint64_t revision = 0;
-        bool writable = false;
-        if (settings.get(options, revision, writable)) {
-            std::lock_guard<std::mutex> lock(host_mutex_);
-            hostname_ = options.hostname;
-        }
-    }
-    char text[17];
-    std::snprintf(text, sizeof(text), "%016llx", static_cast<unsigned long long>(id));
-    boot_id_ = text;
+    return true;
+}
+// The update queues, the login worker and the history worker.
+bool HttpApi::start_workers() {
     mutex_ = xSemaphoreCreateMutex();
     updates_ = xQueueCreate(4, sizeof(SensorUpdate *));
     holds_ = xQueueCreate(8, sizeof(CalibrationHoldUpdate *));
@@ -154,6 +170,10 @@ bool HttpApi::start(AuthService &auth, WifiService &wifi, HistoryService &histor
     if (xTaskCreatePinnedToCore(history_worker, "history_http", 8192, this, 2, nullptr, 1) !=
         pdPASS)
         return false;
+    return true;
+}
+// cJSON's allocator, the HTTP server, the live WebSocket and the catch-all routes.
+bool HttpApi::start_server(AuthService &auth) {
     cJSON_Hooks hooks{};
     hooks.malloc_fn = [](size_t size) -> void * {
         auto *memory = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);

@@ -35,6 +35,10 @@ class HttpApi final : private SensorUpdates, private LiveState, private RouteHos
                  bool synchronized, const std::string &utc);
 
   private:
+    bool connect_services(AuthService &auth, WifiService &wifi, HistoryService &history,
+                          DeviceSettingsService &settings);
+    bool start_workers();
+    bool start_server(AuthService &auth);
     static esp_err_t dispatch(httpd_req_t *request);
     static esp_err_t live(httpd_req_t *request);
     static esp_err_t ws_pre(httpd_req_t *request);
