@@ -121,8 +121,12 @@ code, then move the group into its file in a separate commit, with the tests unc
   display refresh and trend restore tasks moved to their own files here (spec put that in G16)
   because their adapters need them. `main.cpp` 207 lines; `app_main()` 170 (start-up left for G16).
 
-- [ ] **G16 — Start-up and tasks**: move start-up into named steps in `startup.cpp`, and the trend
+- [x] **G16 — Start-up and tasks**: move start-up into named steps in `startup.cpp`, and the trend
   restore and display refresh tasks into their own files; same failure behaviour.
+  Done: `main/startup.{hpp,cpp}` (eight named steps, same order and logs) and
+  `main/health_log.{hpp,cpp}`; the tasks moved in G15. The steps call ESP-IDF directly and have no
+  host test; G19's board run covers them.
+
 - [ ] **G17 — Slim `main.cpp`**: `app_main()` under 60 lines, `main.cpp` under 200, every step under
   80 lines.
 
