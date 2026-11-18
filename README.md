@@ -1,5 +1,7 @@
 # ESP32-S3 Temperature Monitor
 
+[![CI](https://github.com/ekkus93/esp32-lcd-temperature-sensor/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ekkus93/esp32-lcd-temperature-sensor/actions/workflows/ci.yml?query=branch%3Amaster)
+
 Local-first temperature monitoring for up to five DS18B20 probes on one shared
 1-Wire bus, a read-only 1.8-inch ST7735 LCD (an optional 240 × 320 ST7789 build exists), and a
 self-hosted React web application.
