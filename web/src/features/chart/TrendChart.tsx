@@ -1,11 +1,13 @@
 // A temperature trend chart (spec §18.4, §18.5): smooth lines in the probes' series colours, light
 // gridlines at round values, a time axis, shaded missing intervals, dashed lines at limits worth
-// showing, and each probe's value at the pointer on hover or tap. A line runs through a missing
-// interval (the shading shows it) but not from one run to the next: without a trusted clock each
-// boot is its own run, because one boot's times cannot be compared with another's.
+// showing, and each probe's value at the pointer on hover or tap. A line runs through a short missing
+// interval (the shading shows it); across a long one (a point marked afterGap) it is a dashed
+// straight bridge, since nothing was recorded there. It never joins one run to the next: without a
+// trusted clock each boot is its own run, because one boot's times cannot be compared with another's.
 import { useState, type PointerEvent } from 'react';
 import { Box, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import { path } from './curve';
 import { niceScale, type TimeTick } from './scale';
 
 export interface TrendPoint {
@@ -13,6 +15,8 @@ export interface TrendPoint {
   end: number;
   celsius: number;
   run?: string; // points join into one line only within the same run
+  // Readings stopped for a long time before this point: the line reaches it as a dashed bridge.
+  afterGap?: boolean;
 }
 export interface TrendSeries {
   key: string;
@@ -37,45 +41,6 @@ const WIDTH = 960;
 
 const display = (celsius: number, unit: 'C' | 'F') =>
   unit === 'F' ? celsius * 1.8 + 32 : celsius;
-
-// Tangents for a monotone cubic through the points (Steffen 1990): zero at a peak or trough, and
-// never steeper than the curve can take without overshooting its neighbouring readings.
-function tangents(run: { x: number; y: number }[]): number[] {
-  const h = run.slice(1).map((p, i) => p.x - run[i].x);
-  const s = h.map((dx, i) => (dx > 0 ? (run[i + 1].y - run[i].y) / dx : 0));
-  return run.map((_, i) => {
-    if (i === 0) return s[0];
-    if (i === run.length - 1) return s[i - 1];
-    const [s0, s1, h0, h1] = [s[i - 1], s[i], h[i - 1], h[i]];
-    if (s0 * s1 <= 0 || h0 + h1 <= 0) return 0;
-    const p = (s0 * h1 + s1 * h0) / (h0 + h1);
-    return (
-      Math.sign(s0) * Math.min(Math.abs(s0), Math.abs(s1), Math.abs(p) / 2) * 2
-    );
-  });
-}
-
-// A smooth path through the points, one subpath per run. A monotone cubic, not Catmull-Rom: with
-// five-minute buckets beside multi-day holes, Catmull-Rom's control points reached past the next
-// reading, so lines looped back in time. Here each segment's control points lie within the
-// segment's own time span and readings.
-function path(runs: { x: number; y: number }[][]): string {
-  const xy = (x: number, y: number) => `${x.toFixed(1)},${y.toFixed(1)}`;
-  return runs
-    .filter((run) => run.length > 0)
-    .map((run) => {
-      if (run.length === 1) return `M${xy(run[0].x, run[0].y)}h0.01`;
-      const m = tangents(run);
-      let d = `M${xy(run[0].x, run[0].y)}`;
-      for (let i = 0; i < run.length - 1; i++) {
-        const [p1, p2] = [run[i], run[i + 1]];
-        const third = (p2.x - p1.x) / 3;
-        d += ` C${xy(p1.x + third, p1.y + m[i] * third)} ${xy(p2.x - third, p2.y - m[i + 1] * third)} ${xy(p2.x, p2.y)}`;
-      }
-      return d;
-    })
-    .join(' ');
-}
 
 export default function TrendChart({
   series,
@@ -126,14 +91,27 @@ export default function TrendChart({
 
   const lines = visible.map((s) => {
     const runs: { x: number; y: number }[][] = [];
+    let bridges = '';
     s.points.forEach((p, i) => {
-      if (i === 0 || p.run !== s.points[i - 1].run) runs.push([]);
-      runs.at(-1)!.push({
+      const at = {
         x: x((p.start + p.end) / 2),
         y: y(display(p.celsius, unit)),
-      });
+      };
+      const sameRun = i > 0 && p.run === s.points[i - 1].run;
+      if (sameRun && p.afterGap) {
+        const last = runs.at(-1)!.at(-1)!;
+        bridges += `M${last.x.toFixed(1)},${last.y.toFixed(1)} L${at.x.toFixed(1)},${at.y.toFixed(1)} `;
+      }
+      if (!sameRun || p.afterGap) runs.push([]);
+      runs.at(-1)!.push(at);
     });
-    return { key: s.key, colour: s.colour, d: path(runs), runs: runs.length };
+    return {
+      key: s.key,
+      colour: s.colour,
+      d: path(runs),
+      runs: runs.length,
+      bridges: bridges.trim(),
+    };
   });
 
   // The value of each probe nearest the pointer, within about one five-minute bucket.
@@ -258,6 +236,22 @@ export default function TrendChart({
                 data-runs={line.runs}
               />
             ))}
+            {lines
+              .filter((line) => line.bridges)
+              .map((line) => (
+                <path
+                  key={`${line.key}-bridges`}
+                  d={line.bridges}
+                  fill="none"
+                  stroke={line.colour}
+                  strokeOpacity={0.7}
+                  strokeWidth={2}
+                  strokeDasharray="2 6"
+                  strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
+                  data-bridges={line.key}
+                />
+              ))}
           </svg>
           {limits.map((l) => (
             <Typography

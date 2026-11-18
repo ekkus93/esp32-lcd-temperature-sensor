@@ -104,3 +104,43 @@ it('never draws a line backwards in time or past the readings when points are un
     expect(p.y).toBeLessThanOrEqual(Math.max(...ys) + 0.05);
   }
 });
+
+it('crosses a long outage with a dashed bridge, not the curve', () => {
+  const day = 86_400_000;
+  const { container } = render(
+    <TrendChart
+      series={[
+        {
+          key: 'canopy',
+          name: 'Canopy',
+          colour: '#006FAE',
+          points: [0, bucket, 2 * day, 2 * day + bucket].map((start, i) => ({
+            start,
+            end: start + bucket,
+            celsius: 20 + i,
+            run: 'utc',
+            afterGap: i === 2,
+          })),
+        },
+      ]}
+      from={0}
+      to={2 * day + 2 * bucket}
+      ticks={[]}
+      unit="C"
+      label="Test chart"
+      formatTime={(t) => `${t}`}
+    />,
+  );
+  // Two solid stretches, and one dashed straight segment between them.
+  expect(
+    container.querySelector('path[data-series]')?.getAttribute('data-runs'),
+  ).toBe('2');
+  const bridge = container.querySelector('path[data-bridges]')!;
+  expect(bridge.getAttribute('stroke-dasharray')).toBe('2 6');
+  expect(bridge.getAttribute('d')).toMatch(/^M[\d.]+,[\d.]+ L[\d.]+,[\d.]+$/);
+});
+
+it('draws no bridge between runs, such as boots without a trusted clock', () => {
+  const { container } = chart(series((i) => (i < 2 ? 'boot-a' : 'boot-b')));
+  expect(container.querySelector('path[data-bridges]')).toBeNull();
+});

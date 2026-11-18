@@ -28,14 +28,13 @@ const result = (
     points,
     gaps: [],
   }) as HistoryResult;
-const runs = (r: HistoryResult) =>
-  chartSeries(r, [{ rom, name: 'Canopy', colour: '#000' }])[0].points.map(
-    (p) => p.run,
-  );
+const series = (r: HistoryResult) =>
+  chartSeries(r, [{ rom, name: 'Canopy', colour: '#000' }])[0].points;
+const runs = (r: HistoryResult) => series(r).map((p) => p.run);
 
-it('joins a probe across reboots on the UTC axis, but not across a long outage', () => {
+it('keeps a probe one line across reboots on the UTC axis, marking a long outage', () => {
   const t0 = 1_800_000_000_000;
-  const r = runs(
+  const points = series(
     result('utc', [
       point('a', t0),
       point('b', t0 + bucket), // reboot, no time lost
@@ -43,9 +42,8 @@ it('joins a probe across reboots on the UTC axis, but not across a long outage',
       point('c', t0 + 4 * bucket + lineBreakMs), // a long outage: a new line
     ]),
   );
-  expect(r[0]).toBe(r[1]);
-  expect(r[1]).toBe(r[2]);
-  expect(r[3]).not.toBe(r[2]);
+  expect(new Set(points.map((p) => p.run)).size).toBe(1);
+  expect(points.map((p) => p.afterGap)).toEqual([false, false, false, true]);
 });
 
 it('keeps each boot its own line on the uptime axis', () => {

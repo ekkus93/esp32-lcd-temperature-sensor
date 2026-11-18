@@ -36,13 +36,13 @@ export function gapText(
     : `${minutes(start)} to ${minutes(end)} since boot (${missing})`;
 }
 
-// A probe's line stops where its readings stop for this long. A shorter dropout is joined, with
-// the missing interval shaded; across a longer one a line would invent the temperature.
+// Where a probe's readings stop for this long, its line crosses the hole as a dashed bridge. A
+// shorter dropout is joined by the curve, with the missing interval shaded.
 export const lineBreakMs = 30 * 60_000;
 
 // One line per probe, in runs. Without a trusted clock each boot is its own run, since one boot's
 // elapsed times cannot be compared with another's; with one, a probe's boots share a time axis.
-// Either way a run ends where the probe's readings stop for lineBreakMs or more.
+// Either way a point after lineBreakMs or more without readings is marked afterGap.
 export function chartSeries(
   result: HistoryResult,
   probes: ChartProbe[],
@@ -51,20 +51,20 @@ export function chartSeries(
     const points = result.points
       .filter((point) => point.rom_id === probe.rom)
       .sort((a, b) => a.start_ms - b.start_ms);
-    let run = 0;
     return {
       key: probe.rom,
       name: probe.name,
       colour: probe.colour,
       points: points.map((point, i) => {
         const previous = points[i - 1];
-        if (previous && point.start_ms - previous.end_ms >= lineBreakMs) run++;
-        const axis = result.time_basis === 'utc' ? 'utc' : point.boot_id;
         return {
           start: point.start_ms,
           end: point.end_ms,
           celsius: point.average_c,
-          run: `${axis}:${run}`,
+          run: result.time_basis === 'utc' ? 'utc' : point.boot_id,
+          afterGap:
+            previous !== undefined &&
+            point.start_ms - previous.end_ms >= lineBreakMs,
         };
       }),
     };
