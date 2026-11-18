@@ -34,7 +34,7 @@ v6.1 environment; see the development guide for setup, flashing and simulation.
 
 ## Screenshots
 
-Taken from the web app served by the board on 2026-11-18 (dark theme).
+The web app served by the board, and the board's 1.8-inch LCD, on 2026-11-18.
 
 ![Dashboard](docs/screenshots/dashboard.png)
 
@@ -46,10 +46,12 @@ the active alerts, and the last 24 hours of temperatures._
 _History: the five-minute temperature history for a chosen range (1 hour to 30 days), with
 missing intervals shaded and each probe's low, average, high and reading count._
 
-![Dashboard with keyboard focus on the navigation rail](docs/screenshots/dashboard-keyboard.png)
+![The LCD's overview screen](docs/screenshots/lcd-overview.jpg)
 
-_The Dashboard navigated by keyboard: the focused item in the navigation rail is outlined._
+_LCD overview: the time, Wi-Fi status and each probe's reading in °F and °C. Sensor 4 is marked
+LOST (disconnected), and the fifth slot is unused._
 
-![History with keyboard focus on the navigation rail](docs/screenshots/history-keyboard.png)
+![The LCD's trends screen](docs/screenshots/lcd-trends.jpg)
 
-_The History page navigated by keyboard, with the 24-hour range selected._
+_LCD trends: the last hour of each probe's temperature in °F. With the display mode set to
+Extended (Settings), the LCD alternates between the overview and this screen._
