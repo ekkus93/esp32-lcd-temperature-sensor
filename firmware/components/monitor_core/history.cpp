@@ -1,4 +1,5 @@
 #include "history.hpp"
+#include "external_allocator.hpp"
 #ifdef ESP_PLATFORM
 #include "esp_log.h"
 #endif
@@ -13,6 +14,7 @@
 #include <fstream>
 #include <iomanip>
 #include <limits>
+#include <memory>
 #include <sstream>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -126,15 +128,21 @@ bool segment_fingerprint(const std::string &path, std::size_t expected_bytes, ui
         return false;
     if (control)
         ++control->files_read;
-    std::array<char, visit_chunk_bytes> buffer{};
+    // The read buffer is on the heap (PSRAM on the board): this runs at the bottom of a history
+    // visit on the 8 KiB history worker and trend-restore stacks, where a 4 KiB array overflowed
+    // the stack (found on the board, 2026-11-18).
+    std::unique_ptr<char, decltype(&std::free)> buffer(
+        static_cast<char *>(external_malloc(visit_chunk_bytes)), std::free);
+    if (!buffer)
+        return false;
     uint64_t fingerprint = 14695981039346656037ull;
     for (std::size_t remaining = expected_bytes; remaining;) {
-        const auto count = std::min(remaining, buffer.size());
-        input.read(buffer.data(), static_cast<std::streamsize>(count));
+        const auto count = std::min(remaining, visit_chunk_bytes);
+        input.read(buffer.get(), static_cast<std::streamsize>(count));
         if (input.gcount() != static_cast<std::streamsize>(count) || input.bad())
             return false;
         for (std::size_t index = 0; index < count; ++index) {
-            fingerprint ^= static_cast<unsigned char>(buffer[index]);
+            fingerprint ^= static_cast<unsigned char>(buffer.get()[index]);
             fingerprint *= 1099511628211ull;
         }
         remaining -= count;

@@ -12,6 +12,15 @@ namespace monitor {
 // allocations go there first (CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL), so long-lived bulk data such
 // as the LCD trend history asks for PSRAM explicitly. Falls back to ordinary memory when PSRAM is
 // unavailable, and is plain malloc on the host.
+// PSRAM when there is any (ordinary memory otherwise); nullptr when neither has room. Free with
+// std::free().
+inline void *external_malloc(std::size_t bytes) {
+#ifdef ESP_PLATFORM
+    if (void *memory = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT))
+        return memory;
+#endif
+    return std::malloc(bytes);
+}
 template <class T> struct ExternalAllocator {
     using value_type = T;
     ExternalAllocator() = default;

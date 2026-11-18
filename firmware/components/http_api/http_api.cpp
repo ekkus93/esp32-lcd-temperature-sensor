@@ -14,6 +14,7 @@
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_timer.h"
+#include "freertos/task.h"
 #include "history_csv.hpp"
 #include "history_json.hpp"
 #include "host_rules.hpp"
@@ -105,9 +106,11 @@ void HttpApi::history_worker(void *context) {
             job->exchange->close_connection();
         // Total time on the worker: the history service's lock wait and run time (logged by it)
         // plus building and sending the response.
-        ESP_LOGI("http", "History %s %s in %lld ms", job->exporting ? "export" : "query",
-                 served ? "answered" : "failed",
-                 (long long)((esp_timer_get_time() - started_us) / 1000));
+        // stack_min is the worker's lowest free stack so far (bytes), to keep its margin visible.
+        ESP_LOGI("http", "History %s %s in %lld ms; stack_min=%u",
+                 job->exporting ? "export" : "query", served ? "answered" : "failed",
+                 (long long)((esp_timer_get_time() - started_us) / 1000),
+                 static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
         // The admission slot is returned on every outcome.
         self.finish_public(job->kind);
         delete job; // completes the request

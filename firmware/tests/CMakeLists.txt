@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 enable_testing()
 add_library(monitor_core ../components/monitor_types/monitor_types.cpp ../components/alert_service/alert_service.cpp ../components/sensor_registry/sensor_registry.cpp ../components/monitor_core/monitor.cpp ../components/monitor_core/history.cpp ../components/monitor_core/history_csv.cpp ../components/monitor_core/history_visit.cpp ../components/monitor_core/event_store.cpp ../components/monitor_core/settings_codec.cpp ../components/monitor_core/sessions.cpp ../components/monitor_core/fake_bus.cpp ../components/monitor_core/history_query.cpp ../components/monitor_core/display_model.cpp ../components/monitor_core/device_options.cpp ../components/monitor_core/captive_dns.cpp ../components/monitor_core/probe_discovery.cpp ../components/monitor_core/bounded_body_reader.cpp ../components/monitor_core/clock_diagnostics.cpp ../components/monitor_core/retirement_policy.cpp ../components/monitor_core/readable_code.cpp ../components/monitor_core/scan_policy.cpp ../components/monitor_core/login_throttle.cpp ../components/monitor_core/storage_error_limiter.cpp ../components/monitor_core/route_access.cpp ../components/monitor_core/public_limiter.cpp ../components/monitor_core/host_rules.cpp)
+# Stack-usage reports for check_history_stack.py (history functions run on 8 KiB tasks).
+target_compile_options(monitor_core PRIVATE -fstack-usage)
 target_include_directories(monitor_core PUBLIC ../components/monitor_core/include ../components/sensor_registry/include ../components/alert_service/include ../components/monitor_types/include)
 target_compile_options(monitor_core PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_executable(core_tests core_tests.cpp)
@@ -316,3 +318,6 @@ target_include_directories(monitor_loop_tests PRIVATE loop_fakes ../main ../comp
 target_link_libraries(monitor_loop_tests PRIVATE monitor_core)
 target_compile_options(monitor_loop_tests PRIVATE -Wall -Wextra -Werror -Wpedantic)
 add_test(NAME monitor_loop COMMAND monitor_loop_tests)
+
+# No large stack buffer on the history read path (it overflowed the 8 KiB history worker).
+add_test(NAME history_stack_frames COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/check_history_stack.py ${CMAKE_CURRENT_BINARY_DIR})
