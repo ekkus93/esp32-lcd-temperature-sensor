@@ -271,7 +271,7 @@ hold points and preserve device data during experiments.
 - [ ] **A22 — H13: Record release disposition** (R10-12).
   - [x] **A22.1** Update release notes with fixed findings and residual
     acceptance gaps; keep software completion distinct from full acceptance.
-    Done: `docs/RELEASE_NOTES_0.2.0.md` gains the audit fixes and new known issues.
+    Done: `docs/RELEASE_NOTES_0.2.0.md` (now `RELEASE_NOTES_0.1.0.md`) gains the audit fixes and new known issues.
   - [ ] **A22.2** Obtain the owner's explicit decision for any unresolved
     requirement before release; document waivers as waivers, not passing tests.
   - [ ] **A22.3** Only if release publication is explicitly authorized, tag and

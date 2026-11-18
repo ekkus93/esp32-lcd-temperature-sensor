@@ -210,7 +210,7 @@ connected board.
 - [ ] **R10-12** T11-08: publish versioned firmware binaries, web build provenance, checksums and
   release notes, with known issues, only after every item above is done (§16.9). **Prepared
   (2026-11-12):** version 0.2.0 set in the firmware, `web/package.json` and the lockfile; release
-  notes with known issues in [`RELEASE_NOTES_0.2.0.md`](RELEASE_NOTES_0.2.0.md) (the draft now
+  notes with known issues in [`RELEASE_NOTES_0.1.0.md`](RELEASE_NOTES_0.1.0.md) (named 0.2.0 until 2026-11-18) (the draft now
   points there). The work is on `master` (fast-forwarded on 2026-11-12). Still to do, each needing
   the owner's go-ahead: accept the open checks as known issues (R10-10, R01-07, R07-08, R08-05),
   then tag `v0.2.0` and publish the GitHub release with the CI package from that commit.

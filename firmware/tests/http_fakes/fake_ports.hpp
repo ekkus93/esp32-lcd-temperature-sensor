@@ -204,7 +204,7 @@ class FakeDeviceSettings final : public DeviceSettingsPort {
 class FakeSystem final : public SystemPort {
   public:
     mutable CallLog log;
-    OtaStatus ota{"0.2.0", "ota_0", "valid"};
+    OtaStatus ota{"0.1.0", "ota_0", "valid"};
     ClockDiagnostics clock;
     bool can_reboot = true, scheduled = true;
     std::optional<bool> reset_erase_history;

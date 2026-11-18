@@ -64,7 +64,7 @@ int main() {
     CHECK(unsynced.find(R"("boot_id":"0123456789abcdef","uptime_ms":5000,"simulated":false)") !=
           std::string::npos);
     CHECK(unsynced.find(
-              R"("firmware":{"version":"0.2.0","partition":"ota_0","ota_state":"valid"})") !=
+              R"("firmware":{"version":"0.1.0","partition":"ota_0","ota_state":"valid"})") !=
           std::string::npos);
     CHECK(unsynced.find(R"("clock":{"synchronized":false,"utc":null})") != std::string::npos);
     CHECK(unsynced.find(R"("wifi":{"state":"connected","mdns_hostname":null})") !=

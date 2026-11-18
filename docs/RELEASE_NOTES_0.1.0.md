@@ -1,18 +1,18 @@
-# ESP32-S3 Temperature Monitor 0.2.0 — release notes
+# ESP32-S3 Temperature Monitor 0.1.0 — release notes
 
-> **Status: prepared, not yet published.** The version and these notes are ready on `master`.
-> Publishing (tagging `v0.2.0` and creating the GitHub release with the CI release package) waits
-> for the owner's go-ahead, and the open checks under **Known issues** are released as known issues
-> only with the owner's approval.
+> **Status: tagged, not yet published.** The owner tagged `v0.1.0` on 2026-11-18. Creating the
+> GitHub release with the CI release package waits for the owner's go-ahead, and the open checks
+> under **Known issues** are released as known issues only with the owner's approval.
 
-0.2.0 is the first numbered release. Earlier builds were development builds labelled 0.1.0 and
-were never published.
+0.1.0 is the first tagged release. Earlier development builds were never published; they were
+labelled 0.1.0, and from 2026-11-12 to 2026-11-18 0.2.0 (the number first planned for this
+release, which dated validation records still show).
 
 ## Release identity
 
 | Field | Value |
 | --- | --- |
-| Version | 0.2.0 (firmware `project()` version, web `package.json` and lockfile agree) |
+| Version | 0.1.0 (firmware `project()` version, web `package.json` and lockfile agree) |
 | Source | `master`; the exact release commit and its CI run are recorded when the release is tagged |
 | Release package | Built by every CI run: bootloader, partition table, initial OTA selector, application, web build, `SHA256SUMS.txt` and `manifest.json` ([RELEASE_PROVENANCE.md](RELEASE_PROVENANCE.md)) |
 | SDK and toolchain | ESP-IDF v6.1 (`fff9895c82d744c7237be8847347bdd1b07c6643`), Xtensa GCC `esp-15.2.0_20251204` |

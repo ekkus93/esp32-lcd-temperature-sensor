@@ -124,8 +124,8 @@ means "no offset stored". The configuration byte is written as `0x7f`
 (12-bit resolution) at the same time.
 
 `calibration_c` is limited to ±12.7 °C, what a probe can hold (a DS18B20 is
-specified within ±0.5 °C, ±2 °C at the extremes). Releases before 0.2.0 allowed
-±20 °C; a saved offset beyond the new limit is clamped to it when the monitor
+specified within ±0.5 °C, ±2 °C at the extremes). Development builds before 2026-11-12
+allowed ±20 °C; a saved offset beyond the new limit is clamped to it when the monitor
 loads its configuration, rather than failing the whole load.
 
 - A probe **new to the monitor** takes the offset its memory holds at its first
