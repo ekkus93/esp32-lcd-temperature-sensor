@@ -51,3 +51,56 @@ it('shows each probe’s value at the pointer', () => {
   fireEvent.pointerLeave(area);
   expect(screen.queryByText('25.0 °C')).toBeNull();
 });
+
+it('never draws a line backwards in time or past the readings when points are unevenly spaced', () => {
+  // Five-minute buckets beside multi-day holes, as on a 30-day chart after reboots.
+  const day = 86_400_000;
+  const at = [
+    0,
+    bucket,
+    5 * day,
+    5 * day + bucket,
+    5 * day + 2 * bucket,
+    9 * day,
+  ];
+  const celsius = [19, 21, 18, 23, 17, 20];
+  const { container } = render(
+    <TrendChart
+      series={[
+        {
+          key: 'canopy',
+          name: 'Canopy',
+          colour: '#006FAE',
+          points: at.map((start, i) => ({
+            start,
+            end: start + bucket,
+            celsius: celsius[i],
+            run: 'utc',
+          })),
+        },
+      ]}
+      from={0}
+      to={9 * day + bucket}
+      ticks={[]}
+      unit="C"
+      label="Test chart"
+      formatTime={(t) => `${t}`}
+    />,
+  );
+  const d = container.querySelector('path[data-series]')!.getAttribute('d')!;
+  // Every coordinate pair in the path, control points included, in drawing order.
+  const pairs = [...d.matchAll(/(-?[\d.]+),(-?[\d.]+)/g)].map((m) => ({
+    x: Number(m[1]),
+    y: Number(m[2]),
+  }));
+  expect(pairs.length).toBeGreaterThan(at.length);
+  for (let i = 1; i < pairs.length; i++)
+    expect(pairs[i].x).toBeGreaterThanOrEqual(pairs[i - 1].x);
+  // Control points stay between their segment's two readings, so the curve cannot overshoot.
+  const ends = pairs.filter((_, i) => i === 0 || i % 3 === 0);
+  const ys = ends.map((p) => p.y);
+  for (const p of pairs) {
+    expect(p.y).toBeGreaterThanOrEqual(Math.min(...ys) - 0.05);
+    expect(p.y).toBeLessThanOrEqual(Math.max(...ys) + 0.05);
+  }
+});
