@@ -31,3 +31,25 @@ gates. No cloud service is required for local sensor acquisition.
 
 Start with `./tools/verify.sh`. Firmware builds require the pinned ESP-IDF
 v6.1 environment; see the development guide for setup, flashing and simulation.
+
+## Screenshots
+
+Taken from the web app served by the board on 2026-11-18 (dark theme).
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+_Dashboard: live readings from each probe, a status summary (here, Sensor 4 is disconnected),
+the active alerts, and the last 24 hours of temperatures._
+
+![History](docs/screenshots/history.png)
+
+_History: the five-minute temperature history for a chosen range (1 hour to 30 days), with
+missing intervals shaded and each probe's low, average, high and reading count._
+
+![Dashboard with keyboard focus on the navigation rail](docs/screenshots/dashboard-keyboard.png)
+
+_The Dashboard navigated by keyboard: the focused item in the navigation rail is outlined._
+
+![History with keyboard focus on the navigation rail](docs/screenshots/history-keyboard.png)
+
+_The History page navigated by keyboard, with the 24-hour range selected._
