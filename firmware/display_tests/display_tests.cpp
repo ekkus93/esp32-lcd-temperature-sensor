@@ -16,6 +16,12 @@ using namespace monitor;
             std::exit(1);                                                                          \
         }                                                                                          \
     } while (false)
+// Counts LV_EVENT_REFR_REQUEST on the display. Tests remove it by callback and counter, not by
+// index: rendering adds LVGL's own display events after it, so "the last event" is not this one.
+void count_refresh_request(lv_event_t *event) {
+    ++*static_cast<unsigned *>(lv_event_get_user_data(event));
+}
+
 int main(int argc, char **argv) {
     CHECK(argc == 2);
     std::filesystem::create_directories(argv[1]);
@@ -65,14 +71,12 @@ int main(int argc, char **argv) {
         CHECK(!view.showing_trends());
         save("overview-empty");
         unsigned invalidations = 0;
-        auto *stable_event = lv_display_add_event_cb(
-            display,
-            [](lv_event_t *event) { ++*static_cast<unsigned *>(lv_event_get_user_data(event)); },
-            LV_EVENT_REFR_REQUEST, &invalidations);
+        lv_display_add_event_cb(display, count_refresh_request, LV_EVENT_REFR_REQUEST,
+                                &invalidations);
         view.render(registry, cache, options, status, 0);
         CHECK(invalidations == 0);
-        lv_display_remove_event(display, lv_display_get_event_count(display) - 1);
-        (void)stable_event;
+        CHECK(lv_display_remove_event_cb_with_user_data(display, count_refresh_request,
+                                                        &invalidations) == 1);
         for (unsigned count = 1; count <= 5; ++count) {
             registry = Registry{};
             registry.sample(fake_readings(count), 0);
@@ -418,12 +422,8 @@ int main(int argc, char **argv) {
         {
             // Repeated renders of unchanged data while Trends is shown must not repaint.
             unsigned trend_invalidations = 0;
-            lv_display_add_event_cb(
-                display,
-                [](lv_event_t *event) {
-                    ++*static_cast<unsigned *>(lv_event_get_user_data(event));
-                },
-                LV_EVENT_REFR_REQUEST, &trend_invalidations);
+            lv_display_add_event_cb(display, count_refresh_request, LV_EVENT_REFR_REQUEST,
+                                    &trend_invalidations);
             lv_refr_now(display);
             trend_invalidations = 0;
             for (int64_t t = 3605100; t <= 3606000; t += 100) {
@@ -433,7 +433,8 @@ int main(int argc, char **argv) {
             }
             CHECK(view.showing_trends());
             CHECK(trend_invalidations == 0);
-            lv_display_remove_event(display, lv_display_get_event_count(display) - 1);
+            CHECK(lv_display_remove_event_cb_with_user_data(display, count_refresh_request,
+                                                            &trend_invalidations) == 1);
         }
         {
             // A healthy probe with no trend history yet shows NO DATA. That text must be set once,
@@ -443,12 +444,8 @@ int main(int argc, char **argv) {
             healthy.sample(fake_readings(1), 3606000);
             CHECK(display_rows(healthy, true)[0].status.empty());
             unsigned no_data_invalidations = 0;
-            lv_display_add_event_cb(
-                display,
-                [](lv_event_t *event) {
-                    ++*static_cast<unsigned *>(lv_event_get_user_data(event));
-                },
-                LV_EVENT_REFR_REQUEST, &no_data_invalidations);
+            lv_display_add_event_cb(display, count_refresh_request, LV_EVENT_REFR_REQUEST,
+                                    &no_data_invalidations);
             view.render(healthy, no_history, options, status, 3606000);
             lv_refr_now(display);
             CHECK(view.showing_trends());
@@ -470,7 +467,8 @@ int main(int argc, char **argv) {
             }
             CHECK(view.showing_trends());
             CHECK(no_data_invalidations == 0);
-            lv_display_remove_event(display, lv_display_get_event_count(display) - 1);
+            CHECK(lv_display_remove_event_cb_with_user_data(display, count_refresh_request,
+                                                            &no_data_invalidations) == 1);
             view.render(registry, cache, options, status, 3607100);
         }
         lv_obj_update_layout(lv_screen_active());

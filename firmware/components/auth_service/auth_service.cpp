@@ -78,6 +78,12 @@ std::string readable_secret(size_t length) {
         return psa_generate_random(bytes, size) == PSA_SUCCESS;
     });
 }
+AuthService::~AuthService() {
+    if (kdf_mutex_)
+        vSemaphoreDelete(kdf_mutex_);
+    if (mutex_)
+        vSemaphoreDelete(mutex_);
+}
 esp_err_t AuthService::initialize() {
     if (!mutex_)
         mutex_ = xSemaphoreCreateMutex();

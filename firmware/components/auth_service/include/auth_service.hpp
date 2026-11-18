@@ -16,6 +16,11 @@ std::string secure_token(size_t bytes = 24);
 std::string readable_secret(size_t length);
 class AuthService {
   public:
+    AuthService() = default;
+    // Owns its two FreeRTOS mutexes (created by initialize()), so it is not copyable.
+    AuthService(const AuthService &) = delete;
+    AuthService &operator=(const AuthService &) = delete;
+    ~AuthService();
     // PBKDF2-HMAC-SHA256 rounds for a new password. A login checks it in a few seconds on the
     // board.
     static constexpr uint32_t password_rounds = 10000;
