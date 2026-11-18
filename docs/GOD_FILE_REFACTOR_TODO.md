@@ -139,19 +139,19 @@ code, then move the group into its file in a separate commit, with the tests unc
   Done: `tools/verify.sh` runs `check_unit_size.py --strict` (fails on a new long file or
   function, and on a stale allow-list entry).
 
-- [ ] **G19 — Final checks** (spec §7).
+- [x] **G19 — Final checks** (spec §7).
   - [x] **G19.1** `./tools/verify.sh --firmware` and exact-commit CI pass; contracts and generated
     types unchanged; image growth within 16 KiB of the G00 baseline.
     Done: record `docs/validation/god-file-refactor-final-2026-11-17.md` (CI run 44235142322 on
     `7b0bd1d` passed; image +8,912 bytes; contracts unchanged).
-  - [ ] **G19.2** With the owner's confirmation, flash and run `device_api_test.py`, a 30-minute
+  - [x] **G19.2** With the owner's confirmation, flash and run `device_api_test.py`, a 30-minute
     RAM/stack/latency comparison with the G00 baseline, and check the LCD and logging. Record under
     `docs/validation/`, or record the owner's deferral.
     Run 2026-11-18 (record `docs/validation/history-worker-stack-2026-11-18.md`): API test passed
     (same 506 checks); the soak found a history worker stack overflow, now fixed. Internal RAM
     dips fixed (record `docs/validation/internal-ram-dips-2026-11-18.md`): 30 minutes under load,
     lowest 34,216 bytes (10,120 on the old build), no errors; API test 518 checks, same set.
-    Still open: the owner's look at the LCD after the draw-buffer change.
+    The owner checked the LCD after the draw-buffer change (2026-11-18): it looks normal.
   - [x] **G19.3** Update `docs/DEVELOPMENT.md` (where HTTP and loop code now lives, how to add a
     route) and note completion in the review audit TODO where A10.2 is affected.
     Done: `docs/DEVELOPMENT.md` "Where the HTTP API and the main loop live" (layout, how to add a
@@ -159,6 +159,9 @@ code, then move the group into its file in a separate commit, with the tests unc
 
 ## Completion
 
-- [ ] **Done:** G00–G19 complete; no file in scope over 400 lines and no function over 80; every
+- [x] **Done:** G00–G19 complete; no file in scope over 400 lines and no function over 80; every
   route and loop step tested through the new seams; behaviour, contracts and board results
   unchanged.
+  Done 2026-11-18. The board check found two defects the refactor exposed, both fixed: a history
+  worker stack overflow (`53e02bc`) and internal RAM dips (`656fdf5`). With them fixed, the board
+  results match or beat the old firmware's; contracts are unchanged.
