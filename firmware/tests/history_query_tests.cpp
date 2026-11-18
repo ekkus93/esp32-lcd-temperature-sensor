@@ -129,6 +129,48 @@ int main() {
     CHECK(utc.finish().size() == 1);
     utc.add({123, 0, 1800000000, {{rom, 90, 90, 90, 60, false}}});
     CHECK(utc.truncated() && utc.finish()[0].count == 60);
+    {
+        // On the UTC axis a probe is one series across reboots. Four probes recorded by three boots
+        // in one slot: one point each (one cell per probe and boot used to overflow the five
+        // cells and drop data), weighted across the boots, marked with the last boot.
+        const auto four = fake_readings(4);
+        const int64_t t0 = 1800000000000;
+        HistoryReducer reboots({{}, t0, t0 + 3600000, 1, {}});
+        for (uint64_t boot = 1; boot <= 3; ++boot) {
+            std::vector<Aggregate> sensors;
+            for (const auto &reading : four)
+                sensors.push_back(
+                    {reading.rom, double(boot), double(boot), double(boot), 60, false});
+            reboots.add({boot, 0, (t0 + int64_t(boot - 1) * bucket_ms) / 1000, std::move(sensors)});
+        }
+        const auto merged = reboots.finish();
+        CHECK(!reboots.truncated() && merged.size() == four.size());
+        for (const auto &point : merged)
+            CHECK(point.count == 180 && point.average == 2 && point.boot_id == 3 &&
+                  point.start_ms == t0 && point.end_ms == t0 + 3 * bucket_ms);
+        CHECK(reboots.gaps().empty());
+
+        // The time between two boots is a gap of the probe, recorded against the later boot.
+        HistoryReducer outage({{}, t0, t0 + 86400000, 120, {rom}});
+        outage.add({1, 0, t0 / 1000, {{rom, 10, 10, 10, 60, false}}});
+        outage.add({2, 0, (t0 + 12 * bucket_ms) / 1000, {{rom, 11, 11, 11, 60, false}}});
+        CHECK(!outage.truncated() && outage.finish().size() == 2);
+        CHECK(outage.gaps().size() == 1 && outage.gaps()[0].boot_id == 2 &&
+              outage.gaps()[0].start_ms == t0 + bucket_ms &&
+              outage.gaps()[0].end_ms == t0 + 12 * bucket_ms);
+
+        // A later boot repeating a time already recorded (a clock step) is still refused.
+        HistoryReducer step({{}, t0, t0 + 3600000, 12, {}});
+        step.add({1, 0, t0 / 1000, {{rom, 20, 20, 20, 60, false}}});
+        step.add({2, 0, t0 / 1000, {{rom, 90, 90, 90, 60, false}}});
+        CHECK(step.truncated() && step.finish().size() == 1 && step.finish()[0].average == 20);
+
+        // The uptime axis keeps each boot apart: another boot's buckets are not part of it.
+        HistoryReducer one_boot({1, 0, 3600000, 1, {}});
+        one_boot.add({1, 0, {}, {{rom, 10, 10, 10, 60, false}}});
+        one_boot.add({2, bucket_ms, {}, {{rom, 30, 30, 30, 60, false}}});
+        CHECK(one_boot.finish().size() == 1 && one_boot.finish()[0].average == 10);
+    }
     q.max_points = 513;
     CHECK(!valid_query(q) && HistoryReducer(q).finish().empty());
     q.max_points = 1;

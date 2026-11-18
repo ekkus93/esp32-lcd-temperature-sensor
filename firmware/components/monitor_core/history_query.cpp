@@ -95,7 +95,12 @@ void HistoryReducer::add(const Bucket &bucket) {
         return;
     const int64_t time =
         query_.boot_id ? bucket.start_uptime_ms : *bucket.utc_seconds * int64_t(1000);
-    if (!last_boot_id_ || *last_boot_id_ != bucket.boot_id) {
+    // On the uptime axis each boot is its own series. On the UTC axis a probe is one series across
+    // reboots: the time between boots is a gap like any other, and a slot holds one point per
+    // probe whichever boot recorded it (one cell per probe and boot overflowed the five cells after
+    // a few reboots, and whole slots were dropped).
+    const bool across_boots = !query_.boot_id;
+    if (!across_boots && (!last_boot_id_ || *last_boot_id_ != bucket.boot_id)) {
         last_end_.clear();
         last_boot_id_ = bucket.boot_id;
     }
@@ -104,7 +109,12 @@ void HistoryReducer::add(const Bucket &bucket) {
         if (!a.count || (!query_.roms.empty() && std::find(query_.roms.begin(), query_.roms.end(),
                                                            a.rom) == query_.roms.end()))
             continue;
-        const auto previous = last_end_.find(a.rom);
+        auto previous = last_end_.find(a.rom);
+        if (previous == last_end_.end() && last_end_.size() == max_continuity_roms) {
+            // More probes in the range than continuity entries (retired probes on the UTC axis):
+            // this probe's gaps cannot be tracked, so say the answer is incomplete.
+            truncated_ = true;
+        }
         const int64_t record_end = time + bucket_ms;
         if (previous != last_end_.end() && time > previous->second) {
             const HistoryGap gap{bucket.boot_id, a.rom, previous->second, time};
@@ -116,15 +126,17 @@ void HistoryReducer::add(const Bucket &bucket) {
             else
                 truncated_ = true;
         }
-        last_end_[a.rom] =
-            std::max(previous == last_end_.end() ? int64_t(0) : previous->second, record_end);
-        // A trusted-clock reboot must still retain an explicit series boundary.
+        if (previous != last_end_.end())
+            previous->second = std::max(previous->second, record_end);
+        else if (last_end_.size() < max_continuity_roms)
+            last_end_[a.rom] = record_end;
         auto found = std::find_if(group.begin(), group.end(), [&](const Cell &c) {
-            return c.point.rom == a.rom && c.point.boot_id == bucket.boot_id;
+            return c.point.rom == a.rom && (across_boots || c.point.boot_id == bucket.boot_id);
         });
         if (found == group.end()) {
-            // At most five cells per time group: bound memory even after many reboots.
-            // Mixed-boot overflow is represented by missing groups, not invented values.
+            // At most five cells per time group: bound memory. Overflow (more than five probes in
+            // a slot, or probe-and-boot pairs on the uptime axis) is represented by missing
+            // groups, not invented values.
             if (group.size() == max_sensors) {
                 truncated_ = true;
                 continue;
@@ -146,6 +158,7 @@ void HistoryReducer::add(const Bucket &bucket) {
             p.count += a.count;
             p.partial = p.partial || a.partial || time != found->last_ms + bucket_ms;
             p.end_ms = time + bucket_ms;
+            p.boot_id = bucket.boot_id; // on the UTC axis: the boot of the point's last reading
             found->last_ms = time;
         }
     }

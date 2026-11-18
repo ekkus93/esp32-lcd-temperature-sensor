@@ -149,8 +149,10 @@ power/network interruption and rollback still need physical acceptance.
 `GET /api/v1/history` bounds a half-open range to 31 days and returns at most
 512 time groups with up to five series each. Unknown-time queries select one boot
 and uptime; UTC queries exclude records without trusted UTC. Downsampling weights
-averages by valid count, preserves extrema, and marks gaps/partial data. Omitted
-mixed-boot/overlapping records set `truncated`.
+averages by valid count, preserves extrema, and marks gaps/partial data. On the
+UTC axis a probe's records from different boots share its series and the time
+between boots is a gap. Omitted overlapping records, or more than five series in
+a group, set `truncated`.
 
 `GET /api/v1/history/export` uses the same range/boot/ROM selectors and rejects
 `max_points`: it streams full five-minute records, one ROM per CSV row, rather

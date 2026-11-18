@@ -36,25 +36,39 @@ export function gapText(
     : `${minutes(start)} to ${minutes(end)} since boot (${missing})`;
 }
 
-// One line per probe. With a trusted clock all points share one run; without one each boot is
-// its own run, since one boot's elapsed times cannot be compared with another's.
+// A probe's line stops where its readings stop for this long. A shorter dropout is joined, with
+// the missing interval shaded; across a longer one a line would invent the temperature.
+export const lineBreakMs = 30 * 60_000;
+
+// One line per probe, in runs. Without a trusted clock each boot is its own run, since one boot's
+// elapsed times cannot be compared with another's; with one, a probe's boots share a time axis.
+// Either way a run ends where the probe's readings stop for lineBreakMs or more.
 export function chartSeries(
   result: HistoryResult,
   probes: ChartProbe[],
 ): TrendSeries[] {
-  return probes.map((probe) => ({
-    key: probe.rom,
-    name: probe.name,
-    colour: probe.colour,
-    points: result.points
+  return probes.map((probe) => {
+    const points = result.points
       .filter((point) => point.rom_id === probe.rom)
-      .map((point) => ({
-        start: point.start_ms,
-        end: point.end_ms,
-        celsius: point.average_c,
-        run: result.time_basis === 'utc' ? 'utc' : point.boot_id,
-      })),
-  }));
+      .sort((a, b) => a.start_ms - b.start_ms);
+    let run = 0;
+    return {
+      key: probe.rom,
+      name: probe.name,
+      colour: probe.colour,
+      points: points.map((point, i) => {
+        const previous = points[i - 1];
+        if (previous && point.start_ms - previous.end_ms >= lineBreakMs) run++;
+        const axis = result.time_basis === 'utc' ? 'utc' : point.boot_id;
+        return {
+          start: point.start_ms,
+          end: point.end_ms,
+          celsius: point.average_c,
+          run: `${axis}:${run}`,
+        };
+      }),
+    };
+  });
 }
 
 // Missing intervals of the probes shown, each shaded once whichever probe it belongs to.

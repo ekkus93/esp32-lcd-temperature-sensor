@@ -247,9 +247,9 @@ one wire-order ROM. Ranges are half-open, at most 31 days; `max_points` is 1–5
 time groups (at most five series per group). Duplicate/unknown query keys fail.
 Responses contain count-weighted average, min/max, valid count and partial flag.
 Empty intervals remain absent from `points` and are listed explicitly in the
-`gaps` array per ROM and boot; `partial` marks internal gaps in downsampled
-groups. `truncated=true` reports omitted overlapping or excess mixed-boot
-records. No client should silently plot those as complete data.
+`gaps` array per ROM (on the UTC axis, including the time between boots);
+`partial` marks internal gaps in downsampled groups. `truncated=true` reports
+omitted overlapping records or more than five series in a group. No client should silently plot those as complete data.
 Queries serialize filesystem access while acquisition continues through its
 bounded write queue. `GET /api/v1/history/export` accepts the same selectors
 except `max_points` and streams full five-minute CSV rows with recorded labels,

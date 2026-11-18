@@ -49,7 +49,9 @@ class HistoryReducer {
     HistoryQuery query_;
     int64_t width_ = bucket_ms;
     std::vector<std::vector<Cell>> groups_;
-    // Retain continuity only for the active boot; the map holds at most five ROMs.
+    // Each probe's last record end, for gaps: the active boot's probes on the uptime axis, every
+    // probe in the range on the UTC axis, at most max_continuity_roms either way.
+    static constexpr size_t max_continuity_roms = 4 * max_sensors;
     std::map<uint64_t, int64_t> last_end_;
     std::optional<uint64_t> last_boot_id_;
     std::vector<HistoryGap> gaps_;

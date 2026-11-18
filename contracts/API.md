@@ -56,9 +56,14 @@ partial. `overflow` means more than five valid ROMs were observed. A successful
 scan with five or fewer clears the overflow warning. `enabled` is false for
 simulation builds or when the physical bus is unavailable.
 
-The history reducer retains at most 512 gap records and five continuity entries
-for the active boot. It allocates no more than 512 time groups with five sensor
-cells each (2,560 returned points); omitted gaps or points set `truncated`.
+The history reducer retains at most 512 gap records and 20 continuity entries.
+It allocates no more than 512 time groups with five sensor cells each (2,560
+returned points); omitted gaps or points set `truncated`. On the UTC axis a probe
+is one series across reboots: a time group holds one point per probe whichever
+boot recorded it (`boot_id` is the boot of its last reading), and the time
+between two boots is listed in `gaps`. On the uptime axis a query covers one
+boot. Before 2026-11-18 UTC groups kept a cell per probe and boot, so a group
+spanning reboots could drop data, and gaps between boots were not listed.
 CSV export streams original five-minute buckets and does not use this reducer.
 
 A CSV export is either complete or visibly failed; it is never marked `truncated`. If damaged stored
