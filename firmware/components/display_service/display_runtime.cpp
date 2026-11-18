@@ -28,7 +28,11 @@ constexpr int height = 160;
 constexpr int width = 240;
 constexpr int height = 320;
 #endif
-constexpr int draw_height = 40;
+// Rows per LVGL flush. The two draw buffers are internal DMA memory, allocated once: buffers in
+// PSRAM made the SPI driver allocate an internal copy of every flush (10 KB at 40 rows), which
+// failed when internal RAM ran short under network load and dropped LCD updates. Ten rows keep the
+// two buffers at 5 KB on the 1.8-inch panel (2 x 128 x 10 x 2 bytes).
+constexpr int draw_height = 10;
 constexpr int spi_frequency_hz = 20000000;
 
 #if CONFIG_MONITOR_LCD_TEST_PATTERN
@@ -309,7 +313,7 @@ bool DisplayRuntime::initialize() {
     display_config.rotation.mirror_x = false;
     display_config.rotation.mirror_y = false;
     display_config.flags.buff_dma = true;
-    display_config.flags.buff_spiram = true;
+    display_config.flags.buff_spiram = false;
     display_config.flags.swap_bytes = true;
     display_ = lvgl_port_add_disp(&display_config);
     if (!display_) {

@@ -4,6 +4,10 @@ CONFIG_SPIRAM=y
 CONFIG_SPIRAM_MODE_OCT=y
 CONFIG_SPIRAM_SPEED_80M=y
 CONFIG_SPIRAM_IGNORE_NOTFOUND=y
+# Wi-Fi and lwIP buffers go to PSRAM first: in internal RAM their bursts (TCP send buffers while
+# an export streams, Wi-Fi driver buffers) left as little as 228 bytes free under load
+# (docs/validation/internal-ram-dips-2026-11-18.md).
+CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
 CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"

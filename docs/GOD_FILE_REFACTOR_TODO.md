@@ -148,8 +148,10 @@ code, then move the group into its file in a separate commit, with the tests unc
     RAM/stack/latency comparison with the G00 baseline, and check the LCD and logging. Record under
     `docs/validation/`, or record the owner's deferral.
     Run 2026-11-18 (record `docs/validation/history-worker-stack-2026-11-18.md`): API test passed
-    (same 506 checks); the soak found a history worker stack overflow, now fixed. Still open:
-    internal RAM dips (lowest 228 to 20,612 bytes across runs, 10,120 on the old build).
+    (same 506 checks); the soak found a history worker stack overflow, now fixed. Internal RAM
+    dips fixed (record `docs/validation/internal-ram-dips-2026-11-18.md`): 30 minutes under load,
+    lowest 34,216 bytes (10,120 on the old build), no errors; API test 518 checks, same set.
+    Still open: the owner's look at the LCD after the draw-buffer change.
   - [x] **G19.3** Update `docs/DEVELOPMENT.md` (where HTTP and loop code now lives, how to add a
     route) and note completion in the review audit TODO where A10.2 is affected.
     Done: `docs/DEVELOPMENT.md` "Where the HTTP API and the main loop live" (layout, how to add a
